@@ -35,56 +35,14 @@ function Invoke-Rone($url) {
   }
 }
 
-# 매매가격지수 통계표 (R-ONE STATBL_ID, 고정값). API는 CLS_ID 없는 전체조회를 빈 응답으로 거부함(2026-07-30 확인)
-# → 지역별 CLS_ID를 지정해 호출한다. cls = 확인된 지역코드(서울 계열), roots = 원하는 시도 범위.
-# 경기·인천 CLS_ID는 아직 미확인 — 아래 Probe-ClsIds가 실행 로그에 후보를 출력하면 그걸로 cls를 확장한다.
+# 매매가격지수 통계표 (R-ONE STATBL_ID, 고정값) — CLS_ID 없이 표 전체를 페이지로 받아
+# CLS_FULLNM 첫 구간(시도)이 roots에 드는 지역만 저장한다. (유효한 키면 전체조회 정상 동작 — 2026-07-30 실행 #12 확인.
+# 이전의 '전체조회 거부'는 잘못된 API 키(ERROR-290)가 원인이었음)
 # 아파트는 구 단위까지, 연립다세대는 권역 단위까지만 공표됨. 오피스텔은 A_2024_00615 (설계문서 §API 사실관계).
 $tables = [ordered]@{
-  "아파트" = @{
-    id  = "A_2024_00045"; roots = @("서울","경기")
-    cls = @(500008,510009,510010,520010,520011,520012,520014,520015,
-            530011,530012,530013,530015,530016,530017,530018,530019,530020,530021,530022,
-            530024,530025,530026,530029,530030,530031,530032,530033,530034,530035,
-            530037,530038,530039,530040)
-  }
-  "연립다세대" = @{
-    id  = "A_2024_00080"; roots = @("서울","경기","인천","수도권")
-    cls = @(500008,510009,510010,520010,520011,520012,520014,520015)
-  }
-  "오피스텔" = @{
-    id  = "A_2024_00615"; roots = @("서울","경기")
-    cls = @()   # 미확인 — Probe-ClsIds 로그로 채울 것
-  }
-}
-
-# [진단] 경기·인천·오피스텔 지역코드 탐색 — 실행 로그에만 출력, 데이터엔 영향 없음.
-# ① CLS 없는 전체조회의 원시 응답(에러 메시지 확인용) ② 분류목록 후보 엔드포인트 ③ CLS_ID 근처 범위 스캔
-function Probe-ClsIds {
-  Write-Host "[진단] 지역코드(CLS_ID) 탐색 시작 — 로그 전용" -ForegroundColor Cyan
-  try {
-    $raw = Invoke-RestMethod -Uri ("{0}?STATBL_ID=A_2024_00045&DTACYCLE_CD=MM&Type=json&pIndex=1&pSize=5&KEY={1}" -f $apiBase, $apiKey) -TimeoutSec 60
-    $s = ($raw | ConvertTo-Json -Depth 5 -Compress); if (-not $s) { $s = "(null)" }
-    Write-Host ("  [진단①] CLS 없는 조회 응답(앞500자): {0}" -f $s.Substring(0, [math]::Min(500, $s.Length)))
-  } catch { Write-Host "  [진단①] 실패: $_" }
-  foreach ($ep in @("SttsApiTblCls.do","SttsApiTblItm.do")) {
-    try {
-      $u = "https://www.reb.or.kr/r-one/openapi/{0}?STATBL_ID=A_2024_00045&Type=json&pIndex=1&pSize=500&KEY={1}" -f $ep, $apiKey
-      $raw = Invoke-RestMethod -Uri $u -TimeoutSec 60
-      $s = ($raw | ConvertTo-Json -Depth 6 -Compress); if (-not $s) { $s = "(null)" }
-      Write-Host ("  [진단②] {0} 응답(앞1500자): {1}" -f $ep, $s.Substring(0, [math]::Min(1500, $s.Length)))
-    } catch { Write-Host ("  [진단②] {0} 실패: {1}" -f $ep, $_) }
-  }
-  # ③ 서울 구(530011~530040) 다음 대역을 훑어 경기·인천 이름이 나오는지 확인 (pSize=1 저비용)
-  $found = 0
-  foreach ($cid in 530041..530120) {   # 트래픽 절약을 위해 80개만 (필요시 다음 대역 재탐색)
-    try {
-      $j = Invoke-RestMethod -Uri ("{0}?STATBL_ID=A_2024_00045&DTACYCLE_CD=MM&CLS_ID={1}&Type=json&pIndex=1&pSize=1&KEY={2}" -f $apiBase, $cid, $apiKey) -TimeoutSec 30
-      $rows = if ($j.SttsApiTblData -and @($j.SttsApiTblData).Count -ge 2) { $j.SttsApiTblData[1].row } else { $null }
-      if ($rows) { Write-Host ("  [진단③] CLS_ID {0} = {1}" -f $cid, @($rows)[0].CLS_FULLNM); $found++ }
-    } catch { }
-    if ($found -ge 60) { break }
-  }
-  Write-Host ("[진단] 끝 (범위스캔 발견 {0}건)" -f $found) -ForegroundColor Cyan
+  "아파트"     = @{ id = "A_2024_00045"; roots = @("서울","경기") }
+  "연립다세대" = @{ id = "A_2024_00080"; roots = @("서울","경기","인천","수도권") }
+  "오피스텔"   = @{ id = "A_2024_00615"; roots = @("서울","경기") }
 }
 
 # 비주거용(상업용) 시점수정용 — 상업용부동산 임대동향조사 '자본수익률'(분기)을 자동수신.
@@ -210,46 +168,52 @@ function Fetch-IndexData {
   }
   foreach ($kind in $tables.Keys) {
     $t = $tables[$kind]
-    if (-not $t.cls -or $t.cls.Count -eq 0) { Write-Host ("  {0}: CLS_ID 미확인 — 생략 (진단 로그로 채운 뒤 추가)" -f $kind) -ForegroundColor Yellow; continue }
-    $regions = [ordered]@{}
+    $byFull = [ordered]@{}   # CLS_FULLNM → {cls, full, s}
     $latest = ""
-    $n = 0
-    foreach ($cid in $t.cls) {
-      $n++
-      Write-Host ("  {0} {1}/{2}" -f $kind, $n, $t.cls.Count) -NoNewline
-      $url = "{0}?STATBL_ID={1}&DTACYCLE_CD=MM&CLS_ID={2}&Type=json&pIndex=1&pSize=1000&KEY={3}" -f $apiBase, $t.id, $cid, $apiKey
+    Write-Host ("  {0} ({1}) 전체 수신·필터링..." -f $kind, ($t.roots -join "/"))
+    $gotRows = $false
+    for ($pg = 1; $pg -le 150; $pg++) {
+      $url = "{0}?STATBL_ID={1}&DTACYCLE_CD=MM&Type=json&pIndex={2}&pSize=1000&KEY={3}" -f $apiBase, $t.id, $pg, $apiKey
       $j = Invoke-Rone $url
       $rows = if ($j.SttsApiTblData -and @($j.SttsApiTblData).Count -ge 2) { $j.SttsApiTblData[1].row } else { $null }
       if (-not $rows) {
         # 빈 응답의 원문을 표당 1회 출력 — RESULT 코드(337 트래픽 제한, 290 키 무효 등)가 그대로 보임
-        if (-not $script:emptyDiagShown) {
-          $script:emptyDiagShown = $true
+        if ($pg -eq 1) {
           $raw = ($j | ConvertTo-Json -Depth 5 -Compress); if (-not $raw) { $raw = "(null)" }
-          Write-Host (" [빈응답 원문] {0}" -f $raw.Substring(0, [math]::Min(600, $raw.Length))) -ForegroundColor Yellow
-        } else { Write-Host " (자료없음)" }
-        continue
+          Write-Host ("    [빈응답 원문] {0}" -f $raw.Substring(0, [math]::Min(600, $raw.Length))) -ForegroundColor Yellow
+        }
+        break
       }
-      $full = [string]$rows[0].CLS_FULLNM
-      $root = ($full -split ">")[0].Trim()
-      if ($t.roots -notcontains $root) { Write-Host (" (범위밖: {0})" -f $full); continue }
-      # 표시명 = 마지막 구간. 시도 간 동명(예: 서울 중구/인천 중구) 충돌 시 '시도 이름'으로 구분
-      $name = ($full -split ">")[-1].Trim()
-      if ($regions.Contains($name)) { $name = "{0} {1}" -f $root, $name }
-      $series = [ordered]@{}
+      $gotRows = $true
       foreach ($r in $rows) {
-        if ($r.ITM_NM -and ($r.ITM_NM -match "전세|월세")) { continue }   # 매매가격지수만 (오피스텔 표 대비)
+        if ($r.ITM_NM -and ($r.ITM_NM -notmatch "지수")) { continue }       # 표에 지수 외 항목이 섞여도 지수만
+        if ($r.ITM_NM -and ($r.ITM_NM -match "전세|월세")) { continue }     # 매매가격지수만 (오피스텔 표 대비)
+        $full = [string]$r.CLS_FULLNM
+        $root = ($full -split ">")[0].Trim()
+        if ($t.roots -notcontains $root) { continue }
+        if (-not $byFull.Contains($full)) {
+          $cid = 0; if ($r.PSObject.Properties["CLS_ID"] -and $r.CLS_ID) { $cid = [int]$r.CLS_ID }
+          $byFull[$full] = [ordered]@{ cls = $cid; full = $full; s = [ordered]@{} }
+        }
+        $ym = [string]$r.WRTTIME_IDTFR_ID
         # 공표 지수는 소수 1자리 — 산식 표기와 일치하도록 반올림 저장
-        $series[[string]$r.WRTTIME_IDTFR_ID] = [math]::Round([double]$r.DTA_VAL, 1)
-        if ([string]$r.WRTTIME_IDTFR_ID -gt $latest) { $latest = [string]$r.WRTTIME_IDTFR_ID }
+        $byFull[$full].s[$ym] = [math]::Round([double]$r.DTA_VAL, 1)
+        if ($ym -gt $latest) { $latest = $ym }
       }
-      $regions[$name] = [ordered]@{ cls = $cid; full = $full; s = $series }
-      Write-Host (" {0} ({1}개월)" -f $name, $series.Count)
+      if (@($rows).Count -lt 1000) { break }
     }
-    if ($regions.Count -eq 0) { Write-Host ("    {0} 자료없음 — 이 표는 생략" -f $kind) -ForegroundColor Yellow; continue }
+    if (-not $gotRows -or $byFull.Count -eq 0) { Write-Host ("    {0} 자료없음 — 이 표는 생략" -f $kind) -ForegroundColor Yellow; continue }
+    # 표시명 = 마지막 구간. 시도 간 동명(예: 서울 중구/인천 중구) 충돌 시 '시도 이름'으로 구분
+    $regions = [ordered]@{}
+    foreach ($full in $byFull.Keys) {
+      $parts = $full -split ">"
+      $name = $parts[-1].Trim()
+      if ($regions.Contains($name)) { $name = "{0} {1}" -f $parts[0].Trim(), $name }
+      $regions[$name] = $byFull[$full]
+    }
+    Write-Host ("    {0}: 지역 {1}개, 최신 {2}" -f $kind, $regions.Count, $latest) -ForegroundColor Green
     $out.tables[$kind] = [ordered]@{ statblId = $t.id; latest = $latest; regions = $regions }
   }
-  # 진단은 수신 실패 시에도 반드시 실행 (실패 원인 원문 확보) — 이전엔 throw 뒤라서 한 번도 안 돌았음
-  try { Probe-ClsIds } catch { Write-Host "[진단] 실패(데이터엔 영향 없음): $_" -ForegroundColor Yellow }
   if (-not $out.tables.Contains("아파트")) { throw "아파트 지수 수신 실패 — 기존 파일 유지" }
   # 비주거용 자본수익률(분기) — 실패해도 매매지수는 정상 저장
   try { $cap = Fetch-CapReturn; if ($cap) { $out.capReturn = $cap } }
@@ -280,6 +244,7 @@ else {
   try { Fetch-IndexData }
   catch {
     Write-Host "지수 수신 실패: $_" -ForegroundColor Red
+    if ($FetchOnly) { exit 1 }   # Actions에서는 실패를 빨간불로 표시 (조용한 실패가 키 오류를 나흘간 가림 — #1~#8)
     Write-Host "인터넷 연결을 확인하세요. 데이터 없이 앱만 엽니다. (자동계산 버튼은 비활성 안내가 뜹니다)"
     Start-Sleep -Seconds 3
   }
