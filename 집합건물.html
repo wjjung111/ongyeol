@@ -78,9 +78,43 @@
   };
   document.getElementById("mb-user").onclick=()=>window.arapUserName(true);
   setTimeout(()=>{try{window.arapUserName(false);}catch(e){console.error('user name init',e);}},1200);
+  // ── 최초 1회 사용자 이름 게이트: 이름이 저장돼 있지 않으면 온결 첫 화면으로 가리고 입력받는다 ──
+  (function(){
+    try{
+      if(localStorage.getItem("arap-user-name"))return;
+      const gate=document.createElement("div");
+      gate.id="arap-name-gate";
+      gate.innerHTML=
+        '<div style="text-align:center;max-width:420px;padding:24px;">'+
+        '<div style="font-size:34px;letter-spacing:6px;color:#f8fafc;font-weight:700;">온 결</div>'+
+        '<div style="font-size:13px;color:#94a3b8;margin:8px 0 34px;letter-spacing:1px;">감정평가 자동화 도구</div>'+
+        '<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:26px 22px;">'+
+        '<div style="font-size:13px;color:#cbd5e1;margin-bottom:14px;">처음 오셨네요! 사용하실 이름을 입력해주세요. <span style="color:#64748b;">(최초 1회)</span></div>'+
+        '<div style="display:flex;align-items:center;justify-content:center;gap:8px;">'+
+        '<span style="color:#94a3b8;font-size:14px;">사용자이름:</span>'+
+        '<input id="arap-gate-input" type="text" maxlength="10" style="width:120px;padding:9px 10px;font-size:15px;border:1px solid #475569;border-radius:6px;background:#0f172a;color:#f1f5f9;text-align:center;font-family:inherit;">'+
+        '<span style="color:#e2e8f0;font-size:14px;font-weight:600;">감정평가사</span></div>'+
+        '<button id="arap-gate-btn" type="button" style="margin-top:18px;width:100%;padding:11px;font-size:15px;font-weight:700;color:#fff;background:#2563eb;border:none;border-radius:8px;cursor:pointer;font-family:inherit;">시작하기</button>'+
+        '</div></div>';
+      gate.style.cssText="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a 0%,#1e293b 60%,#0f172a 100%);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
+      document.body.appendChild(gate);
+      const done=()=>{
+        const v=(document.getElementById("arap-gate-input").value||"").trim();
+        if(!v){document.getElementById("arap-gate-input").focus();return;}
+        try{localStorage.setItem("arap-user-name",v);}catch(e){console.error('gate name save',e);}
+        gate.remove();
+        try{window.arapUserName(false);}catch(e){console.error('gate refresh',e);}
+        try{window.arapBackfillOnce&&window.arapBackfillOnce();}catch(e){console.error('gate backfill',e);}
+      };
+      document.getElementById("arap-gate-btn").onclick=done;
+      document.getElementById("arap-gate-input").addEventListener("keydown",e=>{if(e.key==="Enter")done();});
+      setTimeout(()=>{try{document.getElementById("arap-gate-input").focus();}catch(e){}},100);
+    }catch(e){console.error('name gate',e);}
+  })();
   // 최초 1회: 이 브라우저에 이미 저장돼 있던 과거 건 목록을 한꺼번에 전송 (업데이트 이전 작업 내역 확보용)
-  setTimeout(()=>{try{
+  window.arapBackfillOnce=function(){try{
     if(localStorage.getItem("arap-usage-backfilled"))return;
+    if(!localStorage.getItem("arap-user-name"))return;   // 이름 입력(게이트 통과) 후에만 — 자동번호로 올라가는 것 방지
     const lists=[["appraisal-case-list",id=>"case:"+id],["v2:appraisal-case-list",id=>"v2:case:"+id]];
     let delay=0;
     for(const[lk,ck]of lists){
@@ -96,7 +130,8 @@
       }
     }
     localStorage.setItem("arap-usage-backfilled","1");
-  }catch(e){console.error('usage backfill',e);}},2500);
+  }catch(e){console.error('usage backfill',e);}};
+  setTimeout(()=>window.arapBackfillOnce(),2500);
 
   // ── 기기 간 저장건 동기화 (GitHub Gist, 비공개) ──
   // 토큰(gist 권한)을 각 기기에 1회 입력하면: 저장 시 자동 업로드, 접속 시 자동 수신.
