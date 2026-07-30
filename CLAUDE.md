@@ -12,8 +12,10 @@
 
 ```
 ongyeol/
-├── index.html          ← ★앱 본체 (단일 HTML, React+Babel CDN, 한글 템플릿 base64 내장)
-├── arap_index_data.js  ← 매매가격지수 데이터 (자동생성 — 직접수정 금지). index.html이 상대경로로 로드
+├── index.html          ← 입장 화면(허브): 온결 집합건물 / 온결 토지건물(준비중) / 집합건물 시점수정(준비중) 버튼
+├── 집합건물.html        ← ★집합건물 앱 본체 (단일 HTML, React+Babel CDN, 한글 템플릿 base64 내장. 구 index.html)
+├── 토지조회.html        ← 토지 조회 도구 (토지건물 준비작업, 브이월드 API)
+├── arap_index_data.js  ← 매매가격지수 데이터 (자동생성 — 직접수정 금지). 집합건물.html이 상대경로로 로드
 ├── arap_launch.ps1     ← 부동산원 R-ONE API 지수 수신 (로컬/Actions용)
 ├── .github/workflows/update-index.yml ← 지수 자동갱신 (매일 06:00 KST, Secret RONE_API_KEY 필요)
 ├── 템플릿/             ← v2 hwpx 원본 (감정평가서·청구서) — 런타임 미사용, 재생성용 보관
