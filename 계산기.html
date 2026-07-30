@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 계산 노트 (엑셀식 감정평가 계산기)
+  Copyright (c) 2026 정우진 감정평가사 (Woojin Jung, Certified Appraiser / wjjung9334@gmail.com). All Rights Reserved. 모든 권리 보유.
+  무단 복제·수정·상업적 이용·재배포 금지. 상세: 저장소 LICENSE 파일 참조.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온결 계산 노트</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    background: #f1f5f9; color: #1e293b; display: flex; flex-direction: column;
+  }
+  header {
+    background: #0f172a; color: #f8fafc; padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  }
+  header .logo { font-weight: 700; letter-spacing: 2px; font-size: 15px; }
+  header .logo a { color: #94a3b8; text-decoration: none; font-weight: 400; font-size: 12px; margin-right: 8px; }
+  header .logo a:hover { color: #e2e8f0; }
+  .layout { flex: 1; display: flex; min-height: 0; }
+
+  /* ── 왼쪽: 시트 목록 ── */
+  aside {
+    width: 232px; flex-shrink: 0; background: #fff; border-right: 1px solid #e2e8f0;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  aside .side-head { padding: 10px; border-bottom: 1px solid #e2e8f0; position: relative; }
+  .btn-new {
+    width: 100%; padding: 9px; border: none; border-radius: 8px; cursor: pointer;
+    background: #2563eb; color: #fff; font-weight: 700; font-size: 14px; font-family: inherit;
+  }
+  .btn-new:hover { background: #1d4ed8; }
+  .tpl-menu {
+    position: absolute; left: 10px; right: 10px; top: 52px; z-index: 50;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    overflow: hidden; display: none;
+  }
+  .tpl-menu.open { display: block; }
+  .tpl-menu button {
+    display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; background: #fff;
+    cursor: pointer; font-family: inherit; font-size: 13px; border-bottom: 1px solid #f1f5f9;
+  }
+  .tpl-menu button:hover { background: #eff6ff; }
+  .tpl-menu .tpl-desc { display: block; font-size: 11px; color: #64748b; margin-top: 2px; }
+  .sheet-list { flex: 1; overflow-y: auto; }
+  .sheet-item {
+    padding: 10px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer;
+  }
+  .sheet-item:hover { background: #f8fafc; }
+  .sheet-item.active { background: #eff6ff; border-left: 3px solid #2563eb; padding-left: 9px; }
+  .sheet-item .si-name { font-size: 13px; font-weight: 700; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sheet-item .si-date { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+  /* ── 오른쪽: 메인 ── */
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: #fff; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap;
+  }
+  #sheetName {
+    font-family: inherit; font-size: 15px; font-weight: 700; color: #1e293b;
+    border: 1px solid transparent; border-radius: 6px; padding: 5px 8px; width: 260px;
+  }
+  #sheetName:hover { border-color: #e2e8f0; }
+  #sheetName:focus { border-color: #2563eb; outline: none; background: #fff; }
+  .toolbar .spacer { flex: 1; }
+  .tb-btn {
+    padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    cursor: pointer; font-family: inherit; font-size: 12px; color: #334155;
+  }
+  .tb-btn:hover { background: #f1f5f9; }
+  .tb-btn.danger { color: #dc2626; border-color: #fecaca; }
+  .tb-btn.danger:hover { background: #fef2f2; }
+
+  .formula-bar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: #fff; border-bottom: 1px solid #e2e8f0; font-size: 13px;
+  }
+  #selAddr {
+    width: 52px; text-align: center; font-weight: 700; color: #2563eb;
+    background: #f1f5f9; border-radius: 5px; padding: 5px 0; flex-shrink: 0; font-size: 12px;
+  }
+  #rawView {
+    flex: 1; font-family: Consolas, 'Malgun Gothic', monospace; color: #334155; padding: 5px 8px;
+    background: #f8fafc; border-radius: 5px; min-height: 28px; white-space: nowrap; overflow-x: auto;
+  }
+  #resultView { flex-shrink: 0; color: #0f766e; font-weight: 700; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .help-box {
+    display: none; background: #fffbeb; border-bottom: 1px solid #fde68a;
+    padding: 10px 16px; font-size: 12.5px; line-height: 1.9; color: #78350f;
+  }
+  .help-box.open { display: block; }
+  .help-box b { color: #92400e; }
+  .help-box code { background: #fef3c7; padding: 1px 5px; border-radius: 4px; font-family: Consolas, monospace; }
+
+  .grid-wrap { flex: 1; overflow: auto; background: #fff; }
+  table.grid { border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+  .grid th, .grid td {
+    border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+    font-size: 13px; height: 28px; padding: 0 6px; white-space: nowrap; overflow: hidden;
+  }
+  .grid thead th {
+    background: #f8fafc; color: #64748b; font-weight: 400; font-size: 11px; text-align: center;
+    position: sticky; top: 0; z-index: 5; border-bottom: 1px solid #cbd5e1; user-select: none;
+  }
+  .grid thead th.corner { left: 0; z-index: 7; }
+  .grid tbody th {
+    background: #f8fafc; color: #64748b; font-weight: 400; font-size: 11px; text-align: center;
+    position: sticky; left: 0; z-index: 4; border-right: 1px solid #cbd5e1; user-select: none; width: 40px;
+  }
+  .grid td { cursor: cell; position: relative; background: #fff; }
+  .grid td.num { text-align: right; }
+  .grid td.err { color: #dc2626; font-weight: 700; text-align: center; }
+  .grid td.memo { color: #475569; }
+  .grid td.sel { outline: 2px solid #2563eb; outline-offset: -2px; background: #eff6ff; }
+  .grid td.refhl { background: #fefce8; outline: 1px dashed #ca8a04; outline-offset: -1px; }
+  .grid td.formula { color: #1d4ed8; }
+  .col-resize {
+    position: absolute; right: -3px; top: 0; width: 7px; height: 100%;
+    cursor: col-resize; z-index: 8;
+  }
+  input.cell-input {
+    position: absolute; left: 0; top: 0; height: 100%; z-index: 20;
+    border: 2px solid #2563eb; background: #fff; font-family: inherit; font-size: 13px;
+    padding: 0 4px; outline: none;
+  }
+  .statusbar {
+    flex-shrink: 0; display: flex; gap: 16px; padding: 5px 14px; font-size: 12px;
+    background: #0f172a; color: #cbd5e1;
+  }
+  .statusbar .kor { color: #fbbf24; font-weight: 700; }
+  @media (max-width: 700px) {
+    aside { width: 150px; }
+    #sheetName { width: 140px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo"><a href="index.html">← 온결</a> 🧮 계산 노트</span>
+</header>
+<div class="layout">
+  <aside>
+    <div class="side-head">
+      <button class="btn-new" id="btnNew">＋ 새 계산</button>
+      <div class="tpl-menu" id="tplMenu">
+        <button data-tpl="blank">빈 시트<span class="tpl-desc">아무것도 없는 빈 칸에서 시작</span></button>
+        <button data-tpl="bijun">거래사례 비준표<span class="tpl-desc">사례단가 × 보정치들 = 산출단가 × 면적 = 총액</span></button>
+        <button data-tpl="baebun">토지·건물 일괄사례 배분<span class="tpl-desc">거래총액 − 건물가격 → ÷ 토지면적 = 토지단가</span></button>
+      </div>
+    </div>
+    <div class="sheet-list" id="sheetList"></div>
+  </aside>
+  <main>
+    <div class="toolbar">
+      <input id="sheetName" title="시트 이름 (클릭해서 수정)">
+      <span class="spacer"></span>
+      <button class="tb-btn" id="btnHelp">❓ 사용법</button>
+      <button class="tb-btn" id="btnAddRows">＋10행</button>
+      <button class="tb-btn" id="btnAddCol">＋열</button>
+      <button class="tb-btn" id="btnDup">복제</button>
+      <button class="tb-btn danger" id="btnDel">삭제</button>
+    </div>
+    <div class="help-box" id="helpBox">
+      <b>숫자</b> : <code>1,234</code> · <code>70억</code> · <code>3500만</code> · <code>1.5억</code> · <code>5%</code>(=0.05) 전부 입력 가능 &nbsp;|&nbsp;
+      <b>수식</b> : <code>=</code>로 시작 → <code>=B2*C2</code>처럼 사칙연산(+ − × ÷, 괄호). 수식 입력 중에 <b>다른 칸을 클릭하면 그 칸 주소가 자동으로 들어감</b> &nbsp;|&nbsp;
+      <b>메모</b> : 그냥 글자를 입력하면 메모가 됨<br>
+      <b>키</b> : Enter 아래칸 · Tab 오른칸 · 화살표 이동 · F2/더블클릭 수정 · Delete 지우기 · <code>Ctrl+Z</code> 되돌리기 · <code>Ctrl+C / Ctrl+V</code> 칸 복사(수식은 엑셀처럼 상대이동) &nbsp;|&nbsp;
+      <b>저장</b> : 입력 즉시 자동 저장. 왼쪽 목록에서 과거 계산을 언제든 다시 열어 수정 가능 (이 컴퓨터·이 브라우저에 저장됨)
+    </div>
+    <div class="formula-bar">
+      <span id="selAddr">A1</span>
+      <div id="rawView"></div>
+      <span id="resultView"></span>
+    </div>
+    <div class="grid-wrap" id="gridWrap"></div>
+    <div class="statusbar">
+      <span id="stCell"></span>
+      <span class="kor" id="stKor"></span>
+      <span class="spacer" style="flex:1"></span>
+      <span id="stSaved"></span>
+    </div>
+  </main>
+</div>
+
+<script id="calc-engine">
+'use strict';
+/* ───────── 계산 엔진 (DOM 미사용 — 단독 테스트 가능) ───────── */
+
+// "70억", "3,500만", "1.5억", "5%", "1,234.56" → 숫자. 숫자 아니면 null
+function parseKoreanNumber(str) {
+  let s = String(str).trim().replace(/,/g, '').replace(/\s+/g, '');
+  if (!s) return null;
+  let neg = false;
+  if (s[0] === '-') { neg = true; s = s.slice(1); }
+  else if (s[0] === '+') s = s.slice(1);
+  let pct = false;
+  if (s.endsWith('%')) { pct = true; s = s.slice(0, -1); }
+  if (!s) return null;
+  const m = s.match(/^(?:(\d+(?:\.\d+)?)억)?(?:(\d+(?:\.\d+)?)만)?(\d+(?:\.\d+)?)?$/);
+  if (!m || (m[1] === undefined && m[2] === undefined && m[3] === undefined)) return null;
+  let v = (m[1] ? +m[1] * 1e8 : 0) + (m[2] ? +m[2] * 1e4 : 0) + (m[3] ? +m[3] : 0);
+  if (pct) v /= 100;
+  return neg ? -v : v;
+}
+
+// "=..." 뒤 수식 토큰화: 숫자(한글단위 포함)·셀주소·연산자·괄호
+function tokenizeFormula(src) {
+  const s = src.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+  const tokens = [];
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === ' ' || ch === '\t') { i++; continue; }
+    if ('+-*/()'.includes(ch)) { tokens.push({ t: 'op', v: ch }); i++; continue; }
+    const rest = s.slice(i);
+    const cellM = rest.match(/^[A-Za-z]{1,2}\d{1,3}/);
+    if (cellM) { tokens.push({ t: 'ref', v: cellM[0].toUpperCase() }); i += cellM[0].length; continue; }
+    const numM = rest.match(/^(?:[0-9][0-9,]*(?:\.[0-9]+)?(?:억|만)?)+%?|^\.[0-9]+/);
+    if (numM) {
+      const v = parseKoreanNumber(numM[0]);
+      if (v === null) throw new Error('#오류');
+      tokens.push({ t: 'num', v }); i += numM[0].length; continue;
+    }
+    throw new Error('#오류');
+  }
+  return tokens;
+}
+
+// 사칙연산 재귀하강 파서. getRef(주소)→숫자 (오류 시 throw)
+function evalFormula(src, getRef) {
+  const tokens = tokenizeFormula(src);
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+  function factor() {
+    const tk = next();
+    if (!tk) throw new Error('#오류');
+    if (tk.t === 'op' && (tk.v === '-' || tk.v === '+')) {
+      const v = factor(); return tk.v === '-' ? -v : v;
+    }
+    if (tk.t === 'num') return tk.v;
+    if (tk.t === 'ref') return getRef(tk.v);
+    if (tk.t === 'op' && tk.v === '(') {
+      const v = expr();
+      const close = next();
+      if (!close || close.v !== ')') throw new Error('#오류');
+      return v;
+    }
+    throw new Error('#오류');
+  }
+  function term() {
+    let v = factor();
+    while (peek() && peek().t === 'op' && (peek().v === '*' || peek().v === '/')) {
+      const op = next().v;
+      const r = factor();
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  }
+  function expr() {
+    let v = term();
+    while (peek() && peek().t === 'op' && (peek().v === '+' || peek().v === '-')) {
+      const op = next().v;
+      const r = term();
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  }
+  const result = expr();
+  if (pos !== tokens.length) throw new Error('#오류');
+  if (!isFinite(result)) throw new Error('#오류');
+  return result;
+}
+
+// 시트 전체 계산: data{A1:raw} → values{A1: number | {err} | {text}}
+function computeAll(data) {
+  const cache = new Map();
+  const visiting = new Set();
+  function evalCell(id) {
+    if (cache.has(id)) {
+      const c = cache.get(id);
+      if (c && c.err) throw new Error(c.err);
+      if (c && c.text !== undefined) throw new Error('#오류');
+      return c;
+    }
+    if (visiting.has(id)) throw new Error('#순환');
+    const raw = (data[id] || '').trim();
+    if (!raw) { cache.set(id, 0); return 0; }
+    if (raw[0] === '=') {
+      visiting.add(id);
+      try {
+        const v = evalFormula(raw.slice(1), evalCell);
+        visiting.delete(id);
+        cache.set(id, v);
+        return v;
+      } catch (e) {
+        visiting.delete(id);
+        const err = { err: e.message === '#순환' ? '#순환' : '#오류' };
+        cache.set(id, err);
+        throw new Error(err.err);
+      }
+    }
+    const n = parseKoreanNumber(raw);
+    if (n === null) { cache.set(id, { text: raw }); throw new Error('#오류'); }
+    cache.set(id, n);
+    return n;
+  }
+  const values = {};
+  for (const id of Object.keys(data)) {
+    if (!(data[id] || '').trim()) continue;
+    try { evalCell(id); } catch (e) {
+      // 메모(텍스트) 셀도 throw로 전파되지만 그건 정상 입력 — 진짜 수식 오류만 로그
+      const c = cache.get(id);
+      if (!(c && c.text !== undefined)) console.error('셀 계산 오류', id, e.message);
+    }
+    values[id] = cache.get(id);
+  }
+  return values;
+}
+
+// 표시용 숫자 포맷: 천단위 콤마, 소수 최대 6자리
+function fmtNum(v) {
+  if (typeof v !== 'number' || !isFinite(v)) return '#오류';
+  const r = Math.round(v * 1e6) / 1e6;
+  return r.toLocaleString('ko-KR', { maximumFractionDigits: 6 });
+}
+
+// 억/만 한글 단위 표기 (1만 미만은 빈 문자열)
+function koreanUnits(v) {
+  if (typeof v !== 'number' || !isFinite(v) || Math.abs(v) < 1e4) return '';
+  const neg = v < 0;
+  let n = Math.floor(Math.abs(v));
+  const hasFrac = Math.abs(v) !== n;
+  const jo = Math.floor(n / 1e12); n %= 1e12;
+  const eok = Math.floor(n / 1e8); n %= 1e8;
+  const man = Math.floor(n / 1e4); n %= 1e4;
+  let s = '';
+  if (jo) s += jo.toLocaleString('ko-KR') + '조 ';
+  if (eok) s += eok.toLocaleString('ko-KR') + '억 ';
+  if (man) s += man.toLocaleString('ko-KR') + '만 ';
+  if (n) s += n.toLocaleString('ko-KR');
+  return (neg ? '-' : '') + s.trim() + (hasFrac ? '…' : '');
+}
+
+// 셀 주소 ↔ 행/열 변환 (열은 A~Z 26개까지)
+function colLetter(c) { return String.fromCharCode(65 + c); }
+function parseAddr(id) {
+  const m = id.match(/^([A-Z])(\d+)$/);
+  return m ? { c: m[1].charCodeAt(0) - 65, r: +m[2] - 1 } : null;
+}
+function makeAddr(c, r) { return colLetter(c) + (r + 1); }
+
+// 붙여넣기 시 수식 셀참조 상대이동 (G2 복사→G3 붙이면 B2→B3)
+function shiftFormulaRefs(raw, dc, dr, maxCols, maxRows) {
+  return raw.replace(/([A-Za-z]{1,2})(\d{1,3})/g, (whole, col, row) => {
+    if (col.length !== 1 || !/^[A-Za-z]$/.test(col)) return whole;
+    const c = col.toUpperCase().charCodeAt(0) - 65 + dc;
+    const r = +row - 1 + dr;
+    if (c < 0 || r < 0 || c >= maxCols || r >= maxRows) return '#참조';
+    return makeAddr(c, r);
+  });
+}
+</script>
+
+<script id="calc-app">
+'use strict';
+/* ───────── 앱 (저장·화면·입력) ───────── */
+(function () {
+  const STORE_KEY = 'ongyeol_calc_v1';
+  const MAX_COLS = 26, MAX_ROWS = 200;
+
+  // ── 저장소 ──
+  function loadStore() {
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE_KEY));
+      if (s && Array.isArray(s.sheets) && s.sheets.length) return s;
+    } catch (e) { console.error('계산노트 저장소 로드 실패', e); }
+    return { sheets: [], lastOpen: null };
+  }
+  function saveStore() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(store));
+      elSaved.textContent = '자동 저장됨 ' + new Date().toLocaleTimeString('ko-KR');
+    } catch (e) {
+      console.error('계산노트 저장 실패', e);
+      elSaved.textContent = '⚠ 저장 실패 (브라우저 저장공간 확인)';
+    }
+  }
+
+  // ── 템플릿 ──
+  function newId() { return (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now() + Math.random()); }
+  function todayName(prefix) {
+    const d = new Date();
+    return prefix + ' ' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+      String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  const TEMPLATES = {
+    blank: () => ({ name: todayName('계산'), cols: 8, rows: 40, colWidths: {}, data: {} }),
+    bijun: () => ({
+      name: todayName('비준표'), cols: 10, rows: 40, colWidths: { 0: 90 },
+      data: {
+        A1: '구분', B1: '사례단가', C1: '사정보정', D1: '시점수정', E1: '지역요인', F1: '개별요인', G1: '산출단가', H1: '면적(㎡)', I1: '총액',
+        A2: '사례1', B2: '12,000,000', C2: '1', D2: '1.02135', E2: '1', F2: '0.95', G2: '=B2*C2*D2*E2*F2', H2: '84.97', I2: '=G2*H2',
+        A3: '사례2', C3: '1', D3: '1', E3: '1', F3: '1', G3: '=B3*C3*D3*E3*F3', I3: '=G3*H3',
+        A5: '메모: 사례1 = ○○동 ○○아파트 (2026.5 거래). 값은 예시 — 지우고 사용',
+      },
+    }),
+    baebun: () => ({
+      name: todayName('일괄배분'), cols: 6, rows: 40, colWidths: { 0: 160 },
+      data: {
+        A1: '토지·건물 일괄 거래사례 → 토지단가 배분 (값은 예시)',
+        A3: '일괄 거래총액', B3: '70억',
+        A4: '건물 단가(원/㎡)', B4: '800,000',
+        A5: '건물 연면적(㎡)', B5: '1,250',
+        A6: '건물가격', B6: '=B4*B5',
+        A7: '토지 귀속가격', B7: '=B3-B6',
+        A8: '토지면적(㎡)', B8: '660',
+        A9: '토지 단가(원/㎡)', B9: '=B7/B8',
+      },
+    }),
+  };
+  function createSheet(tpl) {
+    const base = (TEMPLATES[tpl] || TEMPLATES.blank)();
+    return Object.assign({ id: newId(), updated: Date.now() }, base);
+  }
+
+  // ── 상태 ──
+  let store = loadStore();
+  if (!store.sheets.length) store.sheets.push(createSheet('blank'));
+  let sheet = store.sheets.find(s => s.id === store.lastOpen) || store.sheets[0];
+  let values = {};
+  let sel = 'A1';
+  let editing = null;          // {id, input}
+  let undoStack = [], redoStack = [];
+  let copySrc = null;          // {id, raw}
+  let refClickGuard = false;   // 수식 중 셀클릭으로 주소삽입 직후 select 방지
+
+  // ── DOM 참조 ──
+  const $ = id => document.getElementById(id);
+  const elWrap = $('gridWrap'), elList = $('sheetList'), elName = $('sheetName');
+  const elAddr = $('selAddr'), elRaw = $('rawView'), elResult = $('resultView');
+  const elStCell = $('stCell'), elStKor = $('stKor'), elSaved = $('stSaved');
+
+  // ── 시트 목록 ──
+  function renderList() {
+    const sorted = store.sheets.slice().sort((a, b) => b.updated - a.updated);
+    elList.innerHTML = '';
+    for (const s of sorted) {
+      const div = document.createElement('div');
+      div.className = 'sheet-item' + (s.id === sheet.id ? ' active' : '');
+      const d = new Date(s.updated);
+      div.innerHTML = '<div class="si-name"></div><div class="si-date"></div>';
+      div.querySelector('.si-name').textContent = s.name;
+      div.querySelector('.si-date').textContent =
+        d.getFullYear() + '.' + (d.getMonth() + 1) + '.' + d.getDate() + ' ' +
+        String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      div.addEventListener('click', () => { commitEdit(); openSheet(s.id); });
+      elList.appendChild(div);
+    }
+  }
+  function openSheet(id) {
+    const s = store.sheets.find(x => x.id === id);
+    if (!s) return;
+    sheet = s;
+    store.lastOpen = id;
+    sel = 'A1'; editing = null; undoStack = []; redoStack = [];
+    saveStore();
+    elName.value = sheet.name;
+    buildGrid(); recompute(); renderList();
+  }
+
+  // ── 그리드 구축 ──
+  function colWidth(c) { return (sheet.colWidths && sheet.colWidths[c]) || 110; }
+  function buildGrid() {
+    const table = document.createElement('table');
+    table.className = 'grid';
+    const colgroup = document.createElement('colgroup');
+    const c0 = document.createElement('col'); c0.style.width = '40px'; colgroup.appendChild(c0);
+    for (let c = 0; c < sheet.cols; c++) {
+      const col = document.createElement('col');
+      col.style.width = colWidth(c) + 'px';
+      colgroup.appendChild(col);
+    }
+    table.appendChild(colgroup);
+    const thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    const corner = document.createElement('th'); corner.className = 'corner'; hr.appendChild(corner);
+    for (let c = 0; c < sheet.cols; c++) {
+      const th = document.createElement('th');
+      th.textContent = colLetter(c);
+      const rz = document.createElement('div');
+      rz.className = 'col-resize';
+      rz.dataset.col = c;
+      th.style.position = 'relative';
+      th.appendChild(rz);
+      hr.appendChild(th);
+    }
+    thead.appendChild(hr); table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (let r = 0; r < sheet.rows; r++) {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.textContent = r + 1; tr.appendChild(th);
+      for (let c = 0; c < sheet.cols; c++) {
+        const td = document.createElement('td');
+        td.dataset.id = makeAddr(c, r);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    elWrap.innerHTML = '';
+    elWrap.appendChild(table);
+  }
+
+  // ── 계산·표시 ──
+  function recompute() {
+    values = computeAll(sheet.data);
+    renderValues();
+    renderSelection();
+  }
+  function renderValues() {
+    for (const td of elWrap.querySelectorAll('td')) {
+      const id = td.dataset.id;
+      const raw = (sheet.data[id] || '').trim();
+      td.className = td.className.replace(/\b(num|err|memo|formula)\b/g, '').trim();
+      if (!raw) { td.textContent = ''; continue; }
+      const v = values[id];
+      if (typeof v === 'number') {
+        td.textContent = fmtNum(v);
+        td.classList.add('num');
+        if (raw[0] === '=') td.classList.add('formula');
+      } else if (v && v.err) {
+        td.textContent = v.err;
+        td.classList.add('err');
+      } else {
+        td.textContent = raw;
+        td.classList.add('memo');
+      }
+    }
+  }
+  function tdOf(id) { return elWrap.querySelector('td[data-id="' + id + '"]'); }
+  function renderSelection() {
+    for (const td of elWrap.querySelectorAll('td.sel, td.refhl')) td.classList.remove('sel', 'refhl');
+    const td = tdOf(sel);
+    if (td) td.classList.add('sel');
+    const raw = (sheet.data[sel] || '').trim();
+    if (raw[0] === '=') {
+      for (const m of raw.slice(1).matchAll(/[A-Za-z]\d{1,3}/g)) {
+        const rtd = tdOf(m[0].toUpperCase());
+        if (rtd && m[0].toUpperCase() !== sel) rtd.classList.add('refhl');
+      }
+    }
+    elAddr.textContent = sel;
+    elRaw.textContent = raw;
+    const v = values[sel];
+    if (typeof v === 'number') {
+      elResult.textContent = '= ' + fmtNum(v);
+      const kor = koreanUnits(v);
+      elStCell.textContent = sel + ' = ' + fmtNum(v);
+      elStKor.textContent = kor ? '(' + kor + ')' : '';
+    } else if (v && v.err) {
+      elResult.textContent = v.err;
+      elStCell.textContent = sel + ' ' + v.err + (v.err === '#순환' ? ' — 수식이 서로를 참조하고 있음' : ' — 수식이나 참조한 칸을 확인');
+      elStKor.textContent = '';
+    } else {
+      elResult.textContent = '';
+      elStCell.textContent = raw ? sel + ' (메모)' : sel;
+      elStKor.textContent = '';
+    }
+  }
+  function select(id) {
+    const a = parseAddr(id);
+    if (!a || a.c >= sheet.cols || a.r >= sheet.rows) return;
+    sel = id;
+    renderSelection();
+    const td = tdOf(id);
+    if (td && td.scrollIntoView) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  function move(dc, dr) {
+    const a = parseAddr(sel);
+    const c = Math.min(Math.max(a.c + dc, 0), sheet.cols - 1);
+    const r = Math.min(Math.max(a.r + dr, 0), sheet.rows - 1);
+    select(makeAddr(c, r));
+  }
+
+  // ── 편집 ──
+  function startEdit(initial) {
+    if (editing) commitEdit();
+    const td = tdOf(sel);
+    if (!td) return;
+    const input = document.createElement('input');
+    input.className = 'cell-input';
+    input.value = initial !== undefined ? initial : (sheet.data[sel] || '');
+    const a = parseAddr(sel);
+    const w = colWidth(a.c);
+    const fit = () => { input.style.width = Math.max(w, (input.value.length + 3) * 8.5) + 'px'; };
+    input.addEventListener('input', fit);
+    fit();
+    td.appendChild(input);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    editing = { id: sel, input };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); commitEdit(); move(0, e.shiftKey ? -1 : 1); }
+      else if (e.key === 'Tab') { e.preventDefault(); commitEdit(); move(e.shiftKey ? -1 : 1, 0); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+      e.stopPropagation();
+    });
+    input.addEventListener('blur', () => {
+      // 수식 중 셀클릭(주소삽입)은 preventDefault로 blur 자체가 안 남 — blur가 났으면 진짜 이탈
+      if (editing && editing.input === input) commitEdit();
+    });
+  }
+  function pushUndo() {
+    undoStack.push(JSON.stringify(sheet.data));
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = [];
+  }
+  function commitEdit() {
+    if (!editing) return;
+    const { id, input } = editing;
+    const newRaw = input.value;
+    editing = null;
+    input.remove();
+    const oldRaw = sheet.data[id] || '';
+    if (newRaw !== oldRaw) {
+      pushUndo();
+      if (newRaw.trim() === '') delete sheet.data[id];
+      else sheet.data[id] = newRaw;
+      sheet.updated = Date.now();
+      saveStore();
+      renderList();
+    }
+    recompute();
+  }
+  function cancelEdit() {
+    if (!editing) return;
+    editing.input.remove();
+    editing = null;
+    renderSelection();
+  }
+  function setCell(id, raw) {
+    pushUndo();
+    if (raw === undefined || raw.trim() === '') delete sheet.data[id];
+    else sheet.data[id] = raw;
+    sheet.updated = Date.now();
+    saveStore();
+    renderList();
+    recompute();
+  }
+
+  // ── 그리드 이벤트 ──
+  elWrap.addEventListener('mousedown', e => {
+    const rz = e.target.closest('.col-resize');
+    if (rz) { startColResize(e, +rz.dataset.col); e.preventDefault(); return; }
+    const td = e.target.closest('td');
+    if (!td || !td.dataset.id) return;
+    // 수식 편집 중 다른 칸 클릭 → 그 칸 주소를 수식에 삽입
+    if (editing && td.dataset.id !== editing.id) {
+      const input = editing.input;
+      if (input.value.trimStart().startsWith('=')) {
+        e.preventDefault();
+        refClickGuard = true;
+        const pos = input.selectionStart != null ? input.selectionStart : input.value.length;
+        const end = input.selectionEnd != null ? input.selectionEnd : pos;
+        input.value = input.value.slice(0, pos) + td.dataset.id + input.value.slice(end);
+        const np = pos + td.dataset.id.length;
+        input.setSelectionRange(np, np);
+        input.dispatchEvent(new Event('input'));
+        input.focus();
+        setTimeout(() => { refClickGuard = false; }, 0);
+        return;
+      }
+    }
+  });
+  elWrap.addEventListener('click', e => {
+    if (refClickGuard) return;
+    const td = e.target.closest('td');
+    if (!td || !td.dataset.id) return;
+    if (editing && td.dataset.id === editing.id) return;
+    if (editing) commitEdit();
+    select(td.dataset.id);
+  });
+  elWrap.addEventListener('dblclick', e => {
+    const td = e.target.closest('td');
+    if (!td || !td.dataset.id || editing) return;
+    select(td.dataset.id);
+    startEdit();
+  });
+
+  // 열 너비 조절
+  function startColResize(e, c) {
+    const startX = e.clientX, startW = colWidth(c);
+    const colEl = elWrap.querySelectorAll('colgroup col')[c + 1];
+    function onMove(ev) {
+      const w = Math.max(50, startW + ev.clientX - startX);
+      if (!sheet.colWidths) sheet.colWidths = {};
+      sheet.colWidths[c] = w;
+      colEl.style.width = w + 'px';
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      sheet.updated = Date.now();
+      saveStore();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // ── 전역 키보드 ──
+  document.addEventListener('keydown', e => {
+    if (editing) return;
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;  // 시트이름 등 다른 입력칸
+    if (e.ctrlKey || e.metaKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'z') { e.preventDefault(); doUndo(); return; }
+      if (k === 'y') { e.preventDefault(); doRedo(); return; }
+      if (k === 'c') {
+        copySrc = { id: sel, raw: sheet.data[sel] || '' };
+        try { navigator.clipboard.writeText(copySrc.raw); } catch (err) { console.error('클립보드 복사 실패', err); }
+        e.preventDefault(); return;
+      }
+      if (k === 'v') {
+        if (copySrc) {
+          const from = parseAddr(copySrc.id), to = parseAddr(sel);
+          let raw = copySrc.raw;
+          if (raw.trimStart().startsWith('='))
+            raw = shiftFormulaRefs(raw, to.c - from.c, to.r - from.r, sheet.cols, sheet.rows);
+          setCell(sel, raw);
+        }
+        e.preventDefault(); return;
+      }
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowUp': e.preventDefault(); move(0, -1); return;
+      case 'ArrowDown': e.preventDefault(); move(0, 1); return;
+      case 'ArrowLeft': e.preventDefault(); move(-1, 0); return;
+      case 'ArrowRight': e.preventDefault(); move(1, 0); return;
+      case 'Enter': e.preventDefault(); move(0, 1); return;
+      case 'Tab': e.preventDefault(); move(e.shiftKey ? -1 : 1, 0); return;
+      case 'Delete': case 'Backspace':
+        e.preventDefault();
+        if ((sheet.data[sel] || '') !== '') setCell(sel, '');
+        return;
+      case 'F2': e.preventDefault(); startEdit(); return;
+    }
+    if (e.key.length === 1) { e.preventDefault(); startEdit(e.key); }
+  });
+  function doUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(JSON.stringify(sheet.data));
+    sheet.data = JSON.parse(undoStack.pop());
+    sheet.updated = Date.now();
+    saveStore(); renderList(); recompute();
+  }
+  function doRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(JSON.stringify(sheet.data));
+    sheet.data = JSON.parse(redoStack.pop());
+    sheet.updated = Date.now();
+    saveStore(); renderList(); recompute();
+  }
+
+  // ── 툴바 ──
+  elName.addEventListener('change', () => {
+    sheet.name = elName.value.trim() || sheet.name;
+    elName.value = sheet.name;
+    sheet.updated = Date.now();
+    saveStore(); renderList();
+  });
+  elName.addEventListener('keydown', e => { if (e.key === 'Enter') elName.blur(); });
+  $('btnHelp').addEventListener('click', () => $('helpBox').classList.toggle('open'));
+  $('btnAddRows').addEventListener('click', () => {
+    if (sheet.rows >= MAX_ROWS) { alert('행은 최대 ' + MAX_ROWS + '개까지'); return; }
+    sheet.rows = Math.min(sheet.rows + 10, MAX_ROWS);
+    sheet.updated = Date.now(); saveStore();
+    buildGrid(); recompute();
+  });
+  $('btnAddCol').addEventListener('click', () => {
+    if (sheet.cols >= MAX_COLS) { alert('열은 최대 ' + MAX_COLS + '개(A~Z)까지'); return; }
+    sheet.cols += 1;
+    sheet.updated = Date.now(); saveStore();
+    buildGrid(); recompute();
+  });
+  $('btnDup').addEventListener('click', () => {
+    commitEdit();
+    const copy = JSON.parse(JSON.stringify(sheet));
+    copy.id = newId();
+    copy.name = sheet.name + ' (복사)';
+    copy.updated = Date.now();
+    store.sheets.push(copy);
+    openSheet(copy.id);
+  });
+  $('btnDel').addEventListener('click', () => {
+    if (!confirm('「' + sheet.name + '」 시트를 삭제할까요?\n삭제하면 되돌릴 수 없습니다.')) return;
+    store.sheets = store.sheets.filter(s => s.id !== sheet.id);
+    if (!store.sheets.length) store.sheets.push(createSheet('blank'));
+    openSheet(store.sheets.sort((a, b) => b.updated - a.updated)[0].id);
+  });
+
+  // 새 계산 (템플릿 메뉴)
+  const tplMenu = $('tplMenu');
+  $('btnNew').addEventListener('click', e => { e.stopPropagation(); tplMenu.classList.toggle('open'); });
+  document.addEventListener('click', () => tplMenu.classList.remove('open'));
+  tplMenu.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-tpl]');
+    if (!btn) return;
+    e.stopPropagation();
+    tplMenu.classList.remove('open');
+    commitEdit();
+    const s = createSheet(btn.dataset.tpl);
+    store.sheets.push(s);
+    openSheet(s.id);
+  });
+
+  // ── 시작 ──
+  store.lastOpen = sheet.id;
+  elName.value = sheet.name;
+  buildGrid(); recompute(); renderList();
+})();
+</script>
+</body>
+</html>
