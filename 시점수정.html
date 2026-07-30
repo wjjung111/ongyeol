@@ -117,7 +117,7 @@ const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   if(tv==null)return{err:`${rk} ${idxYmDisp(tUse)} 지수가 없습니다 (이 지역 지수는 ${idxYmDisp(firstYm)}부터 공표).`};
   if(bv==null)return{err:`${rk} ${idxYmDisp(bYm)} 지수가 없습니다.`};
   const adj=Math.round(bv/tv*1e5)/1e5; // 여섯째 자리 반올림 → 다섯째 자리 표시 (부동산원 KAS 조회화면과 동일)
-  const regionDisp=rk==="서울"?"서울":"서울 "+rk;
+  const regionDisp=(()=>{const p=reg.full.split(">").map(s=>s.trim());return p[0]===p[p.length-1]?p[0]:p[0]+" "+p[p.length-1];})(); // 시도+말단 표기 (경기·인천 대응)
   const lines=[kind,`지역 : ${regionDisp}`];
   lines.push(`매매가격지수(한국부동산원) : ${idxYmDisp(tUse)} ~ ${idxYmDisp(bYm)}`);
   note.forEach(n=>lines.push(n));
