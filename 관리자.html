@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 관리자 사용 기록 조회 (숨은 페이지: 입장 화면에서 링크하지 않음)
+  데이터는 구글 앱스 스크립트(관리자 계정 소유)에 저장 — 비밀번호는 스크립트 쪽에서 검증하므로 이 파일엔 없음.
+  Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온결 관리자</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#f5f6f8; font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; color:#1e293b; }
+  #top { position:sticky; top:0; display:flex; gap:10px; align-items:center; padding:10px 16px; background:#0f172a; border-bottom:2px solid #334155; }
+  #top a { color:#cbd5e1; text-decoration:none; font-size:13px; font-weight:600; border:1px solid #475569; background:#1e293b; padding:6px 14px; border-radius:6px; }
+  #top .title { color:#e2e8f0; font-weight:700; font-size:14px; }
+  .wrap { max-width:1000px; margin:24px auto; padding:0 16px; }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:20px; box-shadow:0 1px 4px rgba(15,23,42,.06); margin-bottom:16px; }
+  input[type=password] { padding:9px 10px; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; width:220px; }
+  button { padding:9px 18px; font-size:14px; font-weight:700; color:#fff; background:#2563eb; border:none; border-radius:6px; cursor:pointer; font-family:inherit; }
+  button:hover { background:#1d4ed8; }
+  button.gray { background:#64748b; }
+  .err { margin-top:10px; color:#dc2626; font-size:13px; font-weight:600; display:none; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { background:#f1f5f9; border:1px solid #e2e8f0; padding:8px 6px; font-size:12px; color:#475569; }
+  td { border:1px solid #e2e8f0; padding:7px 6px; text-align:center; }
+  td.l { text-align:left; } td.r { text-align:right; }
+  .stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .stat { background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 16px; text-align:center; }
+  .stat .n { font-size:22px; font-weight:800; color:#1d4ed8; }
+  .stat .l { font-size:11px; color:#64748b; }
+  .bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px; }
+  .toggle { font-size:12px; color:#2563eb; cursor:pointer; user-select:none; }
+  #panel { display:none; }
+  .muted { font-size:11px; color:#94a3b8; margin-top:8px; }
+</style>
+</head>
+<body>
+<div id="top"><a href="index.html">🏠 홈</a><span class="title">🔐 온결 관리자 — 사용 기록</span></div>
+<div class="wrap">
+  <div class="card" id="login">
+    <div style="font-weight:700;margin-bottom:10px;">관리자 비밀번호</div>
+    <input type="password" id="pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')load()">
+    <button onclick="load()">조회</button>
+    <div class="err" id="err"></div>
+    <div class="muted">비밀번호는 관리자 수신함(앱스 스크립트)에서 검증됩니다. 틀리면 빈 결과가 옵니다.</div>
+  </div>
+  <div id="panel">
+    <div class="card">
+      <div class="stats" id="stats"></div>
+      <div class="bar">
+        <b id="viewTitle">건별 최신 현황</b>
+        <span>
+          <span class="toggle" id="tgl" onclick="toggleView()">전체 로그 보기 ▸</span>
+          &nbsp;&nbsp;<span class="toggle" onclick="load()">🔄 새로고침</span>
+        </span>
+      </div>
+      <div style="overflow-x:auto;"><table id="tbl"></table></div>
+      <div class="muted">저장·다운로드 때마다 기록되며, 같은 내용이면 중복 전송하지 않습니다. 샘플 건은 기록에서 제외.</div>
+    </div>
+  </div>
+</div>
+<script>
+const URL_="https://script.google.com/macros/s/AKfycbxx2D6-vWHBS7UPUrhdd4Fz5iayqUlgM4IZcqlNCAuERxY3Wpijdo3xw29Xz3_gs_7Leg/exec";
+let ROWS=[],showAll=false;
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtT=v=>{const d=new Date(v);return isNaN(d)?esc(v):`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
+const fmtA=v=>{const n=Number(String(v).replace(/[^0-9.-]/g,""));return v&&!isNaN(n)&&n?n.toLocaleString("ko-KR")+"원":"";};
+async function load(){
+  const pw=document.getElementById("pw").value.trim();
+  if(!pw){showErr("비밀번호를 입력하세요.");return;}
+  showErr("");
+  try{
+    const r=await fetch(URL_+"?pw="+encodeURIComponent(pw));
+    const rows=await r.json();
+    if(!Array.isArray(rows)||rows.length===0){showErr("기록이 없거나 비밀번호가 틀렸습니다.");return;}
+    ROWS=rows.slice(1).map(x=>({t:x[0],user:x[1],caseNo:x[2],addr:x[3],kind:x[4],amount:x[5],action:x[6]}));
+    document.getElementById("login").style.display="none";
+    document.getElementById("panel").style.display="block";
+    render();
+  }catch(e){console.error('admin load',e);showErr("조회 실패: "+e.message);}
+}
+function showErr(m){const el=document.getElementById("err");el.textContent=m;el.style.display=m?"block":"none";}
+function toggleView(){showAll=!showAll;render();}
+function render(){
+  // 건별 최신 현황: 사용자+접수번호별로 마지막 기록만
+  const latest={};
+  ROWS.forEach(r=>{latest[r.user+"|"+r.caseNo]=r;});
+  const cur=showAll?[...ROWS].reverse():Object.values(latest).sort((a,b)=>new Date(b.t)-new Date(a.t));
+  document.getElementById("viewTitle").textContent=showAll?`전체 로그 (${ROWS.length}건)`:`건별 최신 현황 (${cur.length}건)`;
+  document.getElementById("tgl").textContent=showAll?"건별 현황 보기 ▸":"전체 로그 보기 ▸";
+  // 사용자별 통계
+  const byUser={};
+  Object.values(latest).forEach(r=>{byUser[r.user]=(byUser[r.user]||0)+1;});
+  document.getElementById("stats").innerHTML=
+    `<div class="stat"><div class="n">${Object.keys(latest).length}</div><div class="l">전체 건수</div></div>`+
+    Object.entries(byUser).sort((a,b)=>b[1]-a[1]).map(([u,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${esc(u)}</div></div>`).join("");
+  document.getElementById("tbl").innerHTML=
+    `<thead><tr><th>시각</th><th>사용자</th><th>접수번호</th><th>물건</th><th>유형</th><th>시산가액</th>${showAll?"<th>동작</th>":""}</tr></thead><tbody>`+
+    cur.map(r=>`<tr><td>${fmtT(r.t)}</td><td>${esc(r.user)}</td><td style="font-weight:700;color:#2563eb;">${esc(r.caseNo)}</td><td class="l">${esc(r.addr)}</td><td>${esc(r.kind)}</td><td class="r">${fmtA(r.amount)}</td>${showAll?`<td>${esc(r.action)}</td>`:""}</tr>`).join("")+
+    `</tbody>`;
+}
+</script>
+</body>
+</html>
