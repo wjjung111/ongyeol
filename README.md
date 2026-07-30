@@ -7,7 +7,8 @@
 
 ## 접속
 
-- **웹**: https://wjjung111.github.io/ongyeol/  (GitHub Pages)
+- **웹**: https://wjjung111.github.io/ongyeol/  (GitHub Pages) — 입장 화면에서 [온결 집합건물] 클릭
+- 집합건물 앱 바로가기: https://wjjung111.github.io/ongyeol/집합건물.html
 - 링크만 열면 **대표 샘플(압구정동 현대아파트 77동 904호, 접수번호 HI260709-2702)**이 자동으로 떠서 바로 체험 가능
 - 각자 만든 평가건은 **각자 브라우저에만 저장**됨(서버 없음) — 서로 안 보임
 
@@ -32,8 +33,9 @@
 
 ## 개발 / 배포
 
-- 앱은 빌드 도구 없는 **단일 HTML**(React+Babel CDN). `index.html`이 곧 앱.
-- 한글 템플릿은 `index.html`에 base64로 내장 — 런타임에 별도 로딩 안 함(`템플릿/`은 원본 보관용).
+- `index.html`은 **입장 화면(허브)** — 온결 집합건물 / 온결 토지건물(준비중) / 집합건물 시점수정(준비중) 버튼.
+- 집합건물 앱 본체는 `집합건물.html` — 빌드 도구 없는 **단일 HTML**(React+Babel CDN).
+- 한글 템플릿은 `집합건물.html`에 base64로 내장 — 런타임에 별도 로딩 안 함(`템플릿/`은 원본 보관용).
 - **작업 = 새 브랜치 → 수정 → PR → main 머지.** main 머지 시 Pages 자동 재배포.
 - 지수 자동계산 데이터(`arap_index_data.js`)는 `.github/workflows/update-index.yml`이 매일 06:00 KST 갱신.
   - ⚠️ 이 저장소 **Settings → Secrets → Actions에 `RONE_API_KEY`** 를 등록해야 워크플로우가 동작합니다(부동산원 R-ONE Open API 키). 없어도 앱은 정상 작동(지수 자동계산만 안내문구).
