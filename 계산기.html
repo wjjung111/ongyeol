@@ -9,6 +9,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>온결 계산 노트</title>
+<link rel="manifest" href="계산기.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAE6UlEQVR4nO3cwXHUMBiGYW+GEkgJ4UAH9MItlEVu9EIHHEgJoYdwWgaWJLbWtizpe54CNtbM/0q2s8lpOtjd/dPz0dfAsR4fbk9H/ezqP9jAM6dmEFV+kKHnWnvHsOuHG3y2slcIu3yowWcvW4ew6YcZfGrZKoRNPsTgc5S1IdysvQDDz5HWzt+qAAw/LVgzh1cdHwafVpXeEhWfAIaflpXOZ1EAhp8elMzp4gAMPz1ZOq+LAjD89GjJ3K5+DQo9mw3A7k/P5ub3zQAMPyN4a45fDcDwM5LX5tkzANFeDMDuz4hemmsnANH+C8Duz8gu59sJQLR/ArD7k+DvOXcCEO1PAHZ/kpzn3QlANAEQ7TRNbn/I5QQgmgCIJgCi3bj/J5kTgGgCIJoAiCYAogmAaO+OvoBr/Pz6/uhLmPXhy6/NPzN13Xs69fQatIcBuLTFQKSuu4YuAuhxAC5dMxCp666p+WeAEYZgmsrXkbru2poPAPbUdACt7x6llq4ndd1HaDoA2FuzAbS8a6wxt67UdR+l2QCgBgEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEK3LvwibU+M76K3+ap8yw50Atf4Ao/U/9GCZoQKoPZQi6N9QAUApARBtqABqP5h6EO7fUAFMU72hNPxjGPI1qOFkqeFOACghAKIJgGgCINqQD8G+C8RSw50AvgtEiaEC8F0gSg0VAJQSANGGCsB3gSg1VADT5LtAlBnyNajhZKnhTgAoIQCiCYBoAiCaAIgmAKIJgGgCIJoAiCYAojUbwKjftZ9bV+q6j9JsAFBD0wG0umtca+l6Utd9hKYDgL01H0DLu0eJ0nWkrru209390/PRF7FUj9/z32IAUtddQ1cBnPUwEHsMQOq699RlALCV5p8BYE8CIJoAiCYAogmAaAIgWpf/GCv1ffiPz582/8ytffz2/ehLKNLV7wF6GPxLW4TQw+Bf6iWELgLocfAvXRNCj4N/qfUQmn8GGGH4p6l8HSMM/zS1v47mA4A9NR3AKLv/2dL1tL5rlmp5PU0HAHtrNoDRdv+zuXW1vFuu0eq6mg0AahAA0QRANAEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEE0ARBMA0QRANAEQrdkAPnz5dfQl7GJuXR+/fa90JXW1uq5mA4Aamg5gtFNg6Xpa3S2v1fJ6mg4A9tZ8AKOcAqXraHnXLNH6Ok5390/PR1/EUj+/vj/6EoptEfCPz582uJK6Wh/8s64COOshhD1Orh5C6GXwz7oMALbS/DMA7EkARBMA0QRANAEQ7ebx4fZ09EXAUZwARBMA0QRAtJtpmibPASR6fLg9OQGIJgCi/QnAbRBJzvPuBCDaPwE4BUjw95w7AYj2XwBOAUZ2Od9OAKK9GIBTgBG9NNdOAKK9GoBTgJG8Ns9vngAiYARvzfHsLZAI6Nnc/HoGINqiAJwC9GjJ3C4+AURAT5bOa9EtkAjoQcmcFj8DiICWlc7nqmH2j3VpxbUb86q3QE4DWrBmDle/BhUBR1o7f5sOr1siatlq491l9xYCe9n6jmPX2xchsJW9brWr3L8LgWvt/YxZ/QFWDMyp+WLlN6NyaJkP0JgvAAAAAElFTkSuQmCC">
+<script>
+  // PWA 서비스워커 등록 (https/localhost에서만 — 로컬 file:// 로 열어도 앱은 정상 동작)
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('계산기-sw.js')
+      .catch(e => console.error('계산노트 SW 등록 실패', e));
+  }
+</script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
