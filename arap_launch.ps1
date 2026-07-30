@@ -161,6 +161,17 @@ function Fetch-IndexData {
     throw "API 키가 없습니다. 같은 폴더에 'arap_apikey.local.txt' 파일을 만들고 부동산원 R-ONE 인증키를 한 줄로 넣으세요. (환경변수 RONE_API_KEY 로 넣어도 됨)"
   }
   Write-Host "부동산원 매매가격지수 수신 중..." -ForegroundColor Cyan
+  # 오피스텔: A_2024_00615의 월간(MM) 자료가 비어 있음(#13 확인) → 통계목록에서 '오피스텔+매매+지수' 표를 이름으로 자동 탐색해 교체
+  try {
+    $lj = Invoke-Rone ("{0}?Type=json&pIndex=1&pSize=1000&KEY={1}" -f $listBase, $apiKey)
+    $cands = @($lj.SttsApiTbl[1].row | Where-Object { $_.STATBL_NM -match "오피스텔" -and $_.STATBL_NM -match "매매" -and $_.STATBL_NM -match "지수" })
+    foreach ($c in $cands) { Write-Host ("  [오피스텔 표 후보] {0} {1} ({2})" -f $c.STATBL_ID, $c.STATBL_NM, $c.DTACYCLE_NM) }
+    $mm = @($cands | Where-Object { $_.DTACYCLE_NM -match "월" })
+    if ($mm.Count -ge 1 -and [string]$mm[0].STATBL_ID -ne $tables["오피스텔"].id) {
+      Write-Host ("  오피스텔 표 교체: {0} → {1}" -f $tables["오피스텔"].id, $mm[0].STATBL_ID) -ForegroundColor Cyan
+      $tables["오피스텔"].id = [string]$mm[0].STATBL_ID
+    }
+  } catch { Write-Host "  오피스텔 표 탐색 실패(기존 ID로 진행): $_" -ForegroundColor Yellow }
   $out = [ordered]@{
     fetchedAt = (Get-Date -Format "yyyy-MM-dd HH:mm")
     source    = "한국부동산원 R-ONE 전국주택가격동향조사 (월간)"
