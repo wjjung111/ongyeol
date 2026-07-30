@@ -76,7 +76,7 @@ function Probe-ClsIds {
   }
   # ③ 서울 구(530011~530040) 다음 대역을 훑어 경기·인천 이름이 나오는지 확인 (pSize=1 저비용)
   $found = 0
-  foreach ($cid in 530041..530200) {
+  foreach ($cid in 530041..530120) {   # 트래픽 절약을 위해 80개만 (필요시 다음 대역 재탐색)
     try {
       $j = Invoke-RestMethod -Uri ("{0}?STATBL_ID=A_2024_00045&DTACYCLE_CD=MM&CLS_ID={1}&Type=json&pIndex=1&pSize=1&KEY={2}" -f $apiBase, $cid, $apiKey) -TimeoutSec 30
       $rows = if ($j.SttsApiTblData -and @($j.SttsApiTblData).Count -ge 2) { $j.SttsApiTblData[1].row } else { $null }
@@ -220,7 +220,15 @@ function Fetch-IndexData {
       $url = "{0}?STATBL_ID={1}&DTACYCLE_CD=MM&CLS_ID={2}&Type=json&pIndex=1&pSize=1000&KEY={3}" -f $apiBase, $t.id, $cid, $apiKey
       $j = Invoke-Rone $url
       $rows = if ($j.SttsApiTblData -and @($j.SttsApiTblData).Count -ge 2) { $j.SttsApiTblData[1].row } else { $null }
-      if (-not $rows) { Write-Host " (자료없음)"; continue }
+      if (-not $rows) {
+        # 빈 응답의 원문을 표당 1회 출력 — RESULT 코드(337 트래픽 제한, 290 키 무효 등)가 그대로 보임
+        if (-not $script:emptyDiagShown) {
+          $script:emptyDiagShown = $true
+          $raw = ($j | ConvertTo-Json -Depth 5 -Compress); if (-not $raw) { $raw = "(null)" }
+          Write-Host (" [빈응답 원문] {0}" -f $raw.Substring(0, [math]::Min(600, $raw.Length))) -ForegroundColor Yellow
+        } else { Write-Host " (자료없음)" }
+        continue
+      }
       $full = [string]$rows[0].CLS_FULLNM
       $root = ($full -split ">")[0].Trim()
       if ($t.roots -notcontains $root) { Write-Host (" (범위밖: {0})" -f $full); continue }
@@ -240,8 +248,9 @@ function Fetch-IndexData {
     if ($regions.Count -eq 0) { Write-Host ("    {0} 자료없음 — 이 표는 생략" -f $kind) -ForegroundColor Yellow; continue }
     $out.tables[$kind] = [ordered]@{ statblId = $t.id; latest = $latest; regions = $regions }
   }
-  if (-not $out.tables.Contains("아파트")) { throw "아파트 지수 수신 실패 — 기존 파일 유지" }
+  # 진단은 수신 실패 시에도 반드시 실행 (실패 원인 원문 확보) — 이전엔 throw 뒤라서 한 번도 안 돌았음
   try { Probe-ClsIds } catch { Write-Host "[진단] 실패(데이터엔 영향 없음): $_" -ForegroundColor Yellow }
+  if (-not $out.tables.Contains("아파트")) { throw "아파트 지수 수신 실패 — 기존 파일 유지" }
   # 비주거용 자본수익률(분기) — 실패해도 매매지수는 정상 저장
   try { $cap = Fetch-CapReturn; if ($cap) { $out.capReturn = $cap } }
   catch { Write-Host "자본수익률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow }
