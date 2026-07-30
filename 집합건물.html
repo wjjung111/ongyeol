@@ -52,7 +52,7 @@
     const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){console.error('user name save',e);}};
     let name=lsGet("arap-user-name");
     if(forceAsk){   // 팝업은 상단바 클릭 시에만 — 자동으로 뜨지 않음
-      const input=prompt("사용자 이름을 입력해주세요 (기록에 표시될 이름)",name||"");
+      const input=prompt("사용자 이름을 입력해주세요.",name||"");
       if(input&&input.trim()){name=input.trim();lsSet("arap-user-name",name);}
     }
     const el=document.getElementById("mb-user");if(el)el.textContent=name?"🙋 "+name:"🙋 이름 입력";
