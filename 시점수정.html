@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 집합건물 시점수정 계산기 (단독 화면)
+  집합건물.html의 [지수 자동계산]·[자본수익률 자동계산] 로직을 그대로 옮긴 독립 도구.
+  Copyright (c) 2026 정우진 감정평가사 (Woojin Jung, Certified Appraiser / wjjung9334@gmail.com). All Rights Reserved. 모든 권리 보유.
+  무단 복제·수정·상업적 이용·재배포 금지. 상세: 저장소 LICENSE 파일 참조.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>집합건물 시점수정 — 온결</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#f5f6f8; font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; color:#1e293b; }
+  #top { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center; padding:10px 16px; background:#0f172a; border-bottom:2px solid #334155; }
+  #top a.home { color:#cbd5e1; text-decoration:none; font-size:13px; font-weight:600; border:1px solid #475569; background:#1e293b; padding:6px 14px; border-radius:6px; }
+  #top a.home:hover { border-color:#2563eb; color:#fff; }
+  #top .title { color:#e2e8f0; font-weight:700; font-size:14px; }
+  .wrap { max-width:640px; margin:24px auto; padding:0 16px; }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:20px; box-shadow:0 1px 4px rgba(15,23,42,.06); }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs button { flex:1; padding:10px; font-size:14px; font-weight:700; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#64748b; cursor:pointer; font-family:inherit; }
+  .tabs button.on { background:#2563eb; border-color:#2563eb; color:#fff; }
+  label { display:block; font-size:12px; font-weight:700; color:#475569; margin:12px 0 4px; }
+  select, input[type=text] { width:100%; padding:9px 10px; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; background:#fff; }
+  input:focus, select:focus { outline:2px solid #2563eb; outline-offset:-1px; background:#eff6ff; }
+  .row { display:flex; gap:10px; } .row > div { flex:1; }
+  .calc { width:100%; margin-top:18px; padding:12px; font-size:15px; font-weight:700; color:#fff; background:#2563eb; border:none; border-radius:8px; cursor:pointer; font-family:inherit; }
+  .calc:hover { background:#1d4ed8; }
+  .calc:disabled { background:#cbd5e1; cursor:default; }
+  .err { margin-top:12px; padding:10px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#dc2626; font-size:13px; font-weight:600; display:none; }
+  #out { margin-top:16px; display:none; }
+  .big { text-align:center; padding:14px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; margin-bottom:10px; }
+  .big .num { font-size:30px; font-weight:800; color:#1d4ed8; letter-spacing:1px; }
+  .big .cap { font-size:12px; color:#64748b; margin-top:2px; }
+  textarea { width:100%; height:190px; padding:10px; font-size:13px; line-height:1.6; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; resize:vertical; }
+  .copy { width:100%; margin-top:8px; padding:10px; font-size:14px; font-weight:700; background:#0f172a; color:#e2e8f0; border:none; border-radius:8px; cursor:pointer; font-family:inherit; }
+  .copy:hover { background:#1e293b; }
+  .meta { margin-top:14px; font-size:11px; color:#94a3b8; text-align:center; line-height:1.6; }
+</style>
+</head>
+<body>
+<div id="top">
+  <a class="home" href="index.html">🏠 홈으로</a>
+  <span class="title">📈 집합건물 시점수정</span>
+</div>
+<div class="wrap"><div class="card">
+  <div class="tabs">
+    <button id="tab-res" class="on" type="button">주거용 (매매가격지수)</button>
+    <button id="tab-nr" type="button">비주거용 (자본수익률)</button>
+  </div>
+  <div class="row">
+    <div><label>유형</label><select id="kind"></select></div>
+    <div><label>지역</label><select id="region"></select></div>
+  </div>
+  <div class="row">
+    <div><label>거래시점 (사례)</label><input type="text" id="tradeDate" placeholder="예: 2025.10.18"></div>
+    <div><label>기준시점</label><input type="text" id="baseDate" placeholder="예: 2026.07.30"></div>
+  </div>
+  <button class="calc" id="btn-calc" type="button">시점수정치 계산</button>
+  <div class="err" id="err"></div>
+  <div id="out">
+    <div class="big"><div class="num" id="adjNum"></div><div class="cap">시점수정치 (여섯째 자리 반올림)</div></div>
+    <textarea id="resultText" readonly></textarea>
+    <button class="copy" id="btn-copy" type="button">📋 산식 복사 (집합건물 앱에 붙여넣기)</button>
+  </div>
+  <div class="meta" id="meta"></div>
+</div></div>
+
+<script src="arap_index_data.js"></script>
+<script>
+// ── 아래 계산 로직은 집합건물.html의 buildSjIdxText / buildNrCapText와 동일 규칙 (수정 시 양쪽 함께)
+const idxData=()=>window.ARAP_INDEX_DATA||null;
+const capData=()=>(window.ARAP_INDEX_DATA&&window.ARAP_INDEX_DATA.capReturn)||null;
+const normDate=v=>{const s=String(v||"").replace(/[^0-9]/g,"");if(s.length>=8)return s.slice(0,4)+"."+s.slice(4,6)+"."+s.slice(6,8);if(s.length>=6)return s.slice(0,4)+"."+s.slice(4,6);return"";};
+const idxYm=d=>{const m=normDate(d).match(/^(\d{4})\.(\d{2})/);return m?m[1]+m[2]:null;};
+const idxYmDisp=ym=>ym?`${ym.slice(0,4)}.${ym.slice(4,6)}`:"";
+const idxKindList=()=>{const D=idxData();if(!D)return[];return["아파트","연립다세대","오피스텔"].filter(k=>D.tables[k]);};
+// 유형별 지역 목록: 시도(서울→경기→인천→수도권) 순 → 시도 전체가 맨 앞 → 하위지역 가나다순
+const ROOT_ORDER=["서울","경기","인천","수도권"];
+const idxRegionList=kind=>{const D=idxData();if(!D||!D.tables[kind])return[];const rs=D.tables[kind].regions;
+  return Object.keys(rs).sort((a,b)=>{
+    const pa=rs[a].full.split(">"),pb=rs[b].full.split(">");
+    const ra=ROOT_ORDER.indexOf(pa[0]),rb=ROOT_ORDER.indexOf(pb[0]);
+    if(ra!==rb)return(ra<0?99:ra)-(rb<0?99:rb);
+    if(pa.length!==pb.length&&(pa.length===1||pb.length===1))return pa.length-pb.length; // 시도 전체 먼저
+    return a.localeCompare(b,"ko");
+  });};
+const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
+  const D=idxData();if(!D)return{err:"지수 데이터(arap_index_data.js)가 없습니다."};
+  const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
+  let rk=regionKey;const note=[];
+  if(!tbl.regions[rk]){
+    // 연립다세대는 권역 단위까지만 공표 → 구 선택 시 소속 권역 지수로 대체
+    const aptReg=D.tables["아파트"].regions[regionKey];
+    const gwon=aptReg?aptReg.full.split(">")[2]:null;
+    if(gwon&&tbl.regions[gwon]){rk=gwon;note.push(`※ ${kind} 지수는 권역 단위로 공표되어 ${gwon} 지수를 적용함`);}
+    else return{err:`${kind} 지수에 '${regionKey}' 지역이 없습니다.`};
+  }
+  const reg=tbl.regions[rk];
+  const tYm=idxYm(tradeDate);if(!tYm)return{err:"거래시점을 입력하세요. (예: 2025.10.18)"};
+  // 날짜는 한글 표기 — "2025.10" 패턴이 산식에 섞이면 앱의 parseTimeAdjDetail이 지수월로 오인함
+  const korYm=ym=>`${+ym.slice(0,4)}년 ${+ym.slice(4,6)}월`;
+  const korDate=d=>{const p=normDate(d).split(".");if(p.length>=3)return`${+p[0]}년 ${+p[1]}월 ${+p[2]}일`;const ym=idxYm(d);return ym?korYm(ym):normDate(d);};
+  const prevYm=ym=>{const y=+ym.slice(0,4),m=+ym.slice(4,6);return m===1?`${y-1}12`:`${y}${String(m-1).padStart(2,"0")}`;};
+  // 거래월 지수는 그 달이 끝나기 전 미완성 → 거래시점의 전월 지수를 적용 (평가 관행)
+  let tUse=prevYm(tYm);
+  note.push(`※ 거래시점(${korDate(tradeDate)})의 전월인 ${korYm(tUse)} 지수를 적용함`);
+  if(tUse>tbl.latest){tUse=tbl.latest;note.push(`※ 해당 월 지수 미공표 → 최근 공표분(${korYm(tbl.latest)}) 지수를 적용함`);}
+  const bRaw=idxYm(baseDate);
+  let bYm=bRaw?prevYm(bRaw):tbl.latest;
+  if(bRaw)note.push(`※ 기준시점(${korDate(baseDate)})의 전월인 ${korYm(bYm)} 지수를 적용함`);
+  if(bYm>tbl.latest){bYm=tbl.latest;note.push(`※ 해당 월 지수 미공표 → 최근 공표분(${korYm(tbl.latest)}) 지수를 적용함`);}
+  const tv=reg.s[tUse],bv=reg.s[bYm];
+  const firstYm=Object.keys(reg.s)[0];
+  if(tv==null)return{err:`${rk} ${idxYmDisp(tUse)} 지수가 없습니다 (이 지역 지수는 ${idxYmDisp(firstYm)}부터 공표).`};
+  if(bv==null)return{err:`${rk} ${idxYmDisp(bYm)} 지수가 없습니다.`};
+  const adj=Math.round(bv/tv*1e5)/1e5; // 여섯째 자리 반올림 → 다섯째 자리 표시 (부동산원 KAS 조회화면과 동일)
+  const regionDisp=rk==="서울"?"서울":"서울 "+rk;
+  const lines=[kind,`지역 : ${regionDisp}`];
+  lines.push(`매매가격지수(한국부동산원) : ${idxYmDisp(tUse)} ~ ${idxYmDisp(bYm)}`);
+  note.forEach(n=>lines.push(n));
+  lines.push(`시점수정치 : ${bv.toFixed(1)}/${tv.toFixed(1)}≒${adj.toFixed(5)}`);
+  return{text:lines.join("\n"),adj};
+};
+const capTypeList=()=>{const D=capData();return D?Object.keys(D.types):[];};
+// 비주거용 지역은 서울·경기·인천만 노출 (전국 상권 단위는 시점수정에 안 씀)
+const capRegionList=kind=>{const D=capData();if(!D||!D.types[kind])return[];
+  const rs=D.types[kind].regions;return["서울","경기","인천"].filter(k=>rs[k]);};
+const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
+  const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다."};
+  const T=D.types[kind];if(!T)return{err:"자본수익률 유형이 없습니다: "+kind};
+  const ser=T.regions[region];if(!ser)return{err:`'${kind}' 자료에 '${region}' 지역이 없습니다.`};
+  const pd=s=>{const m=String(s||"").replace(/[^0-9]/g,"");if(m.length<8)return null;return new Date(+m.slice(0,4),+m.slice(4,6)-1,+m.slice(6,8));};
+  const t0=pd(tradeDate),t1=pd(baseDate);
+  if(!t0)return{err:"거래시점 날짜를 입력하세요. (예: 2024.05.06)"};
+  if(!t1)return{err:"기준시점 날짜를 입력하세요."};
+  const DAY=86400000;
+  const qOf=dt=>({y:dt.getFullYear(),q:Math.floor(dt.getMonth()/3)+1});
+  const qStart=(y,q)=>new Date(y,(q-1)*3,1),qEnd=(y,q)=>new Date(y,q*3,0);
+  const diQ=(y,q)=>Math.round((qEnd(y,q)-qStart(y,q))/DAY)+1;
+  const doQ=(dt,y,q)=>Math.round((new Date(dt.getFullYear(),dt.getMonth(),dt.getDate())-qStart(y,q))/DAY)+1;
+  const qCmp=(a,b)=>(a.y*4+a.q)-(b.y*4+b.q),nextQ=(y,q)=>q>=4?{y:y+1,q:1}:{y,q:q+1};
+  const qa=qOf(t0),qb=qOf(t1);
+  if(qCmp(qa,qb)>0)return{err:"거래시점이 기준시점보다 뒤입니다. 날짜를 확인하세요."};
+  const lm=String(T.latest||"").match(/^(\d{4})(\d)$/);if(!lm)return{err:"자본수익률 최신 분기 정보가 없습니다."};
+  const latest={y:+lm[1],q:+lm[2]};
+  const rateOf=(y,q)=>{let yy=y,qq=q;if(qCmp({y,q},latest)>0){yy=latest.y;qq=latest.q;}const v=ser[`${yy}${qq}`];return v==null?null:v/100;};
+  const facs=[],qlist=[];
+  let cur={y:qa.y,q:qa.q};
+  while(qCmp(cur,qb)<=0){
+    const first=qCmp(cur,qa)===0,last=qCmp(cur,qb)===0,di=diQ(cur.y,cur.q);
+    const isMg=qCmp(cur,latest)>0;
+    const r=rateOf(cur.y,cur.q);if(r==null)return{err:`${cur.y}년 ${cur.q}분기 자본수익률 자료가 없습니다. (이 지역 최근 공표: ${latest.y}.${latest.q}분기)`};
+    const rStr=(Math.round(r*1e6)/1e6).toString();
+    // 미공표 분기 일할 분모 = 최근 공표분기 총일수
+    const dayDenominator=isMg?diQ(latest.y,latest.q):di;
+    let day=0;
+    if(first&&last)day=doQ(t1,cur.y,cur.q)-doQ(t0,cur.y,cur.q)+1;
+    else if(first)day=di-doQ(t0,cur.y,cur.q)+1;
+    else if(last)day=doQ(t1,cur.y,cur.q);
+    facs.push((first||last)?{str:`(1+${rStr}*${day}/${dayDenominator})`,val:1+r*day/dayDenominator}:{str:`(1+${rStr})`,val:1+r});
+    const pct=Math.round(r*1e6)/1e4;
+    qlist.push(`${cur.y}년 ${cur.q}분기 : ${pct}%`+(isMg?` (${latest.y}년 ${latest.q}분기 자료)`:""));
+    cur=nextQ(cur.y,cur.q);
+  }
+  const product=facs.reduce((a,f)=>a*f.val,1);
+  const adj=Math.round(product*1e5)/1e5;
+  const formula=facs.map(f=>f.str).join("*")+` ≒ ${adj.toFixed(5)}`;
+  const text=[kind,`지역 : ${region}`,`(${qa.y}.${qa.q} ~ ${qb.y}.${qb.q})`,...qlist,formula].join("\n");
+  return{text,adj};
+};
+
+// ── UI
+const $=id=>document.getElementById(id);
+let mode="res"; // res=주거용, nr=비주거용
+const LS_KIND={res:"arap-sjidx-kind",nr:"arap-nrcap-kind"},LS_REG={res:"arap-sjidx-region",nr:"arap-nrcap-region"};
+const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){console.error('ls get',e);return null;}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){console.error('ls set',e);}};
+function fillSelect(sel,opts,saved){sel.innerHTML="";opts.forEach(o=>{const el=document.createElement("option");el.value=el.textContent=o;sel.appendChild(el);});if(saved&&opts.includes(saved))sel.value=saved;}
+function refreshSelectors(){
+  if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillSelect($("region"),idxRegionList($("kind").value),lsGet(LS_REG.res));}
+  else{const ts=capTypeList();fillSelect($("kind"),ts.length?ts:["집합상가"],lsGet(LS_KIND.nr));fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));}
+  updateMeta();
+}
+function updateMeta(){
+  const D=idxData(),C=capData();
+  if(mode==="res"){const tbl=D&&D.tables[$("kind").value];
+    $("meta").textContent=tbl?`한국부동산원 매매가격지수 · ${idxYmDisp(tbl.latest)} 공표분까지 (${D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"⚠️ 지수 데이터 없음 — main에 arap_index_data.js가 매일 자동 갱신됩니다";}
+  else{const l=C&&C.types[$("kind").value]?C.types[$("kind").value].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);
+    $("meta").textContent=C?`상업용부동산 임대동향조사 자본수익률 · ${m?`${m[1]}.${m[2]}분기`:"-"} 공표분까지 (${C.fetchedAt||idxData().fetchedAt} 수신) · 첫/끝 분기 일수비례, 중간분기 복리`:"⚠️ 자본수익률 데이터 없음";}
+}
+$("tab-res").onclick=()=>{mode="res";$("tab-res").classList.add("on");$("tab-nr").classList.remove("on");refreshSelectors();};
+$("tab-nr").onclick=()=>{mode="nr";$("tab-nr").classList.add("on");$("tab-res").classList.remove("on");refreshSelectors();};
+$("kind").onchange=()=>{lsSet(LS_KIND[mode],$("kind").value);
+  fillSelect($("region"),mode==="nr"?capRegionList($("kind").value):idxRegionList($("kind").value),lsGet(LS_REG[mode]));updateMeta();};
+$("region").onchange=()=>lsSet(LS_REG[mode],$("region").value);
+$("btn-calc").onclick=()=>{
+  const r=(mode==="res"?buildSjIdxText:buildNrCapText)($("kind").value,$("region").value,$("tradeDate").value,$("baseDate").value);
+  if(r.err){$("err").textContent="⚠️ "+r.err;$("err").style.display="block";$("out").style.display="none";return;}
+  $("err").style.display="none";$("out").style.display="block";
+  $("adjNum").textContent=r.adj.toFixed(5);$("resultText").value=r.text;
+};
+$("btn-copy").onclick=async()=>{
+  const t=$("resultText").value;
+  try{await navigator.clipboard.writeText(t);}
+  catch(e){console.error('clipboard',e);$("resultText").select();document.execCommand("copy");}
+  $("btn-copy").textContent="✅ 복사됨!";setTimeout(()=>{$("btn-copy").textContent="📋 산식 복사 (집합건물 앱에 붙여넣기)";},1500);
+};
+// 기준시점 기본값 = 오늘
+(()=>{const d=new Date();$("baseDate").value=`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;})();
+refreshSelectors();
+</script>
+</body>
+</html>
