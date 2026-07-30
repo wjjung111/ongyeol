@@ -37,12 +37,67 @@
     <span class="mb-title">🏢 Ongyeol v1.0</span>
     <button id="btn-single" type="button">단일 호수</button>
     <button id="btn-multi" type="button">여러 호수</button>
+    <span id="mb-user" title="클릭해서 이름 변경" style="margin-left:auto;color:#94a3b8;font-size:12px;cursor:pointer;"></span>
   </div>
   <div id="root"></div>
   <div id="root-multi" style="display:none"></div>
   <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'EXACT 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
   <script src="arap_index_data.js"></script>
   <script>
+  // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
+  // 조회는 관리자.html(비밀번호)에서만 가능. 샘플 건(SAMPLE-*)은 제외. 실패해도 앱 동작에 영향 없음.
+  window.ARAP_USAGE_URL="https://script.google.com/macros/s/AKfycbxx2D6-vWHBS7UPUrhdd4Fz5iayqUlgM4IZcqlNCAuERxY3Wpijdo3xw29Xz3_gs_7Leg/exec";
+  window.arapUserName=function(forceAsk){
+    const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+    const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){console.error('user name save',e);}};
+    let name=lsGet("arap-user-name");
+    if(forceAsk){   // 팝업은 상단바 클릭 시에만 — 자동으로 뜨지 않음
+      const input=prompt("사용자 이름을 입력해주세요 (기록에 표시될 이름)",name||"");
+      if(input&&input.trim()){name=input.trim();lsSet("arap-user-name",name);}
+    }
+    const el=document.getElementById("mb-user");if(el)el.textContent=name?"🙋 "+name:"🙋 이름 입력";
+    if(!name){
+      // 이름 미입력 시 브라우저별 자동 번호로 기록
+      name=lsGet("arap-user-anon");
+      if(!name){name="사용자-"+Math.random().toString(36).slice(2,6).toUpperCase();lsSet("arap-user-anon",name);}
+    }
+    return name;
+  };
+  window.arapUsageLog=function(action,info){
+    try{
+      const caseNo=String((info&&info.caseNo)||"").trim();
+      if(!caseNo||/^SAMPLE/i.test(caseNo))return;
+      const payload={user:window.arapUserName(),caseNo:caseNo,addr:String(info.addr||"").trim(),
+        kind:info.kind||"",amount:info.amount||"",action:action||""};
+      const body=JSON.stringify(payload);
+      // 내용이 안 바뀌었으면 재전송 안 함 (자동저장이 몇 초마다 돌아도 스팸 방지)
+      const dedupeKey="arap-usage-last:"+action+":"+caseNo;
+      try{if(localStorage.getItem(dedupeKey)===body)return;localStorage.setItem(dedupeKey,body);}catch(e){console.error('usage dedupe',e);}
+      fetch(window.ARAP_USAGE_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:body});
+    }catch(e){console.error('usage log',e);}
+  };
+  document.getElementById("mb-user").onclick=()=>window.arapUserName(true);
+  setTimeout(()=>{try{window.arapUserName(false);}catch(e){console.error('user name init',e);}},1200);
+  // 최초 1회: 이 브라우저에 이미 저장돼 있던 과거 건 목록을 한꺼번에 전송 (업데이트 이전 작업 내역 확보용)
+  setTimeout(()=>{try{
+    if(localStorage.getItem("arap-usage-backfilled"))return;
+    const lists=[["appraisal-case-list",id=>"case:"+id],["v2:appraisal-case-list",id=>"v2:case:"+id]];
+    let delay=0;
+    for(const[lk,ck]of lists){
+      let list=[];try{list=JSON.parse(localStorage.getItem(lk)||"[]");}catch(e){console.error('backfill list',e);}
+      for(const it of list){
+        if(!it||!it.id||/^SAMPLE/i.test(it.id))continue;
+        let d=null;try{d=JSON.parse(localStorage.getItem(ck(it.id))||"null");}catch(e){console.error('backfill case',e);}
+        const ov2=(d&&d.ov)||{};
+        const addr=`${ov2.buildingName||""} ${ov2.dong?ov2.dong+"동":""} ${ov2.ho?ov2.ho+"호":""} · ${ov2.jibun||""}`.replace(/^ ·\s*/,"").trim()||String(it.label||"").replace(it.id,"").trim();
+        const item={caseNo:it.id,addr,kind:(d&&d.propType)||"",amount:(ov2.deskPrice||"")};
+        delay+=400; // 순차 전송(스크립트 과부하 방지)
+        setTimeout(()=>window.arapUsageLog("과거건",item),delay);
+      }
+    }
+    localStorage.setItem("arap-usage-backfilled","1");
+  }catch(e){console.error('usage backfill',e);}},2500);
+
   // ── 기기 간 저장건 동기화 (GitHub Gist, 비공개) ──
   // 토큰(gist 권한)을 각 기기에 1회 입력하면: 저장 시 자동 업로드, 접속 시 자동 수신.
   // 삭제는 기기 간 전파되지 않음(다른 기기에 남아있으면 다시 내려올 수 있음).
@@ -3128,6 +3183,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       const map=buildV2TokenMap(data,ov,cases,comp,fT);
       const bytes=await buildEvalHwpxV2(map);
       triggerDownload(bytes,`3. 감정평가서_${ov.client||"의뢰인"}.hwpx`);
+      window.arapUsageLog&&window.arapUsageLog("감정평가서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""} · ${ov.jibun||""}`.trim(),kind:propType,amount:fT||""});
     }catch(e){console.error('v2 감정평가서 hwpx 생성 실패',e);alert("감정평가서(한글) 생성 실패: "+e.message);}
   };
 
@@ -3201,7 +3257,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
         <span style={{flex:1}}/>
-        <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:13,padding:"8px 20px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis)} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">1. 청구서(hwp)</button>
+        <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:13,padding:"8px 20px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">1. 청구서(hwp)</button>
       </div>
     </div>
     {!sel.length?null:<>
@@ -3468,6 +3524,15 @@ function App(){
           return newList;
         });
         setCurrentId(id);
+        // 관리자 사용기록: 건 요약 전송 — 결정단가·시산가액은 ④탭(Step4)과 동일 산식 (이 스코프엔 fT가 없어 재계산)
+        try{
+          const uv2=getUV(uD),tv2=getUV(tD);
+          const comp2=cases.filter(c=>c.isSelected&&c.timeAdj).map(c=>applyR((c.unitPrice||0)*(c.timeAdj||1)*(c.totalFactor||1),uv2,uM));
+          const avg2=comp2.length?comp2.reduce((a,b)=>a+b,0)/comp2.length:0;
+          const fU2=manU?pNum(manU):applyR(avg2,uv2,uM);
+          const fT2=applyR((fU2||0)*(getEffArea(ov)||0),tv2,tM);
+          window.arapUsageLog&&window.arapUsageLog("저장",{caseNo:id,addr:label.replace(id,"").trim()+(ov.jibun?" · "+ov.jibun:""),kind:propType,amount:fT2||pNum(ov.deskPrice)||""});
+        }catch(e){console.error('usage summary',e);}
         setSaveStatus("✅");
       }catch(e){setSaveStatus("❌ "+String(e.message||e));}
     },5000);
@@ -6142,6 +6207,15 @@ function App(){
           return newList;
         });
         setCurrentId(id);
+        // 관리자 사용기록: 건 요약 전송 — 결정단가·시산가액은 ④탭(Step4)과 동일 산식 (이 스코프엔 fT가 없어 재계산)
+        try{
+          const uv2=getUV(uD),tv2=getUV(tD);
+          const comp2=cases.filter(c=>c.isSelected&&c.timeAdj).map(c=>applyR((c.unitPrice||0)*(c.timeAdj||1)*(c.totalFactor||1),uv2,uM));
+          const avg2=comp2.length?comp2.reduce((a,b)=>a+b,0)/comp2.length:0;
+          const fU2=manU?pNum(manU):applyR(avg2,uv2,uM);
+          const fT2=applyR((fU2||0)*(getEffArea(ov)||0),tv2,tM);
+          window.arapUsageLog&&window.arapUsageLog("저장",{caseNo:id,addr:label.replace(id,"").trim()+(ov.jibun?" · "+ov.jibun:""),kind:propType,amount:fT2||pNum(ov.deskPrice)||""});
+        }catch(e){console.error('usage summary',e);}
         setSaveStatus("✅");
       }catch(e){setSaveStatus("❌ "+String(e.message||e));}
     },5000);
@@ -6268,6 +6342,7 @@ ReactDOM.createRoot(document.getElementById('root-multi')).render(React.createEl
   </script>
   <!-- 페이지 최하단 저작권 표시: 스크롤 끝까지 내려야 보임, 인쇄물엔 미출력 -->
   <div id="arap-copyright" style="text-align:right;padding:16px 12px 8px;font-size:11px;color:#000;opacity:.22;user-select:none;font-family:system-ui,sans-serif;">&copy; 2026 정우진 감정평가사 · All Rights Reserved</div>
-  <style>@media print{#arap-copyright{display:none!important;}}</style>
+  <div id="arap-usage-notice" style="text-align:center;padding:2px 12px 10px;font-size:11px;color:#64748b;user-select:none;font-family:system-ui,sans-serif;">저장한 평가건 현황(접수번호·소재지·평가액)은 관리자에게 공유됩니다.</div>
+  <style>@media print{#arap-copyright,#arap-usage-notice{display:none!important;}}</style>
 </body>
 </html>
