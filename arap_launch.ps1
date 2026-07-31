@@ -183,7 +183,8 @@ function Fetch-IndexData {
     $latest = ""
     Write-Host ("  {0} ({1}) 전체 수신·필터링..." -f $kind, ($t.roots -join "/"))
     $gotRows = $false
-    $firstRow = $null   # 전부 걸러졌을 때 원인 진단용 샘플
+    $firstRow = $null       # 전부 걸러졌을 때 원인 진단용 샘플
+    $distinctCls = [ordered]@{}   # 전부 걸러졌을 때 지역명 목록 출력용 (최대 25개)
     for ($pg = 1; $pg -le 150; $pg++) {
       $url = "{0}?STATBL_ID={1}&DTACYCLE_CD=MM&Type=json&pIndex={2}&pSize=1000&KEY={3}" -f $apiBase, $t.id, $pg, $apiKey
       $j = Invoke-Rone $url
@@ -202,9 +203,14 @@ function Fetch-IndexData {
         if ($r.ITM_NM -and ($r.ITM_NM -notmatch "지수")) { continue }       # 표에 지수 외 항목이 섞여도 지수만
         if ($r.ITM_NM -and ($r.ITM_NM -match "전세|월세")) { continue }     # 매매가격지수만 (오피스텔 표 대비)
         $full = [string]$r.CLS_FULLNM
-        # 시도 판정: 경로 어느 구간이든 roots에 걸리면 채택 — 오피스텔 표는 '수도권>서울'처럼 시도가 하위 구간에 옴(#14)
+        if ($distinctCls.Count -lt 25 -and -not $distinctCls.Contains($full)) { $distinctCls[$full] = 1 }
+        # 시도 판정: 경로 어느 구간이든 roots로 시작하면 채택 — 표마다 '수도권>서울', '서울특별시' 등 표기가 제각각(#14·#15)
         $hit = $false
-        foreach ($sg in ($full -split ">")) { if ($t.roots -contains $sg.Trim()) { $hit = $true; break } }
+        foreach ($sg in ($full -split ">")) {
+          $sgt = $sg.Trim()
+          foreach ($rt in $t.roots) { if ($sgt -like ($rt + "*")) { $hit = $true; break } }
+          if ($hit) { break }
+        }
         if (-not $hit) { continue }
         if (-not $byFull.Contains($full)) {
           $cid = 0; if ($r.PSObject.Properties["CLS_ID"] -and $r.CLS_ID) { $cid = [int]$r.CLS_ID }
@@ -220,6 +226,7 @@ function Fetch-IndexData {
     if (-not $gotRows -or $byFull.Count -eq 0) {
       Write-Host ("    {0} 자료없음 — 이 표는 생략" -f $kind) -ForegroundColor Yellow
       if ($firstRow) { Write-Host ("    [샘플행] CLS_FULLNM={0} ITM_NM={1} WRTTIME={2}" -f $firstRow.CLS_FULLNM, $firstRow.ITM_NM, $firstRow.WRTTIME_IDTFR_ID) -ForegroundColor Yellow }
+      if ($distinctCls.Count -gt 0) { Write-Host ("    [지역명 목록] {0}" -f (@($distinctCls.Keys) -join " | ")) -ForegroundColor Yellow }
       continue
     }
     # 표시명 = 마지막 구간. 시도 간 동명(예: 서울 중구/인천 중구) 충돌 시 '시도 이름'으로 구분
