@@ -161,15 +161,36 @@ function Fetch-IndexData {
     throw "API 키가 없습니다. 같은 폴더에 'arap_apikey.local.txt' 파일을 만들고 부동산원 R-ONE 인증키를 한 줄로 넣으세요. (환경변수 RONE_API_KEY 로 넣어도 됨)"
   }
   Write-Host "부동산원 매매가격지수 수신 중..." -ForegroundColor Cyan
-  # 오피스텔: A_2024_00615의 월간(MM) 자료가 비어 있음(#13 확인) → 통계목록에서 '오피스텔+매매+지수' 표를 이름으로 자동 탐색해 교체
+  # 오피스텔 지역별 표 자동 탐색 — 이름만으론 구분 불가(#16: '매매가격지수(시계열)' A_2024_00615가 실제론 전국 규모별 표).
+  # 월간 오피스텔 표 후보를 하나씩 열어 서울/경기 지역이 실제로 들어있는 첫 표를 채택한다. 없으면 오피스텔은 생략.
   try {
     $lj = Invoke-Rone ("{0}?Type=json&pIndex=1&pSize=1000&KEY={1}" -f $listBase, $apiKey)
-    $cands = @($lj.SttsApiTbl[1].row | Where-Object { $_.STATBL_NM -match "오피스텔" -and $_.STATBL_NM -match "매매" -and $_.STATBL_NM -match "지수" })
+    $cands = @($lj.SttsApiTbl[1].row | Where-Object { $_.STATBL_NM -match "오피스텔" -and $_.DTACYCLE_NM -match "월" })
     foreach ($c in $cands) { Write-Host ("  [오피스텔 표 후보] {0} {1} ({2})" -f $c.STATBL_ID, $c.STATBL_NM, $c.DTACYCLE_NM) }
-    $mm = @($cands | Where-Object { $_.DTACYCLE_NM -match "월" })
-    if ($mm.Count -ge 1 -and [string]$mm[0].STATBL_ID -ne $tables["오피스텔"].id) {
-      Write-Host ("  오피스텔 표 교체: {0} → {1}" -f $tables["오피스텔"].id, $mm[0].STATBL_ID) -ForegroundColor Cyan
-      $tables["오피스텔"].id = [string]$mm[0].STATBL_ID
+    $found = $null
+    foreach ($c in $cands) {
+      if ($c.STATBL_NM -match "전세|월세|수급|거래|규모별") { continue }   # 매매가격지수 계열만
+      $j = Invoke-Rone ("{0}?STATBL_ID={1}&DTACYCLE_CD=MM&Type=json&pIndex=1&pSize=1000&KEY={2}" -f $apiBase, $c.STATBL_ID, $apiKey)
+      $rows = if ($j.SttsApiTblData -and @($j.SttsApiTblData).Count -ge 2) { $j.SttsApiTblData[1].row } else { $null }
+      $regionNames = [ordered]@{}
+      $ok = $false
+      if ($rows) {
+        foreach ($r in $rows) {
+          $fn = [string]$r.CLS_FULLNM
+          if ($regionNames.Count -lt 15 -and -not $regionNames.Contains($fn)) { $regionNames[$fn] = 1 }
+          foreach ($sg in ($fn -split ">")) { $s = $sg.Trim(); if ($s -like "서울*" -or $s -like "경기*") { $ok = $true; break } }
+          if ($ok) { break }
+        }
+      }
+      Write-Host ("  [오피스텔 후보검사] {0} → 서울/경기 {1} (지역 예: {2})" -f $c.STATBL_ID, $(if ($ok) { "있음" } else { "없음" }), (@($regionNames.Keys) -join " | "))
+      if ($ok) { $found = [string]$c.STATBL_ID; break }
+    }
+    if ($found) {
+      if ($found -ne $tables["오피스텔"].id) { Write-Host ("  오피스텔 표 확정: {0}" -f $found) -ForegroundColor Cyan }
+      $tables["오피스텔"].id = $found
+    } else {
+      Write-Host "  오피스텔 지역별 월간 표를 찾지 못함 — 오피스텔 생략" -ForegroundColor Yellow
+      $tables.Remove("오피스텔")
     }
   } catch { Write-Host "  오피스텔 표 탐색 실패(기존 ID로 진행): $_" -ForegroundColor Yellow }
   $out = [ordered]@{
