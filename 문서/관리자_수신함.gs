@@ -15,7 +15,11 @@ var HEADER = ['시각', '사용자', '접수번호', '물건', '유형', '시산
 function _sheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_NAME);
-  if (!sh) sh = ss.insertSheet(SHEET_NAME);
+  // '기록' 탭이 없으면: 시트가 하나뿐인 문서면 그걸 그대로 쓰고(기존 데이터 보존), 여러 개면 새로 만든다
+  if (!sh) {
+    var all = ss.getSheets();
+    sh = (all.length === 1) ? all[0] : ss.insertSheet(SHEET_NAME);
+  }
   if (sh.getLastRow() === 0) sh.appendRow(HEADER);
   return sh;
 }
