@@ -46,6 +46,9 @@
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
   // 조회는 관리자.html(비밀번호)에서만 가능. 샘플 건(SAMPLE-*)은 제외. 실패해도 앱 동작에 영향 없음.
+  // 전송은 GET(쿼리스트링) 방식 — 응답을 읽을 수 있어 수신 성공을 확인하고, 실패분은 큐에 남겨 다음 접속 때 재전송한다.
+  // (구버전은 POST+no-cors라 거부당해도 알 수 없었고, 보내기 전에 '보냄' 표시를 찍어 실패분이 영영 안 올라갔다.)
+  // 수신함 스크립트 원본·설치법: 문서/관리자_수신함.gs, 문서/관리자_수신함_설정.md
   window.ARAP_USAGE_URL="https://script.google.com/macros/s/AKfycbxx2D6-vWHBS7UPUrhdd4Fz5iayqUlgM4IZcqlNCAuERxY3Wpijdo3xw29Xz3_gs_7Leg/exec";
   window.arapUserName=function(forceAsk){
     const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
@@ -63,19 +66,52 @@
     }
     return name;
   };
-  window.arapUsageLog=function(action,info){
-    try{
-      const caseNo=String((info&&info.caseNo)||"").trim();
-      if(!caseNo||/^SAMPLE/i.test(caseNo))return;
-      const payload={user:window.arapUserName(),caseNo:caseNo,addr:String(info.addr||"").trim(),
-        kind:info.kind||"",amount:info.amount||"",action:action||""};
-      const body=JSON.stringify(payload);
-      // 내용이 안 바뀌었으면 재전송 안 함 (자동저장이 몇 초마다 돌아도 스팸 방지)
-      const dedupeKey="arap-usage-last:"+action+":"+caseNo;
-      try{if(localStorage.getItem(dedupeKey)===body)return;localStorage.setItem(dedupeKey,body);}catch(e){console.error('usage dedupe',e);}
-      fetch(window.ARAP_USAGE_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:body});
-    }catch(e){console.error('usage log',e);}
-  };
+  (function(){
+    const QKEY="arap-usage-queue";                      // 전송 대기줄 (수신 확인된 것만 빠진다)
+    const okKey=p=>"arap-usage-ok:"+p.action+":"+p.caseNo;   // 마지막으로 '수신 확인'된 내용
+    const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+    const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){console.error('usage ls',e);}};
+    const readQ=()=>{try{const a=JSON.parse(lsGet(QKEY)||"[]");return Array.isArray(a)?a:[];}catch(e){return[];}};
+    const writeQ=q=>lsSet(QKEY,JSON.stringify(q.slice(-300)));   // 오래된 건 넘치면 버림
+    const sig=p=>JSON.stringify([p.user,p.caseNo,p.addr,p.kind,p.amount]);
+    let sending=false;
+    // 대기줄을 앞에서부터 하나씩 전송. 수신함이 응답하면 줄에서 빼고, 응답 자체를 못 받으면 남겨둔다.
+    window.arapUsageFlush=async function(){
+      if(sending||!readQ().length)return;
+      sending=true;
+      try{
+        while(readQ().length){
+          const it=readQ()[0];let answered=false;
+          try{
+            const r=await fetch(window.ARAP_USAGE_URL+"?"+new URLSearchParams(it).toString(),{cache:"no-store"});
+            const j=await r.json().catch(()=>null);
+            answered=true;
+            if(j&&j.ok)lsSet(okKey(it),sig(it));            // 시트에 실제로 쌓인 뒤에야 '보냄' 표시
+            else console.error('사용기록 수신함이 거부함',j);  // 재시도해도 같은 결과 → 줄에서 뺀다
+          }catch(e){console.error('사용기록 전송 실패 — 다음 접속 때 재시도',e);}
+          if(!answered)break;                                // 네트워크·차단 → 줄 유지
+          const q=readQ(),at=q.findIndex(x=>x.id===it.id);
+          if(at<0)break;
+          q.splice(at,1);writeQ(q);
+          await new Promise(done=>setTimeout(done,300));      // 순차 전송(스크립트 과부하 방지)
+        }
+      }finally{sending=false;}
+    };
+    window.arapUsageLog=function(action,info){
+      try{
+        const caseNo=String((info&&info.caseNo)||"").trim();
+        if(!caseNo||/^SAMPLE/i.test(caseNo))return;
+        const p={user:window.arapUserName(),caseNo:caseNo,addr:String(info.addr||"").trim(),
+          kind:info.kind||"",amount:info.amount||"",action:action||""};
+        if(lsGet(okKey(p))===sig(p))return;                  // 이미 수신 확인된 내용과 같으면 생략
+        const q=readQ();
+        if(q.some(x=>x.action===p.action&&x.caseNo===p.caseNo&&sig(x)===sig(p)))return;  // 이미 대기 중
+        p.id=String(Date.now())+Math.random().toString(36).slice(2,6);
+        q.push(p);writeQ(q);
+        window.arapUsageFlush();
+      }catch(e){console.error('usage log',e);}
+    };
+  })();
   document.getElementById("mb-user").onclick=()=>window.arapUserName(true);
   setTimeout(()=>{try{window.arapUserName(false);}catch(e){console.error('user name init',e);}},1200);
   // ── 최초 1회 사용자 이름 게이트: 이름이 저장돼 있지 않으면 온결 첫 화면으로 가리고 입력받는다 ──
@@ -112,11 +148,11 @@
     }catch(e){console.error('name gate',e);}
   })();
   // 최초 1회: 이 브라우저에 이미 저장돼 있던 과거 건 목록을 한꺼번에 전송 (업데이트 이전 작업 내역 확보용)
+  // 키가 -v2 — 구버전(전송 실패를 성공으로 착각하던 때)에 백필을 이미 마친 브라우저도 한 번 더 올린다.
   window.arapBackfillOnce=function(){try{
-    if(localStorage.getItem("arap-usage-backfilled"))return;
+    if(localStorage.getItem("arap-usage-backfilled-v2"))return;
     if(!localStorage.getItem("arap-user-name"))return;   // 이름 입력(게이트 통과) 후에만 — 자동번호로 올라가는 것 방지
     const lists=[["appraisal-case-list",id=>"case:"+id],["v2:appraisal-case-list",id=>"v2:case:"+id]];
-    let delay=0;
     for(const[lk,ck]of lists){
       let list=[];try{list=JSON.parse(localStorage.getItem(lk)||"[]");}catch(e){console.error('backfill list',e);}
       for(const it of list){
@@ -125,13 +161,13 @@
         const ov2=(d&&d.ov)||{};
         const addr=`${ov2.buildingName||""} ${ov2.dong?ov2.dong+"동":""} ${ov2.ho?ov2.ho+"호":""} · ${ov2.jibun||""}`.replace(/^ ·\s*/,"").trim()||String(it.label||"").replace(it.id,"").trim();
         const item={caseNo:it.id,addr,kind:(d&&d.propType)||"",amount:(ov2.deskPrice||"")};
-        delay+=400; // 순차 전송(스크립트 과부하 방지)
-        setTimeout(()=>window.arapUsageLog("과거건",item),delay);
+        window.arapUsageLog("과거건",item);   // 대기줄에 쌓아두면 순차 전송·실패 시 재시도까지 알아서 처리
       }
     }
-    localStorage.setItem("arap-usage-backfilled","1");
+    localStorage.setItem("arap-usage-backfilled-v2","1");
   }catch(e){console.error('usage backfill',e);}};
-  setTimeout(()=>window.arapBackfillOnce(),2500);
+  // 접속 때마다: 지난번에 못 보낸 대기분 재전송 + (아직이면) 과거건 백필
+  setTimeout(()=>{try{window.arapUsageFlush();window.arapBackfillOnce();}catch(e){console.error('usage init',e);}},2500);
 
   // ── 기기 간 저장건 동기화 (GitHub Gist, 비공개) ──
   // 토큰(gist 권한)을 각 기기에 1회 입력하면: 저장 시 자동 업로드, 접속 시 자동 수신.

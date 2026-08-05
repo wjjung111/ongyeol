@@ -15,6 +15,9 @@ ongyeol/
 ├── index.html          ← 입장 화면(허브): EXACT 집합건물 / EXACT 토지건물(준비중) / 집합건물 시점수정 버튼
 ├── 집합건물.html        ← ★집합건물 앱 본체 (단일 HTML, React+Babel CDN, 한글 템플릿 base64 내장. 구 index.html)
 ├── 토지조회.html        ← 토지 조회 도구 (토지건물 준비작업, 브이월드 API)
+├── 관리자.html          ← 사용 기록 조회 (숨은 페이지, 입장 화면에 링크 없음). 비밀번호는 수신함이 검증
+├── 문서/관리자_수신함.gs      ← 기록을 받아 구글 시트에 쌓는 앱스 스크립트 원본 (관리자 구글 계정에 붙여넣어 배포)
+├── 문서/관리자_수신함_설정.md ← 위 스크립트 설치·배포·점검 절차
 ├── arap_index_data.js  ← 매매가격지수 데이터 (자동생성 — 직접수정 금지). 집합건물.html이 상대경로로 로드
 ├── arap_launch.ps1     ← 부동산원 R-ONE API 지수 수신 (로컬/Actions용)
 ├── .github/workflows/update-index.yml ← 지수 자동갱신 (매일 06:00 KST, Secret RONE_API_KEY 필요)
