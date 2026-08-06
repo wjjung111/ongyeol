@@ -2401,6 +2401,9 @@ async function buildEvalHwpxV2(tokenMap){
   return createZipStored(entries);
 }
 // buildData 결과(d)를 v2.0 템플릿 토큰 129종으로 확장
+// 거래사례 기호 — 감정평가서 거래사례 목록표(㉠㉡㉢…)와 통일. 표시순서(shownC) 기준.
+const CASE_SYM="㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩㉪㉫㉬㉭";
+const circSymOf=(shownC,c)=>{if(!c)return"";const arr=shownC||[];const i=arr.findIndex(x=>x&&x.id===c.id);if(i>=0)return CASE_SYM.charAt(i)||String(i+1);const nn=parseInt(c.symbol,10);return nn>=1?(CASE_SYM.charAt(nn-1)||String(c.symbol)):(c.symbol?String(c.symbol):"");};
 function buildV2TokenMap(d,ov,cases,comp,fT){
   const sc=comp[0]||{};
   const stripDot=s=>String(s||"").trim().replace(/\.$/,"");
@@ -2447,7 +2450,7 @@ function buildV2TokenMap(d,ov,cases,comp,fT){
     v["사례"+n+"_거래시점"]=c?fmtDate(c.tradeDate):"";
     v["사례"+n+"_승인일"]=c?fmtDate(c.approvalDate):"";
   }
-  v["선정_기호"]=sc.symbol?String(sc.symbol):"";
+  v["선정_기호"]=circSymOf(shownC,sc);
   v["선정_법정동"]=sc.location||"";v["선정_지번"]=sc.jibun||"";v["선정_건물명"]=sc.aptName||"";
   v["선정_동층호"]=sc.symbol?((sc.dong||"-")+"/"+(sc.floor||"-")+"/"+stripHo(sc.ho)+"호"):"";
   v["선정_전유면적"]=sc.exclusiveArea?String(sc.exclusiveArea):"";
@@ -2846,6 +2849,7 @@ const insertToice=(xml,value)=>{
 function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,propType){
   const sc=comp[0]||{};
   const shownC=cases.filter(c=>c.isShown);
+  const scCirc=circSymOf(shownC,sc);
   const shownP=precs.filter(p=>p.isShown);
   // 동 유무 분기처리
   const hasDong=!!ov.dong;
@@ -2925,7 +2929,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   });
   // 선정사례 (comp)
   if(sc.symbol){
-    d["적용_사례번호"]=`#${sc.symbol}`;
+    d["적용_사례번호"]=scCirc;
     d["적용_사례단가"]=fmt(sc.unitPrice);
     d["적용_시점수정"]=fmtDec(sc.timeAdj,5);
     d["적용_가형요"]=fmtDec3(sc.totalFactor||1);
@@ -2951,10 +2955,10 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
     d["위치구분"]=isSameDanji?"동일단지 내":"인근지역";
     d["적용_조사"]=josa;
     d["사례선정이유"]=isSameDanji
-      ?`비교적 최근의 거래사례로서, 본건과 동일단지 내에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호#${sc.symbol}${josa} 비교사례로 선정하였음.`
-      :`비교적 최근의 거래사례로서, 본건과 인근지역에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호#${sc.symbol}${josa} 비교사례로 선정하였음.`;
-    d["사례선정이유_일반"]=`비교적 최근의 거래사례로서, 본건과 인근지역에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호#${sc.symbol}${josa} 비교사례로 선정하였음.`;
-    d["사례선정이유_동일단지"]=`비교적 최근의 거래사례로서, 본건과 동일단지 내에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호#${sc.symbol}${josa} 비교사례로 선정하였음.`;
+      ?`비교적 최근의 거래사례로서, 본건과 동일단지 내에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호 ${scCirc}${josa} 비교사례로 선정하였음.`
+      :`비교적 최근의 거래사례로서, 본건과 인근지역에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호 ${scCirc}${josa} 비교사례로 선정하였음.`;
+    d["사례선정이유_일반"]=`비교적 최근의 거래사례로서, 본건과 인근지역에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호 ${scCirc}${josa} 비교사례로 선정하였음.`;
+    d["사례선정이유_동일단지"]=`비교적 최근의 거래사례로서, 본건과 동일단지 내에 위치하고 있으며 대상과 이용상황 및 용도, 구조 등이 유사하여 비교가능성이 높은 거래사례 기호 ${scCirc}${josa} 비교사례로 선정하였음.`;
   }
   
   // 시점수정 변수 — 선정사례의 timeAdjDetail에서 파싱
