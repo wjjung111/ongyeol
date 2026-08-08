@@ -41,7 +41,7 @@
   </div>
   <div id="root"></div>
   <div id="root-multi" style="display:none"></div>
-  <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'EXACT 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
+  <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'ARM 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
   <script src="arap_index_data.js"></script>
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
@@ -810,7 +810,7 @@ const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
-  const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'EXACT 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
+  const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
   let rk=regionKey;const note=[];
   if(!tbl.regions[rk]){
@@ -854,7 +854,7 @@ const capTypeList=()=>{const D=capData();return D?Object.keys(D.types):[];};
 const capRegionList=kind=>{const D=capData();return D&&D.types[kind]?Object.keys(D.types[kind].regions):[];};
 const capLatestDisp=kind=>{const D=capData();const l=D&&D.types[kind]?D.types[kind].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);return m?`${m[1]}.${m[2]}분기`:"";};
 const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
-  const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다. 'EXACT 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
+  const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const T=D.types[kind];if(!T)return{err:"자본수익률 유형이 없습니다: "+kind};
   const ser=T.regions[region];if(!ser)return{err:`'${kind}' 자료에 '${region}' 지역이 없습니다.`};
   const pd=s=>{const m=String(s||"").replace(/[^0-9]/g,"");if(m.length<8)return null;return new Date(+m.slice(0,4),+m.slice(4,6)-1,+m.slice(6,8));};
@@ -1761,7 +1761,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
                   onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setTimeWarnings(["⚠️ "+r.err]);}else{setTmpTime(r.text);checkTimeWarnings(r.text,c);}}}>계산</button>
               </div>
               <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-                {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+                {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
               </div>
             </div>);})():(()=>{const D=idxData();const regs=idxRegionList();
             return(<div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#f0f7ff",border:"1px solid #bfdbfe",borderRadius:6}}>
@@ -1777,7 +1777,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
                   onClick={()=>{const r=buildSjIdxText(sjIdxKind,sjIdxRegion,c.tradeDate,ov.baseDate);if(r.err){setTimeWarnings(["⚠️ "+r.err]);}else{setTmpTime(r.text);checkTimeWarnings(r.text,c);}}}>계산</button>
               </div>
               <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-                {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+                {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
               </div>
             </div>);})()}
           <textarea style={{...S.ta,height:140}} value={tmpTime} onChange={e=>{setTmpTime(e.target.value);checkTimeWarnings(e.target.value,c);}}
@@ -3106,7 +3106,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
               onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
           </div>
           <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-            {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+            {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
           </div>
         </div>);})():(
       <div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#f0f7ff",border:"1px solid #bfdbfe",borderRadius:6}}>
@@ -3122,7 +3122,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
             onClick={()=>{const r=buildSjIdxText(kind,region,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
         </div>
         <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-          {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+          {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
         </div>
       </div>)}
       <textarea style={{...S.ta,height:140}} value={tmpTime} onChange={e=>{setTmpTime(e.target.value);check(e.target.value);}}
@@ -3760,7 +3760,7 @@ const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
-  const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'EXACT 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
+  const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
   let rk=regionKey;const note=[];
   if(!tbl.regions[rk]){
@@ -3828,7 +3828,7 @@ const capTypeList=()=>{const D=capData();return D?Object.keys(D.types):[];};
 const capRegionList=kind=>{const D=capData();return D&&D.types[kind]?Object.keys(D.types[kind].regions):[];};
 const capLatestDisp=kind=>{const D=capData();const l=D&&D.types[kind]?D.types[kind].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);return m?`${m[1]}.${m[2]}분기`:"";};
 const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
-  const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다. 'EXACT 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
+  const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const T=D.types[kind];if(!T)return{err:"자본수익률 유형이 없습니다: "+kind};
   const ser=T.regions[region];if(!ser)return{err:`'${kind}' 자료에 '${region}' 지역이 없습니다.`};
   const pd=s=>{const m=String(s||"").replace(/[^0-9]/g,"");if(m.length<8)return null;return new Date(+m.slice(0,4),+m.slice(4,6)-1,+m.slice(6,8));};
@@ -4818,7 +4818,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
                   onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setTimeWarnings(["⚠️ "+r.err]);}else{setTmpTime(r.text);checkTimeWarnings(r.text,c);}}}>계산</button>
               </div>
               <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-                {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+                {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
               </div>
             </div>);})():(()=>{const D=idxData();const regs=idxRegionList();
             return(<div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#f0f7ff",border:"1px solid #bfdbfe",borderRadius:6}}>
@@ -4834,7 +4834,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
                   onClick={()=>{const r=buildSjIdxText(sjIdxKind,sjIdxRegion,c.tradeDate,ov.baseDate);if(r.err){setTimeWarnings(["⚠️ "+r.err]);}else{setTmpTime(r.text);checkTimeWarnings(r.text,c);}}}>계산</button>
               </div>
               <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-                {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+                {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
               </div>
             </div>);})()}
           <textarea style={{...S.ta,height:140}} value={tmpTime} onChange={e=>{setTmpTime(e.target.value);checkTimeWarnings(e.target.value,c);}}
@@ -5831,7 +5831,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
               onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
           </div>
           <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-            {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+            {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
           </div>
         </div>);})():(
       <div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#f0f7ff",border:"1px solid #bfdbfe",borderRadius:6}}>
@@ -5847,7 +5847,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
             onClick={()=>{const r=buildSjIdxText(kind,region,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
         </div>
         <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-          {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+          {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
         </div>
       </div>)}
       <textarea style={{...S.ta,height:140}} value={tmpTime} onChange={e=>{setTmpTime(e.target.value);check(e.target.value);}}
