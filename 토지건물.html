@@ -68,16 +68,15 @@
   .status.err{color:#dc2626;font-weight:600;}
   .tablewrap,.tw{overflow-x:auto;}
 
-  .b{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;}
-  .b.api{background:#dbeafe;color:#1e40af;} .b.calc{background:#dcfce7;color:#166534;}
-  .b.in{background:#f1f5f9;color:#475569;} .b.jud{background:#fef9c3;color:#854d0e;}
-  .calc-c{background:#f0fdf4;font-weight:700;} .jud-c{background:#fefce8;}
-  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:7px 11px;font-size:11px;color:#854d0e;margin-top:7px;}
-  .q{background:#eff6ff;border:1px solid #bfdbfe;border-left:3px solid #2563eb;border-radius:6px;padding:7px 11px;font-size:11px;color:#1e40af;margin-top:7px;}
+  /* 값의 성격은 색 두 가지로만 구분한다 —
+     계산값(회색·굵게, 손댈 수 없음) / 평가사가 정하는 값(연한 노랑, 손대는 곳) */
+  .calc-c{background:#eef2f7;font-weight:700;color:#0f2547;}
+  .jud-c{background:#fff9e6;}
+  /* 안내문은 무채색 — 노란색은 '평가사가 정하는 칸'에만 쓴다 */
+  .note{background:#f6f8fa;border:1px solid #e2e5ea;border-left:3px solid #94a3b8;border-radius:4px;padding:7px 11px;font-size:11px;color:#475569;margin-top:7px;}
   .res{background:#1a2744;color:#fff;border-radius:6px;padding:8px 13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:9px;}
   .res .n{font-size:17px;font-weight:800;color:#7dd3fc;}
-  #pinLand{border:2px solid #1a2744;background:#f8fafc;}
-  #pinLand h2{border-bottom-color:#1a2744;}
+  #pinLand{border:2px solid #1a2744;}
 
   .subtabs{display:flex;gap:3px;margin-bottom:8px;border-bottom:2px solid #e2e5ea;}
   .subtabs button{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:#94a3b8;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
@@ -160,7 +159,7 @@
       <!-- 우: 대상물건(토지+건물) -->
       <div>
         <div class="card">
-          <h2>본건 토지 <span class="b api">V-World 자동조회</span></h2>
+          <h2>본건 토지</h2>
           <div class="row">
             <input type="text" id="landQuery" size="40" placeholder="예: 안양시 동안구 관양동 1443-5">
             <button class="btn" id="btnLand">조회</button>
@@ -179,7 +178,7 @@
         </div>
 
         <div class="card">
-          <h2>본건 건물 <span class="b api">건축물대장 자동조회</span></h2>
+          <h2>본건 건물</h2>
           <div class="row">
             <button class="btn" id="btnFetchBld">🏢 건축물대장 불러오기</button>
             <span class="hint">본건 토지를 먼저 조회하면 그 지번(PNU)으로 표제부·층별개요를 불러옵니다.</span>
@@ -217,7 +216,7 @@
         <!-- 좌: 계산 본류 -->
         <div>
           <div class="card">
-            <h2>비교표준지 <span class="b api">V-World 자동조회</span> <span class="b jud">선정은 판단</span></h2>
+            <h2>비교표준지</h2>
             <div class="row">
               <input type="text" id="stdQuery" size="34" placeholder="예: 안양시 동안구 관양동 1445-1">
               <button class="btn" id="btnStd">조회</button>
@@ -235,7 +234,7 @@
           </div>
 
           <div class="card">
-            <h2>시점수정 (지가변동률) <span class="b api">R-ONE 자동</span></h2>
+            <h2>시점수정 (지가변동률)</h2>
             <div class="row">
               <button class="btn" id="btnJb">📈 지가변동률 자동조회</button>
               <select id="jb_selRegion" title="대상지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:180px;max-width:280px"></select>
@@ -258,7 +257,7 @@
           </div>
 
           <div class="card">
-            <h2>개별요인비교 (본건/표준지) <span class="b in">입력</span> <span class="b calc">계 자동</span></h2>
+            <h2>개별요인비교 (본건/표준지)</h2>
             <div class="row" style="margin-bottom:6px"><span class="hint">비교표준지:</span>
               <select class="box" id="g_daegu" style="max-width:120px"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select></div>
             <div class="tw"><table>
@@ -295,7 +294,7 @@
                 <div class="pst" id="pTradeMsg"></div>
               </div>
               <div class="tw"><table id="tblTrade"></table></div>
-              <div class="note">토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>초록칸은 자동</b>. 실거래가에 없는 값(토지면적·주구조·재조달원가·잔존연수)만 채우면 됩니다.</div>
+              <div class="note">토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산</b>. 실거래가에 없는 값(토지면적·주구조·재조달원가·잔존연수)만 채우면 됩니다.</div>
             </div>
 
             <!-- 평가사례 -->
@@ -329,9 +328,9 @@
                     <td id="eStdTime">-</td><td>1.000</td><td></td><td class="calc-c" id="eOut2">-</td></tr>
               </table></div>
 
-              <div class="fnote">1) 시점수정(사례시점~기준시점) : <b id="fnTime">-</b> <span class="b in">직접 입력</span></div>
+              <div class="fnote">1) 시점수정(사례시점~기준시점) : <b id="fnTime">-</b></div>
               <div class="fnote">2) 지역요인비교치 : <b id="fnArea">1.00</b></div>
-              <div class="fnote">3) 개별요인비교치 <span class="b in">입력</span></div>
+              <div class="fnote">3) 개별요인비교치</div>
               <div class="tw"><table>
                 <tr><th>가로<br>조건</th><th>접근<br>조건</th><th>환경<br>조건</th><th>획지<br>조건</th><th>행정적<br>조건</th><th>기타<br>조건</th><th>계</th></tr>
                 <tr>
@@ -357,7 +356,7 @@
 
       <!-- 시산가액: 항상 보이는 하단 고정 패널 -->
       <div class="card" id="pinLand">
-        <h2>📌 시산가액 (실시간) <span class="b calc">자동</span></h2>
+        <h2>시산가액</h2>
         <div class="cols5050">
           <div>
             <h3>공시지가기준법 시산가액</h3>
@@ -386,12 +385,12 @@
     <div id="tab-georae" class="tab">
       <div class="res"><span>거래사례비교법 시산가액</span><span class="n" id="resGeorae">-</span></div>
       <div class="card">
-        <h2>비교 거래사례 채택 <span class="b calc">공시지가기준법에서 입력한 사례 재사용</span></h2>
+        <h2>비교 거래사례 채택</h2>
         <div class="note">거래사례는 <b>공시지가기준법 탭에서 한 번만 입력</b>하고, 여기서는 그 중 하나를 골라 씁니다.</div>
         <div class="tw" style="margin-top:7px"><table id="tblTradePick"></table></div>
       </div>
       <div class="card">
-        <h2>보정 <span class="b in">사정·시점수정 입력</span> <span class="b calc">산정단가 자동</span></h2>
+        <h2>보정</h2>
         <div class="tw"><table>
           <tr><th>사례단가<br>(원/㎡)</th><th>사정보정</th><th>시점수정</th><th>지역요인</th><th>개별요인</th><th>산정단가<br>(원/㎡)</th></tr>
           <tr><td id="ga_unit">-</td>
@@ -416,7 +415,7 @@
         </table></div>
       </div>
       <div class="card">
-        <h2>거래사례비교법에 의한 시산가액 <span class="b calc">자동</span></h2>
+        <h2>거래사례비교법에 의한 시산가액</h2>
         <div class="tw"><table>
           <tr><th>기호</th><th>면적(㎡)</th><th>적용단가(원/㎡)</th><th>시산가액(원)</th></tr>
           <tr><td>1</td><td id="ga_size">-</td><td class="calc-c" id="ga_apply">-</td><td class="calc-c" id="ga_total" style="font-size:14px">-</td></tr>
@@ -428,7 +427,7 @@
     <div id="tab-gyeoljeong" class="tab">
       <div class="res"><span>토지감정평가액</span><span class="n" id="resGyeoljeong">-</span></div>
       <div class="card">
-        <h2>합리성 검토 및 결정 <span class="b calc">비교 자동</span> <span class="b jud">결정은 판단</span></h2>
+        <h2>합리성 검토 및 결정</h2>
         <div class="cols5050">
           <div class="tw"><table>
             <tr><th>평가방법</th><th>시산가액(원)</th><th>채택</th></tr>
@@ -450,7 +449,7 @@
     <div id="tab-bld" class="tab">
       <div class="res"><span>건물가액</span><span class="n" id="resBld">-</span></div>
       <div class="card">
-        <h2>재조달원가·감가수정 <span class="b api">층별 자동</span> <span class="b jud">단가는 판단</span> <span class="b calc">잔가율·금액 자동</span></h2>
+        <h2>재조달원가·감가수정</h2>
         <div class="row" style="margin-bottom:8px"><button class="btn gh sm" onclick="addBldRow({});renderBldCalc();">+ 층 추가</button><span class="hint">여기서 추가한 층은 대상물건 탭 건물 표에도 함께 반영됩니다.</span></div>
         <div class="tw"><table id="tblBldCalc"></table></div>
         <div class="note">재조달원가(원/㎡)는 <a href="https://www.reb.or.kr" target="_blank" rel="noopener">한국부동산원 건물신축단가표</a>를 참고해 급수를 판단하여 입력하세요(자동 제공 안 함).
@@ -463,7 +462,7 @@
       <div class="res"><span>감정평가액</span><span class="n" id="resFinal">-</span></div>
       <div class="cols5050">
         <div class="card">
-          <h2>감정평가액의 결정 <span class="b calc">자동</span></h2>
+          <h2>감정평가액의 결정</h2>
           <div class="tw"><table>
             <tr><th>구분</th><th>면적</th><th>적용단가</th><th>감정평가액(원)</th></tr>
             <tr><td>토지</td><td id="fn_landSize">-</td><td id="fn_landUnit">-</td><td class="calc-c" id="fn_landAmt">-</td></tr>
@@ -480,7 +479,7 @@
         </div>
       </div>
       <div class="card">
-        <h2>검산 패널 <span class="b calc">자동</span></h2>
+        <h2>검산 패널</h2>
         <div class="tw"><table id="tblCheck"></table></div>
       </div>
     </div>
