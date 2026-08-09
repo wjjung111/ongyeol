@@ -38,7 +38,7 @@
     <span id="mb-user" title="클릭해서 이름 변경" style="margin-left:auto;color:#94a3b8;font-size:12px;cursor:pointer;"></span>
   </div>
   <div id="root"></div>
-  <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'EXACT 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
+  <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'ARM 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
   <script src="arap_index_data.js"></script>
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
@@ -789,7 +789,7 @@ const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
-  const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'EXACT 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
+  const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
   let rk=regionKey;const note=[];
   if(!tbl.regions[rk]){
@@ -857,7 +857,7 @@ const capTypeList=()=>{const D=capData();return D?Object.keys(D.types):[];};
 const capRegionList=kind=>{const D=capData();return D&&D.types[kind]?Object.keys(D.types[kind].regions):[];};
 const capLatestDisp=kind=>{const D=capData();const l=D&&D.types[kind]?D.types[kind].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);return m?`${m[1]}.${m[2]}분기`:"";};
 const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
-  const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다. 'EXACT 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
+  const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const T=D.types[kind];if(!T)return{err:"자본수익률 유형이 없습니다: "+kind};
   const ser=T.regions[region];if(!ser)return{err:`'${kind}' 자료에 '${region}' 지역이 없습니다.`};
   const pd=s=>{const m=String(s||"").replace(/[^0-9]/g,"");if(m.length<8)return null;return new Date(+m.slice(0,4),+m.slice(4,6)-1,+m.slice(6,8));};
@@ -1034,7 +1034,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
               onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
           </div>
           <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-            {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+            {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
           </div>
         </div>);})():(
       <div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#f0f7ff",border:"1px solid #bfdbfe",borderRadius:6}}>
@@ -1050,7 +1050,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
             onClick={()=>{const r=buildSjIdxText(kind,region,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
         </div>
         <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-          {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'EXACT 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+          {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
         </div>
       </div>)}
       <textarea style={{...S.ta,height:140}} value={tmpTime} onChange={e=>{setTmpTime(e.target.value);check(e.target.value);}}
@@ -1538,6 +1538,8 @@ function IpjSidebar({ov,cal,collapsed,setCollapsed}){
 function IpjTabGaeyo({ov,setOv}){
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
   const uu=(i,k,v)=>setOv(p=>{const units=p.units.map((x,j)=>j===i?{...x,[k]:v}:x);return{...p,units};});
+  const addUnit=()=>setOv(p=>({...p,units:[...p.units,ipjNewUnit(SYM(p.units.length))]}));
+  const delUnit=i=>setOv(p=>{if(p.units.length<=1)return p;const units=p.units.filter((_,j)=>j!==i).map((x,k)=>({...x,sym:SYM(k)}));return{...p,units};});
   return(<div>
     <Card title="사업 · 조합 정보" sub="분담금 통지서 · 조합원 공급계약서 기준">
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 24px"}}>
@@ -1556,17 +1558,20 @@ function IpjTabGaeyo({ov,setOv}){
         <Fld label="시점수정 지역" value={ov.sijeomRegion} onChange={v=>u("sijeomRegion",v)} w={120} ph="예) 서초구"/>
       </div>
     </Card>
-    <Card title="본건 2호수 (가 · 나)" sub="조합원 공급계약서 기준 — 층은 호수에서 자동도출 가능">
+    <Card title={`본건 (${ov.units.length}호수)`} sub="조합원 공급계약서 기준 — 가·나·다… 자동기호, 층은 호수에서 자동도출"
+      right={<button style={{...S.btn,background:C.acc,color:"#fff"}} onClick={addUnit}>+ 호수 추가</button>}>
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
-        {["기호","동","층","호","타입","배정평형","전유(㎡)","공용(㎡)","공급(㎡)","계약면적(㎡)","대지지분(㎡)","조합원분양가(원)"].map(h=><th key={h} style={S.th}>{h}</th>)}
+        {["기호","동","층","호","타입","배정평형","전유(㎡)","공용(㎡)","공급(㎡)","계약면적(㎡)","대지지분(㎡)","조합원분양가(원)",""].map((h,hi)=><th key={hi} style={S.th}>{h}</th>)}
       </tr></thead><tbody>
         {ov.units.map((x,i)=>(<tr key={i}>
           <td style={{...S.td,fontWeight:700,background:"#eff6ff"}}>{x.sym}</td>
           {["dong","floor","ho","type","baejeong","jeonyu","gongyong","gonggeup","gyeyak","daeji"].map(k=>
             <td key={k} style={S.td}><input value={x[k]||""} onChange={e=>uu(i,k,e.target.value)} style={{...S.inp,width:k==="baejeong"?90:64,textAlign:"center"}}/></td>)}
           <td style={S.td}><input value={x.bunyangga||""} onChange={e=>uu(i,"bunyangga",fmtComma(e.target.value))} style={{...S.inp,width:120,textAlign:"right"}}/></td>
+          <td style={S.td}>{ov.units.length>1&&<span title="이 호수 삭제" style={{cursor:"pointer",color:C.dng,fontWeight:700}} onClick={()=>delUnit(i)}>✕</span>}</td>
         </tr>))}
       </tbody></table></div>
+      {ov.units.length>2&&<div style={{fontSize:11,color:"#b45309",marginTop:6}}>⚠ 현재 감정서 양식(의견서·명세표)은 <b>가·나 2호수까지 인쇄</b>됩니다. 3호수 이상은 감정평가액 <b>합계엔 정확히 반영</b>되지만, 문서에 개별 행으로 찍히려면 한글 양식에 행 추가가 필요해요.</div>}
     </Card>
     <Card title="관리처분 · 분담금 (통지서)" sub="분양대상자별 권리내역">
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 24px"}}>
