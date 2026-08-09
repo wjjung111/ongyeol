@@ -11,54 +11,58 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>EXACT 토지건물 — Ongyeol</title>
 <style>
+  /* 집합건물 앱과 통일된 디자인 토큰 (C={pri:#1a2744,acc:#2563eb,bdr:#e2e5ea,hdr:#f0f2f5}) */
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:#f5f6f8;font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#1e293b;font-size:14px;}
-  #top{position:sticky;top:0;z-index:10;display:flex;gap:10px;align-items:center;padding:10px 16px;background:#0f172a;border-bottom:2px solid #334155;}
-  #top a{color:#cbd5e1;text-decoration:none;font-size:13px;font-weight:600;border:1px solid #475569;background:#1e293b;padding:6px 14px;border-radius:6px;}
-  #top .title{color:#e2e8f0;font-weight:700;font-size:14px;}
-  #top .tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
-  .wrap{max-width:1100px;margin:18px auto;padding:0 16px;}
-  .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(15,23,42,.05);margin-bottom:14px;}
-  .card h2{font-size:15px;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
-  .card h2 .pill{font-size:11px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:999px;padding:2px 9px;}
+  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  input:focus,textarea:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
+  /* 상단바 — 집합건물 #mode-bar와 동일 */
+  #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
+  #mode-bar .mb-title{color:#e2e8f0;font-weight:700;font-size:13px;margin-right:6px;}
+  #mode-bar a.mb-home{cursor:pointer;border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;transition:all .12s;}
+  #mode-bar a.mb-home:hover{border-color:#2563eb;color:#fff;}
+  #mode-bar .mb-tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
+  .wrap{max-width:1100px;margin:12px auto;padding:0 12px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:16px;margin-bottom:12px;}
+  .card h2{font-size:14px;font-weight:700;color:#1a2744;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:8px;}
+  .card h2 .pill{font-size:11px;font-weight:600;color:#1e40af;background:#dbeafe;border-radius:10px;padding:1px 8px;}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-  label.f{font-size:12px;color:#475569;font-weight:600;}
-  input[type=text],input[type=password]{font:inherit;padding:7px 9px;border:1px solid #cbd5e1;border-radius:6px;}
+  label.f{font-size:12px;color:#555;font-weight:600;}
+  input[type=text],input[type=password]{font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;}
   input[readonly]{background:#f8fafc;color:#64748b;}
-  button{font:inherit;padding:7px 15px;border:none;background:#2563eb;color:#fff;border-radius:6px;cursor:pointer;font-weight:700;}
+  button{font:inherit;font-size:12px;padding:7px 16px;border:none;background:#2563eb;color:#fff;border-radius:4px;cursor:pointer;font-weight:600;}
   button:hover{background:#1d4ed8;}
   button.ghost{background:#fff;color:#2563eb;border:1px solid #2563eb;}
-  button.sm{padding:4px 10px;font-size:12px;}
+  button.sm{padding:4px 10px;}
   button.gray{background:#64748b;}
   button:disabled{opacity:.5;cursor:default;}
   .hint{color:#94a3b8;font-size:12px;}
-  .status{margin:8px 0 0;color:#475569;min-height:16px;font-size:13px;}
+  .status{margin:8px 0 0;color:#555;min-height:16px;font-size:12px;}
   .status.err{color:#dc2626;font-weight:600;}
-  .tabs{display:flex;gap:8px;margin-bottom:14px;}
-  .tabs button{background:#e2e8f0;color:#475569;}
-  .tabs button.active{background:#0f172a;color:#fff;}
+  /* 스텝 탭 — 집합건물 pill과 동일 */
+  .tabs{display:flex;gap:3px;margin-bottom:12px;flex-wrap:wrap;}
+  .tabs button{background:#e2e8f0;color:#888;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;}
+  .tabs button.active{background:#1a2744;color:#fff;}
   .tab{display:none;}
   .tab.active{display:block;}
-  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff;}
-  th,td{border:1px solid #cdd3dc;padding:4px 6px;text-align:center;}
-  th{background:#eef1f6;font-size:12px;color:#475569;white-space:nowrap;}
-  td input{width:100%;border:none;text-align:center;font:inherit;padding:3px;background:transparent;}
-  td input:focus{background:#fff8e1;outline:1px solid #f59e0b;}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;}
+  table{border-collapse:collapse;width:100%;font-size:12px;background:#fff;}
+  th,td{border:1px solid #e2e5ea;padding:5px 6px;text-align:center;}
+  th{background:#f0f2f5;font-size:11px;color:#1a2744;font-weight:600;white-space:nowrap;}
+  td input{width:100%;border:none;text-align:center;font:inherit;font-size:12px;padding:3px;background:transparent;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;}
   .fld{display:flex;flex-direction:column;gap:3px;}
   .fld input{width:100%;}
   .tablewrap{overflow-x:auto;}
-  .del{color:#c0392b;cursor:pointer;font-weight:700;}
+  .del{color:#dc2626;cursor:pointer;font-weight:700;}
   #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
-  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-top:8px;}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;color:#854d0e;margin-top:8px;}
 </style>
 </head>
 <body>
-<div id="top">
-  <a href="index.html">🏠 홈</a>
-  <span class="title">🏞️ EXACT 토지건물</span>
-  <span class="tag">개발중 v0.1 · 자료수집</span>
+<div id="mode-bar">
+  <a class="mb-home" href="index.html" title="온결 입장 화면으로">🏠 홈</a>
+  <span class="mb-title">🏞️ Ongyeol v1.0 · EXACT 토지건물</span>
+  <span class="mb-tag">개발중 · 자료수집</span>
 </div>
 
 <div class="wrap">
@@ -90,8 +94,8 @@
   </div>
 
   <div class="tabs">
-    <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">대상물건</button>
-    <button id="tabbtn-gongsi" onclick="showTab('gongsi')">공시지가기준법</button>
+    <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">① 대상물건</button>
+    <button id="tabbtn-gongsi" onclick="showTab('gongsi')">② 공시지가기준법</button>
   </div>
 
   <!-- ============ 대상물건 탭 ============ -->
