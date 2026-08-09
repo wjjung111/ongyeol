@@ -213,6 +213,9 @@ var DEFAULT_VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';  // 내장 기본 키(�
 // 국토교통부 건축HUB 건축물대장 API 키(일반 인증키=URL인코딩됨. 그대로 붙임)
 var DATAGO_KEY='gmQSMNpJvNH5CARAFXivvjOf05MEgLxhGS5YeZTvy6%2BdL8qvsOysZGoGauJ8qcctoD7GdhmEklawkm2bBr64Ag%3D%3D';
 var BLD_BASE='https://apis.data.go.kr/1613000/BldRgstHubService';
+// 클라우드플레어 프록시(문서/클라우드플레어_프록시.js 배포 주소). 설정되면 건축물대장을
+// 프록시로 호출(CORS 해결·키 은닉). 비어 있으면 data.go.kr 직접 호출(수동붙여넣기 폴백).
+var PROXY_BASE='';
 var FORM_STORAGE='tojigeonmul-slice-v0';
 var landPnu='';                               // 본건 토지 조회 시 얻은 PNU(건축물대장 조회용)
 
@@ -377,7 +380,9 @@ function fetchBuilding(){
   var sigungu=pnu.slice(0,5), bjdong=pnu.slice(5,10);
   var platGb=(pnu.charAt(10)==='2')?'1':'0';   // V-World 필지구분(1일반/2산) → 대장 platGbCd(0대지/1산)
   var bun=pnu.slice(11,15), ji=pnu.slice(15,19);
-  var url=BLD_BASE+'/getBrFlrOulnInfo?sigunguCd='+sigungu+'&bjdongCd='+bjdong+'&platGbCd='+platGb+'&bun='+bun+'&ji='+ji+'&numOfRows=100&pageNo=1&_type=json&serviceKey='+DATAGO_KEY;
+  var url=PROXY_BASE
+    ? PROXY_BASE+'/bld?pnu='+pnu
+    : BLD_BASE+'/getBrFlrOulnInfo?sigunguCd='+sigungu+'&bjdongCd='+bjdong+'&platGbCd='+platGb+'&bun='+bun+'&ji='+ji+'&numOfRows=100&pageNo=1&_type=json&serviceKey='+DATAGO_KEY;
   var st=document.getElementById('bldStatus'),btn=document.getElementById('btnFetchBld');
   btn.disabled=true;st.className='status';st.textContent='건축물대장 조회 중…';
   callApi(url).then(function(d){
