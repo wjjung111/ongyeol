@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — EXACT 토지건물 (개발중 v0.1 슬라이스)
+  이 단계 범위: 본건 토지(V-World 자동조회) + 건물(입력) + 비교표준지(V-World 자동조회) + 지가변동률
+  계산·그밖의요인 보정·hwpx 생성은 다음 단계에서 이어붙임.
+  Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>EXACT 토지건물 — Ongyeol</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#f5f6f8;font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#1e293b;font-size:14px;}
+  #top{position:sticky;top:0;z-index:10;display:flex;gap:10px;align-items:center;padding:10px 16px;background:#0f172a;border-bottom:2px solid #334155;}
+  #top a{color:#cbd5e1;text-decoration:none;font-size:13px;font-weight:600;border:1px solid #475569;background:#1e293b;padding:6px 14px;border-radius:6px;}
+  #top .title{color:#e2e8f0;font-weight:700;font-size:14px;}
+  #top .tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
+  .wrap{max-width:1100px;margin:18px auto;padding:0 16px;}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(15,23,42,.05);margin-bottom:14px;}
+  .card h2{font-size:15px;color:#0f172a;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .card h2 .pill{font-size:11px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:999px;padding:2px 9px;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  label.f{font-size:12px;color:#475569;font-weight:600;}
+  input[type=text],input[type=password]{font:inherit;padding:7px 9px;border:1px solid #cbd5e1;border-radius:6px;}
+  input[readonly]{background:#f8fafc;color:#64748b;}
+  button{font:inherit;padding:7px 15px;border:none;background:#2563eb;color:#fff;border-radius:6px;cursor:pointer;font-weight:700;}
+  button:hover{background:#1d4ed8;}
+  button.ghost{background:#fff;color:#2563eb;border:1px solid #2563eb;}
+  button.sm{padding:4px 10px;font-size:12px;}
+  button.gray{background:#64748b;}
+  button:disabled{opacity:.5;cursor:default;}
+  .hint{color:#94a3b8;font-size:12px;}
+  .status{margin:8px 0 0;color:#475569;min-height:16px;font-size:13px;}
+  .status.err{color:#dc2626;font-weight:600;}
+  .tabs{display:flex;gap:8px;margin-bottom:14px;}
+  .tabs button{background:#e2e8f0;color:#475569;}
+  .tabs button.active{background:#0f172a;color:#fff;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff;}
+  th,td{border:1px solid #cdd3dc;padding:4px 6px;text-align:center;}
+  th{background:#eef1f6;font-size:12px;color:#475569;white-space:nowrap;}
+  td input{width:100%;border:none;text-align:center;font:inherit;padding:3px;background:transparent;}
+  td input:focus{background:#fff8e1;outline:1px solid #f59e0b;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;}
+  .fld{display:flex;flex-direction:column;gap:3px;}
+  .fld input{width:100%;}
+  .tablewrap{overflow-x:auto;}
+  .del{color:#c0392b;cursor:pointer;font-weight:700;}
+  #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
+  #fallbackPanel a{word-break:break-all;color:#2563eb;}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-top:8px;}
+</style>
+</head>
+<body>
+<div id="top">
+  <a href="index.html">🏠 홈</a>
+  <span class="title">🏞️ EXACT 토지건물</span>
+  <span class="tag">개발중 v0.1 · 자료수집</span>
+</div>
+
+<div class="wrap">
+
+  <!-- 브이월드 인증키 (내장. 개인 키로 바꾸기 옵션 제공) -->
+  <div class="card">
+    <div class="row">
+      <b>브이월드 인증키</b>
+      <span class="hint" id="keyHint"></span>
+      <button class="ghost sm" id="btnToggleKey" style="margin-left:auto">다른 키로 바꾸기</button>
+    </div>
+    <div class="row" id="keyEdit" style="margin-top:8px;display:none">
+      <input type="password" id="vkey" size="40" placeholder="개인 키 입력">
+      <button class="ghost sm" id="btnSaveKey">저장</button>
+      <button class="ghost sm gray" id="btnResetKey">내장 키로 되돌리기</button>
+    </div>
+    <div class="hint" style="margin-top:6px">키가 앱에 내장돼 있어 바로 조회됩니다 — 따로 입력할 필요 없어요. 필요하면 개인 키로 바꿀 수 있습니다.</div>
+  </div>
+
+  <!-- 기준정보 -->
+  <div class="card">
+    <h2>기준정보</h2>
+    <div class="row">
+      <span class="fld"><label class="f">공시기준일</label><input type="text" id="base_gongsi" placeholder="2025.01.01" size="12"></span>
+      <span class="fld"><label class="f">기준시점</label><input type="text" id="base_gijun" placeholder="2025.09.25" size="12"></span>
+      <span class="fld"><label class="f">실지조사일</label><input type="text" id="base_josa" placeholder="2026.07.31" size="12"></span>
+    </div>
+    <div class="hint" style="margin-top:6px">공시기준일~기준시점은 아래 지가변동률(시점수정) 기간으로 자동 반영됩니다.</div>
+  </div>
+
+  <div class="tabs">
+    <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">대상물건</button>
+    <button id="tabbtn-gongsi" onclick="showTab('gongsi')">공시지가기준법</button>
+  </div>
+
+  <!-- ============ 대상물건 탭 ============ -->
+  <div id="tab-daesang" class="tab active">
+
+    <div class="card">
+      <h2>본건 토지 <span class="pill">주소 입력 → 자동 조회</span></h2>
+      <div class="row">
+        <input type="text" id="landQuery" size="40" placeholder="예: 안양시 동안구 관양동 1443-5">
+        <button id="btnLand">조회</button>
+        <span class="hint">구·동까지 쓰면 정확합니다.</span>
+      </div>
+      <div class="status" id="landStatus"></div>
+      <div class="tablewrap" style="margin-top:10px">
+        <table id="landTbl">
+          <thead><tr>
+            <th>소재지</th><th>지번</th><th>지목</th><th>면적(㎡)</th><th>용도지역</th><th>이용상황</th><th>도로교통</th><th>형상</th><th>지세</th><th>개별공시지가<br>(원/㎡)</th><th>비고</th>
+          </tr></thead>
+          <tbody><tr id="landRow"></tr></tbody>
+        </table>
+      </div>
+      <div class="hint" style="margin-top:6px">모든 칸은 클릭해서 수정할 수 있습니다.</div>
+    </div>
+
+    <div class="card">
+      <h2>본건 건물 <span class="pill">입력 (건축물대장)</span></h2>
+      <div class="tablewrap">
+        <table id="bldTbl">
+          <thead><tr>
+            <th>구분</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>연면적(㎡)</th><th></th>
+          </tr></thead>
+          <tbody id="bldBody"></tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost sm" id="btnAddBld">+ 층 추가</button>
+        <span class="hint">연면적 합계: <b id="bldSum">0</b> ㎡</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ 공시지가기준법 탭 ============ -->
+  <div id="tab-gongsi" class="tab">
+
+    <div class="card">
+      <h2>비교표준지 <span class="pill">주소 입력 → 자동 조회</span></h2>
+      <div class="row">
+        <input type="text" id="stdQuery" size="40" placeholder="예: 안양시 동안구 관양동 1445-1">
+        <button id="btnStd">조회</button>
+        <span class="hint">공시기준일 기준 표준지 지번을 입력하세요.</span>
+      </div>
+      <div class="status" id="stdStatus"></div>
+      <div class="tablewrap" style="margin-top:10px">
+        <table id="stdTbl">
+          <thead><tr>
+            <th>소재지</th><th>지번</th><th>면적(㎡)</th><th>지목</th><th>용도지역</th><th>형상</th><th>공시지가<br>(원/㎡)</th><th>이용상황</th><th>도로교통</th><th>지세</th>
+          </tr></thead>
+          <tbody><tr id="stdRow"></tr></tbody>
+        </table>
+      </div>
+      <div class="hint" style="margin-top:6px">표준지 공시지가는 조회값을 넣되, 표준지공시지가와 다르면 직접 수정하세요.</div>
+    </div>
+
+    <div class="card">
+      <h2>시점수정 (지가변동률) <span class="pill">R-ONE 연동 예정</span></h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th>기간</th><th>대상지역</th><th>용도지역</th><th>지가변동률(%)</th><th>시점수정치</th>
+          </tr></thead>
+          <tbody><tr>
+            <td><input type="text" id="jb_period" readonly></td>
+            <td><input type="text" id="jb_region" placeholder="경기도 안양동안구"></td>
+            <td><input type="text" id="jb_use" placeholder="주거지역"></td>
+            <td><input type="text" id="jb_rate" placeholder="1.944" oninput="calcSijeom()"></td>
+            <td><input type="text" id="jb_factor" placeholder="1.01944"></td>
+          </tr></tbody>
+        </table>
+      </div>
+      <div class="note">
+        <b>지가변동률 자동연동(R-ONE)은 다음 단계입니다.</b> 지금은 부동산원에서 확인한 값을 직접 입력하세요.
+        지가변동률(%)을 넣으면 시점수정치는 <code>1 + %/100</code>로 자동 계산됩니다(누적치를 직접 넣어도 됩니다).
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 수동붙여넣기 폴백 (V-World 자동호출 차단 시) -->
+  <div class="card" id="fallbackPanel" hidden>
+    <b>⚠ 자동 호출이 차단되어 수동 모드로 전환합니다</b>
+    <div class="hint">아래 링크를 새 탭에서 열고, 나온 글자 전체를 복사(Ctrl+A→Ctrl+C)해 붙여넣은 뒤 [적용]을 누르세요.</div>
+    <div style="margin:8px 0"><a id="fbLink" href="#" target="_blank" rel="noopener"></a></div>
+    <textarea id="fbPaste" rows="4" style="width:100%;font:inherit;padding:8px;border:1px solid #cbd5e1;border-radius:6px"></textarea>
+    <div style="margin-top:6px"><button class="sm" id="btnFbApply">적용</button></div>
+  </div>
+
+  <div class="hint" style="text-align:center;padding:6px">© 2026 정우진 감정평가사 · EXACT 토지건물 (개발중)</div>
+</div>
+
+<script>
+'use strict';
+// ================= 표기 변환 (토지조회 도구와 동일) =================
+var MAP_YONGDO={'제1종전용주거지역':'1종전주','제2종전용주거지역':'2종전주','제1종일반주거지역':'1종일주','제2종일반주거지역':'2종일주','제3종일반주거지역':'3종일주','준주거지역':'준주거','중심상업지역':'중심상업','일반상업지역':'일반상업','근린상업지역':'근린상업','유통상업지역':'유통상업','전용공업지역':'전용공업','일반공업지역':'일반공업','준공업지역':'준공업','보전녹지지역':'보전녹지','생산녹지지역':'생산녹지','자연녹지지역':'자연녹지','보전관리지역':'보전관리','생산관리지역':'생산관리','계획관리지역':'계획관리','농림지역':'농림','자연환경보전지역':'자연환경'};
+var MAP_HYEONGSANG={'가로장방':'가장형','세로장방':'세장형','정방형':'정방형','사다리형':'사다리형','부정형':'부정형','자루형':'자루형','삼각형':'삼각형','역삼각형':'역삼각형'};
+var MAP_JEOPMYEON={'세로한면(가)':'세로(가)','세로각지(가)':'세각(가)','세로한면(불)':'세로(불)','세로각지(불)':'세각(불)'};
+var API_BASE='https://api.vworld.kr';
+var KEY_STORAGE='exact-vworld-key';           // 개인 키 override(토지조회 도구와 공유)
+var DEFAULT_VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';  // 내장 기본 키(입력 없이 바로 조회)
+var FORM_STORAGE='tojigeonmul-slice-v0';
+
+// ================= 인증키 (내장 키 + 개인 키 override) =================
+function getOverride(){try{return localStorage.getItem(KEY_STORAGE)||'';}catch(e){return '';}}
+function getKey(){return getOverride()||DEFAULT_VKEY;}
+function setKey(v){try{localStorage.setItem(KEY_STORAGE,v);}catch(e){console.error('key save',e);}}
+function refreshKeyHint(){document.getElementById('keyHint').textContent=getOverride()?('개인 키 사용 중: '+getOverride().slice(0,8)+'…'):'내장 키 사용 중 — 바로 조회 가능';}
+document.getElementById('btnToggleKey').onclick=function(){var e=document.getElementById('keyEdit');e.style.display=(e.style.display==='none'||!e.style.display)?'flex':'none';};
+document.getElementById('btnSaveKey').onclick=function(){var v=document.getElementById('vkey').value.trim();if(!v){alert('키를 입력하세요');return;}setKey(v);document.getElementById('vkey').value='';refreshKeyHint();};
+document.getElementById('btnResetKey').onclick=function(){try{localStorage.removeItem(KEY_STORAGE);}catch(e){console.error('key reset',e);}refreshKeyHint();};
+refreshKeyHint();
+
+// ================= API 호출 (fetch → JSONP → 수동붙여넣기) =================
+var netMode='auto';
+function tryFetch(url){return fetch(url).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});}
+function tryJsonp(url){return new Promise(function(resolve,reject){
+  var cb='__vw_cb'+Math.floor(Math.random()*1e9);
+  var sc=document.createElement('script');var done=false;
+  window[cb]=function(data){done=true;cleanup();resolve(data);};
+  function cleanup(){delete window[cb];if(sc.parentNode)sc.parentNode.removeChild(sc);}
+  sc.onerror=function(){if(!done){cleanup();reject(new Error('JSONP 로드 실패'));}};
+  setTimeout(function(){if(!done){cleanup();reject(new Error('JSONP 시간초과'));}},8000);
+  sc.src=url+(url.indexOf('?')>=0?'&':'?')+'callback='+cb;
+  document.head.appendChild(sc);
+});}
+var manualQueue=Promise.resolve();
+function tryManual(url){
+  manualQueue=manualQueue.then(function(){return new Promise(function(resolve){
+    var panel=document.getElementById('fallbackPanel'),link=document.getElementById('fbLink'),ta=document.getElementById('fbPaste');
+    panel.hidden=false;link.href=url;link.textContent=url;ta.value='';ta.focus();
+    document.getElementById('btnFbApply').onclick=function(){
+      var t=ta.value.trim();if(!t){alert('붙여넣은 내용이 없습니다');return;}
+      try{var j=JSON.parse(t);panel.hidden=true;resolve(j);}
+      catch(e){alert('내용이 JSON 형식이 아닙니다. 페이지 전체(Ctrl+A)를 복사했는지 확인하세요.');}
+    };
+  });});
+  return manualQueue;
+}
+function callApi(url){
+  if(netMode==='fetch')return tryFetch(url);
+  if(netMode==='jsonp')return tryJsonp(url);
+  if(netMode==='manual')return tryManual(url);
+  return tryFetch(url).then(function(d){netMode='fetch';return d;})
+    .catch(function(e1){console.error('fetch→JSONP',e1);
+      return tryJsonp(url).then(function(d){netMode='jsonp';return d;})
+        .catch(function(e2){console.error('JSONP→수동',e2);netMode='manual';return tryManual(url);});});
+}
+
+// ================= 조회 로직 =================
+function fmtWon(n){var v=Number(n);return isNaN(v)?'':v.toLocaleString('ko-KR');}
+function mapWith(m,name){return m[name]!==undefined?m[name]:(name||'');}
+function latestRecord(fields){var best=null;fields.forEach(function(f){
+  if(!best){best=f;return;}
+  if((f.stdrYear||'')>(best.stdrYear||'')){best=f;return;}
+  if((f.stdrYear||'')===(best.stdrYear||'')&&(f.lastUpdtDt||'')>(best.lastUpdtDt||''))best=f;
+});return best;}
+function searchPnu(query,key){
+  var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(query)+'&type=address&category=parcel&format=json&errorformat=json&key='+key;
+  return callApi(url).then(function(d){
+    var resp=d&&d.response;
+    if(!resp||resp.status!=='OK'||!resp.result||!resp.result.items||!resp.result.items.length)
+      throw new Error('주소를 찾지 못했습니다: '+query+(resp&&resp.error?(' ('+resp.error.text+')'):''));
+    var it=resp.result.items[0];
+    return {pnu:it.id,addr:(it.address&&(it.address.parcel||it.address.road))||it.title||query};
+  });
+}
+function nedUrl(op,pnu,key){return API_BASE+'/ned/data/'+op+'?key='+key+'&pnu='+pnu+'&format=json&numOfRows=100&pageNo=1';}
+function queryParcel(query,key){
+  var out={};
+  return searchPnu(query,key).then(function(s){out.pnu=s.pnu;out.addr=s.addr;
+    return callApi(nedUrl('getLandCharacteristics',s.pnu,key));
+  }).then(function(d){
+    var fields=(d&&d.landCharacteristicss&&d.landCharacteristicss.field)||[];
+    if(!fields.length)throw new Error('토지특성 정보가 없습니다 (PNU '+out.pnu+')');
+    out.char=latestRecord(fields);return out;
+  });
+}
+// 조회결과 → 공통 필드
+function extract(out){
+  var c=out.char;
+  return {
+    소재지:(c.ldCodeNm||'').split(' ').pop(),
+    지번:c.mnnmSlno||'',
+    지목:c.lndcgrCodeNm||'',
+    면적:c.lndpclAr||'',
+    용도지역:mapWith(MAP_YONGDO,c.prposArea1Nm||'')+(c.prposArea2Nm&&c.prposArea2Nm!=='지정되지않음'?(', '+mapWith(MAP_YONGDO,c.prposArea2Nm)):''),
+    이용상황:c.ladUseSittnNm||'',
+    도로교통:mapWith(MAP_JEOPMYEON,c.roadSideCodeNm||''),
+    형상:mapWith(MAP_HYEONGSANG,c.tpgrphFrmCodeNm||''),
+    지세:c.tpgrphHgCodeNm||'',
+    공시지가:fmtWon(c.pblntfPclnd),
+    시군구:(c.ldCodeNm||'').split(' ').slice(0,-1).join(' ')
+  };
+}
+
+// ================= 폼 렌더 =================
+function inp(v){return '<input type="text" value="'+String(v==null?'':v).replace(/"/g,'&quot;')+'" oninput="saveForm()">';}
+function renderLandRow(v){v=v||{};
+  document.getElementById('landRow').innerHTML=
+    ['소재지','지번','지목','면적','용도지역','이용상황','도로교통','형상','지세','공시지가','비고']
+    .map(function(k){return '<td data-k="land.'+k+'">'+inp(v[k]||'')+'</td>';}).join('');
+}
+function renderStdRow(v){v=v||{};
+  document.getElementById('stdRow').innerHTML=
+    ['소재지','지번','면적','지목','용도지역','형상','공시지가','이용상황','도로교통','지세']
+    .map(function(k){return '<td data-k="std.'+k+'">'+inp(v[k]||'')+'</td>';}).join('');
+}
+function addBldRow(v){v=v||{};
+  var tr=document.createElement('tr');
+  tr.innerHTML=['구분','층구분','층별','구조','용도','연면적'].map(function(k){
+    return '<td data-k="bld.'+k+'">'+inp(v[k]||'')+'</td>';}).join('')+
+    '<td><span class="del" title="삭제">✕</span></td>';
+  tr.querySelector('.del').onclick=function(){tr.remove();sumBld();saveForm();};
+  tr.querySelectorAll('input').forEach(function(i){i.addEventListener('input',sumBld);});
+  document.getElementById('bldBody').appendChild(tr);
+}
+function sumBld(){var s=0;document.querySelectorAll('#bldBody tr').forEach(function(tr){
+  var a=Number(String(tr.children[5].querySelector('input').value).replace(/[^0-9.]/g,''));if(!isNaN(a))s+=a;});
+  document.getElementById('bldSum').textContent=s.toLocaleString('ko-KR',{maximumFractionDigits:4});}
+
+// ================= 지가변동률 기간·시점수정치 =================
+function updatePeriod(){
+  var g=document.getElementById('base_gongsi').value.trim(),j=document.getElementById('base_gijun').value.trim();
+  document.getElementById('jb_period').value=(g&&j)?(g+' ~ '+j):'';
+}
+function calcSijeom(){
+  var r=parseFloat(document.getElementById('jb_rate').value);
+  if(!isNaN(r))document.getElementById('jb_factor').value=(1+r/100).toFixed(5);
+  saveForm();
+}
+
+// ================= 조회 버튼 =================
+function bindQuery(btnId,queryId,statusId,onDone){
+  document.getElementById(btnId).onclick=function(){
+    var key=getKey();if(!key){alert('먼저 브이월드 인증키를 저장하세요');return;}
+    var q=document.getElementById(queryId).value.trim();if(!q){alert('지번을 입력하세요');return;}
+    var btn=this,st=document.getElementById(statusId);btn.disabled=true;st.className='status';st.textContent='조회 중… '+q;
+    queryParcel(q,key).then(function(out){onDone(extract(out));st.textContent='✅ 조회 완료: '+out.addr;saveForm();})
+      .catch(function(e){console.error('조회 실패',e);st.className='status err';st.textContent='실패: '+e.message;})
+      .then(function(){btn.disabled=false;});
+  };
+}
+bindQuery('btnLand','landQuery','landStatus',function(v){
+  renderLandRow({소재지:v.소재지,지번:v.지번,지목:v.지목,면적:v.면적,용도지역:v.용도지역,이용상황:v.이용상황,도로교통:v.도로교통,형상:v.형상,지세:v.지세,공시지가:v.공시지가,비고:'-'});
+});
+bindQuery('btnStd','stdQuery','stdStatus',function(v){
+  renderStdRow({소재지:v.소재지,지번:v.지번,면적:v.면적,지목:v.지목,용도지역:v.용도지역,형상:v.형상,공시지가:v.공시지가,이용상황:v.이용상황,도로교통:v.도로교통,지세:v.지세});
+  // 지가변동률 지역/용도 자동 채움(비어있을 때만)
+  if(!document.getElementById('jb_region').value)document.getElementById('jb_region').value=v.시군구||'';
+  if(!document.getElementById('jb_use').value){var u=v.용도지역||'';document.getElementById('jb_use').value=/주거|전주|일주/.test(u)?'주거지역':/상업/.test(u)?'상업지역':/공업/.test(u)?'공업지역':/녹지/.test(u)?'녹지지역':'';}
+});
+
+// ================= 탭 =================
+function showTab(name){
+  ['daesang','gongsi'].forEach(function(n){
+    document.getElementById('tab-'+n).classList.toggle('active',n===name);
+    document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
+  });
+}
+
+// ================= 저장/복원 (localStorage) =================
+function collect(){
+  var o={base:{},land:{},std:{},bld:[],jb:{}};
+  o.base.gongsi=document.getElementById('base_gongsi').value;
+  o.base.gijun=document.getElementById('base_gijun').value;
+  o.base.josa=document.getElementById('base_josa').value;
+  document.querySelectorAll('#landRow td').forEach(function(td){o.land[td.dataset.k.slice(5)]=td.querySelector('input').value;});
+  document.querySelectorAll('#stdRow td').forEach(function(td){o.std[td.dataset.k.slice(4)]=td.querySelector('input').value;});
+  document.querySelectorAll('#bldBody tr').forEach(function(tr){var r={};tr.querySelectorAll('td[data-k]').forEach(function(td){r[td.dataset.k.slice(4)]=td.querySelector('input').value;});o.bld.push(r);});
+  ['period','region','use','rate','factor'].forEach(function(k){o.jb[k]=document.getElementById('jb_'+k).value;});
+  return o;
+}
+var saveTimer=null;
+function saveForm(){clearTimeout(saveTimer);saveTimer=setTimeout(function(){
+  try{localStorage.setItem(FORM_STORAGE,JSON.stringify(collect()));}catch(e){console.error('form save',e);}},400);}
+function restore(){
+  var o=null;try{o=JSON.parse(localStorage.getItem(FORM_STORAGE)||'null');}catch(e){}
+  if(!o)return false;
+  if(o.base){document.getElementById('base_gongsi').value=o.base.gongsi||'';document.getElementById('base_gijun').value=o.base.gijun||'';document.getElementById('base_josa').value=o.base.josa||'';}
+  renderLandRow(o.land||{});renderStdRow(o.std||{});
+  (o.bld&&o.bld.length?o.bld:[{},{}]).forEach(addBldRow);
+  if(o.jb){['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value=(o.jb[k]||'');});}
+  return true;
+}
+
+// ================= 초기화 =================
+['base_gongsi','base_gijun'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){updatePeriod();saveForm();});});
+['base_josa','jb_region','jb_use','jb_factor'].forEach(function(id){document.getElementById(id).addEventListener('input',saveForm);});
+if(!restore()){renderLandRow({});renderStdRow({});addBldRow({});addBldRow({});}
+updatePeriod();sumBld();
+document.getElementById('btnAddBld').onclick=function(){addBldRow({});saveForm();};
+</script>
+</body>
+</html>
