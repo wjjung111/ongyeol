@@ -1,327 +1,370 @@
 <!DOCTYPE html>
 <!--
-  Ongyeol — EXACT 토지건물 화면 설계 시안 (기능 없음. 레이아웃·흐름 검토용)
-  산출근거 hwpx(관양동 1443-5) 전체 구조를 5개 화면으로 배치한 안.
+  Ongyeol — EXACT 토지건물 화면 프로토타입 (레이아웃·흐름 검토용)
+  ② 공시지가기준법 화면은 실제 동작(붙여넣기 파싱·자동계산)까지 구현.
   Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
 -->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>토지건물 화면 설계 시안</title>
+<title>토지건물 화면 프로토타입</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  input:focus,select:focus,textarea:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
   #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
   #mode-bar .mb-title{color:#e2e8f0;font-weight:700;font-size:13px;}
   #mode-bar a{border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
   #mode-bar .tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
 
-  .shell{display:grid;grid-template-columns:196px minmax(0,1fr);gap:12px;max-width:1800px;margin:12px auto;padding:0 12px;align-items:start;}
-  /* 좌측 요약 사이드바 */
+  .shell{display:grid;grid-template-columns:186px minmax(0,1fr);gap:10px;max-width:1900px;margin:10px auto;padding:0 10px;align-items:start;}
   .side{position:sticky;top:52px;background:#1a2744;border-radius:6px;padding:12px;color:#cbd5e1;}
-  .side h3{font-size:11px;color:#94a3b8;font-weight:600;margin:10px 0 3px;letter-spacing:.5px;}
+  .side h3{font-size:11px;color:#94a3b8;font-weight:600;margin:9px 0 2px;}
   .side h3:first-child{margin-top:0;}
   .side .v{font-size:13px;color:#fff;font-weight:700;word-break:break-all;}
   .side .v.sm{font-size:12px;font-weight:600;color:#e2e8f0;}
   .side .money{font-size:15px;color:#7dd3fc;}
-  .side hr{border:none;border-top:1px solid #334155;margin:10px 0;}
+  .side hr{border:none;border-top:1px solid #334155;margin:9px 0;}
+  .side button{width:100%;background:#2563eb;color:#fff;border:none;border-radius:4px;padding:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
 
-  .steps{display:flex;gap:3px;margin-bottom:10px;flex-wrap:wrap;}
+  .steps{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap;}
   .steps button{background:#e2e8f0;color:#888;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:inherit;}
   .steps button.active{background:#1a2744;color:#fff;}
   .scr{display:none;} .scr.active{display:block;}
 
-  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:12px 14px;margin-bottom:10px;}
-  .card h2{font-size:14px;font-weight:700;color:#1a2744;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .card h3{font-size:12px;font-weight:700;color:#334155;margin:10px 0 5px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:11px 13px;margin-bottom:9px;}
+  .card h2{font-size:13px;font-weight:700;color:#1a2744;margin-bottom:7px;padding-bottom:5px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .card h3{font-size:12px;font-weight:700;color:#334155;margin:9px 0 4px;}
+  .lr{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;}
+  @media(min-width:1380px){.lr{grid-template-columns:minmax(0,42fr) minmax(0,58fr);}}
   .cols2{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;}
-  @media(min-width:1280px){.cols2{grid-template-columns:340px minmax(0,1fr);}}
-  .cols5050{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;}
+  @media(min-width:1280px){.cols2{grid-template-columns:330px minmax(0,1fr);}}
+  .cols5050{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;}
   @media(min-width:1280px){.cols5050{grid-template-columns:1fr 1fr;}}
 
   table{border-collapse:collapse;width:100%;font-size:12px;background:#fff;}
-  th,td{border:1px solid #e2e5ea;padding:4px 6px;text-align:center;}
-  th{background:#f0f2f5;font-size:11px;font-weight:600;white-space:nowrap;}
+  th,td{border:1px solid #cdd3dc;padding:3px 5px;text-align:center;}
+  th{background:#dfe4ec;font-size:11px;font-weight:700;white-space:nowrap;}
+  th.rowh{background:#eef1f6;text-align:center;white-space:nowrap;}
   .tw{overflow-x:auto;}
-  .fld{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
-  .fld label{width:84px;flex-shrink:0;text-align:right;font-size:12px;color:#555;font-weight:600;}
-  .box{flex:1;min-width:0;border:1px solid #e2e5ea;border-radius:3px;padding:4px 8px;font-size:12px;background:#fff;}
-  .btn{background:#2563eb;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;}
+  td input,th input{width:100%;border:none;text-align:center;font:inherit;font-size:12px;padding:2px;background:transparent;}
+  .fld{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+  .fld label{width:80px;flex-shrink:0;text-align:right;font-size:12px;color:#555;font-weight:600;}
+  .fld input,.fld select,.box{flex:1;min-width:0;border:1px solid #e2e5ea;border-radius:3px;padding:4px 7px;font-size:12px;font-family:inherit;background:#fff;}
+  .btn{background:#2563eb;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
   .btn.gh{background:#fff;color:#2563eb;border:1px solid #2563eb;}
-  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .btn.sm{padding:3px 9px;font-size:11px;}
+  .row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
   .hint{color:#94a3b8;font-size:11px;}
 
-  /* 칸 성격 표시 */
   .b{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;}
-  .b.api{background:#dbeafe;color:#1e40af;}     /* 자동조회 */
-  .b.calc{background:#dcfce7;color:#166534;}    /* 자동계산 */
-  .b.in{background:#f1f5f9;color:#475569;}      /* 입력 */
-  .b.jud{background:#fef9c3;color:#854d0e;}     /* 평가사 판단 */
+  .b.api{background:#dbeafe;color:#1e40af;} .b.calc{background:#dcfce7;color:#166534;}
+  .b.in{background:#f1f5f9;color:#475569;} .b.jud{background:#fef9c3;color:#854d0e;}
   .api-c{background:#eff6ff;} .calc-c{background:#f0fdf4;font-weight:700;} .jud-c{background:#fefce8;}
-  .legend{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:8px 12px;margin-bottom:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11px;color:#64748b;}
-  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px;color:#854d0e;margin-top:8px;}
-  .q{background:#eff6ff;border:1px solid #bfdbfe;border-left:3px solid #2563eb;border-radius:6px;padding:8px 12px;font-size:11px;color:#1e40af;margin-top:8px;}
-  .res{background:#1a2744;color:#fff;border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
-  .res .n{font-size:18px;font-weight:800;color:#7dd3fc;}
+  .legend{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:6px 11px;margin-bottom:8px;display:flex;gap:13px;flex-wrap:wrap;align-items:center;font-size:11px;color:#64748b;}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:7px 11px;font-size:11px;color:#854d0e;margin-top:7px;}
+  .q{background:#eff6ff;border:1px solid #bfdbfe;border-left:3px solid #2563eb;border-radius:6px;padding:7px 11px;font-size:11px;color:#1e40af;margin-top:7px;}
+  .res{background:#1a2744;color:#fff;border-radius:6px;padding:8px 13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:9px;}
+  .res .n{font-size:17px;font-weight:800;color:#7dd3fc;}
+
+  .subtabs{display:flex;gap:3px;margin-bottom:8px;border-bottom:2px solid #e2e5ea;}
+  .subtabs button{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:#94a3b8;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .subtabs button.active{color:#1a2744;border-bottom-color:#2563eb;}
+  .sub{display:none;} .sub.active{display:block;}
+  .paste{border:2px dashed #cbd5e1;border-radius:6px;background:#fafbfc;padding:8px;margin-bottom:8px;}
+  .paste textarea{width:100%;border:1px solid #e2e5ea;border-radius:3px;padding:5px 7px;font-size:11px;font-family:inherit;resize:vertical;}
+  .pst{font-size:11px;margin-top:4px;min-height:14px;}
+  .pst.ok{color:#166534;font-weight:600;} .pst.err{color:#dc2626;font-weight:600;}
+  .fnote{font-size:11px;color:#475569;margin:5px 0 3px;}
+  .fnote b{color:#1a2744;}
 </style>
 </head>
 <body>
 <div id="mode-bar">
   <a href="test.html">🧪 개발허브</a>
-  <span class="mb-title">📐 EXACT 토지건물 — 화면 설계 시안</span>
-  <span class="tag">레이아웃 검토용 · 기능 없음</span>
+  <span class="mb-title">📐 EXACT 토지건물 — 화면 프로토타입</span>
+  <span class="tag">②는 실제 동작 · 나머지는 시안</span>
 </div>
 
 <div class="shell">
-  <!-- ═══ 좌측 요약 사이드바 (모든 화면에서 항상 보임) ═══ -->
   <div class="side">
     <h3>접수번호</h3><div class="v">HI260709-2702</div>
-    <h3>소재지</h3><div class="v sm">안양시 동안구 관양동 1443-5</div>
-    <h3>기준시점</h3><div class="v sm">2025.09.25</div>
+    <h3>소재지</h3><div class="v sm">양천구 신월동 000-0</div>
+    <h3>기준시점</h3><div class="v sm">2026.05.19</div>
     <hr>
-    <h3>토지 적용단가</h3><div class="v">9,240,000 원/㎡</div>
-    <h3>토지 시산가액</h3><div class="v money">3,931,620,000</div>
+    <h3>토지 적용단가</h3><div class="v" id="sdUnit">-</div>
+    <h3>토지 시산가액</h3><div class="v money" id="sdLand">-</div>
     <h3>건물가액</h3><div class="v money">693,483,538</div>
     <hr>
-    <h3>감정평가액</h3><div class="v money" style="font-size:17px">4,625,103,538</div>
+    <h3>감정평가액</h3><div class="v money" style="font-size:16px" id="sdTotal">-</div>
     <hr>
-    <button class="btn" style="width:100%">📄 산출근거 받기</button>
+    <button>📄 산출근거 받기</button>
   </div>
 
   <div>
     <div class="steps">
-      <button class="active" onclick="go(0,this)">① 접수·대상물건</button>
-      <button onclick="go(1,this)">② 공시지가기준법</button>
-      <button onclick="go(2,this)">③ 거래사례비교법</button>
-      <button onclick="go(3,this)">④ 건물(원가법)</button>
-      <button onclick="go(4,this)">⑤ 결정·문서</button>
+      <button onclick="go(0,this)">대상물건</button>
+      <button class="active" onclick="go(1,this)">공시지가기준법</button>
+      <button onclick="go(2,this)">거래사례비교법</button>
+      <button onclick="go(3,this)">토지감정평가액 결정</button>
+      <button onclick="go(4,this)">건물 평가</button>
+      <button onclick="go(5,this)">토지건물 시산가액</button>
     </div>
-
     <div class="legend">
       <b style="color:#1a2744">칸 성격</b>
-      <span><span class="b api">자동조회</span> API가 채움</span>
-      <span><span class="b calc">자동계산</span> 앱이 계산</span>
-      <span><span class="b in">입력</span> 평가사 입력</span>
-      <span><span class="b jud">판단</span> 평가사 판단 — 자동화 안 함</span>
+      <span><span class="b api">자동조회</span> API</span>
+      <span><span class="b calc">자동계산</span> 앱</span>
+      <span><span class="b in">입력</span> 평가사</span>
+      <span><span class="b jud">판단</span> 평가사가 정함</span>
     </div>
 
-    <!-- ═══════════ ① 접수·대상물건 ═══════════ -->
-    <div class="scr active">
+    <!-- ═════ ① 접수·대상물건 (시안) ═════ -->
+    <div class="scr">
       <div class="cols2">
         <div class="card">
           <h2>감정평가 개요 <span class="b in">입력</span></h2>
           <div class="fld"><label>접수번호</label><div class="box">HI260709-2702</div></div>
           <div class="fld"><label>의뢰인</label><div class="box">이유진, 김준희</div></div>
           <div class="fld"><label>평가목적</label><div class="box">일반거래(시가참고)</div></div>
-          <div class="fld"><label>제출처</label><div class="box">국세청 및 관할세무서</div></div>
-          <div class="fld"><label>평가구분</label><div class="box">상속</div></div>
-          <div class="fld"><label>기준시점</label><div class="box">2025.09.25</div></div>
-          <div class="fld"><label>기준시점근거</label><div class="box">귀 의뢰 요청 날짜인 ▾</div></div>
-          <div class="fld"><label>실지조사일</label><div class="box">2026.07.31</div></div>
-          <div class="fld"><label>기준가치</label><div class="box">시장가치</div></div>
-          <div class="fld"><label>소유자</label><div class="box">이유진 외 2</div></div>
-          <div class="fld"><label>공시기준일</label><div class="box">2025.01.01</div></div>
+          <div class="fld"><label>기준시점</label><div class="box">2026.05.19</div></div>
+          <div class="fld"><label>실지조사일</label><div class="box">2026.05.20</div></div>
+          <div class="fld"><label>공시기준일</label><div class="box">2026.01.01</div></div>
+          <div class="fld"><label>소유자</label><div class="box">홍길동</div></div>
           <div class="fld"><label>탁상가격</label><div class="box">4,625,000,000</div></div>
-          <div class="q"><b>설계 의도</b> — 좌측에 고정. 한 번 쓰면 거의 안 건드리는 값이라 좁게, 대상물건(우)에 넓은 폭을 준다.</div>
         </div>
-
         <div>
           <div class="card">
-            <h2>본건 토지 <span class="b api">자동조회</span></h2>
-            <div class="row"><div class="box" style="max-width:300px">안양시 동안구 관양동 1443-5</div><button class="btn">조회</button>
-              <span class="hint">V-World</span></div>
-            <div class="tw" style="margin-top:8px"><table>
+            <h2>본건 토지 <span class="b api">V-World 자동조회</span></h2>
+            <div class="row"><div class="box" style="max-width:280px">양천구 신월동 000-0</div><button class="btn">조회</button></div>
+            <div class="tw" style="margin-top:7px"><table>
               <tr><th>소재지</th><th>지번</th><th>지목</th><th>면적</th><th>용도지역</th><th>이용상황</th><th>도로교통</th><th>형상</th><th>지세</th><th>개별공시지가</th></tr>
-              <tr class="api-c"><td>관양동</td><td>1443-5</td><td>대</td><td>425.5</td><td>2종일주</td><td>상업용</td><td>광대세각</td><td>정방형</td><td>평지</td><td>5,896,000</td></tr>
+              <tr class="api-c"><td>신월동</td><td>000-0</td><td>대</td><td>200.0</td><td>2종일주</td><td>단독</td><td>소로한면</td><td>가장형</td><td>평지</td><td>2,379,000</td></tr>
             </table></div>
           </div>
           <div class="card">
-            <h2>본건 건물 <span class="b api">자동조회</span></h2>
+            <h2>본건 건물 <span class="b api">건축물대장 자동조회</span></h2>
             <div class="row"><button class="btn">🏢 건축물대장 불러오기</button><span class="hint">토지 PNU로 층별개요 조회</span></div>
-            <div class="tw" style="margin-top:8px"><table>
+            <div class="tw" style="margin-top:7px"><table>
               <tr><th>구분</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>연면적</th></tr>
-              <tr class="api-c"><td>주</td><td>지하</td><td>지1층</td><td>철근콘크리트조</td><td>제1종근린생활시설(소매점)</td><td>61.64</td></tr>
-              <tr class="api-c"><td>주</td><td>지상</td><td>1층</td><td>철근콘크리트조</td><td>소매점</td><td>247.5117</td></tr>
-              <tr class="api-c"><td>주</td><td>지상</td><td>6층</td><td>철근콘크리트조</td><td>사무실</td><td>46.72</td></tr>
-              <tr><td colspan="5" style="text-align:right;font-weight:700">연면적 합계</td><td class="calc-c">1,628.9539</td></tr>
+              <tr class="api-c"><td>주</td><td>지상</td><td>1층</td><td>철근콘크리트조</td><td>단독주택</td><td>84.5</td></tr>
+              <tr class="api-c"><td>주</td><td>지상</td><td>2층</td><td>철근콘크리트조</td><td>단독주택</td><td>84.5</td></tr>
             </table></div>
-            <div class="note">💡 <b>추가 예정</b> — 건물 <b>표제부</b>(구조·주용도·사용승인일·층수)도 함께 조회해서 산출근거 "평가대상 건물" 표를 자동으로 채움</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ═══════════ ② 공시지가기준법 ═══════════ -->
-    <div class="scr">
-      <div class="res"><span>공시지가기준법 시산가액</span><span class="n">3,931,620,000 원</span></div>
+    <!-- ═════ ② 공시지가기준법 (동작) ═════ -->
+    <div class="scr active">
+      <div class="res"><span>공시지가기준법 시산가액</span><span class="n" id="resLand">-</span></div>
+      <div class="lr">
 
-      <div class="cols5050">
-        <div class="card">
-          <h2>1) 비교표준지 <span class="b api">자동조회</span> <span class="b jud">선정은 판단</span></h2>
-          <div class="row"><div class="box" style="max-width:230px">관양동 1445-1</div><button class="btn">조회</button></div>
-          <div class="tw" style="margin-top:8px"><table>
-            <tr><th>소재지</th><th>면적</th><th>지목</th><th>용도지역</th><th>이용상황</th><th>도로</th><th>형상</th><th>공시지가</th></tr>
-            <tr class="api-c"><td>관양동 1445-1</td><td>176.7</td><td>대</td><td>2종일주</td><td>상업용</td><td>광대한면</td><td>정방형</td><td>5,518,000</td></tr>
-          </table></div>
-          <div class="fld" style="margin-top:8px"><label>선정사유</label><div class="box">인근지역·용도지역·이용상황 유사 <span class="b in">기본문구</span></div></div>
-        </div>
-
-        <div class="card">
-          <h2>2) 시점수정 <span class="b api">R-ONE 자동</span></h2>
-          <div class="row"><button class="btn">📈 지가변동률 자동조회</button>
-            <div class="box" style="max-width:160px">경기 안양 동안 ▾</div><div class="box" style="max-width:100px">주거지역 ▾</div></div>
-          <div class="tw" style="margin-top:8px"><table>
-            <tr><th>기간</th><th>대상지역</th><th>용도지역</th><th>지가변동률</th><th>시점수정치</th></tr>
-            <tr><td>2025.01.01~09.25</td><td>경기도 안양시 동안구</td><td>주거지역</td><td class="calc-c">1.944%</td><td class="calc-c">1.01944</td></tr>
-          </table></div>
-        </div>
-      </div>
-
-      <div class="cols5050">
-        <div class="card">
-          <h2>3) 지역요인 <span class="b jud">판단</span></h2>
-          <div class="row"><label style="font-size:12px"><input type="checkbox" checked> 인근지역 소재 — 대등(1.00)</label>
-            <div class="box" style="max-width:90px">1.00</div></div>
-          <div class="hint" style="margin-top:6px">체크하면 정형문구 자동 삽입. 다르면 문구·수치 직접 수정.</div>
-        </div>
-
-        <div class="card">
-          <h2>4) 개별요인 <span class="b in">입력</span> <span class="b calc">계는 자동</span></h2>
-          <div class="tw"><table>
-            <tr><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>
-            <tr><td>1.00</td><td>1.00</td><td>1.00</td><td class="jud-c">1.02</td><td>1.00</td><td>1.00</td><td class="calc-c">1.020</td></tr>
-          </table></div>
-          <div class="fld" style="margin-top:8px"><label>비교문구</label><div class="box">본건은 획지조건(각지 등)에서 우세함. <span class="b in">입력</span></div></div>
-          <div class="note">6개 조건을 곱해 <b>계</b>를 자동 산출. 항목별 세부 비교표(가로·접근·환경…)는 접었다 펴는 참고표로 제공.</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>5) 그 밖의 요인 보정 <span class="b calc">격차율 자동</span> <span class="b jud">결정치는 판단</span></h2>
-        <div class="cols5050">
-          <div>
-            <h3>가. 평가사례 <span class="b in">입력(KAIS)</span></h3>
-            <div class="tw"><table>
-              <tr><th></th><th>소재지</th><th>면적</th><th>용도지역</th><th>토지단가</th><th>목적</th><th>기준시점</th><th>채택</th></tr>
-              <tr><td>①</td><td>관양동 1402</td><td>236.7</td><td>2종일주</td><td>9,230,000</td><td>담보</td><td>2025.06.26</td><td class="jud-c">◉</td></tr>
-              <tr><td>②</td><td>관양동 1384-20</td><td>578.2</td><td>2종일주</td><td>9,770,000</td><td>시가참고</td><td>2024.04.17</td><td>○</td></tr>
-              <tr><td>③</td><td>관양동 1408-4</td><td>106.14</td><td>2종일주</td><td>8,830,000</td><td>시가참고</td><td>2025.12.30</td><td>○</td></tr>
+        <!-- ── 좌: 계산 본류 ── -->
+        <div>
+          <div class="card">
+            <h2>비교표준지 <span class="b api">자동조회</span> <span class="b jud">선정은 판단</span></h2>
+            <div class="row"><div class="box" style="max-width:210px">신월동 108-1</div><button class="btn">조회</button>
+              <span class="hint">[공시기준일 2026.01.01]</span></div>
+            <div class="tw" style="margin-top:7px"><table>
+              <tr><th rowspan="2">일련<br>번호</th><th rowspan="2">소재지</th><th rowspan="2">면적<br>(㎡)</th><th>지목</th><th>용도지역</th><th>형상</th><th rowspan="2">공시지가<br>(원/㎡)</th></tr>
+              <tr><th>이용상황</th><th>도로교통</th><th>지세</th></tr>
+              <tr><td rowspan="2">A</td><td rowspan="2">신월동<br>108-1</td><td rowspan="2">176.7</td><td class="api-c">대</td><td class="api-c">2종일주</td><td class="api-c">가장형</td>
+                  <td rowspan="2" class="api-c"><input id="stdPrice" value="2,379,000" oninput="calcAll()"></td></tr>
+              <tr><td class="api-c">단독</td><td class="api-c">소로한면</td><td class="api-c">평지</td></tr>
             </table></div>
-            <h3>나. 거래사례 <span class="b in">입력</span></h3>
-            <div class="tw"><table>
-              <tr><th></th><th>소재지</th><th>면적</th><th>거래금액</th><th>토지단가</th><th>거래시점</th></tr>
-              <tr><td>㉠</td><td>비산동 1037-2</td><td>680</td><td>5,000,000,000</td><td>7,170,000</td><td>2023.08.04</td></tr>
-              <tr><td>㉡</td><td>관양동 1387-23</td><td>148</td><td>1,150,000,000</td><td>7,440,000</td><td>2025.06.17</td></tr>
-            </table></div>
-            <div class="note">건물포함 사례의 <b>토지 배분단가 산식</b>은 v1에서 직접 입력. (자동조립은 추후)</div>
           </div>
-          <div>
-            <h3>다. 채택사례 기준 표준지가액 <span class="b calc">자동</span></h3>
-            <div class="tw"><table>
-              <tr><th>사례</th><th>사례단가</th><th>시점</th><th>지역</th><th>개별</th><th>산정단가</th></tr>
-              <tr><td>①</td><td>9,230,000</td><td>1.00699</td><td>1.000</td><td class="jud-c">0.978</td><td class="calc-c">9,090,038</td></tr>
+
+          <div class="card">
+            <h2>지가변동률 <span class="b api">R-ONE 자동</span></h2>
+            <div class="row"><button class="btn">📈 자동조회</button>
+              <div class="box" style="max-width:150px">서울특별시 양천구</div><div class="box" style="max-width:90px">주거</div></div>
+            <div class="tw" style="margin-top:7px"><table>
+              <tr><th>일련번호</th><th>기간</th><th>대상지역<br>용도지역</th><th>지가변동률<br>(시점수정치)</th></tr>
+              <tr><td>A</td><td>2026.01.01 ~ 2026.05.19</td><td>서울특별시 양천구<br>주거지역</td>
+                  <td class="calc-c">1.437%<br><input id="stdTime" value="1.01437" oninput="calcAll()"></td></tr>
             </table></div>
-            <h3>라. 표준지 기준시점 현재가액 <span class="b calc">자동</span></h3>
+          </div>
+
+          <div class="card">
+            <h2>개별요인비교 (본건/표준지) <span class="b in">입력</span> <span class="b calc">계 자동</span></h2>
+            <div class="row" style="margin-bottom:6px"><span class="hint">비교표준지:</span>
+              <select class="box" style="max-width:120px"><option>상업지대</option><option selected>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select></div>
             <div class="tw"><table>
-              <tr><th>공시지가</th><th>시점수정</th><th>산정단가</th></tr>
-              <tr><td>5,518,000</td><td>1.01944</td><td class="calc-c">5,625,270</td></tr>
+              <tr><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>
+              <tr><td class="jud-c"><input class="gf" value="1.00" oninput="calcAll()"></td><td class="jud-c"><input class="gf" value="1.00" oninput="calcAll()"></td>
+                  <td class="jud-c"><input class="gf" value="1.00" oninput="calcAll()"></td><td class="jud-c"><input class="gf" value="1.00" oninput="calcAll()"></td>
+                  <td class="jud-c"><input class="gf" value="1.00" oninput="calcAll()"></td><td class="jud-c"><input class="gf" value="1.00" oninput="calcAll()"></td>
+                  <td class="calc-c" id="gfSum">1.000</td></tr>
             </table></div>
-            <h3>마. 격차율 → 보정치 결정</h3>
-            <div class="tw"><table>
-              <tr><th>평가사례 기준</th><th>표준지 현재</th><th>산출 격차율</th><th>결정 보정치</th></tr>
-              <tr><td>9,090,038</td><td>5,625,270</td><td class="calc-c">1.616</td><td class="jud-c">1.61</td></tr>
-            </table></div>
-            <div class="note">산출 격차율은 <b>자동</b>, 최종 <b>결정 보정치</b>는 평가사가 정함(절사·조정).</div>
+            <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" value="본건은 비교표준지와 제반 개별요인에서 대등함."></div>
+          </div>
+
+        </div>
+
+        <!-- ── 우: 사례 · 그밖의요인 ── -->
+        <div>
+          <div class="card" style="padding-top:9px">
+            <div class="subtabs">
+              <button class="active" onclick="sub(0,this)">거래사례</button>
+              <button onclick="sub(1,this)">평가사례</button>
+              <button onclick="sub(2,this)">그 밖의 요인</button>
+              <button onclick="sub(3,this)">시산가액</button>
+            </div>
+
+            <!-- 거래사례 (세로 표) -->
+            <div class="sub active">
+              <div class="paste">
+                <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 실거래가 붙여넣기</b>
+                  <span class="hint">엑셀에서 머리글째 복사 → 아래에 Ctrl+V</span>
+                  <button class="btn sm gh" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
+                <textarea id="pTrade" rows="2" placeholder="상세물건번호  시군구  소재지  지번 …  물건금액  단가  사용승인일자"></textarea>
+                <div class="pst" id="pTradeMsg"></div>
+              </div>
+              <div class="tw"><table id="tblTrade"></table></div>
+              <div class="note">토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>초록칸은 전부 자동</b>. 실거래가에 없는 값(주구조·재조달원가·내용/잔존연수)만 채우면 됩니다.</div>
+            </div>
+
+            <!-- 평가사례 -->
+            <div class="sub">
+              <div class="paste">
+                <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 KAPA HUB 붙여넣기</b>
+                  <span class="hint">감정평가정보센터에서 복사 → Ctrl+V</span></div>
+                <textarea id="pAppr" rows="2" placeholder="Is Selected  평가목적  …  단가  면적  …  기준시점 …"></textarea>
+                <div class="pst" id="pApprMsg"></div>
+              </div>
+              <div class="tw"><table id="tblAppr"></table></div>
+              <div class="note">[자료: 감정평가정보센터 KAPA HUB PLUS] — 붙여넣으면 필요한 8개 항목만 골라 채웁니다.</div>
+            </div>
+
+            <!-- 그 밖의 요인 -->
+            <div class="sub">
+              <div class="row" style="margin-bottom:7px">
+                <b style="font-size:12px">적용사례</b>
+                <select class="box" id="etcPick" style="max-width:260px" onchange="calcAll()"></select>
+                <span class="hint">/ 표준지 A</span>
+              </div>
+              <div class="tw"><table>
+                <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
+                <tr><th class="rowh">사례기준<br>표준지평가</th><td id="eSrc">-</td><td>-</td>
+                    <td class="jud-c"><input id="eTime" value="1.01185" oninput="calcAll()"></td>
+                    <td class="jud-c"><input id="eArea" value="1.000" oninput="calcAll()"></td>
+                    <td class="calc-c" id="eIndSum">0.941</td><td class="calc-c" id="eOut1">-</td>
+                    <td class="calc-c" id="eRatio" rowspan="2" style="font-size:14px">-</td></tr>
+                <tr><th class="rowh">표준지공시지가<br>시점수정</th><td id="eStd">2,379,000</td><td>-</td>
+                    <td id="eStdTime">1.01437</td><td>1.000</td><td></td><td class="calc-c" id="eOut2">-</td></tr>
+              </table></div>
+
+              <div class="fnote">1) 시점수정 (<b id="fnRegion">서울특별시 양천구</b> <span id="fnPeriod">(25.12.11~26.05.19)</span> <b>주거</b>) : <b id="fnTime">1.01185</b> <span class="b api">R-ONE 자동</span></div>
+              <div class="fnote">2) 지역요인비교치 : <b id="fnArea">1.00</b></div>
+              <div class="fnote">3) 개별요인비교치 <span class="b in">입력</span></div>
+              <div class="tw"><table>
+                <tr><th>가로<br>조건</th><th>접근<br>조건</th><th>환경<br>조건</th><th>획지<br>조건</th><th>행정적<br>조건</th><th>기타<br>조건</th><th>계</th></tr>
+                <tr><td class="jud-c"><input class="ef" value="0.96" oninput="calcAll()"></td><td class="jud-c"><input class="ef" value="0.98" oninput="calcAll()"></td>
+                    <td class="jud-c"><input class="ef" value="1.00" oninput="calcAll()"></td><td class="jud-c"><input class="ef" value="1.00" oninput="calcAll()"></td>
+                    <td class="jud-c"><input class="ef" value="1.00" oninput="calcAll()"></td><td class="jud-c"><input class="ef" value="1.00" oninput="calcAll()"></td>
+                    <td class="calc-c" id="efSum">0.941</td></tr>
+                <tr><th class="rowh">의견</th><td colspan="6" style="text-align:left"><input value="비교표준지 A는 거래사례 대비 가로조건(도로의 폭), 접근조건(인근 편익시설 및 교통시설과의 거리) 등에서 열세함." style="text-align:left"></td></tr>
+              </table></div>
+
+              <div class="tw" style="margin-top:8px"><table>
+                <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
+                <tr><td class="calc-c" id="eRatio2">-</td><td class="jud-c"><input id="eDecide" placeholder="예 1.38" oninput="calcAll()"></td><td>1</td></tr>
+              </table></div>
+              <div class="note">산출 비교치는 <b>자동</b>, 최종 <b>결정 보정치</b>는 평가사가 정함(절사·조정). 결정치가 「시산가액」 탭에 즉시 반영됩니다.</div>
+            </div>
+
+            <!-- 시산가액 -->
+            <div class="sub">
+              <h3>공시지가기준법 시산가액</h3>
+              <div class="tw"><table>
+                <tr><th>기호</th><th>공시지가<br>(원/㎡)</th><th>시점수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th><th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th><th>비고</th></tr>
+                <tr><td>1</td><td id="tdPrice">2,379,000</td><td id="tdTime">1.01437</td><td id="tdArea">1.000</td>
+                    <td id="tdInd">1.000</td><td class="jud-c" id="tdEtc">-</td>
+                    <td class="calc-c" id="tdCalc">-</td>
+                    <td class="jud-c"><input id="tdApply" placeholder="반올림" oninput="calcAll()"></td><td>-</td></tr>
+              </table></div>
+              <h3>토지 감정평가액</h3>
+              <div class="tw"><table>
+                <tr><th>기호</th><th>공부면적(㎡)</th><th>결정단가(원/㎡)</th><th>토지 감정평가액(원)</th><th>비고</th></tr>
+                <tr><td>1</td><td><input id="tdSize" value="125.6" oninput="calcAll()"></td>
+                    <td class="calc-c" id="tdApply2">-</td><td class="calc-c" id="tdTotal" style="font-size:13px">-</td><td>-</td></tr>
+              </table></div>
+              <div class="note">산출단가까지 <b>자동</b> → 평가사가 <b>결정단가</b>(반올림 자리)만 정하면 감정평가액 자동. 비워두면 만원 단위 반올림값을 씁니다.</div>
+              <div class="q"><b>연동</b> — 좌측 표준지 공시지가·지가변동률·개별요인, 그리고 「그 밖의 요인」 결정치가 바뀌면 이 표가 즉시 다시 계산됩니다.</div>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>6) 토지단가 결정 <span class="b calc">자동</span> <span class="b jud">적용단가는 판단</span></h2>
-        <div class="tw"><table>
-          <tr><th>공시지가</th><th>시점수정</th><th>지역요인</th><th>개별요인</th><th>그밖의요인</th><th>산정단가</th><th>적용단가</th><th>면적</th><th>시산가액</th></tr>
-          <tr><td>5,518,000</td><td>1.01944</td><td>1.000</td><td>1.020</td><td>1.61</td><td class="calc-c">9,237,818</td><td class="jud-c">9,240,000</td><td>425.5</td><td class="calc-c">3,931,620,000</td></tr>
-        </table></div>
-        <div class="hint" style="margin-top:6px">산정단가까지 자동 → 평가사가 <b>적용단가</b>(반올림 자리)만 정하면 시산가액 자동.</div>
       </div>
     </div>
 
-    <!-- ═══════════ ③ 거래사례비교법 ═══════════ -->
+    <!-- ═════ ③ 거래사례비교법 (시안) ═════ -->
     <div class="scr">
       <div class="res"><span>거래사례비교법 시산가액</span><span class="n">4,084,800,000 원</span></div>
-      <div class="cols5050">
-        <div class="card">
-          <h2>1) 비교 거래사례 <span class="b in">입력</span> <span class="b jud">선정은 판단</span></h2>
-          <div class="tw"><table>
-            <tr><th></th><th>소재지</th><th>면적</th><th>용도지역</th><th>이용상황</th><th>거래금액</th><th>토지단가</th><th>거래시점</th><th>채택</th></tr>
-            <tr><td>㉠</td><td>비산동 1037-2</td><td>680</td><td>2종일주</td><td>상업용</td><td>5,000,000,000</td><td>7,170,000</td><td>2023.08.04</td><td class="jud-c">◉</td></tr>
-          </table></div>
-          <div class="fld" style="margin-top:8px"><label>배분단가 산식</label><div class="box">[{5,000,000,000원-(1,100,000원/㎡×15/45×343.69㎡)}/680㎡] <span class="b in">입력</span></div></div>
-          <div class="fld"><label>선정사유</label><div class="box">용도지역·이용상황·규모·입지 유사</div></div>
-        </div>
-        <div class="card">
-          <h2>2) 보정 <span class="b calc">시점 자동</span></h2>
-          <div class="tw"><table>
-            <tr><th>사례단가</th><th>사정보정</th><th>시점수정</th><th>지역요인</th><th>개별요인</th><th>산정단가</th></tr>
-            <tr><td>7,170,000</td><td>1.00</td><td class="calc-c">1.05378</td><td>1.000</td><td class="jud-c">1.271</td><td class="calc-c">9,600,000</td></tr>
-          </table></div>
-          <h3>개별요인 6조건</h3>
-          <div class="tw"><table>
-            <tr><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>
-            <tr><td>1.10</td><td>1.05</td><td>1.10</td><td>1.00</td><td>1.00</td><td>1.00</td><td class="calc-c">1.271</td></tr>
-          </table></div>
-          <div class="fld" style="margin-top:8px"><label>비교문구</label><div class="box">가로·접근·환경조건에서 우세함.</div></div>
-        </div>
-      </div>
-
       <div class="card">
-        <h2>3) 합리성 검토 및 토지감정평가액 결정 <span class="b calc">비교 자동</span> <span class="b jud">결정은 판단</span></h2>
+        <h2>비교 거래사례 채택 <span class="b calc">②에서 입력한 사례 재사용</span></h2>
+        <div class="note">거래사례는 <b>②에서 한 번만 입력</b>하고, 여기서는 그 중 하나를 골라 씁니다. 다시 입력하지 않습니다.</div>
+        <div class="tw" style="margin-top:7px"><table>
+          <tr><th>채택</th><th>사례</th><th>소재지</th><th>토지면적</th><th>토지단가</th><th>거래일자</th></tr>
+          <tr><td class="jud-c">◉</td><td>#1</td><td>신월동 112-29</td><td>120.4</td><td>3,520,153</td><td>2026.01.27</td></tr>
+          <tr><td>○</td><td>#2</td><td>신월동 110-32</td><td>164</td><td>4,013,600</td><td>2025.11.29</td></tr>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>보정 <span class="b calc">시점 자동</span></h2>
+        <div class="tw"><table>
+          <tr><th>사례단가</th><th>사정보정</th><th>시점수정</th><th>지역요인</th><th>개별요인</th><th>산정단가</th></tr>
+          <tr><td>3,520,153</td><td>1.00</td><td class="calc-c">1.00312</td><td>1.000</td><td class="jud-c">1.271</td><td class="calc-c">4,489,000</td></tr>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ═════ 토지감정평가액 결정 (시안) ═════ -->
+    <div class="scr">
+      <div class="res"><span>토지감정평가액</span><span class="n">418,248,000 원</span></div>
+      <div class="card">
+        <h2>합리성 검토 및 결정 <span class="b calc">비교 자동</span> <span class="b jud">결정은 판단</span></h2>
         <div class="cols5050">
           <div class="tw"><table>
-            <tr><th>평가방법</th><th>시산가액</th><th>채택</th></tr>
-            <tr><td>공시지가기준법</td><td>3,931,620,000</td><td class="jud-c">◉</td></tr>
-            <tr><td>거래사례비교법</td><td>4,084,800,000</td><td>○</td></tr>
-            <tr><td colspan="2" style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c">3,931,620,000</td></tr>
+            <tr><th>평가방법</th><th>시산가액(원)</th><th>채택</th></tr>
+            <tr><td>공시지가기준법</td><td>418,248,000</td><td class="jud-c">◉</td></tr>
+            <tr><td>거래사례비교법</td><td>431,000,000</td><td>○</td></tr>
+            <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c">3.0%</td><td>-</td></tr>
+            <tr><td colspan="2" style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c">418,248,000</td></tr>
           </table></div>
           <div>
-            <div class="fld"><label>검토의견</label><div class="box" style="min-height:52px">두 시산가액이 유사하게 산정되어 공시지가기준법의 합리성 인정됨. <span class="b in">기본문구</span></div></div>
-            <div class="note">두 시산가액 차이(%)를 자동 표시해 "유사/차이" 판단을 돕는다.</div>
+            <div class="fld"><label>검토의견</label><input class="box" value="두 시산가액이 유사하게 산정되어 공시지가기준법의 합리성이 인정됨."></div>
+            <div class="fld"><label>결정의견</label><input class="box" value="수요성·환가성·공시지가·현지조사 가격수준 등을 종합 고려하여 결정."></div>
+            <div class="note">두 시산가액의 <b>차이(%)를 자동 표시</b>해 "유사/차이" 판단을 돕습니다.</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ═══════════ ④ 건물(원가법) ═══════════ -->
+    <!-- ═════ ④ 건물(원가법) (시안) ═════ -->
     <div class="scr">
       <div class="res"><span>건물가액</span><span class="n">693,483,538 원</span></div>
       <div class="card">
-        <h2>1) 건물신축단가표 <span class="b api">내장 데이터</span> <span class="b jud">급수 선택은 판단</span></h2>
+        <h2>건물신축단가표 <span class="b api">내장 데이터</span> <span class="b jud">급수 선택은 판단</span></h2>
         <div class="tw"><table>
-          <tr><th>분류기호</th><th>용도</th><th>구조</th><th>급수</th><th>표준단가</th><th>내용연수</th><th>참조</th></tr>
+          <tr><th>분류기호</th><th>용도</th><th>구조</th><th>급수</th><th>표준단가</th><th>내용연수</th><th>선택</th></tr>
           <tr><td>4-1-5-7</td><td>점포및상가</td><td>철근콘크리트조 슬래브</td><td>3</td><td>1,280,000</td><td>50(45~55)</td><td class="jud-c">◉</td></tr>
           <tr><td>4-1-2-7</td><td>점포및상가</td><td>철근콘크리트조 슬래브</td><td>4</td><td>1,071,000</td><td>50</td><td>○</td></tr>
-          <tr><td>4-1-2-7</td><td>점포및상가</td><td>철근콘크리트조 슬래브</td><td>5</td><td>820,000</td><td>50</td><td>○</td></tr>
         </table></div>
-        <div class="hint" style="margin-top:6px">한국부동산원 건물신축단가표(연도별)를 내장 → 용도·구조로 후보를 좁혀 보여주고 평가사가 급수 선택.</div>
       </div>
-
       <div class="card">
-        <h2>2) 층별 재조달원가·감가수정 <span class="b in">단가 입력</span> <span class="b calc">잔가율·금액 자동</span></h2>
+        <h2>층별 재조달원가·감가수정 <span class="b calc">잔가율·금액 자동</span></h2>
         <div class="tw"><table>
-          <tr><th>해당층</th><th>면적</th><th>이용상황</th><th>구조</th><th>재조달원가</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가</th><th>금액</th></tr>
-          <tr><td>1~6층</td><td>1,281.0889</td><td>근린생활시설</td><td>철근콘크리트</td><td class="jud-c">1,200,000</td><td>50</td><td>31</td><td class="calc-c">19/50</td><td class="calc-c">456,000</td><td class="calc-c">584,176,538</td></tr>
-          <tr><td>6층</td><td>29.7</td><td>계단실</td><td>철근콘크리트</td><td class="jud-c">700,000</td><td>50</td><td>31</td><td class="calc-c">19/50</td><td class="calc-c">266,000</td><td class="calc-c">7,900,200</td></tr>
-          <tr><td>지1층</td><td>61.64</td><td>근린생활시설</td><td>철근콘크리트</td><td class="jud-c">1,000,000</td><td>50</td><td>31</td><td class="calc-c">19/50</td><td class="calc-c">380,000</td><td class="calc-c">23,423,200</td></tr>
-          <tr><td>지1층</td><td>256.525</td><td>주차장</td><td>철근콘크리트</td><td class="jud-c">800,000</td><td>50</td><td>31</td><td class="calc-c">19/50</td><td class="calc-c">304,000</td><td class="calc-c">77,983,600</td></tr>
-          <tr><td colspan="9" style="text-align:right;font-weight:700">합계</td><td class="calc-c">693,483,538</td></tr>
+          <tr><th>해당층</th><th>면적</th><th>이용상황</th><th>재조달원가</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가</th><th>금액</th></tr>
+          <tr><td>1~6층</td><td>1,281.0889</td><td>근린생활시설</td><td class="jud-c">1,200,000</td><td>50</td><td class="calc-c">31</td><td class="calc-c">19/50</td><td class="calc-c">456,000</td><td class="calc-c">584,176,538</td></tr>
+          <tr><td>지1층</td><td>256.525</td><td>주차장</td><td class="jud-c">800,000</td><td>50</td><td class="calc-c">31</td><td class="calc-c">19/50</td><td class="calc-c">304,000</td><td class="calc-c">77,983,600</td></tr>
+          <tr><td colspan="8" style="text-align:right;font-weight:700">합계</td><td class="calc-c">693,483,538</td></tr>
         </table></div>
-        <div class="note">경과연수 = 기준시점 − 사용승인일 <b>자동</b>(건축물대장에서). 층 묶음(1~6층 합산)은 평가사가 조정.</div>
-        <div class="q"><b>설계 의도</b> — ①에서 불러온 층별 목록을 그대로 이어받아 단가만 넣으면 끝나게. 층이 많아도 같은 단가는 묶어서 한 줄로.</div>
+        <div class="note">경과연수 = 기준시점 − 사용승인일 <b>자동</b>(건축물대장). 거래사례의 건물 감가와 같은 계산식을 씁니다.</div>
       </div>
     </div>
 
-    <!-- ═══════════ ⑤ 결정·문서 ═══════════ -->
+    <!-- ═════ ⑤ 결정·문서 (시안) ═════ -->
     <div class="scr">
       <div class="res"><span>감정평가액</span><span class="n">4,625,103,538 원</span></div>
       <div class="cols5050">
@@ -333,40 +376,230 @@
             <tr><td>건물</td><td>1,628.9539</td><td>-</td><td class="calc-c">693,483,538</td></tr>
             <tr><td colspan="3" style="text-align:right;font-weight:700">합계</td><td class="calc-c">4,625,103,538</td></tr>
           </table></div>
-          <div class="fld" style="margin-top:8px"><label>결정의견</label><div class="box" style="min-height:44px">수요성·환가성·공시지가·현지조사 가격수준 등 종합 고려. <span class="b in">기본문구</span></div></div>
         </div>
         <div class="card">
           <h2>문서 생성</h2>
-          <div class="row" style="margin-bottom:8px"><button class="btn">📄 산출근거 (.hwpx)</button><span class="hint">v1 목표</span></div>
-          <div class="row" style="margin-bottom:8px"><button class="btn gh">📄 감정평가서 표지·평가표</button><span class="hint">양식 확보 후</span></div>
+          <div class="row" style="margin-bottom:7px"><button class="btn">📄 산출근거 (.hwpx)</button><span class="hint">v1 목표</span></div>
+          <div class="row" style="margin-bottom:7px"><button class="btn gh">📄 표지·감정평가표</button><span class="hint">양식 확보 후</span></div>
           <div class="row"><button class="btn gh">📄 청구서</button><span class="hint">추후</span></div>
-          <div class="note">저장된 건 목록·불러오기는 집합건물과 동일한 방식으로 상단에 배치 예정.</div>
         </div>
       </div>
-
       <div class="card">
         <h2>검산 패널 <span class="b calc">자동</span></h2>
         <div class="tw"><table>
           <tr><th>검증 항목</th><th>계산</th><th>결과</th></tr>
-          <tr><td>토지 산정단가</td><td>5,518,000 × 1.01944 × 1.000 × 1.020 × 1.61</td><td class="calc-c">9,237,818 ✓</td></tr>
-          <tr><td>토지 시산가액</td><td>9,240,000 × 425.5</td><td class="calc-c">3,931,620,000 ✓</td></tr>
-          <tr><td>건물 합계</td><td>Σ(면적 × 재조달원가 × 잔가율)</td><td class="calc-c">693,483,538 ✓</td></tr>
-          <tr><td>감정평가액</td><td>토지 + 건물</td><td class="calc-c">4,625,103,538 ✓</td></tr>
+          <tr><td>토지 산정단가</td><td>공시지가 × 시점 × 지역 × 개별 × 그밖</td><td class="calc-c">✓</td></tr>
+          <tr><td>거래사례 배분단가</td><td>(총거래금액 − 건물금액) ÷ 토지면적</td><td class="calc-c">✓</td></tr>
+          <tr><td>감정평가액</td><td>토지 + 건물</td><td class="calc-c">✓</td></tr>
         </table></div>
-        <div class="q"><b>설계 의도</b> — 발송 전 숫자 실수를 잡는 마지막 관문. 모든 산식을 한 화면에서 눈으로 검산.</div>
       </div>
     </div>
-
   </div>
 </div>
 
 <script>
-function go(i,btn){
-  document.querySelectorAll('.scr').forEach(function(s,n){s.classList.toggle('active',n===i);});
-  document.querySelectorAll('.steps button').forEach(function(b){b.classList.remove('active');});
-  btn.classList.add('active');
-  window.scrollTo(0,0);
+'use strict';
+// ══════ 공통 ══════
+function go(i,btn){document.querySelectorAll('.scr').forEach(function(s,n){s.classList.toggle('active',n===i);});
+  document.querySelectorAll('.steps button').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');window.scrollTo(0,0);}
+function sub(i,btn){document.querySelectorAll('.sub').forEach(function(s,n){s.classList.toggle('active',n===i);});
+  document.querySelectorAll('.subtabs button').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
+var num=function(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;};
+var won=function(n){return Math.round(n).toLocaleString('ko-KR');};
+var MAP_Y={'제1종전용주거지역':'1종전주','제2종전용주거지역':'2종전주','제1종일반주거지역':'1종일주','제2종일반주거지역':'2종일주','제3종일반주거지역':'3종일주','준주거지역':'준주거','중심상업지역':'중심상업','일반상업지역':'일반상업','근린상업지역':'근린상업','유통상업지역':'유통상업','전용공업지역':'전용공업','일반공업지역':'일반공업','준공업지역':'준공업','보전녹지지역':'보전녹지','생산녹지지역':'생산녹지','자연녹지지역':'자연녹지','계획관리지역':'계획관리'};
+function shortY(v){v=String(v||'').trim();return MAP_Y[v]||v;}
+function dot(v){var m=String(v||'').match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})/);return m?(m[1]+'.'+('0'+m[2]).slice(-2)+'.'+('0'+m[3]).slice(-2)):String(v||'');}
+
+// ══════ 붙여넣기 파서 (따옴표 안 줄바꿈까지 처리) ══════
+function parseTsv(text){
+  text=String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  var rows=[],row=[],cur='',q=false;
+  for(var i=0;i<text.length;i++){var ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else{ if(ch==='"')q=true;
+      else if(ch==='\t'){row.push(cur);cur='';}
+      else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';}
+      else cur+=ch; } }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows.map(function(r){return r.map(function(c){return String(c).replace(/\s+/g,' ').trim();});})
+             .filter(function(r){return r.join('').trim();});
 }
+function norm(s){return String(s||'').replace(/[\s"']/g,'');}
+function pick(head,r,names){
+  for(var i=0;i<names.length;i++){var t=norm(names[i]);
+    for(var j=0;j<head.length;j++)if(norm(head[j])===t)return r[j]||'';}
+  for(var i=0;i<names.length;i++){var t=norm(names[i]);
+    for(var j=0;j<head.length;j++)if(norm(head[j]).indexOf(t)>=0)return r[j]||'';}
+  return '';
+}
+
+// ══════ 거래사례 (세로 표) ══════
+var TRADE_ROWS=[
+  ['소재지','loc','in'],['용도지역','use','in'],['지목','jimok','in'],
+  ['토지면적(㎡)','landA','in'],['건물면적(㎡)','bldA','in'],
+  ['사용승인일','appr','in'],['주구조','struct','in'],
+  ['재조달원가(원/㎡)','reCost','jud'],['내용연수','life','jud'],['잔존연수','rest','jud'],
+  ['건물 적용단가(원/㎡)','bldUnit','calc'],['건물금액(원)','bldAmt','calc'],
+  ['총 거래금액(원)','total','in'],['거래일자','date','in'],
+  ['토지금액(원)','landAmt','calc'],['토지단가(원/㎡)','landUnit','calc']
+];
+var TRADES=[
+ {loc:'신월동 112-29',use:'2종일주',jimok:'대',landA:'120.4',bldA:'204.89',appr:'1997.08.06',struct:'벽돌구조',reCost:'800,000',life:'40',rest:'12',total:'473,000,000',date:'2026.01.27'},
+ {loc:'신월동 110-32',use:'2종일주',jimok:'대',landA:'164',bldA:'242.31',appr:'1992.12.02',struct:'벽돌구조',reCost:'800,000',life:'40',rest:'8',total:'697,000,000',date:'2025.11.29'},
+ {loc:'신월동 102-11',use:'2종일주',jimok:'대',landA:'134.3',bldA:'122.54',appr:'1972.06.19',struct:'벽돌구조',reCost:'800,000',life:'40',rest:'10',total:'585,000,000',date:'2025.09.19'}
+];
+function tradeCalc(c){
+  var bu=num(c.life)>0?num(c.reCost)*num(c.rest)/num(c.life):0;
+  var ba=bu*num(c.bldA), la=num(c.total)-ba, lu=num(c.landA)>0?la/num(c.landA):0;
+  return {bldUnit:bu,bldAmt:ba,landAmt:la,landUnit:lu};
+}
+function renderTrade(){
+  var h='<tr><th>구분</th>'+TRADES.map(function(c,i){return '<th>거래사례 #'+(i+1)+'</th>';}).join('')+'</tr>';
+  TRADE_ROWS.forEach(function(r){
+    h+='<tr><th class="rowh">'+r[0]+'</th>';
+    TRADES.forEach(function(c,i){
+      var cal=tradeCalc(c);
+      if(r[2]==='calc'){h+='<td class="calc-c">'+won(cal[r[1]])+'</td>';}
+      else{h+='<td class="'+(r[2]==='jud'?'jud-c':'')+'"><input value="'+String(c[r[1]]||'').replace(/"/g,'&quot;')+'" oninput="TRADES['+i+'].'+r[1]+'=this.value;renderTrade();calcAll();"></td>';}
+    });
+    h+='</tr>';
+  });
+  h+='<tr><th class="rowh">선정</th>'+TRADES.map(function(c,i){
+      return '<td class="jud-c"><input type="radio" name="pickTrade" '+(ETC.type==='t'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'t\',idx:'+i+'};syncPick();calcAll();"></td>';}).join('')+'</tr>';
+  document.getElementById('tblTrade').innerHTML=h;
+}
+function addCase(){TRADES.push({use:'2종일주',jimok:'대',reCost:'800,000',life:'40'});renderTrade();syncPick();}
+
+// ══════ 평가사례 (가로 표) ══════
+var APPRS=[
+ {no:'a',loc:'신월동 108-25',use:'2종일주',jimok:'대',cond:'단독',unit:'6,410,000',base:'2025-12-11',purp:'기타 담보'},
+ {no:'B',loc:'신월동 179-14',use:'2종일주',jimok:'대',cond:'주상용',unit:'5,930,000',base:'2025-11-12',purp:'시가참고'},
+ {no:'c',loc:'신월동 100-15',use:'2종일주',jimok:'대',cond:'단독',unit:'6,770,000',base:'2025-11-04',purp:'담보'},
+ {no:'d',loc:'신월동 177-17',use:'2종일주',jimok:'대',cond:'단독',unit:'4,540,000',base:'2025-06-26',purp:'법원경매'}
+];
+var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지목','jimok'],['이용<br>상황','cond'],['사례단가<br>(원/㎡)','unit'],['기준시점','base'],['평가<br>목적','purp']];
+function renderAppr(){
+  var h='<tr><th>선정</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'</tr>';
+  APPRS.forEach(function(a,i){
+    h+='<tr><td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcAll();"></td>';
+    APPR_COLS.forEach(function(c){h+='<td><input value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcAll();"></td>';});
+    h+='</tr>';
+  });
+  document.getElementById('tblAppr').innerHTML=h;
+}
+
+// ══════ 붙여넣기 처리 ══════
+document.getElementById('pTrade').addEventListener('paste',function(e){
+  setTimeout(function(){applyTrade(document.getElementById('pTrade').value);},30);});
+function applyTrade(text){
+  var msg=document.getElementById('pTradeMsg');
+  var rows=parseTsv(text);
+  if(rows.length<2){msg.className='pst err';msg.textContent='머리글 + 데이터 행이 필요합니다.';return;}
+  var hi=-1;
+  for(var i=0;i<Math.min(rows.length,4);i++)if(rows[i].join('').indexOf('소재지')>=0){hi=i;break;}
+  if(hi<0){msg.className='pst err';msg.textContent='머리글(소재지·지번 등)을 찾지 못했습니다.';return;}
+  var head=rows[hi],out=[];
+  for(var i=hi+1;i<rows.length;i++){var r=rows[i];
+    out.push({
+      loc:(pick(head,r,['소재지'])+' '+pick(head,r,['지번'])).trim(),
+      use:shortY(pick(head,r,['용도지역'])), jimok:pick(head,r,['지목']),
+      landA:pick(head,r,['토지면적']), bldA:pick(head,r,['전체면적','건물면적','연면적']),
+      appr:dot(pick(head,r,['사용승인일자','사용승인일'])), struct:pick(head,r,['건물구조','주구조','구조']),
+      reCost:'800,000', life:'40', rest:'',
+      total:pick(head,r,['물건금액','거래금액','총거래금액']), date:dot(pick(head,r,['거래시점','거래일자']))
+    });}
+  if(!out.length){msg.className='pst err';msg.textContent='데이터 행이 없습니다.';return;}
+  TRADES=out;renderTrade();syncPick();calcAll();
+  msg.className='pst ok';
+  msg.textContent='✅ '+out.length+'건 반영 — 소재지·용도지역·지목·건물면적·사용승인일·거래금액·거래일자 자동. 남은 칸: 토지면적·주구조·재조달원가·잔존연수';
+}
+document.getElementById('pAppr').addEventListener('paste',function(e){
+  setTimeout(function(){applyAppr(document.getElementById('pAppr').value);},30);});
+function applyAppr(text){
+  var msg=document.getElementById('pApprMsg');
+  var rows=parseTsv(text);
+  var hi=-1;
+  for(var i=0;i<Math.min(rows.length,4);i++)if(rows[i].join('').indexOf('평가목적')>=0){hi=i;break;}
+  if(hi<0){msg.className='pst err';msg.textContent='머리글(평가목적 등)을 찾지 못했습니다.';return;}
+  var head=rows[hi],out=[],tag='abcdefghij';
+  for(var i=hi+1;i<rows.length;i++){var r=rows[i];
+    var loc=pick(head,r,['소재지']).split(' ').filter(Boolean).pop()||'';
+    var jib=pick(head,r,['지번']).replace(/\*/g,'').trim();
+    out.push({no:tag[out.length]||String(out.length+1),
+      loc:(loc+' '+jib).trim(),
+      use:pick(head,r,['(개별)용도지역','용도지역/구조','용도지역']),
+      jimok:pick(head,r,['(개별)지목','지목/건물용도','지목']),
+      cond:pick(head,r,['(개별)이용상황','이용상황']),
+      unit:pick(head,r,['단가']), base:pick(head,r,['기준시점']), purp:pick(head,r,['평가목적'])});}
+  out=out.filter(function(a){return a.loc.trim()||num(a.unit);});   // 빈 행·머리글 잔여行 제거
+  out.forEach(function(a,i){a.no='abcdefghij'[i]||String(i+1);});
+  if(!out.length){msg.className='pst err';msg.textContent='데이터 행을 읽지 못했습니다. 머리글째 다시 복사해보세요.';return;}
+  APPRS=out;renderAppr();syncPick();calcAll();
+  msg.className='pst ok';msg.textContent='✅ '+out.length+'건 반영 — 소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적 자동';
+}
+
+// ══════ 그 밖의 요인 ══════
+var ETC={type:'t',idx:0};
+function syncPick(){
+  var sel=document.getElementById('etcPick'),h='';
+  TRADES.forEach(function(c,i){h+='<option value="t'+i+'"'+(ETC.type==='t'&&ETC.idx===i?' selected':'')+'>거래사례 #'+(i+1)+' — '+(c.loc||'')+'</option>';});
+  APPRS.forEach(function(a,i){h+='<option value="a'+i+'"'+(ETC.type==='a'&&ETC.idx===i?' selected':'')+'>평가사례 '+a.no+' — '+(a.loc||'')+'</option>';});
+  sel.innerHTML=h;
+  sel.onchange=function(){ETC={type:this.value[0],idx:+this.value.slice(1)};renderTrade();renderAppr();calcAll();};
+}
+function srcUnit(){
+  if(ETC.type==='t'){var c=TRADES[ETC.idx];return c?tradeCalc(c).landUnit:0;}
+  var a=APPRS[ETC.idx];return a?num(a.unit):0;
+}
+function srcBase(){
+  if(ETC.type==='t'){var c=TRADES[ETC.idx];return c?c.date:'';}
+  var a=APPRS[ETC.idx];return a?dot(a.base):'';
+}
+
+// ══════ 전체 계산 ══════
+// 요인 계는 소수 3자리로 반올림한 뒤 다음 계산에 쓴다(실무 문서와 동일 — 예 0.9408→0.941)
+function mul(sel){var p=1;document.querySelectorAll(sel).forEach(function(i){p*=num(i.value)||1;});return Math.round(p*1000)/1000;}
+function calcAll(){
+  // 개별요인 계
+  var gf=mul('.gf'),ef=mul('.ef');
+  document.getElementById('gfSum').textContent=gf.toFixed(3);
+  document.getElementById('efSum').textContent=ef.toFixed(3);
+  document.getElementById('eIndSum').textContent=ef.toFixed(3);
+  // 그밖의요인
+  var su=srcUnit(),et=num(document.getElementById('eTime').value),ea=num(document.getElementById('eArea').value)||1;
+  var o1=su*et*ea*ef;
+  var sp=num(document.getElementById('stdPrice').value),st=num(document.getElementById('stdTime').value)||1;
+  var o2=sp*st;
+  document.getElementById('eSrc').textContent=won(su);
+  document.getElementById('eStd').textContent=won(sp);
+  document.getElementById('eStdTime').textContent=st.toFixed(5);
+  document.getElementById('eOut1').textContent=won(o1);
+  document.getElementById('eOut2').textContent=won(o2);
+  var ratio=o2>0?o1/o2:0;
+  document.getElementById('eRatio').textContent=ratio?ratio.toFixed(4):'-';
+  document.getElementById('eRatio2').textContent=ratio?ratio.toFixed(4):'-';
+  document.getElementById('fnTime').textContent=et.toFixed(5);
+  document.getElementById('fnArea').textContent=ea.toFixed(2);
+  document.getElementById('fnPeriod').textContent='('+(srcBase()||'사례시점')+' ~ 2026.05.19)';
+  // 토지단가
+  var etc=num(document.getElementById('eDecide').value)||ratio;
+  document.getElementById('tdPrice').textContent=won(sp);
+  document.getElementById('tdTime').textContent=st.toFixed(5);
+  document.getElementById('tdInd').textContent=gf.toFixed(3);
+  document.getElementById('tdEtc').textContent=etc?etc.toFixed(2):'-';
+  var calc=sp*st*1*gf*etc;
+  document.getElementById('tdCalc').textContent=calc?won(calc):'-';
+  var apply=num(document.getElementById('tdApply').value)||Math.round(calc/10000)*10000;
+  var size=num(document.getElementById('tdSize').value);
+  var total=apply*size;
+  document.getElementById('tdApply2').textContent=apply?won(apply):'-';
+  document.getElementById('tdTotal').textContent=total?won(total):'-';
+  document.getElementById('resLand').textContent=total?won(total)+' 원':'-';
+  document.getElementById('sdUnit').textContent=apply?won(apply)+' 원/㎡':'-';
+  document.getElementById('sdLand').textContent=total?won(total):'-';
+  document.getElementById('sdTotal').textContent=total?won(total+693483538):'-';
+}
+renderTrade();renderAppr();syncPick();calcAll();
 </script>
 </body>
 </html>
