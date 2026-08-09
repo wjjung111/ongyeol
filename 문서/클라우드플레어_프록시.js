@@ -57,13 +57,16 @@ export default {
         return new Response(body, { status: r.status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
       }
 
-      // ── R-ONE 프록시: /rone?STATBL_ID=...&... (쿼리 그대로 전달, KEY만 서버가 주입) ──
-      if (url.pathname === "/rone") {
+      // ── R-ONE 프록시 (쿼리 그대로 전달, KEY만 서버가 주입) ──
+      //  /rone      자료조회  SttsApiTblData.do  (예: STATBL_ID=..&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID=202501)
+      //  /rone-list 통계목록  SttsApiTbl.do      (예: STATBL_NM=지가변동률)
+      if (url.pathname === "/rone" || url.pathname === "/rone-list") {
         if (!env.RONE_KEY) return json({ error: "서버에 RONE_KEY 미설정" }, 500, cors);
         const qs = new URLSearchParams(url.searchParams);
         qs.set("KEY", env.RONE_KEY);
         if (!qs.get("Type")) qs.set("Type", "json");
-        const target = "https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do?" + qs.toString();
+        const api = url.pathname === "/rone" ? "SttsApiTblData.do" : "SttsApiTbl.do";
+        const target = "https://www.reb.or.kr/r-one/openapi/" + api + "?" + qs.toString();
         const r = await fetch(target);
         const body = await r.text();
         return new Response(body, { status: r.status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
