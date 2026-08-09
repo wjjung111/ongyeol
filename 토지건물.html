@@ -21,7 +21,8 @@
   #mode-bar a.mb-home{cursor:pointer;border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;transition:all .12s;}
   #mode-bar a.mb-home:hover{border-color:#2563eb;color:#fff;}
   #mode-bar .mb-tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
-  .wrap{max-width:1100px;margin:12px auto;padding:0 12px;}
+  /* 넓은 화면을 실제로 쓰도록 — 표가 많은 앱이라 폭이 곧 가독성 */
+  .wrap{max-width:1700px;margin:12px auto;padding:0 16px;}
   .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:16px;margin-bottom:12px;}
   .card h2{font-size:14px;font-weight:700;color:#1a2744;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:8px;}
   .card h2 .pill{font-size:11px;font-weight:600;color:#1e40af;background:#dbeafe;border-radius:10px;padding:1px 8px;}
@@ -48,10 +49,22 @@
   th,td{border:1px solid #e2e5ea;padding:5px 6px;text-align:center;}
   th{background:#f0f2f5;font-size:11px;color:#1a2744;font-weight:600;white-space:nowrap;}
   td input{width:100%;border:none;text-align:center;font:inherit;font-size:12px;padding:3px;background:transparent;}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;}
-  .fld{display:flex;flex-direction:column;gap:3px;}
-  .fld input{width:100%;}
+  /* 접수개요: 라벨-입력 가로 배치, 한 줄에 1필드(좌측 컬럼이 좁으므로) */
+  .grid2{display:grid;grid-template-columns:1fr;gap:5px 18px;}
+  .fld{display:flex;align-items:center;gap:8px;}
+  .fld label.f{width:86px;flex-shrink:0;text-align:right;color:#555;}
+  .fld input,.fld select{flex:1;min-width:0;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;}
   .tablewrap{overflow-x:auto;}
+  /* 접수개요(좌) + 대상물건(우) 한 화면. 좁으면 자동 1열 */
+  .cols{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start;}
+  @media(min-width:1280px){.cols{grid-template-columns:340px minmax(0,1fr);}}
+  @media(min-width:1600px){.cols{grid-template-columns:380px minmax(0,1fr);}}
+  /* 표가 좁아 글자가 잘리지 않도록 최소폭 확보 + 셀 줄바꿈 허용 */
+  #bldTbl{min-width:720px;} #bldTbl td{white-space:normal;}
+  #landTbl,#stdTbl{min-width:880px;}
+  /* 밀도: 카드 여백을 줄여 한 화면에 더 담기 */
+  .cols .card{padding:12px 14px;margin-bottom:12px;}
+  .cols .card h2{margin-bottom:8px;}
   .del{color:#dc2626;cursor:pointer;font-weight:700;}
   #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
@@ -67,8 +80,9 @@
 
 <div class="wrap">
 
-  <!-- 브이월드 인증키 (내장. 개인 키로 바꾸기 옵션 제공) -->
-  <div class="card">
+  <!-- 브이월드 인증키 — 키가 내장돼 있어 화면에서는 숨김(hidden).
+       개인 키로 바꾸려면 콘솔에서 setKey('...') 실행 / 되돌리려면 localStorage.removeItem('exact-vworld-key') -->
+  <div class="card" hidden>
     <div class="row">
       <b>브이월드 인증키</b>
       <span class="hint" id="keyHint"></span>
@@ -82,25 +96,44 @@
     <div class="hint" style="margin-top:6px">키가 앱에 내장돼 있어 바로 조회됩니다 — 따로 입력할 필요 없어요. 필요하면 개인 키로 바꿀 수 있습니다.</div>
   </div>
 
-  <!-- 기준정보 -->
-  <div class="card">
-    <h2>기준정보</h2>
-    <div class="row">
-      <span class="fld"><label class="f">공시기준일</label><input type="text" id="base_gongsi" placeholder="2025.01.01" size="12"></span>
-      <span class="fld"><label class="f">기준시점</label><input type="text" id="base_gijun" placeholder="2025.09.25" size="12"></span>
-      <span class="fld"><label class="f">실지조사일</label><input type="text" id="base_josa" placeholder="2026.07.31" size="12"></span>
-    </div>
-    <div class="hint" style="margin-top:6px">공시기준일~기준시점은 아래 지가변동률(시점수정) 기간으로 자동 반영됩니다.</div>
-  </div>
-
   <div class="tabs">
-    <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">① 대상물건</button>
+    <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">① 접수개요 · 대상물건</button>
     <button id="tabbtn-gongsi" onclick="showTab('gongsi')">② 공시지가기준법</button>
   </div>
 
-  <!-- ============ 대상물건 탭 ============ -->
+  <!-- ============ 접수개요 + 대상물건 (한 화면 좌우 분할) ============ -->
   <div id="tab-daesang" class="tab active">
+   <div class="cols">
 
+    <!-- 좌: 접수개요 -->
+    <div class="card" id="cardJeopsu">
+      <h2>감정평가 개요</h2>
+      <div class="grid2">
+        <span class="fld"><label class="f">접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
+        <span class="fld"><label class="f">의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
+        <span class="fld"><label class="f">의뢰일</label><input type="text" id="ov_orderDay" placeholder="20250925"></span>
+        <span class="fld"><label class="f">평가목적</label><input type="text" id="ov_purpose" placeholder="일반거래(시가참고)"></span>
+        <span class="fld"><label class="f">제출처</label><input type="text" id="ov_submit" placeholder="국세청 및 관할세무서"></span>
+        <span class="fld"><label class="f">평가구분</label><input type="text" id="ov_kind" placeholder="상속"></span>
+        <span class="fld"><label class="f">기준시점</label><input type="text" id="base_gijun" placeholder="2025.09.25"></span>
+        <span class="fld"><label class="f">기준시점근거</label>
+          <select id="ov_gijunBasis">
+            <option>귀 의뢰 요청 날짜인</option><option>귀 제시일인</option><option>실지조사 완료일인</option><option>가격조사 완료일인</option>
+          </select></span>
+        <span class="fld"><label class="f">실지조사일</label><input type="text" id="base_josa" placeholder="2026.07.31"></span>
+        <span class="fld"><label class="f">작성일자</label><input type="text" id="ov_writeDay" placeholder="2026.08.01"></span>
+        <span class="fld"><label class="f">기준가치</label><input type="text" id="ov_value" placeholder="시장가치"></span>
+        <span class="fld"><label class="f">소유자</label><input type="text" id="ov_owner" placeholder="홍길동"></span>
+        <span class="fld"><label class="f">평가조건</label><input type="text" id="ov_cond" placeholder="-"></span>
+        <span class="fld"><label class="f">목록표시근거</label><input type="text" id="ov_listBasis" placeholder="등기사항전부증명서 등"></span>
+        <span class="fld"><label class="f">공시기준일</label><input type="text" id="base_gongsi" placeholder="2025.01.01"></span>
+        <span class="fld"><label class="f">탁상가격</label><input type="text" id="ov_deskPrice" placeholder="4,625,000,000"></span>
+      </div>
+      <div class="hint" style="margin-top:8px">공시기준일~기준시점은 <b>② 공시지가기준법</b>의 지가변동률 기간으로 자동 반영됩니다.</div>
+    </div>
+
+    <!-- 우: 대상물건(토지+건물) -->
+    <div id="colDaesang">
     <div class="card">
       <h2>본건 토지 <span class="pill">주소 입력 → 자동 조회</span></h2>
       <div class="row">
@@ -140,7 +173,9 @@
         <span class="hint">연면적 합계: <b id="bldSum">0</b> ㎡</span>
       </div>
     </div>
+    </div><!-- /colDaesang -->
 
+   </div>
   </div>
 
   <!-- ============ 공시지가기준법 탭 ============ -->
@@ -420,33 +455,46 @@ function roneRows(j,root){var a=j&&j[root];if(!a||a.length<2)return null;var r=a
 function ymAdd(ym,n){var y=Math.floor(ym/100),m=ym%100+n;y+=Math.floor((m-1)/12);m=((m-1)%12+12)%12+1;return y*100+m;}
 function parseYmd(s){var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?{y:+m[1],mo:+m[2],d:+m[3]}:null;}
 function daysIn(y,mo){return new Date(y,mo,0).getDate();}
+var JB_USE_RE=/주거|상업|녹지|공업|관리지역|농림|자연환경|용도/;   // 용도지역 항목 판별
 async function jbFindTable(baseYm){
   var c=null;try{c=JSON.parse(localStorage.getItem(JB_TBL_KEY)||'null');}catch(e){}
   if(c&&c.id)return c;
-  var j=await callApi(PROXY_BASE+'/rone-list?STATBL_NM='+encodeURIComponent('지가변동률')+'&pSize=300&pIndex=1');
-  var rows=roneRows(j,'SttsApiTbl')||[];
-  var cands=rows.filter(function(r){return /월/.test(r.DTACYCLE_NM||'');});
+  // 통계목록은 서버가 이름검색을 지원하지 않을 수 있어 여러 페이지를 받아 클라이언트에서 거른다
+  var cands=[],pg=1;
+  while(pg<=8){
+    var j=await callApi(PROXY_BASE+'/rone-list?STATBL_NM='+encodeURIComponent('지가변동률')+'&pSize=500&pIndex='+pg);
+    var rows=roneRows(j,'SttsApiTbl');
+    if(!rows||!rows.length)break;
+    rows.forEach(function(r){
+      if(/지가변동률/.test(r.STATBL_NM||'')&&/월/.test(r.DTACYCLE_NM||''))cands.push(r);
+    });
+    if(rows.length<500)break;
+    pg++;
+  }
   cands.sort(function(a,b){return (/용도지역/.test(b.STATBL_NM||'')?1:0)-(/용도지역/.test(a.STATBL_NM||'')?1:0);});
-  if(!cands.length)throw new Error('R-ONE에서 지가변동률 월간 통계표를 찾지 못했습니다.');
+  if(!cands.length)throw new Error('R-ONE 목록에서 월간 지가변동률 표를 찾지 못했습니다.');
   // 기준시점 달부터 뒤로 훑으며 실제 자료가 있는 표를 확정 (기준시점이 과거여도 동작)
-  var ym0=ymAdd(baseYm,1);
-  for(var i=0;i<Math.min(cands.length,5);i++){
-    var id=cands[i].STATBL_ID;
+  var ym0=ymAdd(baseYm,1),diag=[];
+  for(var i=0;i<Math.min(cands.length,8);i++){
+    var id=cands[i].STATBL_ID,nm=cands[i].STATBL_NM;
     for(var back=1;back<=9;back++){
       var ym=ymAdd(ym0,-back);
       var dj=await callApi(PROXY_BASE+'/rone?STATBL_ID='+id+'&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID='+ym+'&pSize=1000&pIndex=1');
       var rs=roneRows(dj,'SttsApiTblData');
       if(rs&&rs.length){
-        if(rs.some(function(r){return /주거|상업|녹지|공업/.test(r.ITM_NM||'');})){
-          var t={id:id,name:cands[i].STATBL_NM};
+        var r0=rs[0];
+        // 용도지역 구분이 항목(ITM)이든 분류(CLS)든 어느 쪽에 있어도 인정
+        if(rs.some(function(r){return JB_USE_RE.test(String(r.ITM_NM||'')+String(r.ITM_FULLNM||''))||JB_USE_RE.test(String(r.CLS_FULLNM||''));})){
+          var t={id:id,name:nm};
           try{localStorage.setItem(JB_TBL_KEY,JSON.stringify(t));}catch(e){}
           return t;
         }
-        break;   // 자료는 있는데 용도지역 항목이 아님 → 다음 후보
+        diag.push(nm+'(항목:'+String(r0.ITM_NM||'')+')');
+        break;   // 자료는 있는데 용도지역 구분이 아님 → 다음 후보
       }
     }
   }
-  throw new Error('용도지역별 지가변동률 표를 확정하지 못했습니다.');
+  throw new Error('용도지역별 지가변동률 표를 확정하지 못했습니다. [검토한 표: '+(diag.join(', ')||cands.slice(0,3).map(function(c){return c.STATBL_NM;}).join(', '))+']');
 }
 async function jbMonthRows(tblId,ym){
   var k=tblId+'|'+ym;
@@ -500,7 +548,11 @@ async function jbCompute(){
   for(var ym=ymS;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
     st.textContent='월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';
     var rows=await jbMonthRows(jbState.tbl.id,ym);
-    var hit=rows.find(function(r){return String(r.CLS_FULLNM||r.CLS_NM||'')===reg&&String(r.ITM_NM||'')===use;});
+    var hit=rows.find(function(r){
+      var full=String(r.CLS_FULLNM||r.CLS_NM||'');
+      if(jbState.useInItm)return full===reg&&String(r.ITM_NM||'')===use;
+      return full.split('>').slice(0,-1).join('>').trim()===reg&&full.split('>').pop().trim()===use;
+    });
     if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=='')rates[ym]=parseFloat(hit.DTA_VAL);
   }
   var factor=jbFactor(rates,g,e);
@@ -534,10 +586,16 @@ document.getElementById('btnJb').onclick=async function(){
     }
     if(!rows||!rows.length)throw new Error('최근 발표 자료를 찾지 못했습니다.');
     jbState.latestYm=ym;
+    // 표 구조 판별: 용도지역이 항목(ITM)에 있는 표 / 분류(CLS) 마지막 구간에 있는 표 둘 다 지원
+    var itmIsUse=rows.some(function(r){return JB_USE_RE.test(String(r.ITM_NM||''));});
+    jbState.useInItm=itmIsUse;
     var regs=[],uses=[];
     rows.forEach(function(r){
-      var f=String(r.CLS_FULLNM||r.CLS_NM||'');if(f&&regs.indexOf(f)<0)regs.push(f);
-      var u=String(r.ITM_NM||'');if(u&&uses.indexOf(u)<0)uses.push(u);
+      var full=String(r.CLS_FULLNM||r.CLS_NM||'');
+      var u=itmIsUse?String(r.ITM_NM||''):full.split('>').pop().trim();
+      var f=itmIsUse?full:full.split('>').slice(0,-1).join('>').trim();
+      if(f&&regs.indexOf(f)<0)regs.push(f);
+      if(u&&uses.indexOf(u)<0)uses.push(u);
     });
     var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
     selR.innerHTML=regs.map(function(x){return '<option>'+x.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
@@ -564,11 +622,14 @@ function showTab(name){
 }
 
 // ================= 저장/복원 (localStorage) =================
+var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
+            'ov_writeDay','ov_value','ov_owner','ov_cond','ov_listBasis','ov_deskPrice'];
 function collect(){
-  var o={base:{},land:{},std:{},bld:[],jb:{}};
+  var o={base:{},ov:{},land:{},std:{},bld:[],jb:{}};
   o.base.gongsi=document.getElementById('base_gongsi').value;
   o.base.gijun=document.getElementById('base_gijun').value;
   o.base.josa=document.getElementById('base_josa').value;
+  OV_IDS.forEach(function(id){o.ov[id]=document.getElementById(id).value;});
   document.querySelectorAll('#landRow td').forEach(function(td){o.land[td.dataset.k.slice(5)]=td.querySelector('input').value;});
   document.querySelectorAll('#stdRow td').forEach(function(td){o.std[td.dataset.k.slice(4)]=td.querySelector('input').value;});
   document.querySelectorAll('#bldBody tr').forEach(function(tr){var r={};tr.querySelectorAll('td[data-k]').forEach(function(td){r[td.dataset.k.slice(4)]=td.querySelector('input').value;});o.bld.push(r);});
@@ -583,6 +644,7 @@ function restore(){
   var o=null;try{o=JSON.parse(localStorage.getItem(FORM_STORAGE)||'null');}catch(e){}
   if(!o)return false;
   if(o.base){document.getElementById('base_gongsi').value=o.base.gongsi||'';document.getElementById('base_gijun').value=o.base.gijun||'';document.getElementById('base_josa').value=o.base.josa||'';}
+  if(o.ov)OV_IDS.forEach(function(id){if(o.ov[id]!=null)document.getElementById(id).value=o.ov[id];});
   renderLandRow(o.land||{});renderStdRow(o.std||{});
   (o.bld&&o.bld.length?o.bld:[{},{}]).forEach(addBldRow);
   if(o.jb){['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value=(o.jb[k]||'');});}
@@ -592,7 +654,8 @@ function restore(){
 
 // ================= 초기화 =================
 ['base_gongsi','base_gijun'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){updatePeriod();saveForm();});});
-['base_josa','jb_region','jb_use','jb_factor'].forEach(function(id){document.getElementById(id).addEventListener('input',saveForm);});
+['base_josa','jb_region','jb_use','jb_factor'].concat(OV_IDS).forEach(function(id){
+  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',saveForm);});
 if(!restore()){renderLandRow({});renderStdRow({});addBldRow({});addBldRow({});}
 updatePeriod();sumBld();
 document.getElementById('btnAddBld').onclick=function(){addBldRow({});saveForm();};
