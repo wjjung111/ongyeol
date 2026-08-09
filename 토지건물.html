@@ -63,15 +63,19 @@
 
 <div class="wrap">
 
-  <!-- 브이월드 인증키 (토지조회와 같은 키를 공유) -->
+  <!-- 브이월드 인증키 (내장. 개인 키로 바꾸기 옵션 제공) -->
   <div class="card">
     <div class="row">
       <b>브이월드 인증키</b>
-      <input type="password" id="vkey" size="40" placeholder="예: 8D5CB15B-...-...-...">
-      <button class="ghost sm" id="btnSaveKey">저장</button>
       <span class="hint" id="keyHint"></span>
+      <button class="ghost sm" id="btnToggleKey" style="margin-left:auto">다른 키로 바꾸기</button>
     </div>
-    <div class="hint" style="margin-top:6px">키는 이 브라우저에만 저장됩니다(localStorage). 저장소·서버로 전송되지 않습니다. · 토지 조회 도구와 같은 키를 씁니다.</div>
+    <div class="row" id="keyEdit" style="margin-top:8px;display:none">
+      <input type="password" id="vkey" size="40" placeholder="개인 키 입력">
+      <button class="ghost sm" id="btnSaveKey">저장</button>
+      <button class="ghost sm gray" id="btnResetKey">내장 키로 되돌리기</button>
+    </div>
+    <div class="hint" style="margin-top:6px">키가 앱에 내장돼 있어 바로 조회됩니다 — 따로 입력할 필요 없어요. 필요하면 개인 키로 바꿀 수 있습니다.</div>
   </div>
 
   <!-- 기준정보 -->
@@ -195,14 +199,18 @@ var MAP_YONGDO={'제1종전용주거지역':'1종전주','제2종전용주거지
 var MAP_HYEONGSANG={'가로장방':'가장형','세로장방':'세장형','정방형':'정방형','사다리형':'사다리형','부정형':'부정형','자루형':'자루형','삼각형':'삼각형','역삼각형':'역삼각형'};
 var MAP_JEOPMYEON={'세로한면(가)':'세로(가)','세로각지(가)':'세각(가)','세로한면(불)':'세로(불)','세로각지(불)':'세각(불)'};
 var API_BASE='https://api.vworld.kr';
-var KEY_STORAGE='exact-vworld-key';           // 토지조회 도구와 키 공유
+var KEY_STORAGE='exact-vworld-key';           // 개인 키 override(토지조회 도구와 공유)
+var DEFAULT_VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';  // 내장 기본 키(입력 없이 바로 조회)
 var FORM_STORAGE='tojigeonmul-slice-v0';
 
-// ================= 인증키 =================
-function getKey(){try{return localStorage.getItem(KEY_STORAGE)||'';}catch(e){return '';}}
+// ================= 인증키 (내장 키 + 개인 키 override) =================
+function getOverride(){try{return localStorage.getItem(KEY_STORAGE)||'';}catch(e){return '';}}
+function getKey(){return getOverride()||DEFAULT_VKEY;}
 function setKey(v){try{localStorage.setItem(KEY_STORAGE,v);}catch(e){console.error('key save',e);}}
-function refreshKeyHint(){var k=getKey();document.getElementById('keyHint').textContent=k?('저장됨: '+k.slice(0,8)+'…'):'키가 없으면 조회가 안 됩니다';}
+function refreshKeyHint(){document.getElementById('keyHint').textContent=getOverride()?('개인 키 사용 중: '+getOverride().slice(0,8)+'…'):'내장 키 사용 중 — 바로 조회 가능';}
+document.getElementById('btnToggleKey').onclick=function(){var e=document.getElementById('keyEdit');e.style.display=(e.style.display==='none'||!e.style.display)?'flex':'none';};
 document.getElementById('btnSaveKey').onclick=function(){var v=document.getElementById('vkey').value.trim();if(!v){alert('키를 입력하세요');return;}setKey(v);document.getElementById('vkey').value='';refreshKeyHint();};
+document.getElementById('btnResetKey').onclick=function(){try{localStorage.removeItem(KEY_STORAGE);}catch(e){console.error('key reset',e);}refreshKeyHint();};
 refreshKeyHint();
 
 // ================= API 호출 (fetch → JSONP → 수동붙여넣기) =================
