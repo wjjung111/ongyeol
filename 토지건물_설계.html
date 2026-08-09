@@ -67,6 +67,8 @@
   .q{background:#eff6ff;border:1px solid #bfdbfe;border-left:3px solid #2563eb;border-radius:6px;padding:7px 11px;font-size:11px;color:#1e40af;margin-top:7px;}
   .res{background:#1a2744;color:#fff;border-radius:6px;padding:8px 13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:9px;}
   .res .n{font-size:17px;font-weight:800;color:#7dd3fc;}
+  #pinLand{border:2px solid #1a2744;background:#f8fafc;}
+  #pinLand h2{border-bottom-color:#1a2744;}
 
   .subtabs{display:flex;gap:3px;margin-bottom:8px;border-bottom:2px solid #e2e5ea;}
   .subtabs button{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:#94a3b8;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
@@ -209,7 +211,6 @@
               <button class="active" onclick="sub(0,this)">거래사례</button>
               <button onclick="sub(1,this)">평가사례</button>
               <button onclick="sub(2,this)">그 밖의 요인</button>
-              <button onclick="sub(3,this)">시산가액</button>
             </div>
 
             <!-- 거래사례 (세로 표) -->
@@ -271,30 +272,37 @@
                 <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
                 <tr><td class="calc-c" id="eRatio2">-</td><td class="jud-c"><input id="eDecide" placeholder="예 1.38" oninput="calcAll()"></td><td>1</td></tr>
               </table></div>
-              <div class="note">산출 비교치는 <b>자동</b>, 최종 <b>결정 보정치</b>는 평가사가 정함(절사·조정). 결정치가 「시산가액」 탭에 즉시 반영됩니다.</div>
-            </div>
-
-            <!-- 시산가액 -->
-            <div class="sub">
-              <h3>공시지가기준법 시산가액</h3>
-              <div class="tw"><table>
-                <tr><th>기호</th><th>공시지가<br>(원/㎡)</th><th>시점수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th><th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th><th>비고</th></tr>
-                <tr><td>1</td><td id="tdPrice">2,379,000</td><td id="tdTime">1.01437</td><td id="tdArea">1.000</td>
-                    <td id="tdInd">1.000</td><td class="jud-c" id="tdEtc">-</td>
-                    <td class="calc-c" id="tdCalc">-</td>
-                    <td class="jud-c"><input id="tdApply" placeholder="반올림" oninput="calcAll()"></td><td>-</td></tr>
-              </table></div>
-              <h3>토지 감정평가액</h3>
-              <div class="tw"><table>
-                <tr><th>기호</th><th>공부면적(㎡)</th><th>결정단가(원/㎡)</th><th>토지 감정평가액(원)</th><th>비고</th></tr>
-                <tr><td>1</td><td><input id="tdSize" value="125.6" oninput="calcAll()"></td>
-                    <td class="calc-c" id="tdApply2">-</td><td class="calc-c" id="tdTotal" style="font-size:13px">-</td><td>-</td></tr>
-              </table></div>
-              <div class="note">산출단가까지 <b>자동</b> → 평가사가 <b>결정단가</b>(반올림 자리)만 정하면 감정평가액 자동. 비워두면 만원 단위 반올림값을 씁니다.</div>
-              <div class="q"><b>연동</b> — 좌측 표준지 공시지가·지가변동률·개별요인, 그리고 「그 밖의 요인」 결정치가 바뀌면 이 표가 즉시 다시 계산됩니다.</div>
+              <div class="note">산출 비교치는 <b>자동</b>, 최종 <b>결정 보정치</b>는 평가사가 정함(절사·조정). 결정치가 아래 <b>시산가액 패널</b>에 즉시 반영됩니다.</div>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ── 시산가액: 항상 보이는 하단 고정 패널 (그밖의요인·개별요인 작업 중에도 실시간 확인) ── -->
+      <div class="card" id="pinLand">
+        <h2>📌 시산가액 (실시간) <span class="b calc">자동</span></h2>
+        <div class="cols5050">
+          <div>
+            <h3>공시지가기준법 시산가액</h3>
+            <div class="tw"><table>
+              <tr><th>기호</th><th>공시지가<br>(원/㎡)</th><th>시점수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th><th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th><th>비고</th></tr>
+              <tr><td>1</td><td id="tdPrice">2,379,000</td><td id="tdTime">1.01437</td><td id="tdArea">1.000</td>
+                  <td id="tdInd">1.000</td><td class="jud-c" id="tdEtc">-</td>
+                  <td class="calc-c" id="tdCalc">-</td>
+                  <td class="jud-c"><input id="tdApply" placeholder="반올림" oninput="calcAll()"></td><td>-</td></tr>
+            </table></div>
+          </div>
+          <div>
+            <h3>토지 감정평가액</h3>
+            <div class="tw"><table>
+              <tr><th>기호</th><th>공부면적(㎡)</th><th>결정단가(원/㎡)</th><th>토지 감정평가액(원)</th><th>비고</th></tr>
+              <tr><td>1</td><td><input id="tdSize" value="125.6" oninput="calcAll()"></td>
+                  <td class="calc-c" id="tdApply2">-</td><td class="calc-c" id="tdTotal" style="font-size:14px">-</td><td>-</td></tr>
+            </table></div>
+          </div>
+        </div>
+        <div class="note">산출단가까지 <b>자동</b> → 평가사가 <b>결정단가</b>(반올림 자리)만 정하면 감정평가액 자동. 비워두면 만원 단위 반올림값을 씁니다.
+          위 표준지·지가변동률·개별요인, 우측 그 밖의 요인을 만질 때마다 <b>이 패널이 실시간으로 갱신</b>됩니다.</div>
       </div>
     </div>
 

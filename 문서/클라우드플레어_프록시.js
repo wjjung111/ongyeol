@@ -6,8 +6,10 @@
  *  - API 키는 이 서버 안(환경변수)에만 있어 페이지에 노출되지 않는다.
  *
  * 지원 경로
- *  /bld?pnu=41173...0005     건축물대장 층별개요 (국토부 건축HUB)
- *  /rone?...                 부동산원 R-ONE (지가변동률 등 — 쿼리 그대로 전달)
+ *  /bld?pnu=41173...0005              건축물대장 층별개요 (국토부 건축HUB, op 생략 시 기본)
+ *  /bld?op=getBrTitleInfo&pnu=...      건축물대장 표제부 (구조·주용도·사용승인일·층수)
+ *  /bld?op=getBrFlrOulnInfo&pnu=...    건축물대장 층별개요 (명시적으로 지정할 때)
+ *  /rone?...                          부동산원 R-ONE (지가변동률 등 — 쿼리 그대로 전달)
  *
  * 설치법: 문서/클라우드플레어_프록시_설정.md 참고.
  * 환경변수(Settings → Variables and Secrets):
@@ -39,17 +41,19 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
 
     try {
-      // ── 건축물대장 층별개요: /bld?pnu=<19자리 PNU> ──
+      // ── 건축물대장: /bld?pnu=<19자리 PNU>&op=<오퍼레이션, 생략 시 층별개요> ──
       if (url.pathname === "/bld") {
         const pnu = String(url.searchParams.get("pnu") || "");
         if (!/^\d{19}$/.test(pnu)) return json({ error: "pnu 19자리 필요" }, 400, cors);
         if (!env.DATAGO_KEY) return json({ error: "서버에 DATAGO_KEY 미설정" }, 500, cors);
+        const ALLOWED_OPS = ["getBrFlrOulnInfo", "getBrTitleInfo"];
+        const op = ALLOWED_OPS.includes(url.searchParams.get("op")) ? url.searchParams.get("op") : "getBrFlrOulnInfo";
         const sigungu = pnu.slice(0, 5), bjdong = pnu.slice(5, 10);
         const platGb = pnu.charAt(10) === "2" ? "1" : "0"; // 필지구분(1일반/2산)→대장(0대지/1산)
         const bun = pnu.slice(11, 15), ji = pnu.slice(15, 19);
         // 키가 이미 URL인코딩된 형태(%2B 포함 등)면 그대로, 아니면 인코딩해서 붙임
         const key = /%[0-9A-Fa-f]{2}/.test(env.DATAGO_KEY) ? env.DATAGO_KEY : encodeURIComponent(env.DATAGO_KEY);
-        const target = "https://apis.data.go.kr/1613000/BldRgstHubService/getBrFlrOulnInfo"
+        const target = `https://apis.data.go.kr/1613000/BldRgstHubService/${op}`
           + `?sigunguCd=${sigungu}&bjdongCd=${bjdong}&platGbCd=${platGb}&bun=${bun}&ji=${ji}`
           + `&numOfRows=200&pageNo=1&_type=json&serviceKey=${key}`;
         const r = await fetch(target);
