@@ -166,8 +166,15 @@
     </div>
 
     <div class="card">
-      <h2>시점수정 (지가변동률) <span class="pill">R-ONE 연동 예정</span></h2>
-      <div class="tablewrap">
+      <h2>시점수정 (지가변동률) <span class="pill">R-ONE 자동</span></h2>
+      <div class="row">
+        <button id="btnJb">📈 지가변동률 자동조회</button>
+        <select id="jb_selRegion" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;max-width:260px"></select>
+        <select id="jb_selUse" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px"></select>
+        <span class="hint">공시기준일~기준시점 누적 변동률을 부동산원(R-ONE)에서 받아 계산합니다.</span>
+      </div>
+      <div class="status" id="jbStatus"></div>
+      <div class="tablewrap" style="margin-top:10px">
         <table>
           <thead><tr>
             <th>기간</th><th>대상지역</th><th>용도지역</th><th>지가변동률(%)</th><th>시점수정치</th>
@@ -182,8 +189,8 @@
         </table>
       </div>
       <div class="note">
-        <b>지가변동률 자동연동(R-ONE)은 다음 단계입니다.</b> 지금은 부동산원에서 확인한 값을 직접 입력하세요.
-        지가변동률(%)을 넣으면 시점수정치는 <code>1 + %/100</code>로 자동 계산됩니다(누적치를 직접 넣어도 됩니다).
+        자동조회 후 지역·용도지역을 고르면 누적 변동률·시점수정치가 채워집니다.
+        미발표 월은 <b>마지막 발표월 변동률로 일할 추정</b>합니다(관례). 값은 언제든 직접 수정할 수 있어요.
       </div>
     </div>
 
@@ -401,6 +408,152 @@ function fetchBuilding(){
     .then(function(){btn.disabled=false;});
 }
 document.getElementById('btnFetchBld').onclick=fetchBuilding;
+
+// ================= 지가변동률 자동조회 (R-ONE, 프록시 경유) =================
+// 통계표는 이름(지가변동률)+월간 주기로 자동 탐색해 localStorage에 기억한다.
+// 월별 변동률을 받아 공시기준일~기준시점 누적 시점수정치를 계산.
+// 부분월·미발표월은 관례대로 일할(단리)·마지막 발표월 변동률로 추정.
+var JB_TBL_KEY='tj-rone-jibyun-tbl';
+var jbMonthCache={};   // 'tblId|YYYYMM' → rows (세션 내 재사용)
+var jbState={tbl:null,latestYm:0};
+function roneRows(j,root){var a=j&&j[root];if(!a||a.length<2)return null;var r=a[1]&&a[1].row;if(!r)return null;return Array.isArray(r)?r:[r];}
+function ymAdd(ym,n){var y=Math.floor(ym/100),m=ym%100+n;y+=Math.floor((m-1)/12);m=((m-1)%12+12)%12+1;return y*100+m;}
+function parseYmd(s){var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?{y:+m[1],mo:+m[2],d:+m[3]}:null;}
+function daysIn(y,mo){return new Date(y,mo,0).getDate();}
+async function jbFindTable(baseYm){
+  var c=null;try{c=JSON.parse(localStorage.getItem(JB_TBL_KEY)||'null');}catch(e){}
+  if(c&&c.id)return c;
+  var j=await callApi(PROXY_BASE+'/rone-list?STATBL_NM='+encodeURIComponent('지가변동률')+'&pSize=300&pIndex=1');
+  var rows=roneRows(j,'SttsApiTbl')||[];
+  var cands=rows.filter(function(r){return /월/.test(r.DTACYCLE_NM||'');});
+  cands.sort(function(a,b){return (/용도지역/.test(b.STATBL_NM||'')?1:0)-(/용도지역/.test(a.STATBL_NM||'')?1:0);});
+  if(!cands.length)throw new Error('R-ONE에서 지가변동률 월간 통계표를 찾지 못했습니다.');
+  // 기준시점 달부터 뒤로 훑으며 실제 자료가 있는 표를 확정 (기준시점이 과거여도 동작)
+  var ym0=ymAdd(baseYm,1);
+  for(var i=0;i<Math.min(cands.length,5);i++){
+    var id=cands[i].STATBL_ID;
+    for(var back=1;back<=9;back++){
+      var ym=ymAdd(ym0,-back);
+      var dj=await callApi(PROXY_BASE+'/rone?STATBL_ID='+id+'&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID='+ym+'&pSize=1000&pIndex=1');
+      var rs=roneRows(dj,'SttsApiTblData');
+      if(rs&&rs.length){
+        if(rs.some(function(r){return /주거|상업|녹지|공업/.test(r.ITM_NM||'');})){
+          var t={id:id,name:cands[i].STATBL_NM};
+          try{localStorage.setItem(JB_TBL_KEY,JSON.stringify(t));}catch(e){}
+          return t;
+        }
+        break;   // 자료는 있는데 용도지역 항목이 아님 → 다음 후보
+      }
+    }
+  }
+  throw new Error('용도지역별 지가변동률 표를 확정하지 못했습니다.');
+}
+async function jbMonthRows(tblId,ym){
+  var k=tblId+'|'+ym;
+  if(jbMonthCache[k])return jbMonthCache[k];
+  var all=[],pg=1;
+  while(pg<=10){
+    var j=await callApi(PROXY_BASE+'/rone?STATBL_ID='+tblId+'&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID='+ym+'&pSize=1000&pIndex='+pg);
+    var rs=roneRows(j,'SttsApiTblData');
+    if(!rs||!rs.length)break;
+    all=all.concat(rs);
+    if(rs.length<1000)break;
+    pg++;
+  }
+  jbMonthCache[k]=all;return all;
+}
+function jbPickRegion(regs,hint){
+  hint=String(hint||'').replace(/\s/g,'');
+  if(!hint)return -1;
+  var bi=-1,bs=0;
+  regs.forEach(function(x,i){
+    var score=0;
+    x.split('>').forEach(function(p){
+      p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');
+      if(p&&hint.indexOf(p)>=0)score+=p.length;
+    });
+    if(score>bs){bs=score;bi=i;}
+  });
+  return bi;
+}
+// 누적 시점수정치: 완전월=복리, 부분월=일할(단리, 초일 포함), 미발표월=마지막 발표월 변동률로 추정
+function jbFactor(rates,g,e){
+  var ymS=g.y*100+g.mo,ymE=e.y*100+e.mo,factor=1,lastRate=null;
+  for(var ym=ymS;ym<=ymE;ym=ymAdd(ym,1)){
+    var y=Math.floor(ym/100),mo=ym%100,D=daysIn(y,mo);
+    var published=(ym in rates);
+    var r=published?rates[ym]:lastRate;
+    if(r==null)throw new Error((Math.floor(ym/100))+'.'+(ym%100)+'월 변동률이 없습니다 — 지역·용도지역 선택을 확인하세요.');
+    if(published)lastRate=r;
+    var d1=(ym===ymS)?g.d:1, d2=(ym===ymE)?e.d:D;
+    var frac=(d2-d1+1)/D;
+    factor*=(frac>=1)?(1+r/100):(1+(r/100)*frac);
+  }
+  return factor;
+}
+async function jbCompute(){
+  var st=document.getElementById('jbStatus');
+  var g=parseYmd(document.getElementById('base_gongsi').value),e=parseYmd(document.getElementById('base_gijun').value);
+  var reg=document.getElementById('jb_selRegion').value,use=document.getElementById('jb_selUse').value;
+  if(!g||!e||!reg||!use)return;
+  var rates={},ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;
+  for(var ym=ymS;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
+    st.textContent='월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';
+    var rows=await jbMonthRows(jbState.tbl.id,ym);
+    var hit=rows.find(function(r){return String(r.CLS_FULLNM||r.CLS_NM||'')===reg&&String(r.ITM_NM||'')===use;});
+    if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=='')rates[ym]=parseFloat(hit.DTA_VAL);
+  }
+  var factor=jbFactor(rates,g,e);
+  document.getElementById('jb_region').value=reg.split('>').map(function(p){return p.trim();}).join(' ');
+  document.getElementById('jb_use').value=use;
+  document.getElementById('jb_rate').value=((factor-1)*100).toFixed(3);
+  document.getElementById('jb_factor').value=factor.toFixed(5);
+  var pubN=Object.keys(rates).length,total=0;
+  for(var q=ymS;q<=ymE;q=ymAdd(q,1))total++;
+  st.textContent='✅ 완료 — 발표월 '+pubN+'/'+total+'개월'+(pubN<total?' (미발표분은 마지막 발표월로 일할 추정)':'')+' · 시점수정치 '+factor.toFixed(5);
+  saveForm();
+}
+document.getElementById('jb_selRegion').onchange=jbCompute;
+document.getElementById('jb_selUse').onchange=jbCompute;
+document.getElementById('btnJb').onclick=async function(){
+  var st=document.getElementById('jbStatus'),btn=this;
+  var g=parseYmd(document.getElementById('base_gongsi').value),e=parseYmd(document.getElementById('base_gijun').value);
+  if(!g||!e){alert('기준정보의 공시기준일·기준시점을 먼저 입력하세요. (예: 2025.01.01)');return;}
+  if(!PROXY_BASE){alert('프록시 서버(PROXY_BASE)가 설정되지 않았습니다.');return;}
+  btn.disabled=true;st.className='status';
+  try{
+    st.textContent='지가변동률 통계표 찾는 중…';
+    var endYm=e.y*100+e.mo;
+    jbState.tbl=await jbFindTable(endYm);
+    var rows=null,ym=endYm;
+    for(var back=0;back<=8;back++){
+      ym=ymAdd(endYm,-back);
+      st.textContent='최신 발표월 확인 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';
+      rows=await jbMonthRows(jbState.tbl.id,ym);
+      if(rows.length)break;
+    }
+    if(!rows||!rows.length)throw new Error('최근 발표 자료를 찾지 못했습니다.');
+    jbState.latestYm=ym;
+    var regs=[],uses=[];
+    rows.forEach(function(r){
+      var f=String(r.CLS_FULLNM||r.CLS_NM||'');if(f&&regs.indexOf(f)<0)regs.push(f);
+      var u=String(r.ITM_NM||'');if(u&&uses.indexOf(u)<0)uses.push(u);
+    });
+    var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
+    selR.innerHTML=regs.map(function(x){return '<option>'+x.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
+    selU.innerHTML=uses.map(function(x){return '<option>'+x.replace(/</g,'&lt;')+'</option>';}).join('');
+    selR.style.display='';selU.style.display='';
+    var hint=document.getElementById('jb_region').value||document.querySelector('#landRow td input')&&'';
+    var ri=jbPickRegion(regs,document.getElementById('jb_region').value);
+    if(ri>=0)selR.selectedIndex=ri;
+    var uh=document.getElementById('jb_use').value||'주거';
+    var ui=uses.findIndex(function(u){return u.indexOf(uh.replace(/지역$/,''))>=0;});
+    if(ui>=0)selU.selectedIndex=ui;
+    st.textContent='지역·용도지역을 확인하세요 — 선택하면 자동 계산됩니다.';
+    await jbCompute();
+  }catch(err){console.error('지가변동률',err);st.className='status err';st.textContent='실패: '+err.message;}
+  finally{btn.disabled=false;}
+};
 
 // ================= 탭 =================
 function showTab(name){
