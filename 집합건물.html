@@ -148,9 +148,10 @@
     }catch(e){console.error('name gate',e);}
   })();
   // 최초 1회: 이 브라우저에 이미 저장돼 있던 과거 건 목록을 한꺼번에 전송 (업데이트 이전 작업 내역 확보용)
-  // 키가 -v2 — 구버전(전송 실패를 성공으로 착각하던 때)에 백필을 이미 마친 브라우저도 한 번 더 올린다.
+  // 키가 -v3 — 수신함 구버전(GET 전송에 빈 배열로 되받아 기록을 조용히 버리던 때)에 백필을 마친 브라우저도
+  //           수신함을 고친 지금 한 번 더 전부 다시 올린다. (0804~ 누락분 복구용)
   window.arapBackfillOnce=function(){try{
-    if(localStorage.getItem("arap-usage-backfilled-v2"))return;
+    if(localStorage.getItem("arap-usage-backfilled-v3"))return;
     if(!localStorage.getItem("arap-user-name"))return;   // 이름 입력(게이트 통과) 후에만 — 자동번호로 올라가는 것 방지
     const lists=[["appraisal-case-list",id=>"case:"+id],["v2:appraisal-case-list",id=>"v2:case:"+id]];
     for(const[lk,ck]of lists){
@@ -164,7 +165,7 @@
         window.arapUsageLog("과거건",item);   // 대기줄에 쌓아두면 순차 전송·실패 시 재시도까지 알아서 처리
       }
     }
-    localStorage.setItem("arap-usage-backfilled-v2","1");
+    localStorage.setItem("arap-usage-backfilled-v3","1");
   }catch(e){console.error('usage backfill',e);}};
   // 접속 때마다: 지난번에 못 보낸 대기분 재전송 + (아직이면) 과거건 백필
   setTimeout(()=>{try{window.arapUsageFlush();window.arapBackfillOnce();}catch(e){console.error('usage init',e);}},2500);
