@@ -166,15 +166,11 @@
             <span class="hint">구·동까지 쓰면 정확합니다.</span>
           </div>
           <div class="status" id="landStatus"></div>
-          <div class="tw" style="margin-top:8px">
-            <table id="landTbl">
-              <thead><tr>
-                <th>소재지</th><th>지번</th><th>지목</th><th>면적(㎡)</th><th>용도지역</th><th>이용상황</th><th>도로교통</th><th>형상</th><th>지세</th><th>개별공시지가<br>(원/㎡)</th><th>비고</th>
-              </tr></thead>
-              <tbody><tr id="landRow"></tr></tbody>
-            </table>
+          <div class="tw" style="margin-top:8px"><table id="landTbl"></table></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn gh sm" onclick="addLand()">+ 필지 추가</button>
+            <span class="hint">여러 필지면 조회를 반복하면 행이 쌓입니다. 모든 칸은 클릭해서 수정 가능. 면적 합계: <b id="landSum">0</b> ㎡</span>
           </div>
-          <div class="hint" style="margin-top:6px">모든 칸은 클릭해서 수정할 수 있습니다.</div>
         </div>
 
         <div class="card">
@@ -193,7 +189,7 @@
           <div class="tw" style="margin-top:8px">
             <table id="bldTbl">
               <thead><tr>
-                <th>구분</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>연면적(㎡)</th><th></th>
+                <th>동</th><th>구분</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>연면적(㎡)</th><th></th>
               </tr></thead>
               <tbody id="bldBody"></tbody>
             </table>
@@ -223,13 +219,10 @@
               <span class="hint">공시기준일 기준 표준지 지번</span>
             </div>
             <div class="status" id="stdStatus"></div>
-            <div class="tw" style="margin-top:8px">
-              <table id="stdTbl">
-                <thead><tr>
-                  <th>소재지</th><th>지번</th><th>면적(㎡)</th><th>지목</th><th>용도지역</th><th>형상</th><th>공시지가<br>(원/㎡)</th><th>이용상황</th><th>도로교통</th><th>지세</th>
-                </tr></thead>
-                <tbody><tr id="stdRow"></tr></tbody>
-              </table>
+            <div class="tw" style="margin-top:8px"><table id="stdTbl"></table></div>
+            <div class="row" style="margin-top:8px">
+              <button class="btn gh sm" onclick="addStd()">+ 표준지 추가</button>
+              <span class="hint">필지마다 다른 표준지를 쓰면 추가하세요.</span>
             </div>
           </div>
 
@@ -258,19 +251,9 @@
 
           <div class="card">
             <h2>개별요인비교 (본건/표준지)</h2>
-            <div class="row" style="margin-bottom:6px"><span class="hint">비교표준지:</span>
+            <div class="row" style="margin-bottom:6px"><span class="hint">지대:</span>
               <select class="box" id="g_daegu" style="max-width:120px"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select></div>
-            <div class="tw"><table>
-              <tr><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>
-              <tr>
-                <td class="jud-c"><input class="gf" id="g_f1" value="1.00" oninput="calcGongsi()"></td>
-                <td class="jud-c"><input class="gf" id="g_f2" value="1.00" oninput="calcGongsi()"></td>
-                <td class="jud-c"><input class="gf" id="g_f3" value="1.00" oninput="calcGongsi()"></td>
-                <td class="jud-c"><input class="gf" id="g_f4" value="1.00" oninput="calcGongsi()"></td>
-                <td class="jud-c"><input class="gf" id="g_f5" value="1.00" oninput="calcGongsi()"></td>
-                <td class="jud-c"><input class="gf" id="g_f6" value="1.00" oninput="calcGongsi()"></td>
-                <td class="calc-c" id="gSum">1.000</td></tr>
-            </table></div>
+            <div class="tw"><table id="tblGaebyeol"></table></div>
             <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함."></div>
           </div>
         </div>
@@ -314,8 +297,9 @@
             <div class="sub">
               <div class="row" style="margin-bottom:7px">
                 <b style="font-size:12px">적용사례</b>
-                <select class="box" id="etcPick" style="max-width:260px"></select>
+                <select class="box" id="etcPick" style="max-width:240px"></select>
                 <span class="hint">/ 표준지</span>
+                <select class="box" id="etcStd" style="max-width:120px;display:none" onchange="calcGongsi()"></select>
               </div>
               <div class="tw"><table>
                 <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
@@ -357,27 +341,8 @@
       <!-- 시산가액: 항상 보이는 하단 고정 패널 -->
       <div class="card" id="pinLand">
         <h2>시산가액</h2>
-        <div class="cols5050">
-          <div>
-            <h3>공시지가기준법 시산가액</h3>
-            <div class="tw"><table>
-              <tr><th>기호</th><th>공시지가<br>(원/㎡)</th><th>시점수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th><th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th></tr>
-              <tr><td>1</td><td id="tdPrice">-</td><td id="tdTime">-</td><td id="tdArea">1.000</td>
-                  <td id="tdInd">-</td><td class="jud-c" id="tdEtc">-</td>
-                  <td class="calc-c" id="tdCalc">-</td>
-                  <td class="jud-c"><input id="tdApply" placeholder="반올림" oninput="calcGongsi()"></td></tr>
-            </table></div>
-          </div>
-          <div>
-            <h3>토지 감정평가액 (공시지가기준법)</h3>
-            <div class="tw"><table>
-              <tr><th>기호</th><th>공부면적(㎡)</th><th>결정단가(원/㎡)</th><th>시산가액(원)</th></tr>
-              <tr><td>1</td><td id="tdSize">-</td>
-                  <td class="calc-c" id="tdApply2">-</td><td class="calc-c" id="tdTotal" style="font-size:14px">-</td></tr>
-            </table></div>
-          </div>
-        </div>
-        <div class="note">산출단가까지 <b>자동</b> → <b>결정단가</b>(반올림 자리)만 정하면 시산가액 자동. 비워두면 만원 단위 반올림값을 씁니다.</div>
+        <div class="tw"><table id="tblSisan"></table></div>
+        <div class="note">산출단가까지 자동 계산됩니다 → <b>결정단가</b>(반올림 자리)만 정하면 시산가액 자동. 비워두면 만원 단위 반올림값을 씁니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
       </div>
     </div>
 
@@ -400,26 +365,13 @@
               <td class="calc-c" id="ga_indSum">1.000</td>
               <td class="calc-c" id="ga_calc">-</td></tr>
         </table></div>
-        <h3>개별요인 6조건</h3>
-        <div class="tw"><table>
-          <tr><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>
-          <tr>
-            <td class="jud-c"><input class="gaf" id="ga_f1" value="1.00" oninput="calcGeorae()"></td>
-            <td class="jud-c"><input class="gaf" id="ga_f2" value="1.00" oninput="calcGeorae()"></td>
-            <td class="jud-c"><input class="gaf" id="ga_f3" value="1.00" oninput="calcGeorae()"></td>
-            <td class="jud-c"><input class="gaf" id="ga_f4" value="1.00" oninput="calcGeorae()"></td>
-            <td class="jud-c"><input class="gaf" id="ga_f5" value="1.00" oninput="calcGeorae()"></td>
-            <td class="jud-c"><input class="gaf" id="ga_f6" value="1.00" oninput="calcGeorae()"></td>
-            <td class="calc-c" id="ga_fSum">1.000</td></tr>
-          <tr><th class="rowh">의견</th><td colspan="6" style="text-align:left"><input id="ga_opinion" value="본건은 거래사례와 비교하여 …" style="text-align:left"></td></tr>
-        </table></div>
+        <h3>개별요인 (필지별)</h3>
+        <div class="tw"><table id="tblGaFactors"></table></div>
+        <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
       </div>
       <div class="card">
         <h2>거래사례비교법에 의한 시산가액</h2>
-        <div class="tw"><table>
-          <tr><th>기호</th><th>면적(㎡)</th><th>적용단가(원/㎡)</th><th>시산가액(원)</th></tr>
-          <tr><td>1</td><td id="ga_size">-</td><td class="calc-c" id="ga_apply">-</td><td class="calc-c" id="ga_total" style="font-size:14px">-</td></tr>
-        </table></div>
+        <div class="tw"><table id="tblGaSisan"></table></div>
       </div>
     </div>
 
@@ -513,7 +465,6 @@ var DATAGO_KEY='gmQSMNpJvNH5CARAFXivvjOf05MEgLxhGS5YeZTvy6%2BdL8qvsOysZGoGauJ8qc
 var BLD_BASE='https://apis.data.go.kr/1613000/BldRgstHubService';
 var PROXY_BASE='https://ongyeol-proxy.woojin-apr.workers.dev';
 var FORM_STORAGE='tojigeonmul-v0.2';
-var landPnu='';
 
 function getOverride(){try{return localStorage.getItem(KEY_STORAGE)||'';}catch(e){return '';}}
 function getKey(){return getOverride()||DEFAULT_VKEY;}
@@ -599,31 +550,73 @@ function extract(out){
     지세:c.tpgrphHgCodeNm||'', 공시지가:fmtWon(c.pblntfPclnd), 시군구:(c.ldCodeNm||'').split(' ').slice(0,-1).join(' ')
   };
 }
-function inp(v){return '<input type="text" value="'+String(v==null?'':v).replace(/"/g,'&quot;')+'" oninput="saveForm();calcGongsi();">';}
-function renderLandRow(v){v=v||{};
-  document.getElementById('landRow').innerHTML=['소재지','지번','지목','면적','용도지역','이용상황','도로교통','형상','지세','공시지가','비고']
-    .map(function(k){return '<td data-k="land.'+k+'">'+inp(v[k]||'')+'</td>';}).join('');
-}
-function renderStdRow(v){v=v||{};
-  document.getElementById('stdRow').innerHTML=['소재지','지번','면적','지목','용도지역','형상','공시지가','이용상황','도로교통','지세']
-    .map(function(k){return '<td data-k="std.'+k+'">'+inp(v[k]||'')+'</td>';}).join('');
-}
-function landField(k){var td=document.querySelector('#landRow td[data-k="land.'+k+'"] input');return td?td.value:'';}
-function stdField(k){var td=document.querySelector('#stdRow td[data-k="std.'+k+'"] input');return td?td.value:'';}
+function esc(v){return String(v==null?'':v).replace(/"/g,'&quot;');}
+// ── 토지 필지 / 비교표준지 : 둘 다 리스트. 1개면 화면은 지금과 동일하게 보인다 ──
+var LAND_COLS=['소재지','지번','지목','면적','용도지역','이용상황','도로교통','형상','지세','공시지가','비고'];
+var STD_COLS=['소재지','지번','면적','지목','용도지역','형상','공시지가','이용상황','도로교통','지세'];
+var LANDS=[{}],STDS=[{}];
+function blankFactors(){return ['1.00','1.00','1.00','1.00','1.00','1.00'];}
+function landFactors(L){if(!L.gf||L.gf.length!==6)L.gf=blankFactors();return L.gf;}
+function landGaFactors(L){if(!L.gaf||L.gaf.length!==6)L.gaf=blankFactors();return L.gaf;}
+function facProduct(arr){var p=1;arr.forEach(function(v){p*=num(v)||1;});return Math.round(p*1000)/1000;}
+function stdOf(i){var L=LANDS[i]||{};return STDS[Math.min(L.stdIdx||0,STDS.length-1)]||{};}
 
+function renderLands(){
+  var multiStd=STDS.length>1;
+  var h='<tr><th>일련<br>번호</th>'+LAND_COLS.map(function(c){return '<th>'+(c==='면적'?'면적(㎡)':c==='공시지가'?'개별공시지가<br>(원/㎡)':c)+'</th>';}).join('')
+       +(multiStd?'<th>적용<br>표준지</th>':'')+'<th></th></tr>';
+  LANDS.forEach(function(L,i){
+    h+='<tr><td>'+(i+1)+'</td>'+LAND_COLS.map(function(c){
+      return '<td><input value="'+esc(L[c])+'" oninput="LANDS['+i+'][\''+c+'\']=this.value;landChanged();"></td>';}).join('');
+    if(multiStd){
+      h+='<td><select style="width:100%;border:none;font:inherit;font-size:12px;background:transparent" onchange="LANDS['+i+'].stdIdx=+this.value;calcGongsi();saveForm();">'
+        +STDS.map(function(S,j){return '<option value="'+j+'"'+(((L.stdIdx||0)===j)?' selected':'')+'>'+String.fromCharCode(65+j)+'</option>';}).join('')+'</select></td>';
+    }
+    h+='<td><span class="del" title="필지 삭제" onclick="delLand('+i+')">✕</span></td></tr>';
+  });
+  document.getElementById('landTbl').innerHTML=h;
+  var s=0;LANDS.forEach(function(L){s+=num(L['면적']);});
+  document.getElementById('landSum').textContent=s.toLocaleString('ko-KR',{maximumFractionDigits:4});
+}
+function addLand(){LANDS.push({});renderLands();calcGongsi();saveForm();}
+function delLand(i){if(LANDS.length<=1){alert('마지막 필지는 지울 수 없습니다.');return;}LANDS.splice(i,1);renderLands();calcGongsi();saveForm();}
+function landChanged(){renderLands();calcGongsi();saveForm();sd();}
+
+function renderStds(){
+  var h='<tr><th>일련<br>번호</th>'+STD_COLS.map(function(c){return '<th>'+(c==='면적'?'면적(㎡)':c==='공시지가'?'공시지가<br>(원/㎡)':c)+'</th>';}).join('')+'<th></th></tr>';
+  STDS.forEach(function(S,j){
+    h+='<tr><td>'+String.fromCharCode(65+j)+'</td>'+STD_COLS.map(function(c){
+      return '<td><input value="'+esc(S[c])+'" oninput="STDS['+j+'][\''+c+'\']=this.value;calcGongsi();saveForm();"></td>';}).join('')
+      +'<td><span class="del" title="표준지 삭제" onclick="delStd('+j+')">✕</span></td></tr>';
+  });
+  document.getElementById('stdTbl').innerHTML=h;
+  var sel=document.getElementById('etcStd');
+  sel.innerHTML=STDS.map(function(S,j){return '<option value="'+j+'">표준지 '+String.fromCharCode(65+j)+'</option>';}).join('');
+  sel.style.display=STDS.length>1?'':'none';
+}
+function addStd(){STDS.push({});renderStds();renderLands();calcGongsi();saveForm();}
+function delStd(j){
+  if(STDS.length<=1){alert('마지막 표준지는 지울 수 없습니다.');return;}
+  STDS.splice(j,1);
+  LANDS.forEach(function(L){if((L.stdIdx||0)>=STDS.length)L.stdIdx=STDS.length-1;});
+  renderStds();renderLands();calcGongsi();saveForm();
+}
+
+// ── 건물 층별 (동 칼럼 추가) ──
+var BLD_COLS=['동','구분','층구분','층별','구조','용도','연면적'];
 function addBldRow(v){v=v||{};
   var tr=document.createElement('tr');
-  tr.innerHTML=['구분','층구분','층별','구조','용도','연면적'].map(function(k){
-    return '<td data-k="bld.'+k+'">'+inp(v[k]||'')+'</td>';}).join('')+'<td><span class="del" title="삭제">✕</span></td>';
+  tr.innerHTML=BLD_COLS.map(function(k){
+    return '<td data-k="bld.'+k+'"><input type="text" value="'+esc(v[k])+'"></td>';}).join('')+'<td><span class="del" title="삭제">✕</span></td>';
   tr.querySelector('.del').onclick=function(){tr.remove();sumBld();saveForm();renderBldCalc();};
-  tr.querySelectorAll('input').forEach(function(i){i.addEventListener('input',function(){sumBld();renderBldCalc();});});
+  tr.querySelectorAll('input').forEach(function(i){i.addEventListener('input',function(){sumBld();saveForm();renderBldCalc();});});
   document.getElementById('bldBody').appendChild(tr);
 }
 function sumBld(){var s=0;document.querySelectorAll('#bldBody tr').forEach(function(tr){
-  var a=num(tr.children[5].querySelector('input').value);if(a)s+=a;});
+  var a=num(tr.children[BLD_COLS.indexOf('연면적')].querySelector('input').value);if(a)s+=a;});
   document.getElementById('bldSum').textContent=s.toLocaleString('ko-KR',{maximumFractionDigits:4});return s;}
 function bldRows(){var out=[];document.querySelectorAll('#bldBody tr').forEach(function(tr){
-  var r={};['구분','층구분','층별','구조','용도','연면적'].forEach(function(k,i){r[k]=tr.children[i].querySelector('input').value;});out.push(r);});return out;}
+  var r={};BLD_COLS.forEach(function(k,i){r[k]=tr.children[i].querySelector('input').value;});out.push(r);});return out;}
 
 function updatePeriod(){
   var g=document.getElementById('base_gongsi').value.trim(),j=document.getElementById('base_gijun').value.trim();
@@ -645,20 +638,32 @@ function bindQuery(btnId,queryId,statusId,onDone){
       .then(function(){btn.disabled=false;});
   };
 }
+// 조회 결과는 "첫 빈 행"에 채우고, 빈 행이 없으면 새 행으로 추가한다(여러 필지는 조회 반복)
+function fillOrPush(arr,cols,v){
+  var i=arr.findIndex(function(x){return !cols.some(function(c){return String(x[c]||'').trim();});});
+  if(i<0){arr.push({});i=arr.length-1;}
+  cols.forEach(function(c){if(v[c]!=null)arr[i][c]=v[c];});
+  return i;
+}
 bindQuery('btnLand','landQuery','landStatus',function(v,out){
-  renderLandRow({소재지:v.소재지,지번:v.지번,지목:v.지목,면적:v.면적,용도지역:v.용도지역,이용상황:v.이용상황,도로교통:v.도로교통,형상:v.형상,지세:v.지세,공시지가:v.공시지가,비고:'-'});
-  landPnu=(out&&out.pnu)||'';saveForm();sd();
+  var i=fillOrPush(LANDS,LAND_COLS,{소재지:v.소재지,지번:v.지번,지목:v.지목,면적:v.면적,용도지역:v.용도지역,
+    이용상황:v.이용상황,도로교통:v.도로교통,형상:v.형상,지세:v.지세,공시지가:v.공시지가,비고:'-'});
+  LANDS[i].pnu=(out&&out.pnu)||'';
+  renderLands();saveForm();sd();
 });
 bindQuery('btnStd','stdQuery','stdStatus',function(v){
-  renderStdRow({소재지:v.소재지,지번:v.지번,면적:v.면적,지목:v.지목,용도지역:v.용도지역,형상:v.형상,공시지가:v.공시지가,이용상황:v.이용상황,도로교통:v.도로교통,지세:v.지세});
+  fillOrPush(STDS,STD_COLS,{소재지:v.소재지,지번:v.지번,면적:v.면적,지목:v.지목,용도지역:v.용도지역,
+    형상:v.형상,공시지가:v.공시지가,이용상황:v.이용상황,도로교통:v.도로교통,지세:v.지세});
+  renderStds();renderLands();
   if(!document.getElementById('jb_region').value)document.getElementById('jb_region').value=v.시군구||'';
   if(!document.getElementById('jb_use').value){var u=v.용도지역||'';document.getElementById('jb_use').value=/주거|전주|일주/.test(u)?'주거지역':/상업/.test(u)?'상업지역':/공업/.test(u)?'공업지역':/녹지/.test(u)?'녹지지역':'';}
 });
 
 // ================= 건축물대장 (표제부 + 층별개요) =================
 function fetchBuilding(){
-  if(!landPnu||landPnu.length<19){alert('본건 토지를 먼저 조회하세요 — 그 지번(PNU)으로 건축물대장을 찾습니다.');return;}
-  var pnu=landPnu;
+  var first=LANDS.find(function(L){return L.pnu&&L.pnu.length>=19;});
+  var pnu=first?first.pnu:'';
+  if(!pnu){alert('본건 토지를 먼저 조회하세요 — 그 지번(PNU)으로 건축물대장을 찾습니다.');return;}
   var sigungu=pnu.slice(0,5), bjdong=pnu.slice(5,10);
   var platGb=(pnu.charAt(10)==='2')?'1':'0';
   var bun=pnu.slice(11,15), ji=pnu.slice(15,19);
@@ -981,20 +986,34 @@ function srcUnit(){if(ETC.type==='t'){var c=TRADES[ETC.idx];return c?tradeCalc(c
 var GA={idx:0};
 function syncGeorae(){renderTradePick();calcGeorae();}
 
-// ================= 공시지가기준법 계산 =================
+// ================= 공시지가기준법 계산 (필지별) =================
+// 표준지별 그밖의요인 결정치를 STDS[j].etcDecide에 보관 — 표준지가 1개면 지금과 동일하게 동작
+function renderGaebyeol(){
+  var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>';
+  LANDS.forEach(function(L,i){
+    var f=landFactors(L);
+    h+='<tr><td>'+(i+1)+'</td><td>'+String.fromCharCode(65+(L.stdIdx||0))+'</td>'+
+      f.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="LANDS['+i+'].gf['+k+']=this.value;calcGongsi();saveForm();"></td>';}).join('')+
+      '<td class="calc-c">'+facProduct(f).toFixed(3)+'</td></tr>';
+  });
+  document.getElementById('tblGaebyeol').innerHTML=h;
+}
 function calcGongsi(){
-  var gf=mul('.gf'),ef=mul('.ef');
-  document.getElementById('gSum').textContent=gf.toFixed(3);
+  renderGaebyeol();
+  var ef=mul('.ef');
   document.getElementById('efSum').textContent=ef.toFixed(3);
   document.getElementById('eIndSum').textContent=ef.toFixed(3);
 
+  // ── 그 밖의 요인: 선택된 표준지 기준 ──
+  var sj=Math.min(+(document.getElementById('etcStd').value||0),STDS.length-1);
+  var S=STDS[sj]||{};
   var su=srcUnit(),et=num(document.getElementById('eTime').value),ea=num(document.getElementById('eArea').value)||1;
   var o1=su*et*ea*ef;
-  var sp=num(stdField('공시지가')),st=num(document.getElementById('jb_factor').value)||1;
-  var o2=sp*st;
+  var stf=num(document.getElementById('jb_factor').value)||1;
+  var sp=num(S['공시지가']),o2=sp*stf;
   document.getElementById('eSrc').textContent=su?won(su):'-';
   document.getElementById('eStd').textContent=sp?won(sp):'-';
-  document.getElementById('eStdTime').textContent=st.toFixed(5);
+  document.getElementById('eStdTime').textContent=stf.toFixed(5);
   document.getElementById('eOut1').textContent=o1?won(o1):'-';
   document.getElementById('eOut2').textContent=o2?won(o2):'-';
   var ratio=o2>0?o1/o2:0;
@@ -1002,23 +1021,39 @@ function calcGongsi(){
   document.getElementById('eRatio2').textContent=ratio?ratio.toFixed(4):'-';
   document.getElementById('fnTime').textContent=et?et.toFixed(5):'-';
   document.getElementById('fnArea').textContent=ea.toFixed(2);
+  // 화면의 결정치 입력값을 현재 표준지에 저장
+  var dv=document.getElementById('eDecide').value;
+  if(document.activeElement&&document.activeElement.id==='eDecide')S.etcDecide=dv;
+  else document.getElementById('eDecide').value=(S.etcDecide!=null?S.etcDecide:'');
+  var etcOf=function(j){var s=STDS[j]||{};var d=num(s.etcDecide);
+    if(d)return d;
+    return (j===sj)?ratio:0;};
 
-  var etc=num(document.getElementById('eDecide').value)||ratio;
-  document.getElementById('tdPrice').textContent=sp?won(sp):'-';
-  document.getElementById('tdTime').textContent=st?st.toFixed(5):'-';
-  document.getElementById('tdInd').textContent=gf.toFixed(3);
-  document.getElementById('tdEtc').textContent=etc?etc.toFixed(2):'-';
-  var calc=sp*st*1*gf*etc;
-  document.getElementById('tdCalc').textContent=calc?won(calc):'-';
-  var apply=num(document.getElementById('tdApply').value)||(calc?Math.round(calc/10000)*10000:0);
-  var size=num(landField('면적'));
-  document.getElementById('tdSize').textContent=size?size:'-';
-  var total=apply*size;
-  document.getElementById('tdApply2').textContent=apply?won(apply):'-';
-  document.getElementById('tdTotal').textContent=total?won(total)+' 원':'-';
-  document.getElementById('resGongsi').textContent=total?won(total)+' 원':'-';
+  // ── 시산가액: 필지별 행 + 합계 ──
+  var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>공시지가<br>(원/㎡)</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th>'
+       +'<th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th><th>면적(㎡)</th><th>시산가액(원)</th></tr>';
+  var sumTotal=0,sumSize=0,firstApply=0;
+  LANDS.forEach(function(L,i){
+    var j=Math.min(L.stdIdx||0,STDS.length-1),Sj=STDS[j]||{};
+    var price=num(Sj['공시지가']),gfp=facProduct(landFactors(L)),etc=etcOf(j);
+    var calc=price*stf*1*gfp*etc;
+    var apply=num(L.apply)||(calc?Math.round(calc/10000)*10000:0);
+    var size=num(L['면적']),tot=apply*size;
+    sumTotal+=tot;sumSize+=size;if(i===0)firstApply=apply;
+    h+='<tr><td>'+(i+1)+'</td><td>'+String.fromCharCode(65+j)+'</td>'+
+       '<td>'+(price?won(price):'-')+'</td><td>'+stf.toFixed(5)+'</td><td>1.000</td>'+
+       '<td>'+gfp.toFixed(3)+'</td><td>'+(etc?etc.toFixed(2):'-')+'</td>'+
+       '<td class="calc-c">'+(calc?won(calc):'-')+'</td>'+
+       '<td class="jud-c"><input value="'+esc(L.apply)+'" placeholder="반올림" oninput="LANDS['+i+'].apply=this.value;calcGongsi();saveForm();"></td>'+
+       '<td>'+(size||'-')+'</td><td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
+  });
+  if(LANDS.length>1)
+    h+='<tr><td colspan="9" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
+      +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
+  document.getElementById('tblSisan').innerHTML=h;
+  document.getElementById('resGongsi').textContent=sumTotal?won(sumTotal)+' 원':'-';
 
-  window.GONGSI_RESULT={applyUnit:apply,total:total,size:size};
+  window.GONGSI_RESULT={applyUnit:firstApply,total:sumTotal,size:sumSize};
   renderTradePick();
   calcGeorae();sd();
 }
@@ -1026,22 +1061,50 @@ function calcGongsi(){
 // ================= 거래사례비교법 계산 =================
 function calcGeorae(){
   var c=TRADES[GA.idx];
-  if(!c){document.getElementById('resGeorae').textContent='-';window.GEORAE_RESULT={total:0};calcGyeoljeong();return;}
+  if(!c){
+    document.getElementById('tblGaFactors').innerHTML='<tr><th>안내</th></tr><tr><td>공시지가기준법 탭에서 거래사례를 먼저 입력·채택하세요.</td></tr>';
+    document.getElementById('tblGaSisan').innerHTML='';
+    document.getElementById('ga_unit').textContent='-';document.getElementById('ga_calc').textContent='-';
+    document.getElementById('ga_indSum').textContent='-';
+    document.getElementById('resGeorae').textContent='-';window.GEORAE_RESULT={total:0};calcGyeoljeong();return;}
   var cal=tradeCalc(c);
   document.getElementById('ga_unit').textContent=cal.landUnit?won(cal.landUnit):'-';
-  var gf=mul('.gaf');document.getElementById('ga_fSum').textContent=gf.toFixed(3);
   var sj=num(document.getElementById('ga_sajeong').value)||1,st=num(document.getElementById('ga_time').value)||1,ar=num(document.getElementById('ga_area').value)||1;
-  document.getElementById('ga_indSum').textContent=gf.toFixed(3);
-  var calc=cal.landUnit*sj*st*ar*gf;
-  document.getElementById('ga_calc').textContent=calc?won(calc):'-';
-  var apply=Math.round(calc/10000)*10000;
-  var size=num(landField('면적'));
-  document.getElementById('ga_size').textContent=size?size:'-';
-  document.getElementById('ga_apply').textContent=apply?won(apply):'-';
-  var total=apply*size;
-  document.getElementById('ga_total').textContent=total?won(total)+' 원':'-';
-  document.getElementById('resGeorae').textContent=total?won(total)+' 원':'-';
-  window.GEORAE_RESULT={total:total};
+
+  // 개별요인 — 필지별
+  var hf='<tr><th>일련<br>번호</th><th>사례</th><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>';
+  LANDS.forEach(function(L,i){
+    var f=landGaFactors(L);
+    hf+='<tr><td>'+(i+1)+'</td><td>#'+(GA.idx+1)+'</td>'+
+      f.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="LANDS['+i+'].gaf['+k+']=this.value;calcGeorae();saveForm();"></td>';}).join('')+
+      '<td class="calc-c">'+facProduct(f).toFixed(3)+'</td></tr>';
+  });
+  document.getElementById('tblGaFactors').innerHTML=hf;
+  document.getElementById('ga_indSum').textContent=facProduct(landGaFactors(LANDS[0]||{})).toFixed(3)+(LANDS.length>1?' 외':'');
+
+  // 시산가액 — 필지별 + 합계
+  var hs='<tr><th>일련<br>번호</th><th>사례단가<br>(원/㎡)</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th>'
+        +'<th>산정단가<br>(원/㎡)</th><th>적용단가<br>(원/㎡)</th><th>면적(㎡)</th><th>시산가액(원)</th></tr>';
+  var sumTotal=0,sumSize=0,firstCalc=0;
+  LANDS.forEach(function(L,i){
+    var gfp=facProduct(landGaFactors(L));
+    var calc=cal.landUnit*sj*st*ar*gfp;
+    var apply=num(L.gaApply)||(calc?Math.round(calc/10000)*10000:0);
+    var size=num(L['면적']),tot=apply*size;
+    sumTotal+=tot;sumSize+=size;if(i===0)firstCalc=calc;
+    hs+='<tr><td>'+(i+1)+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td><td>'+sj.toFixed(2)+'</td><td>'+st.toFixed(5)+'</td>'
+       +'<td>'+ar.toFixed(3)+'</td><td>'+gfp.toFixed(3)+'</td>'
+       +'<td class="calc-c">'+(calc?won(calc):'-')+'</td>'
+       +'<td class="jud-c"><input value="'+esc(L.gaApply)+'" placeholder="반올림" oninput="LANDS['+i+'].gaApply=this.value;calcGeorae();saveForm();"></td>'
+       +'<td>'+(size||'-')+'</td><td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
+  });
+  if(LANDS.length>1)
+    hs+='<tr><td colspan="8" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
+       +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
+  document.getElementById('tblGaSisan').innerHTML=hs;
+  document.getElementById('ga_calc').textContent=firstCalc?won(firstCalc):'-';
+  document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
+  window.GEORAE_RESULT={total:sumTotal};
   calcGyeoljeong();
 }
 
@@ -1068,7 +1131,8 @@ function renderBldCalc(){
   var useApr=parseYmd(document.getElementById('bt_useApr').value),gijun=parseYmd(document.getElementById('base_gijun').value);
   var yrs=(useApr&&gijun)?((gijun.y*10000+gijun.mo*100+gijun.d)-(useApr.y*10000+useApr.mo*100+useApr.d))/10000:null;
   var elapsed=yrs!=null?Math.floor(yrs):'';
-  var h='<tr><th>해당층</th><th>면적(㎡)</th><th>이용상황</th><th>구조</th><th>재조달원가<br>(원/㎡)</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가<br>(원/㎡)</th><th>금액(원)</th></tr>';
+  var multiDong=rows.some(function(r){return String(r['동']||'').trim();});
+  var h='<tr>'+(multiDong?'<th>동</th>':'')+'<th>해당층</th><th>면적(㎡)</th><th>이용상황</th><th>구조</th><th>재조달원가<br>(원/㎡)</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가<br>(원/㎡)</th><th>금액(원)</th></tr>';
   var total=0;
   rows.forEach(function(r,i){
     var key='bld_re_'+i,lifeKey='bld_life_'+i;
@@ -1079,14 +1143,15 @@ function renderBldCalc(){
     var ratio=lf>0?Math.max(0,(lf-ec))/lf:0;
     var applyUnit=num(reCost)*ratio,amt=applyUnit*num(r['연면적']);
     total+=amt;
-    h+='<tr><td>'+(r['층별']||'')+'</td><td>'+(r['연면적']||'')+'</td><td>'+(r['용도']||'')+'</td><td>'+(r['구조']||'')+'</td>'+
+    h+='<tr>'+(multiDong?('<td>'+(r['동']||'')+'</td>'):'')+
+       '<td>'+(r['층별']||'')+'</td><td>'+(r['연면적']||'')+'</td><td>'+(r['용도']||'')+'</td><td>'+(r['구조']||'')+'</td>'+
        '<td class="jud-c"><input id="'+key+'" value="'+reCost+'" placeholder="예 1,200,000" oninput="bldSet('+i+',\'reCost\',this.value)"></td>'+
        '<td class="jud-c"><input id="'+lifeKey+'" value="'+life+'" oninput="bldSet('+i+',\'life\',this.value)"></td>'+
        '<td class="calc-c">'+(elapsed!==''?elapsed:'-')+'</td>'+
        '<td class="calc-c">'+(ec&&lf?Math.round(ratio*100)/100+' ('+Math.round(lf-ec)+'/'+lf+')':'-')+'</td>'+
        '<td class="calc-c">'+(applyUnit?won(applyUnit):'-')+'</td><td class="calc-c">'+(amt?won(amt):'-')+'</td></tr>';
   });
-  h+='<tr><td colspan="9" style="text-align:right;font-weight:700">합계</td><td class="calc-c" style="font-size:13px">'+(total?won(total):'-')+'</td></tr>';
+  h+='<tr><td colspan="'+(multiDong?10:9)+'" style="text-align:right;font-weight:700">합계</td><td class="calc-c" style="font-size:13px">'+(total?won(total):'-')+'</td></tr>';
   tbl.innerHTML=h;
   window.BLD_RESULT={total:total};
   document.getElementById('resBld').textContent=total?won(total)+' 원':'-';
@@ -1098,8 +1163,9 @@ function bldSet(i,key,val){window.BLD_STATE=window.BLD_STATE||{};window.BLD_STAT
 function calcFinal(){
   var land=window.LAND_FINAL||0,bld=(window.BLD_RESULT&&window.BLD_RESULT.total)||0;
   var total=land+bld;
-  document.getElementById('fn_landSize').textContent=landField('면적')||'-';
-  document.getElementById('fn_landUnit').textContent=(window.GONGSI_RESULT&&window.GONGSI_RESULT.applyUnit)?won(window.GONGSI_RESULT.applyUnit):'-';
+  var gs=window.GONGSI_RESULT||{};
+  document.getElementById('fn_landSize').textContent=gs.size?gs.size.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-';
+  document.getElementById('fn_landUnit').textContent=gs.applyUnit?(won(gs.applyUnit)+(LANDS.length>1?' 외':'')):'-';
   document.getElementById('fn_landAmt').textContent=land?won(land):'-';
   document.getElementById('fn_bldSize').textContent=document.getElementById('bldSum').textContent;
   document.getElementById('fn_bldAmt').textContent=bld?won(bld):'-';
@@ -1107,8 +1173,8 @@ function calcFinal(){
   document.getElementById('resFinal').textContent=total?won(total)+' 원':'-';
 
   var checks=[
-    ['토지 산정단가','공시지가 × 시점수정 × 지역요인 × 개별요인 × 그밖의요인',document.getElementById('tdCalc').textContent],
-    ['공시지가기준법 시산가액','적용단가 × 면적',document.getElementById('resGongsi').textContent],
+    ['토지 필지 수 / 면적 합계',LANDS.length+'필지',(gs.size?gs.size.toLocaleString('ko-KR',{maximumFractionDigits:4})+' ㎡':'-')],
+    ['공시지가기준법 시산가액','Σ(적용단가 × 면적)',document.getElementById('resGongsi').textContent],
     ['거래사례비교법 시산가액','사례단가 × 사정보정 × 시점수정 × 지역요인 × 개별요인 × 면적',document.getElementById('resGeorae').textContent],
     ['토지감정평가액','두 시산가액 중 채택','decided'],
     ['건물가액','Σ(면적 × 재조달원가 × 잔가율)',document.getElementById('resBld').textContent],
@@ -1124,9 +1190,12 @@ function calcFinal(){
 // ================= 좌측 요약 사이드바 =================
 function sd(){
   document.getElementById('sd_caseNo').textContent=document.getElementById('ov_caseNo').value||'-';
-  document.getElementById('sd_addr').textContent=(landField('소재지')+' '+landField('지번')).trim()||'-';
+  var L0=LANDS[0]||{};
+  var addr=((L0['소재지']||'')+' '+(L0['지번']||'')).trim();
+  document.getElementById('sd_addr').textContent=(addr?addr+(LANDS.length>1?(' 외 '+(LANDS.length-1)+'필지'):''):'-');
   document.getElementById('sd_gijun').textContent=document.getElementById('base_gijun').value||'-';
-  document.getElementById('sd_landUnit').textContent=(window.GONGSI_RESULT&&window.GONGSI_RESULT.applyUnit)?won(window.GONGSI_RESULT.applyUnit)+' 원/㎡':'-';
+  var gsr=window.GONGSI_RESULT||{};
+  document.getElementById('sd_landUnit').textContent=gsr.applyUnit?(won(gsr.applyUnit)+' 원/㎡'+(LANDS.length>1?' 외':'')):'-';
   document.getElementById('sd_landAmt').textContent=window.LAND_FINAL?won(window.LAND_FINAL):'-';
   document.getElementById('sd_bldAmt').textContent=(window.BLD_RESULT&&window.BLD_RESULT.total)?won(window.BLD_RESULT.total):'-';
   var total=(window.LAND_FINAL||0)+((window.BLD_RESULT&&window.BLD_RESULT.total)||0);
@@ -1152,19 +1221,18 @@ function sub(i,btn){
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice','ov_reportNo'];
 var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
-var GONGSI_IDS=['g_daegu','g_f1','g_f2','g_f3','g_f4','g_f5','g_f6','g_opinion','eTime','eArea','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion','eDecide','tdApply'];
-var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_f1','ga_f2','ga_f3','ga_f4','ga_f5','ga_f6','ga_opinion'];
+var GONGSI_IDS=['g_daegu','g_opinion','eTime','eArea','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
+var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion'];
 var GJ_IDS=['gj_review','gj_decide'];
 var FN_IDS=['fn_opinion'];
 function collect(){
-  var o={base:{},ov:{},bt:{},land:{},std:{},bld:[],jb:{},gongsi:{},georae:{},gj:{},fn:{}};
+  var o={base:{},ov:{},bt:{},bld:[],jb:{},gongsi:{},georae:{},gj:{},fn:{}};
   o.base.gongsi=document.getElementById('base_gongsi').value;
   o.base.gijun=document.getElementById('base_gijun').value;
   o.base.josa=document.getElementById('base_josa').value;
   OV_IDS.forEach(function(id){o.ov[id]=document.getElementById(id).value;});
   BT_IDS.forEach(function(id){o.bt[id]=document.getElementById(id).value;});
-  document.querySelectorAll('#landRow td').forEach(function(td){o.land[td.dataset.k.slice(5)]=td.querySelector('input').value;});
-  document.querySelectorAll('#stdRow td').forEach(function(td){o.std[td.dataset.k.slice(4)]=td.querySelector('input').value;});
+  o.LANDS=LANDS;o.STDS=STDS;
   document.querySelectorAll('#bldBody tr').forEach(function(tr){var r={};tr.querySelectorAll('td[data-k]').forEach(function(td){r[td.dataset.k.slice(4)]=td.querySelector('input').value;});o.bld.push(r);});
   ['period','region','use','rate','factor'].forEach(function(k){o.jb[k]=document.getElementById('jb_'+k).value;});
   GONGSI_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.gongsi[id]=el.value;});
@@ -1172,7 +1240,7 @@ function collect(){
   GJ_IDS.forEach(function(id){o.gj[id]=document.getElementById(id).value;});
   FN_IDS.forEach(function(id){o.fn[id]=document.getElementById(id).value;});
   o.gj.pickA=document.getElementById('gj_pickA').checked;
-  o.landPnu=landPnu;o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
+  o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   return o;
 }
 var saveTimer=null;
@@ -1184,7 +1252,9 @@ function restore(){
   if(o.base){document.getElementById('base_gongsi').value=o.base.gongsi||'';document.getElementById('base_gijun').value=o.base.gijun||'';document.getElementById('base_josa').value=o.base.josa||'';}
   if(o.ov)OV_IDS.forEach(function(id){if(o.ov[id]!=null)document.getElementById(id).value=o.ov[id];});
   if(o.bt)BT_IDS.forEach(function(id){if(o.bt[id]!=null)document.getElementById(id).value=o.bt[id];});
-  renderLandRow(o.land||{});renderStdRow(o.std||{});
+  LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
+  STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
+  renderStds();renderLands();
   (o.bld&&o.bld.length?o.bld:[{},{}]).forEach(addBldRow);
   if(o.jb){['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value=(o.jb[k]||'');});}
   if(o.gongsi)GONGSI_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.gongsi[id]!=null)el.value=o.gongsi[id];});
@@ -1192,7 +1262,6 @@ function restore(){
   if(o.gj){GJ_IDS.forEach(function(id){if(o.gj[id]!=null)document.getElementById(id).value=o.gj[id];});
     document.getElementById('gj_pickA').checked=o.gj.pickA!==false;document.getElementById('gj_pickB').checked=o.gj.pickA===false;}
   if(o.fn)FN_IDS.forEach(function(id){if(o.fn[id]!=null)document.getElementById(id).value=o.fn[id];});
-  if(o.landPnu)landPnu=o.landPnu;
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
   return true;
 }
@@ -1203,7 +1272,7 @@ function restore(){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){saveForm();sd();});});
 GONGSI_IDS.concat(GEORAE_IDS).forEach(function(id){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',saveForm);});
-if(!restore()){renderLandRow({});renderStdRow({});addBldRow({});addBldRow({});}
+if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});}
 updatePeriod();sumBld();renderTrade();renderAppr();syncPick();
 document.getElementById('btnAddBld').onclick=function(){addBldRow({});saveForm();};
 document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx 생성은 다음 단계에서 연결됩니다.');};
