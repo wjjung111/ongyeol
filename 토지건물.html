@@ -204,8 +204,8 @@
       <h2>시점수정 (지가변동률) <span class="pill">R-ONE 자동</span></h2>
       <div class="row">
         <button id="btnJb">📈 지가변동률 자동조회</button>
-        <select id="jb_selRegion" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;max-width:260px"></select>
-        <select id="jb_selUse" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px"></select>
+        <select id="jb_selRegion" title="대상지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:200px;max-width:320px"></select>
+        <select id="jb_selUse" title="용도지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:110px"></select>
         <span class="hint">공시기준일~기준시점 누적 변동률을 부동산원(R-ONE)에서 받아 계산합니다.</span>
       </div>
       <div class="status" id="jbStatus"></div>
@@ -510,6 +510,47 @@ async function jbMonthRows(tblId,ym){
   }
   jbMonthCache[k]=all;return all;
 }
+// R-ONE 표마다 지역·용도지역이 담긴 칸이 다르다(GRP/CLS/ITM). 실제 응답을 보고 자동 판별한다.
+// 용도지역 값이 가장 많이 들어있는 칸 = 용도지역 칸, 나머지 중 값이 채워진 칸 = 지역 칸.
+var JB_FIELDS=[['GRP','GRP_FULLNM','GRP_NM'],['CLS','CLS_FULLNM','CLS_NM'],['ITM','ITM_FULLNM','ITM_NM']];
+function jbVal(r,f){return String(r[f[2]]||r[f[1]]||'').trim();}     // 짧은 이름 우선
+function jbFull(r,f){return String(r[f[1]]||r[f[2]]||'').trim();}    // 전체 경로 우선
+function jbDetect(rows){
+  var best=null,bestN=-1;
+  JB_FIELDS.forEach(function(f){
+    var n=rows.filter(function(r){return JB_USE_RE.test(jbVal(r,f));}).length;
+    if(n>bestN){bestN=n;best=f;}
+  });
+  jbState.useF=bestN>0?best:JB_FIELDS[2];                            // 못 찾으면 ITM을 용도지역으로
+  // 지역 칸: 용도지역 칸을 뺀 나머지 중 서로 다른 값이 가장 많은 칸
+  var regF=null,regN=-1;
+  JB_FIELDS.forEach(function(f){
+    if(f[0]===jbState.useF[0])return;
+    var set={},n=0;
+    rows.forEach(function(r){var v=jbFull(r,f);if(v&&!set[v]){set[v]=1;n++;}});
+    if(n>regN){regN=n;regF=f;}
+  });
+  jbState.regF=regF;
+  // 지역 칸이 없거나 값이 1개뿐이면, 용도지역 칸의 상위 경로(예: '경기>안양>동안>주거지역')를 지역으로 씀
+  jbState.regFromUsePath=(!regF||regN<=1);
+}
+function jbSplit(r){
+  var uf=jbState.useF,rf=jbState.regF;
+  var use=jbVal(r,uf);
+  if(!JB_USE_RE.test(use)){                      // 값 자체가 용도지역이 아니면 경로 마지막 칸에서 찾기
+    var parts=jbFull(r,uf).split('>').map(function(s){return s.trim();});
+    var m=parts.filter(function(p){return JB_USE_RE.test(p);});
+    if(m.length)use=m[m.length-1];
+  }
+  var reg='';
+  if(jbState.regFromUsePath){
+    var ps=jbFull(r,uf).split('>').map(function(s){return s.trim();}).filter(function(p){return p&&p!==use;});
+    reg=ps.join(' > ');
+  }else{
+    reg=jbFull(r,rf).split('>').map(function(s){return s.trim();}).filter(Boolean).join(' > ');
+  }
+  return {reg:reg,use:use};
+}
 function jbPickRegion(regs,hint){
   hint=String(hint||'').replace(/\s/g,'');
   if(!hint)return -1;
@@ -548,11 +589,7 @@ async function jbCompute(){
   for(var ym=ymS;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
     st.textContent='월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';
     var rows=await jbMonthRows(jbState.tbl.id,ym);
-    var hit=rows.find(function(r){
-      var full=String(r.CLS_FULLNM||r.CLS_NM||'');
-      if(jbState.useInItm)return full===reg&&String(r.ITM_NM||'')===use;
-      return full.split('>').slice(0,-1).join('>').trim()===reg&&full.split('>').pop().trim()===use;
-    });
+    var hit=rows.find(function(r){var d=jbSplit(r);return d.reg===reg&&d.use===use;});
     if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=='')rates[ym]=parseFloat(hit.DTA_VAL);
   }
   var factor=jbFactor(rates,g,e);
@@ -586,17 +623,15 @@ document.getElementById('btnJb').onclick=async function(){
     }
     if(!rows||!rows.length)throw new Error('최근 발표 자료를 찾지 못했습니다.');
     jbState.latestYm=ym;
-    // 표 구조 판별: 용도지역이 항목(ITM)에 있는 표 / 분류(CLS) 마지막 구간에 있는 표 둘 다 지원
-    var itmIsUse=rows.some(function(r){return JB_USE_RE.test(String(r.ITM_NM||''));});
-    jbState.useInItm=itmIsUse;
+    jbDetect(rows);                       // 어느 칸(GRP/CLS/ITM)에 지역·용도지역이 들었는지 자동 판별
     var regs=[],uses=[];
     rows.forEach(function(r){
-      var full=String(r.CLS_FULLNM||r.CLS_NM||'');
-      var u=itmIsUse?String(r.ITM_NM||''):full.split('>').pop().trim();
-      var f=itmIsUse?full:full.split('>').slice(0,-1).join('>').trim();
-      if(f&&regs.indexOf(f)<0)regs.push(f);
-      if(u&&uses.indexOf(u)<0)uses.push(u);
+      var d=jbSplit(r);
+      if(d.reg&&regs.indexOf(d.reg)<0)regs.push(d.reg);
+      if(d.use&&uses.indexOf(d.use)<0)uses.push(d.use);
     });
+    if(!regs.length||!uses.length)
+      throw new Error('표 구조를 해석하지 못했습니다 (지역 '+regs.length+'개 / 용도지역 '+uses.length+'개). 표: '+jbState.tbl.name);
     var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
     selR.innerHTML=regs.map(function(x){return '<option>'+x.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
     selU.innerHTML=uses.map(function(x){return '<option>'+x.replace(/</g,'&lt;')+'</option>';}).join('');
