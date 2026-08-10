@@ -1302,6 +1302,29 @@ const ipjEmptyOv=()=>({
   rndDanga:"100000", rndAmt:"1000000",
 });
 
+// ── 청구서(수수료) — 실비 전 항목 직접입력·자동계산 ──
+const ipjEmptyFee=()=>({feeText:"",feeBasis:"하한",feeMain:"",feeTravel:"40,000",feeSurvey:"15,000",feeDoc:"15,000",feeEtc:"0",specialFee:"0",downPayment:"0"});
+function ipjCheonggu(fee){
+  const P=k=>pNum(fee[k])||0, rd=n=>Math.floor((n||0)/1000)*1000;
+  const 평가수수료=rd(P("feeMain"));
+  const 여비=P("feeTravel"),물건조사비=P("feeSurvey"),공부발급비=P("feeDoc"),기타실비=P("feeEtc"),특별용역비=P("specialFee");
+  const 소계=여비+물건조사비+공부발급비+기타실비+특별용역비;
+  const 합계=rd(평가수수료+소계), 부가세=Math.round(합계*0.1), 총계=합계+부가세, 착수금=P("downPayment");
+  return {평가수수료,여비,물건조사비,공부발급비,기타실비,특별용역비,소계,합계,부가세,총계,착수금,정산청구액:총계-착수금};
+}
+function ipjCheongguMap(ov,fee){
+  const c=ipjCheonggu(fee), f0=n=>n?fmt(n):"-", stripDot=s=>String(s||"").trim().replace(/\.$/,"");
+  const geonmyeong=`${ov.sigungu||""} ${ov.beopjeongdong||""}${ov.tongching?(" ("+ov.tongching+")"):""} 입주권`.replace(/\s+/g," ").trim();
+  return {
+    "의뢰인":ov.client||"","총계한글":numberToKoreanMoney(c.총계)+"원","총계":fmt(c.총계),
+    "의뢰일":stripDot(ov.writeDate||""),"건명":geonmyeong,"평가수수료":fmt(c.평가수수료),
+    "여비":f0(c.여비),"물건조사비":f0(c.물건조사비),"공부발급비":f0(c.공부발급비),"기타실비":f0(c.기타실비),
+    "특별용역비":f0(c.특별용역비),"실비소계":f0(c.소계),"합계":fmt(c.합계),"부가가치세":fmt(c.부가세),
+    "기납부착수금":f0(c.착수금),"정산청구액":fmt(c.정산청구액),
+    "접수번호":ov.caseNoDisplay||ov.caseNo||"","작성일자":stripDot((ov.writeDate||"").trim()||today()),
+  };
+}
+
 // ────────────────────────────── 계산엔진 §3 ──────────────────────────────
 const ipjGetSelCase=(u,cases)=>cases.find(c=>c.id===u.appliedCaseId)||null;
 
@@ -1484,7 +1507,6 @@ function ipjSample(){
     noteExt:"교통·교육 등 단지외부요인에서 우세함.",noteInt:"단지규모·구성 등에서 다소 우세함.",noteHo:"층·향·위치 등 호별요인에서 대등함.",noteEtc:"기타 제반요인 참작함."});
   return {ov,cases};
 }
-
 // ══════════════════════════════════════════════════════════════════════
 // [입주권] UI — 사이드바 · 탭①②③④ · 청구서 · App (여러 호수 화면 계승)
 // ══════════════════════════════════════════════════════════════════════
@@ -1655,10 +1677,20 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
   const [busy,setBusy]=useState("");
   const dl=async(f)=>{setBusy(f.key);try{await ipjDownloadDoc(f,ov,cases);}catch(e){alert(f.label+" 생성 실패: "+e.message);}setBusy("");};
   const dlAll=async()=>{setBusy("all");try{await ipjDownloadAllDocs(ov,cases);}catch(e){alert("생성 실패: "+e.message);}setBusy("");};
-  const feeC=(()=>{try{const f=parseFeeStatement(fee.feeText);if(!f.하한수수료)return null;return computeCheonggu(f,pNum(fee.downPayment)||0,pNum(fee.specialFee)||0,fee.feeBasis,pNum(fee.feeTravel)||0);}catch(e){return null;}})();
-  const dlCheonggu=async()=>{const map=buildCheongguTokenMap({...ov,feeTravel:fee.feeTravel},fee.feeText,pNum(fee.downPayment)||0,pNum(fee.specialFee)||0,fee.feeBasis);
-    if(!map){alert("수수료 계산서를 먼저 붙여넣어 인식시키세요.");return;}
-    try{const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);triggerDownload(bytes,`6. 청구서_${ov.client||"의뢰인"}.hwpx`);}catch(e){alert("청구서 생성 실패: "+e.message);}};
+  const P=k=>pNum(fee[k])||0, rd0=n=>Math.floor((n||0)/1000)*1000;
+  const 평가수수료=rd0(P("feeMain")), 소계=P("feeTravel")+P("feeSurvey")+P("feeDoc")+P("feeEtc")+P("specialFee");
+  const 합계=rd0(평가수수료+소계), 부가세=Math.round(합계*0.1), 총계=합계+부가세, 정산=총계-P("downPayment");
+  const setF=(k,v)=>setFee(p=>({...p,[k]:fmtComma(v)}));
+  const pasteFee=e=>{const t=(e.clipboardData||window.clipboardData).getData("text");try{const f=parseFeeStatement(t);const v=fee.feeBasis==="기준"?f.기준수수료:fee.feeBasis==="상한"?f.상한수수료:f.하한수수료;if(v){e.preventDefault();setFee(p=>({...p,feeText:t,feeMain:fmtComma(String(v))}));}}catch(err){}};
+  const dlCheonggu=async()=>{try{const map=ipjCheongguMap(ov,fee);const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);triggerDownload(bytes,`6. 청구서_${ov.client||"의뢰인"}.hwpx`);}catch(e){alert("청구서 생성 실패: "+e.message);}};
+  const _bd="1px solid #d9cfcf";
+  const grpTd={border:_bd,padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#6d2b2b",background:"#f6f0f0",width:64};
+  const nmTd={border:_bd,padding:"6px 12px",color:"#333"};
+  const valTd={border:_bd,padding:"3px 6px",textAlign:"right"};
+  const roTd={border:_bd,padding:"6px 10px",textAlign:"right",background:"#faf7f7",color:"#555"};
+  const inTd={...S.inp,width:"100%",textAlign:"right",border:"1px solid #e5d9d9"};
+  const sumTd={border:_bd,padding:"6px 12px",textAlign:"center",fontWeight:700,color:"#5a2b2b",letterSpacing:2};
+  const sumV={border:_bd,padding:"6px 10px",textAlign:"right",fontWeight:700};
   return(<div>
     <Card title="본건 호별 선정 · 개별요인" sub="가=㉠, 나=㉣ 대응 사례 선택 (사정보정·지역요인 = 1.000 고정)">
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
@@ -1699,17 +1731,33 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
         {IPJ_FILES.map(f=><button key={f.key} disabled={busy} style={{...S.btn,background:"#fff",border:"1px solid "+C.bdr,color:C.pri}} onClick={()=>dl(f)}>{busy===f.key?"생성중…":f.label} hwpx</button>)}
         <button disabled={busy} style={{...S.btn,background:C.pri,color:"#fff"}} onClick={dlAll}>{busy==="all"?"생성중…":"📥 감정서 5종 모두"}</button>
       </div>
-      <div style={{...S.paste,background:"#fdf2f8",border:"2px dashed #f9a8d4"}}>
-        <div style={{fontWeight:700,color:"#9d174d",marginBottom:6}}>청구서 (수수료)</div>
-        <textarea value={fee.feeText} onChange={e=>setFee(p=>({...p,feeText:e.target.value}))} placeholder="수수료 계산 사이트의 '계산서1'을 복사해 붙여넣으세요" style={{...S.ta,minHeight:56}}/>
-        <div style={{display:"flex",flexWrap:"wrap",gap:12,marginTop:8,alignItems:"center"}}>
-          <label style={{fontSize:12}}>요율기준 <select value={fee.feeBasis} onChange={e=>setFee(p=>({...p,feeBasis:e.target.value}))} style={S.sel2}><option>하한</option><option>기준</option><option>상한</option></select></label>
-          <label style={{fontSize:12}}>착수금 <input value={fee.downPayment} onChange={e=>setFee(p=>({...p,downPayment:fmtComma(e.target.value)}))} style={{...S.inp,width:100,textAlign:"right"}}/></label>
-          <label style={{fontSize:12}}>특별용역비 <input value={fee.specialFee} onChange={e=>setFee(p=>({...p,specialFee:fmtComma(e.target.value)}))} style={{...S.inp,width:100,textAlign:"right"}}/></label>
-          <label style={{fontSize:12}}>여비 <input value={fee.feeTravel} onChange={e=>setFee(p=>({...p,feeTravel:fmtComma(e.target.value)}))} style={{...S.inp,width:90,textAlign:"right"}}/></label>
-          <button style={{...S.btn,background:"#db2777",color:"#fff"}} onClick={dlCheonggu}>청구서 hwpx</button>
+      <div style={{marginTop:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
+          <div style={{fontWeight:700,color:C.pri}}>청구서 (수수료)</div>
+          <label style={{fontSize:12,color:"#555"}}>요율기준 <select value={fee.feeBasis} onChange={e=>setFee(p=>({...p,feeBasis:e.target.value}))} style={{...S.sel2,marginLeft:2}}><option>하한</option><option>기준</option><option>상한</option></select></label>
+          <input onPaste={pasteFee} value={fee.feeText?"계산서 인식됨 ✓ (평가수수료 자동입력)":""} readOnly placeholder="여기에 수수료 계산서 붙여넣기 → 평가수수료 자동입력(직접 입력도 가능)" style={{...S.inp,flex:1,minWidth:220,color:"#16a34a"}}/>
         </div>
-        {feeC&&<div style={{fontSize:12,color:"#9d174d",marginTop:6}}>평가수수료 {fmt(feeC.평가수수료)} · 실비 {fmt(feeC.소계)} · 합계 {fmt(feeC.합계)} · 부가세 {fmt(feeC.부가세)} · <b>총계 {fmt(feeC.총계)}</b> · 정산 {fmt(feeC.정산청구액)}</div>}
+        <table style={{width:"100%",maxWidth:580,borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{background:"#6d2b2b",color:"#fff"}}>
+            <th colSpan={2} style={{padding:"8px",border:"1px solid #6d2b2b"}}>과　목</th>
+            <th style={{padding:"8px",border:"1px solid #6d2b2b",width:190}}>금　액</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료</td><td style={valTd}><input value={fee.feeMain||""} onChange={e=>setF("feeMain",e.target.value)} style={inTd}/></td></tr>
+            <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비</td><td style={valTd}><input value={fee.feeTravel||""} onChange={e=>setF("feeTravel",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input value={fee.feeSurvey||""} onChange={e=>setF("feeSurvey",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input value={fee.feeDoc||""} onChange={e=>setF("feeDoc",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>기타실비</td><td style={valTd}><input value={fee.feeEtc||""} onChange={e=>setF("feeEtc",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>특별용역비</td><td style={valTd}><input value={fee.specialFee||""} onChange={e=>setF("specialFee",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>소　계</td><td style={roTd}>{fmt(소계)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>합계 (가 + 나)</td><td style={sumV}>￦ {fmt(합계)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>부가가치세</td><td style={roTd}>{fmt(부가세)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>총　계</td><td style={sumV}>￦ {fmt(총계)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>기납부착수금</td><td style={valTd}><input value={fee.downPayment||""} onChange={e=>setF("downPayment",e.target.value)} style={inTd}/></td></tr>
+            <tr style={{background:"#efe9e9"}}><td colSpan={2} style={{...sumTd,fontWeight:800}}>정산청구액</td><td style={{...sumV,fontWeight:800}}>￦ {fmt(정산)}</td></tr>
+          </tbody>
+        </table>
+        <div style={{marginTop:8}}><button style={{...S.btn,background:"#6d2b2b",color:"#fff"}} onClick={dlCheonggu}>📄 청구서 hwpx 다운로드</button></div>
       </div>
     </Card>
   </div>);
@@ -1720,7 +1768,7 @@ const IPJ_LABELS=["① 대상물건개요","② 접수개요","③ 사례 등 �
 function App(){
   const [ov,setOv]=useState(ipjEmptyOv);
   const [cases,setCases]=useState([]);
-  const [fee,setFee]=useState({feeText:"",feeBasis:"하한",downPayment:"0",specialFee:"0",feeTravel:"40,000"});
+  const [fee,setFee]=useState(ipjEmptyFee());
   const [step,setStep]=useState(0);
   const [caseList,setCaseList]=useState([]);
   const [currentId,setCurrentId]=useState(null);
@@ -1739,10 +1787,10 @@ function App(){
   const snapshot=()=>({ov,cases,fee});
   const loadCase=(id,silent)=>{
     try{const raw=ipjLS.get(ipjCaseKey(id));if(!raw)return;const d=JSON.parse(raw);
-      setOv(d.ov||ipjEmptyOv());setCases(d.cases||[]);setFee(d.fee||{feeText:"",feeBasis:"하한",downPayment:"0",specialFee:"0",feeTravel:"40,000"});
+      setOv(d.ov||ipjEmptyOv());setCases(d.cases||[]);setFee({...ipjEmptyFee(),...(d.fee||{})});
       setCurrentId(id);setStep(0);setShowList(false);}catch(e){}
   };
-  const newCase=()=>{setOv(ipjEmptyOv());setCases([]);setFee({feeText:"",feeBasis:"하한",downPayment:"0",specialFee:"0",feeTravel:"40,000"});setCurrentId(null);setStep(0);setShowList(false);};
+  const newCase=()=>{setOv(ipjEmptyOv());setCases([]);setFee(ipjEmptyFee());setCurrentId(null);setStep(0);setShowList(false);};
   const deleteCase=id=>{if(!confirm("이 건을 삭제할까요?"))return;ipjLS.del(ipjCaseKey(id));
     const nl=caseList.filter(x=>x.id!==id);setCaseList(nl);ipjLS.set(IPJ_LIST_KEY,JSON.stringify(nl));if(currentId===id)newCase();};
 
