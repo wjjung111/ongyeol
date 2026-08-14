@@ -3212,7 +3212,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   // [v2.0] 새 감정평가서(한글) 다운로드 — 주거용 단일호수 전용
   const doExportHwpxV2=async()=>{
     if(propType!=="주거용"){alert("한글 감정평가서(v2.0)는 현재 주거용 템플릿만 지원합니다.\n비주거용은 기존 워드 의견서를 이용하세요.");return;}
-    if(!sel.length){alert("사례를 먼저 선정하세요. (위 '사례 선택'에서 체크)");return;}
+    // 사례 미선정이어도 감정평가서 다운로드 허용 — 값 없는 칸은 공백(플레이스홀더 상태)으로 출력. (사용자 요청)
     try{
       const data=buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,propType);
       const map=buildV2TokenMap(data,ov,cases,comp,fT);
@@ -3266,62 +3266,6 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       <button style={{...S.btn,background:saved?"#64748b":"#cbd5e1",color:"#fff",fontSize:13,padding:"9px 16px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>downloadMyeongseXlsx(ov,fT)} title="감정평가명세표 엑셀(.xlsx) — 층·필지 동적 처리(정확)">
         명세표(excel)
       </button>
-    </div>
-    {/* 표지·청구서·회보서 — 사례 없이도 사용 가능. 수수료 계산서 붙여넣으면 위 엑셀 버튼이 활성 */}
-    <div style={{...S.card,background:"#fdf4ff",border:"1px solid #f0abfc"}}>
-      <div style={S.h2}>📨 표지 · 청구서 · 회보서</div>
-      <div style={{fontSize:12,color:"#666",marginBottom:6}}>
-        ① <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{color:"#2563eb"}}>수수료 계산 사이트</a>에서 예상평가액 입력 → 계산 → <b>계산서1 복사 버튼</b> 클릭 → ② 아래에 붙여넣기
-      </div>
-      <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeText} onChange={e=>setFeeText(e.target.value)} placeholder={"여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"}/>
-      {/* 수수료 요율 / 특별용역비 방식 — 집합건물 고유 컨트롤 */}
-      <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
-        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
-        <select style={{...S.sel2,width:96}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
-          {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
-        </select>
-        <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>특별용역비 방식</span>
-        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감해 자동 계산">
-          {["상한-하한","기준-하한","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
-        </select>
-        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>✅ 계산서 인식됨 (평가수수료 자동)</span>:<span style={{fontSize:11,color:"#999"}}>계산서 붙여넣으면 평가수수료 자동입력</span>;})()}
-      </div>
-      {(()=>{
-        const fee=parseFeeStatement(feeText);
-        const c=computeCheonggu(fee,downPayment,specialFeeEff,feeBasis,ov.feeTravel,feeSurvey,feeDoc,feeEtc);
-        const _bd="1px solid #e6d4ee";
-        const grpTd={border:_bd,padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#7c3aed",background:"#faf5ff",width:60};
-        const nmTd={border:_bd,padding:"5px 12px",color:"#333"};
-        const valTd={border:_bd,padding:"3px 6px",textAlign:"right"};
-        const roTd={border:_bd,padding:"5px 10px",textAlign:"right",background:"#faf7fd",color:"#555"};
-        const inTd={...S.inp,width:"100%",textAlign:"right"};
-        const sumTd={border:_bd,padding:"5px 12px",textAlign:"center",fontWeight:700,color:"#5b21b6",letterSpacing:2};
-        const sumV={border:_bd,padding:"5px 10px",textAlign:"right",fontWeight:700};
-        const rowSpecial=specialFeeMode==="직접입력"
-          ? <input style={inTd} value={specialFee} onChange={e=>setSpecialFee(fmtComma(stripComma(e.target.value)))} placeholder="0"/>
-          : <input style={{...inTd,background:"#f1f5f9",fontWeight:700}} readOnly value={specialFeeAuto!=null?fmtComma(specialFeeAuto):""} placeholder="계산서 필요"/>;
-        return(<table style={{width:"100%",maxWidth:560,borderCollapse:"collapse",fontSize:13,marginTop:8}}>
-          <thead><tr style={{background:"#6d2b2b",color:"#fff"}}>
-            <th colSpan={2} style={{padding:"7px",border:"1px solid #6d2b2b"}}>과　목</th>
-            <th style={{padding:"7px",border:"1px solid #6d2b2b",width:180}}>금　액</th>
-          </tr></thead><tbody>
-            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료</td><td style={roTd}>{fmt(c.평가수수료)}</td></tr>
-            <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비</td><td style={valTd}><input style={inTd} value={ov.feeTravel==null?"40,000":ov.feeTravel} onChange={e=>setOv(p=>({...p,feeTravel:fmtComma(stripComma(e.target.value))}))}/></td></tr>
-            <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input style={inTd} value={feeSurvey} onChange={e=>setFeeSurvey(fmtComma(stripComma(e.target.value)))}/></td></tr>
-            <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input style={inTd} value={feeDoc} onChange={e=>setFeeDoc(fmtComma(stripComma(e.target.value)))}/></td></tr>
-            <tr><td style={nmTd}>기타실비</td><td style={valTd}><input style={inTd} value={feeEtc} onChange={e=>setFeeEtc(fmtComma(stripComma(e.target.value)))}/></td></tr>
-            <tr><td style={nmTd}>특별용역비</td><td style={valTd}>{rowSpecial}</td></tr>
-            <tr><td style={nmTd}>소　계</td><td style={roTd}>{fmt(c.소계)}</td></tr>
-            <tr><td colSpan={2} style={sumTd}>합계 (가 + 나)</td><td style={sumV}>￦ {fmt(c.합계)}</td></tr>
-            <tr><td colSpan={2} style={sumTd}>부가가치세</td><td style={roTd}>{fmt(c.부가세)}</td></tr>
-            <tr><td colSpan={2} style={sumTd}>총　계</td><td style={sumV}>￦ {fmt(c.총계)}</td></tr>
-            <tr><td colSpan={2} style={sumTd}>기납부착수금</td><td style={valTd}><input style={inTd} value={downPayment} onChange={e=>setDownPayment(fmtComma(stripComma(e.target.value)))}/></td></tr>
-            <tr style={{background:"#f3e8ff"}}><td colSpan={2} style={{...sumTd,fontWeight:800}}>정산청구액</td><td style={{...sumV,fontWeight:800,color:"#6d28d9"}}>￦ {fmt(c.정산청구액)}</td></tr>
-          </tbody></table>);
-      })()}
-      <div style={{marginTop:8}}>
-        <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:13,padding:"8px 22px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
-      </div>
     </div>
     {!sel.length?null:<>
     {/* 가치형성요인 */}
@@ -3379,6 +3323,62 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       </div>
     </div>)}
   </>}
+    {/* 표지·청구서·회보서 — 사례 없이도 사용 가능. 수수료 계산서 붙여넣으면 위 엑셀 버튼이 활성 */}
+    <div style={{...S.card,background:"#fdf4ff",border:"1px solid #f0abfc"}}>
+      <div style={S.h2}>📨 표지 · 청구서 · 회보서</div>
+      <div style={{fontSize:12,color:"#666",marginBottom:6}}>
+        ① <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{color:"#2563eb"}}>수수료 계산 사이트</a>에서 예상평가액 입력 → 계산 → <b>계산서1 복사 버튼</b> 클릭 → ② 아래에 붙여넣기
+      </div>
+      <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeText} onChange={e=>setFeeText(e.target.value)} placeholder={"여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"}/>
+      {/* 수수료 요율 / 특별용역비 방식 — 집합건물 고유 컨트롤 */}
+      <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
+        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
+        <select style={{...S.sel2,width:96}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
+          {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
+        </select>
+        <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>특별용역비 방식</span>
+        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감해 자동 계산">
+          {["상한-하한","기준-하한","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
+        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>✅ 계산서 인식됨 (평가수수료 자동)</span>:<span style={{fontSize:11,color:"#999"}}>계산서 붙여넣으면 평가수수료 자동입력</span>;})()}
+      </div>
+      {(()=>{
+        const fee=parseFeeStatement(feeText);
+        const c=computeCheonggu(fee,downPayment,specialFeeEff,feeBasis,ov.feeTravel,feeSurvey,feeDoc,feeEtc);
+        const _bd="1px solid #e6d4ee";
+        const grpTd={border:_bd,padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#7c3aed",background:"#faf5ff",width:60};
+        const nmTd={border:_bd,padding:"5px 12px",color:"#333"};
+        const valTd={border:_bd,padding:"3px 6px",textAlign:"right"};
+        const roTd={border:_bd,padding:"5px 10px",textAlign:"right",background:"#faf7fd",color:"#555"};
+        const inTd={...S.inp,width:"100%",textAlign:"right"};
+        const sumTd={border:_bd,padding:"5px 12px",textAlign:"center",fontWeight:700,color:"#5b21b6",letterSpacing:2};
+        const sumV={border:_bd,padding:"5px 10px",textAlign:"right",fontWeight:700};
+        const rowSpecial=specialFeeMode==="직접입력"
+          ? <input style={inTd} value={specialFee} onChange={e=>setSpecialFee(fmtComma(stripComma(e.target.value)))} placeholder="0"/>
+          : <input style={{...inTd,background:"#f1f5f9",fontWeight:700}} readOnly value={specialFeeAuto!=null?fmtComma(specialFeeAuto):""} placeholder="계산서 필요"/>;
+        return(<table style={{width:"100%",maxWidth:560,borderCollapse:"collapse",fontSize:13,marginTop:8}}>
+          <thead><tr style={{background:"#6d2b2b",color:"#fff"}}>
+            <th colSpan={2} style={{padding:"7px",border:"1px solid #6d2b2b"}}>과　목</th>
+            <th style={{padding:"7px",border:"1px solid #6d2b2b",width:180}}>금　액</th>
+          </tr></thead><tbody>
+            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료</td><td style={roTd}>{fmt(c.평가수수료)}</td></tr>
+            <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비</td><td style={valTd}><input style={inTd} value={ov.feeTravel==null?"40,000":ov.feeTravel} onChange={e=>setOv(p=>({...p,feeTravel:fmtComma(stripComma(e.target.value))}))}/></td></tr>
+            <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input style={inTd} value={feeSurvey} onChange={e=>setFeeSurvey(fmtComma(stripComma(e.target.value)))}/></td></tr>
+            <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input style={inTd} value={feeDoc} onChange={e=>setFeeDoc(fmtComma(stripComma(e.target.value)))}/></td></tr>
+            <tr><td style={nmTd}>기타실비</td><td style={valTd}><input style={inTd} value={feeEtc} onChange={e=>setFeeEtc(fmtComma(stripComma(e.target.value)))}/></td></tr>
+            <tr><td style={nmTd}>특별용역비</td><td style={valTd}>{rowSpecial}</td></tr>
+            <tr><td style={nmTd}>소　계</td><td style={roTd}>{fmt(c.소계)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>합계 (가 + 나)</td><td style={sumV}>￦ {fmt(c.합계)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>부가가치세</td><td style={roTd}>{fmt(c.부가세)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>총　계</td><td style={sumV}>￦ {fmt(c.총계)}</td></tr>
+            <tr><td colSpan={2} style={sumTd}>기납부착수금</td><td style={valTd}><input style={inTd} value={downPayment} onChange={e=>setDownPayment(fmtComma(stripComma(e.target.value)))}/></td></tr>
+            <tr style={{background:"#f3e8ff"}}><td colSpan={2} style={{...sumTd,fontWeight:800}}>정산청구액</td><td style={{...sumV,fontWeight:800,color:"#6d28d9"}}>￦ {fmt(c.정산청구액)}</td></tr>
+          </tbody></table>);
+      })()}
+      <div style={{marginTop:8}}>
+        <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:13,padding:"8px 22px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
+      </div>
+    </div>
   </div>);
 }
 
