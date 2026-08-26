@@ -861,7 +861,7 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   const pd=s=>{const m=String(s||"").replace(/[^0-9]/g,"");if(m.length<8)return null;return new Date(+m.slice(0,4),+m.slice(4,6)-1,+m.slice(6,8));};
   const t0=pd(tradeDate),t1=pd(baseDate);
   if(!t0)return{err:"사례시점(거래시점) 날짜를 먼저 입력하세요. (예: 2024.05.06)"};
-  if(!t1)return{err:"기준시점이 없습니다. ② 접수개요에서 기준시점을 입력하세요."};
+  if(!t1)return{err:"기준시점이 없습니다. ① 접수개요에서 기준시점을 입력하세요."};
   const DAY=86400000;
   const qOf=dt=>({y:dt.getFullYear(),q:Math.floor(dt.getMonth()/3)+1});
   const qStart=(y,q)=>new Date(y,(q-1)*3,1),qEnd=(y,q)=>new Date(y,q*3,0);
@@ -1420,7 +1420,7 @@ function Step2({ov,setOv,propType,setPropType}){
             next[k]=String(result[k]).trim();
           }
         }
-        // 접수 이미지 인식분 — autoFields에 표시를 남겨 ② 접수개요 탭에서 검토 유도 (사용자 수정·검토완료 시 해제)
+        // 접수 이미지 인식분 — autoFields에 표시를 남겨 ① 접수개요 탭에서 검토 유도 (사용자 수정·검토완료 시 해제)
         {const autoF={...(prev.autoFields||{})};
          for(const k of ["caseNo","client","requestDate","baseDate"]){
            if(result[k]!=null&&String(result[k]).trim()){next[k]=k==="baseDate"?autoDateFmt(String(result[k]).trim()):String(result[k]).trim();autoF[k]=true;}
@@ -1862,7 +1862,7 @@ function openGwalhoTable(ov,totalAmount){
   if(!ov.client){alert("① 물건정보에서 '의뢰인'을 먼저 입력하세요.");return;}
   // 시산가액 미결정 상태에서도 다운로드 허용 — 금액칸은 비거나 0으로 채워짐(평가사가 나중에 수기 입력)
   const now=new Date();
-  const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: ② 접수개요 입력값 우선, 비면 오늘
+  const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: ① 접수개요 입력값 우선, 비면 오늘
   const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const fmtMoney=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
   const korAmt=numberToKoreanMoney(totalAmount);
@@ -2000,7 +2000,7 @@ function openCheongguHoebo(ov,feeText,downPayment,specialFee,feeBasis){
   const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput);
   const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const fm=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
-  const today=(ov.writeDate||"").trim()||(()=>{const n=new Date();return `${n.getFullYear()}. ${String(n.getMonth()+1).padStart(2,"0")}. ${String(n.getDate()).padStart(2,"0")}.`;})(); // 시행/청구 일자: ② 접수개요 작성일자 우선, 비면 오늘
+  const today=(ov.writeDate||"").trim()||(()=>{const n=new Date();return `${n.getFullYear()}. ${String(n.getMonth()+1).padStart(2,"0")}. ${String(n.getDate()).padStart(2,"0")}.`;})(); // 시행/청구 일자: ① 접수개요 작성일자 우선, 비면 오늘
   const geonmyeong=buildGeonmyeong(ov);
   const reqDate=ov.requestDate||"";
   const korAmt=numberToKoreanMoney(c.정산청구액);
@@ -2356,7 +2356,7 @@ async function downloadGwalhoHwpx(ov,totalAmount){
   if(!ov.client){alert("① 물건정보에서 '의뢰인'을 먼저 입력하세요.");return;}
   // 시산가액 미결정 상태에서도 다운로드 허용 — 금액칸은 비거나 0으로 채워짐(평가사가 나중에 수기 입력)
   try{
-    const now=new Date();const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: ② 접수개요 입력값 우선
+    const now=new Date();const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: ① 접수개요 입력값 우선
     const fmtMoney=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
     const num=fmtMoney(totalAmount);
     const bytes=await buildHwpx(GWALHO_TPL_B64,{"금액한글":numberToKoreanMoney(totalAmount),"금액숫자":num,"의뢰인":ov.client,"소유자":ov.owner||ov.client,"평가목적":ov.purpose||"일반거래(시가참고)","기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"","작성일자":today});
@@ -2368,7 +2368,7 @@ async function downloadGwalhoHwpx(ov,totalAmount){
 async function downloadGwalhoHml(ov,totalAmount){
   if(!ov.client){alert("① 물건정보에서 '의뢰인'을 먼저 입력하세요.");return;}
   try{
-    const now=new Date();const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: ② 접수개요 입력값 우선
+    const now=new Date();const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: ① 접수개요 입력값 우선
     const fmtMoney=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
     const bin=atob(GWALHO_HML_B64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     let xml=new TextDecoder("utf-8").decode(arr); // BOM은 TextDecoder가 제거 — 저장 시 다시 붙임
@@ -2555,7 +2555,7 @@ function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis){
   };
 }
 async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis){
-  if(!ov.client){alert("① 대상물건개요에서 '의뢰인'을 먼저 입력하세요.");return;}
+  if(!ov.client){alert("① 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
   const map=buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis);
   if(!map){alert("수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(핑크 박스 상단 ① 수수료 계산 사이트 → 계산서1 복사 → ② 붙여넣기)");return;}
   try{
@@ -2601,7 +2601,7 @@ function expandYohangPara(xml,token,value){
   return xml.slice(0,ps)+clones+xml.slice(pe);
 }
 async function downloadYohangHwpx(ov){
-  if(!ov.client){alert("① 대상물건개요에서 '의뢰인'을 먼저 입력하세요.");return;}
+  if(!ov.client){alert("① 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
   try{
     const bin=atob(YOHANG_TPL_B64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     const entries=await parseZip(arr.buffer);
@@ -3238,7 +3238,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
   const doExport=async()=>{
     if(!tplB64){alert("의견서 템플릿(.docx)을 먼저 업로드하세요.");return;}
-    if(!ov.baseDateBasis&&!confirm("기준시점근거가 아직 '선택' 상태입니다.\n'의뢰일인'으로 간주하고 진행할까요?\n(취소 후 ② 접수개요 탭에서 직접 선택할 수 있습니다)"))return;
+    if(!ov.baseDateBasis&&!confirm("기준시점근거가 아직 '선택' 상태입니다.\n'의뢰일인'으로 간주하고 진행할까요?\n(취소 후 ① 접수개요 탭에서 직접 선택할 수 있습니다)"))return;
     setDownloading(true);setDownloadUrl("");
     try{
       const data=buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,propType);
@@ -3302,7 +3302,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
     {/* [v2.0] 다운로드 — 새 양식 감정평가서(한글 .hwpx) 전용 (기타 버튼 제거) */}
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
-      {!saved&&<span style={{fontSize:11,color:"#999"}}>{ov.caseNo?.trim()?"⏳ 자동저장 중... 몇 초 뒤 버튼이 켜집니다":"① 대상물건개요에서 접수번호를 입력하면 자동저장되고 버튼이 켜집니다"}</span>}
+      {!saved&&<span style={{fontSize:11,color:"#999"}}>{ov.caseNo?.trim()?"⏳ 자동저장 중... 몇 초 뒤 버튼이 켜집니다":"① 접수개요에서 접수번호를 입력하면 자동저장되고 버튼이 켜집니다"}</span>}
       <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 26px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved||downloading} onClick={doExportHwpxV2} title="새 양식 감정평가서(표지+평가표+산출근거) 한글파일(.hwpx) — 주거용 전용">
         표지/괄감/의견서
       </button>
@@ -3317,7 +3317,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     {/* 가치형성요인 */}
     <div style={S.card}><div style={S.h2}>가치형성요인 비교</div>
       <div style={{...S.row,marginBottom:12}}><span style={S.lbl}>물건 유형</span>
-        <span style={{fontWeight:700,color:C.pri,marginLeft:4}}>{propType}</span><span style={{fontSize:11,color:"#888",marginLeft:8}}>(변경은 ① 대상물건개요에서)</span></div>
+        <span style={{fontWeight:700,color:C.pri,marginLeft:4}}>{propType}</span><span style={{fontSize:11,color:"#888",marginLeft:8}}>(변경은 ② 대상물건개요에서)</span></div>
       {sel.map(c=>(<div key={c.id} style={{marginBottom:16,padding:12,background:C.lb,borderRadius:6}}>
         <div style={S.h3}>사례 #{c.symbol} — {c.aptName} {c.dong}동 {c.ho}호{(()=>{const normL=s=>(s||"").replace(/^[가-힣]+(특별|광역|특례)?시\s*/,"").replace(/[가-힣]+구\s*/,"").replace(/\s+/g," ").trim();const cl=normL(`${c.location} ${c.jibun}`);const sl=normL(ov.jibun||"");const same=cl&&sl&&(cl===sl||sl.includes(cl)||cl.includes(sl));return <span style={{marginLeft:8,padding:"2px 10px",borderRadius:4,fontSize:12,fontWeight:600,color:"#fff",background:same?"#059669":"#d97706"}}>{same?"동일단지":"인근지역"}</span>;})()}</div>
         <table style={{...S.tbl,marginBottom:8}}><thead><tr><th style={S.th}>소재지</th><th style={S.th}>동/층/호</th><th style={S.th}>건물명</th><th style={S.th}>전유면적</th><th style={S.th}>가격</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
@@ -3682,7 +3682,7 @@ function App(){
     if(currentId===id)newCase();
   };
 
-  const labels=["① 대상물건개요","② 접수개요","③ 사례 등 입력","④ 가격산출"];
+  const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출"];
   const selCnt=cases.filter(c=>c.isSelected).length;
 
   if(!loaded)return <div style={{padding:40,textAlign:"center",color:"#888"}}>데이터 불러오는 중...</div>;
@@ -3734,8 +3734,8 @@ function App(){
 
     <div style={{fontSize:12,color:"#888",marginBottom:4}}>거래사례비교법 · {propType}</div>
     <div style={S.steps}>{labels.map((l,i)=><div key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</div>)}</div>
-    <div style={{display:step===0?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
-    <div style={{display:step===1?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
+    <div style={{display:step===0?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
+    <div style={{display:step===1?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} saved={!!(currentId&&saveStatus==="✅")}/></div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
@@ -3907,7 +3907,7 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   const pd=s=>{const m=String(s||"").replace(/[^0-9]/g,"");if(m.length<8)return null;return new Date(+m.slice(0,4),+m.slice(4,6)-1,+m.slice(6,8));};
   const t0=pd(tradeDate),t1=pd(baseDate);
   if(!t0)return{err:"사례시점(거래시점) 날짜를 먼저 입력하세요. (예: 2024.05.06)"};
-  if(!t1)return{err:"기준시점이 없습니다. ② 접수개요에서 기준시점을 입력하세요."};
+  if(!t1)return{err:"기준시점이 없습니다. ① 접수개요에서 기준시점을 입력하세요."};
   const DAY=86400000;
   const qOf=dt=>({y:dt.getFullYear(),q:Math.floor(dt.getMonth()/3)+1});
   const qStart=(y,q)=>new Date(y,(q-1)*3,1),qEnd=(y,q)=>new Date(y,q*3,0);
@@ -4493,7 +4493,7 @@ function Step2({ov,setOv,propType,setPropType}){
             next[k]=String(result[k]).trim();
           }
         }
-        // 접수 이미지 인식분 — autoFields에 표시를 남겨 ② 접수개요 탭에서 검토 유도 (사용자 수정·검토완료 시 해제)
+        // 접수 이미지 인식분 — autoFields에 표시를 남겨 ① 접수개요 탭에서 검토 유도 (사용자 수정·검토완료 시 해제)
         {const autoF={...(prev.autoFields||{})};
          for(const k of ["caseNo","client","baseDate"]){
            if(result[k]!=null&&String(result[k]).trim()){next[k]=k==="baseDate"?autoDateFmt(String(result[k]).trim()):String(result[k]).trim();autoF[k]=true;}
@@ -5959,7 +5959,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
   const doExport=async()=>{
     if(!tplB64){alert("의견서 템플릿(.docx)을 먼저 업로드하세요.");return;}
-    if(!ov.baseDateBasis&&!confirm("기준시점근거가 아직 '선택' 상태입니다.\n'의뢰일인'으로 간주하고 진행할까요?\n(취소 후 ② 접수개요 탭에서 직접 선택할 수 있습니다)"))return;
+    if(!ov.baseDateBasis&&!confirm("기준시점근거가 아직 '선택' 상태입니다.\n'의뢰일인'으로 간주하고 진행할까요?\n(취소 후 ① 접수개요 탭에서 직접 선택할 수 있습니다)"))return;
     setDownloading(true);setDownloadUrl("");
     try{
       const data=buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,uM,tM,propType);
@@ -6028,7 +6028,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     {/* 물건 유형 선택 (주거용/비주거용) */}
     <div style={S.card}>
       <div style={{...S.row}}><span style={S.lbl}>물건 유형</span>
-        <span style={{fontWeight:700,color:C.pri,marginLeft:4}}>{propType}</span><span style={{fontSize:11,color:"#888",marginLeft:8}}>(변경은 ① 대상물건개요에서)</span></div>
+        <span style={{fontWeight:700,color:C.pri,marginLeft:4}}>{propType}</span><span style={{fontSize:11,color:"#888",marginLeft:8}}>(변경은 ② 대상물건개요에서)</span></div>
     </div>
 
     {/* 비주거용 시점수정 입력 — 사용자 요청으로 숨김 (필요시 ov.nrType 등 필드는 유지) */}
@@ -6367,7 +6367,7 @@ function App(){
     if(currentId===id)newCase();
   };
 
-  const labels=["① 대상물건개요","② 접수개요","③ 사례 등 입력","④ 가격산출"];
+  const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출"];
   const selCnt=cases.filter(c=>c.isSelected).length;
 
   if(!loaded)return <div style={{padding:40,textAlign:"center",color:"#888"}}>데이터 불러오는 중...</div>;
@@ -6419,8 +6419,8 @@ function App(){
 
     <div style={{fontSize:12,color:"#888",marginBottom:4}}>거래사례비교법 · {propType}</div>
     <div style={S.steps}>{labels.map((l,i)=><div key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</div>)}</div>
-    <div style={{display:step===0?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
-    <div style={{display:step===1?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
+    <div style={{display:step===0?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
+    <div style={{display:step===1?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} tplFromUser={tplFromUser} saved={!!(currentId&&saveStatus==="✅")}/></div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
