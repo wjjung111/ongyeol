@@ -1219,7 +1219,22 @@ const V2CHEONGGU_BLUE2BLACK={"49":"28","50":"41","51":"44","52":"45","53":"46"};
 function ipjStripValueLineSeg(xml){
   return xml.replace(/(<hp:p\b[^>]*><hp:run\b[^>]*><hp:t>\{\{[^}]+\}\}<\/hp:t><\/hp:run>)<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>(<\/hp:p>)/g,'$1$2');
 }
-async function buildTokenHwpx(tplB64,tokenMap,blue2black){
+// 명세표: 나 호수가 비어있으면(1호수 평가) '나' 블록 5행 제거 + cellAddr rowAddr 재인덱싱 + rowCnt 갱신 → 빈 2호수 행/중복 소재지 제거(치환 전 실행). {{가_동}}은 명세표에만 있어 다른 문서엔 무영향
+function ipjPruneNaBlock(xml){
+  const a=xml.indexOf("{{가_동}}");if(a<0)return xml;
+  const ts=xml.lastIndexOf("<hp:tbl",a),teI=xml.indexOf("</hp:tbl>",a);if(ts<0||teI<0)return xml;
+  const te=teI+"</hp:tbl>".length, tbl=xml.slice(ts,te);
+  const rows=tbl.match(/<hp:tr\b[\s\S]*?<\/hp:tr>/g);if(!rows)return xml;
+  let naI=-1;
+  for(let i=0;i<rows.length;i++){const ts2=rows[i].match(/<hp:t>([^<]*)<\/hp:t>/g)||[];if(ts2.some(t=>t.replace(/<\/?hp:t>/g,"").trim()==="나")){naI=i;break;}}
+  if(naI<0)return xml;
+  rows.splice(naI,5);                                                                // 나 블록 = 가 블록과 동일 5행
+  const reindexed=rows.map((r,ni)=>r.replace(/(<hp:cellAddr\b[^>]*\browAddr=")\d+(")/g,(_,p,q)=>p+ni+q));
+  const first=tbl.indexOf("<hp:tr"),last=tbl.lastIndexOf("</hp:tr>")+"</hp:tr>".length;
+  const head=tbl.slice(0,first).replace(/(rowCnt=")\d+(")/,(_,p,q)=>p+reindexed.length+q);
+  return xml.slice(0,ts)+head+reindexed.join("")+tbl.slice(last)+xml.slice(te);
+}
+async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
   if(!entries.length)throw new Error("hwpx 템플릿 파싱 실패");
@@ -1228,6 +1243,7 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
+      if(opts&&opts.naEmpty)xml=ipjPruneNaBlock(xml);    // 1호수 평가 시 명세표 '나' 행 제거
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("hwpx 미치환 토큰",e.name,left);
@@ -1471,7 +1487,9 @@ const IPJ_FILES=[
 
 async function ipjDownloadDoc(fileDef, ov, cases){
   const {m,cal}=buildIpjMap(ov,cases);
-  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b);
+  const na=(ov.units||[])[1];                                              // 둘째 호수(나)
+  const naEmpty=(ov.units||[]).length<=1 || !na || !(pStr(na.dong)||pStr(na.ho));  // 1호수 평가 여부
+  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty});
   triggerDownload(bytes, fileDef.fn(ov));
   try{window.arapUsageLog&&window.arapUsageLog("다운로드",{caseNo:ov.caseNoDisplay||ov.caseNo,addr:(ov.projLoc||ov.beopjeongdong||""),kind:"입주권 "+fileDef.label,amount:fmt(cal.finalAmt)});}catch(e){}
 }
