@@ -1234,6 +1234,20 @@ function ipjPruneNaBlock(xml){
   const head=tbl.slice(0,first).replace(/(rowCnt=")\d+(")/,(_,p,q)=>p+reindexed.length+q);
   return xml.slice(0,ts)+head+reindexed.join("")+tbl.slice(last)+xml.slice(te);
 }
+// 의견서 등: 1호수 평가 시 각 표에서 '나' 행(나_·개별_나_·시점_나_·선정_나_ 토큰 포함 행)만 삭제 + rowAddr 재인덱싱 + rowCnt 갱신. 거래사례 목록표(사례N_)·합계행·가 행은 유지. 명세표({{가_동}})는 블록 처리하므로 제외
+function ipjPruneNaRows(xml){
+  const NA=/\{\{(?:[^}]*_)?나_[^}]*\}\}/;
+  return xml.replace(/<hp:tbl\b[\s\S]*?<\/hp:tbl>/g,tbl=>{
+    if(!NA.test(tbl)||tbl.indexOf("{{가_동}}")>=0)return tbl;
+    const rows=tbl.match(/<hp:tr\b[\s\S]*?<\/hp:tr>/g);if(!rows)return tbl;
+    const kept=rows.filter(r=>!NA.test(r));
+    if(kept.length===rows.length)return tbl;
+    const reindexed=kept.map((r,ni)=>r.replace(/(<hp:cellAddr\b[^>]*\browAddr=")\d+(")/g,(_,p,q)=>p+ni+q));
+    const first=tbl.indexOf("<hp:tr"),last=tbl.lastIndexOf("</hp:tr>")+"</hp:tr>".length;
+    const head=tbl.slice(0,first).replace(/(rowCnt=")\d+(")/,(_,p,q)=>p+reindexed.length+q);
+    return head+reindexed.join("")+tbl.slice(last);
+  });
+}
 async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -1243,7 +1257,7 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
-      if(opts&&opts.naEmpty)xml=ipjPruneNaBlock(xml);    // 1호수 평가 시 명세표 '나' 행 제거
+      if(opts&&opts.naEmpty){xml=ipjPruneNaBlock(xml);xml=ipjPruneNaRows(xml);}  // 1호수: 명세표 '나' 블록 + 의견서 각 표 '나' 행 제거
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("hwpx 미치환 토큰",e.name,left);
@@ -1300,7 +1314,7 @@ const ipjRound=(v,unit,mode)=>{
 
 const ipjNewUnit=sym=>({
   sym:sym||"가", dong:"", floor:"", ho:"", type:"", baejeong:"",
-  jeonyu:"", gongyong:"", gonggeup:"", gyeyak:"", daeji:"", bunyangga:"",
+  jeonyu:"", gongyong:"", gonggeup:"", bunyangMyeon:"", gyeyak:"", daeji:"", bunyangga:"",
   extFactor:"1.00", intFactor:"1.00", hoFactor:"1.00", etcFactor:"1.00",
   noteExt:"", noteInt:"", noteHo:"", noteEtc:"", appliedCaseId:""
 });
@@ -1402,9 +1416,13 @@ function buildIpjMap(ov,cases){
   const rGa=cal.rows[0]||{}, rNa=cal.rows[1]||{};
   const gaCase=ipjGetSelCase(ga,cases), naCase=ipjGetSelCase(na,cases);
   const shown=cases.filter(c=>c.isShown!==false);
-  const slot=[shown[0]||null,shown[1]||null,shown[2]||null,shown[3]||null];   // ㉠㉡㉢㉣ = 입력 순서 그대로 (사례 4개 입력 시 4개 모두 거래사례표에 표기)
-  const gaCaseUse=gaCase||slot[0], naCaseUse=naCase||slot[3];                  // 가/나 미선택 시 시점수정 표기는 각각 첫째·넷째 사례로 대체
-  const sjGa=ipjSjFields(gaCaseUse,ov), sjNa=ipjSjFields(naCaseUse,ov);
+  const others=shown.filter(c=>c!==gaCase&&c!==naCase);
+  // 가 선택사례 → ㉠, 나 선택사례 → ㉣, 나머지 사례는 중간 슬롯(㉡㉢). 산정표가 사례1_단가=가 비준단가를 쓰므로 이 배치라야 4개 모두 표기되고 산정도 맞음
+  let slot;
+  if(gaCase&&naCase)      slot=[gaCase,others[0]||null,others[1]||null,naCase];          // 2호수
+  else if(gaCase)         slot=[gaCase,others[0]||null,others[1]||null,others[2]||null];  // 1호수(가만 선택): 가=㉠, 나머지 ㉡㉢㉣
+  else                    slot=[shown[0]||null,shown[1]||null,shown[2]||null,shown[3]||null]; // 미선택: 입력순
+  const sjGa=ipjSjFields(gaCase||slot[0],ov), sjNa=ipjSjFields(naCase,ov);
   const stripDot=s=>String(s||"").trim().replace(/\.$/,"");
   const m={};
   // 공통(표지·괄호)
@@ -1464,11 +1482,9 @@ function buildIpjMap(ov,cases){
     m[p+"전유"]=c?pStr(c.exclusiveArea):""; m[p+"거래금액"]=c?ipjMoney(pNum(c.price)):"";
     m[p+"단가"]=c?ipjMoney(pNum(c.unitPrice)):""; m[p+"거래시점"]=c?fmtDate(c.tradeDate):""; m[p+"승인일"]=c?fmtDate(c.approvalDate):"";
   }
-  // 의견서 — 선정 기호 (실제 선택한 대응사례의 기호 = 입력 순서 기준)
-  const symOf=c=>{const i=shown.indexOf(c);return i>=0?(IPJ_CIRCLED[i]||"㉠"):"";};
-  const gaSym=symOf(gaCase)||"㉠", naSym=symOf(naCase)||"㉣";
-  m["선정_가_기호"]=gaSym; m["선정_나_기호"]=naSym;
-  m["선정_가_기호괄호"]="("+gaSym+")"; m["선정_나_기호괄호"]="("+naSym+")"; m["선정_기호문구"]=naCase?(gaSym+", "+naSym):gaSym;
+  // 의견서 — 선정 기호 (가는 항상 ㉠ 슬롯, 나는 ㉣ 슬롯에 배치되므로 고정. 1호수면 나 미표기)
+  m["선정_가_기호"]="㉠"; m["선정_나_기호"]="㉣";
+  m["선정_가_기호괄호"]="(㉠)"; m["선정_나_기호괄호"]="(㉣)"; m["선정_기호문구"]=naCase?"㉠, ㉣":"㉠";
   // 의견서 — 시점수정
   m["시점_지역"]=ov.sijeomRegion||ov.sigungu||"";
   const sj=(sj,pre)=>{m[pre+"_거래월"]=sj.거래월;m[pre+"_거래지수"]=sj.거래지수;m[pre+"_기준월"]=sj.기준월;m[pre+"_기준지수"]=sj.기준지수;m[pre+"_상승률"]=sj.상승률;m[pre+"_시점수정치"]=sj.시점수정치;};
@@ -1612,11 +1628,11 @@ function IpjTabGaeyo({ov,setOv}){
     <Card title={`본건 (${ov.units.length}호수)`} sub="조합원 공급계약서 기준 — 가·나·다… 자동기호, 층은 호수에서 자동도출"
       right={<button style={{...S.btn,background:C.acc,color:"#fff"}} onClick={addUnit}>+ 호수 추가</button>}>
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
-        {["기호","동","층","호","타입","배정평형","전유(㎡)","공용(㎡)","공급(㎡)","계약면적(㎡)","대지지분(㎡)","조합원분양가(원)",""].map((h,hi)=><th key={hi} style={S.th}>{h}</th>)}
+        {["기호","동","층","호","타입","배정평형","전유(㎡)","공용(㎡)","공급(㎡)","분양면적(㎡)","계약면적(㎡)","대지지분(㎡)","조합원분양가(원)",""].map((h,hi)=><th key={hi} style={S.th}>{h}</th>)}
       </tr></thead><tbody>
         {ov.units.map((x,i)=>(<tr key={i}>
           <td style={{...S.td,fontWeight:700,background:"#eff6ff"}}>{x.sym}</td>
-          {["dong","floor","ho","type","baejeong","jeonyu","gongyong","gonggeup","gyeyak","daeji"].map(k=>
+          {["dong","floor","ho","type","baejeong","jeonyu","gongyong","gonggeup","bunyangMyeon","gyeyak","daeji"].map(k=>
             <td key={k} style={S.td}><input value={x[k]||""} onChange={e=>uu(i,k,e.target.value)} style={{...S.inp,width:k==="baejeong"?90:64,textAlign:"center"}}/></td>)}
           <td style={S.td}><input value={x.bunyangga||""} onChange={e=>uu(i,"bunyangga",fmtComma(e.target.value))} style={{...S.inp,width:120,textAlign:"right"}}/></td>
           <td style={S.td}>{ov.units.length>1&&<span title="이 호수 삭제" style={{cursor:"pointer",color:C.dng,fontWeight:700}} onClick={()=>delUnit(i)}>✕</span>}</td>
