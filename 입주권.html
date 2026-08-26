@@ -1326,7 +1326,7 @@ function ipjCheongguMap(ov,fee){
 }
 
 // ────────────────────────────── 계산엔진 §3 ──────────────────────────────
-const ipjGetSelCase=(u,cases)=>cases.find(c=>c.id===u.appliedCaseId)||null;
+const ipjGetSelCase=(u,cases)=>cases.find(c=>String(c.id)===String(u.appliedCaseId))||null; // KAIS 사례 id는 숫자, select value는 문자열이라 String()로 통일 비교
 
 const ipjCalcUnit=(u,cases,ov)=>{
   const c=ipjGetSelCase(u,cases);
@@ -1390,7 +1390,9 @@ function buildIpjMap(ov,cases){
   m["의뢰인"]=ov.client||""; m["소유자"]=ov.owner||ov.client||"";
   m["접수번호"]=ov.caseNoDisplay||ov.caseNo||"";
   m["건명_주소"]=`${ov.projLoc||""} ${ov.tongching?"("+ov.tongching+")":""}`.replace(/\s+/g," ").trim();
-  m["건명_동호"]=`입주권 (제${pStr(ga.dong)}동 제${pStr(ga.ho)}호 외 ${(U.length-1)}개호)`;
+  const filledU=U.filter(x=>pStr(x.dong)||pStr(x.ho));                       // 실제 입력된 호수만 카운트 (빈 호수 제외)
+  const extraHo=Math.max(0,(filledU.length||U.length)-1);                    // 본건 1개면 0 → "외 N개호" 미표시
+  m["건명_동호"]=`입주권 (제${pStr(ga.dong)}동 제${pStr(ga.ho)}호${extraHo>0?` 외 ${extraHo}개호`:""})`;
   m["기준시점"]=stripDot(ov.baseDate); m["조사기간"]=stripDot(ov.surveyDate);
   m["작성일자"]=stripDot(ov.writeDate||today());
   m["감정평가액"]=ipjMoney(cal.finalAmt); m["감정평가액한글"]=numberToKoreanMoney(cal.finalAmt)+"원";
@@ -1653,8 +1655,8 @@ function IpjTabSarye({ov,cases,setCases}){
           {["location","jibun","aptName"].map(k=><td key={k} style={S.td}><input value={c[k]||""} onChange={e=>uc(c.id,k,e.target.value)} style={{...S.inp,width:k==="aptName"?120:70}}/></td>)}
           <td style={S.td}><input value={`${c.dong||""}/${c.floor||""}/${c.ho||""}`} onChange={e=>{const p=e.target.value.split("/");uc(c.id,"dong",p[0]||"");uc(c.id,"floor",p[1]||"");uc(c.id,"ho",p[2]||"");}} style={{...S.inp,width:80}}/></td>
           <td style={S.td}><input value={c.exclusiveArea||""} onChange={e=>uc(c.id,"exclusiveArea",e.target.value)} style={{...S.inp,width:60}}/></td>
-          <td style={S.td}><input value={c.price||""} onChange={e=>uc(c.id,"price",fmtComma(e.target.value))} style={{...S.inp,width:110,textAlign:"right"}}/></td>
-          <td style={S.td}><input value={c.unitPrice||""} onChange={e=>uc(c.id,"unitPrice",fmtComma(e.target.value))} style={{...S.inp,width:90,textAlign:"right"}}/></td>
+          <td style={S.td}><input value={fmtComma(c.price)} onChange={e=>uc(c.id,"price",fmtComma(e.target.value))} style={{...S.inp,width:110,textAlign:"right"}}/></td>
+          <td style={S.td}><input value={fmtComma(c.unitPrice)} onChange={e=>uc(c.id,"unitPrice",fmtComma(e.target.value))} style={{...S.inp,width:90,textAlign:"right"}}/></td>
           <td style={S.td}><input value={c.tradeDate||""} onChange={e=>uc(c.id,"tradeDate",e.target.value)} style={{...S.inp,width:84}}/></td>
           <td style={S.td}><input value={c.approvalDate||""} onChange={e=>uc(c.id,"approvalDate",e.target.value)} style={{...S.inp,width:84}}/></td>
           <td style={{...S.td,cursor:"pointer",background:c.timeAdj?"#eff6ff":"#fef9c3"}} onClick={()=>setSjCase(c)}>{c.timeAdj?Number(c.timeAdj).toFixed(5):"입력"}</td>
@@ -1825,7 +1827,7 @@ function App(){
           <td style={S.tdL}>{x.label}</td><td style={S.td}>{x.updated}</td>
           <td style={S.td}><span style={{cursor:"pointer",color:C.acc}} onClick={()=>loadCase(x.id)}>열기</span> · <span style={{cursor:"pointer",color:C.dng}} onClick={()=>deleteCase(x.id)}>삭제</span></td></tr>))}
       </tbody></table></Card>}
-      <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>거래사례비교법 · 조합원 입주권 (본건 2호수)</div>
+      <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>거래사례비교법 · 조합원 입주권 (본건 {(ov.units||[]).length}호수)</div>
       <div style={S.steps}>{IPJ_LABELS.map((l,i)=><span key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</span>)}</div>
       {IPJ_LABELS.map((l,i)=><div key={i} style={{display:step===i?"block":"none"}}>{tabProps[i]}</div>)}
       <div style={{display:"flex",justifyContent:"space-between",marginTop:14}}>
