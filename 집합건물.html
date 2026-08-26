@@ -2393,6 +2393,8 @@ async function buildEvalHwpxV2(tokenMap){
   for(const e of entries){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
+      xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)
+      xml=v2StripValueLineSeg(xml);             // 값 문단 줄배치 캐시 제거 → 긴 값 삽입 시 글자 겹침 방지 (치환 전)
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("v2 감정평가서 미치환 토큰",e.name,left);
@@ -2401,6 +2403,48 @@ async function buildEvalHwpxV2(tokenMap){
     }
   }
   return createZipStored(entries);
+}
+// 값만 든 문단(<hp:run>{{토큰}}</hp:run>)의 <hp:linesegarray> 제거 — 캐시된 1줄 배치에 긴 값이 겹쳐 찍히는 것 방지(한글이 열 때 재배치)
+function v2StripValueLineSeg(xml){
+  return xml.replace(/(<hp:p\b[^>]*><hp:run\b[^>]*><hp:t>\{\{[^}]+\}\}<\/hp:t><\/hp:run>)<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>(<\/hp:p>)/g,'$1$2');
+}
+// 거래사례 목록표: 실제 사례 수만큼만 남기고 빈 사례행(맨 아래부터)을 삭제, rowCnt 갱신, 새 마지막 행에 표 하단 테두리 부여
+function v2PruneEmptyCaseRows(xml,map){
+  const anchor=xml.indexOf('{{사례6_법정동}}');
+  if(anchor<0)return xml;
+  const tblStart=xml.lastIndexOf('<hp:tbl',anchor);
+  const tblEndIdx=xml.indexOf('</hp:tbl>',anchor);
+  if(tblStart<0||tblEndIdx<0)return xml;
+  const tblEnd=tblEndIdx+'</hp:tbl>'.length;
+  let tbl=xml.slice(tblStart,tblEnd);
+  let filled=0;for(let n=1;n<=6;n++){if(String(map['사례'+n+'_법정동']||'').trim())filled=n;}
+  let removed=0;
+  for(let n=6;n>filled;n--){
+    const tok='{{사례'+n+'_법정동}}';
+    const p=tbl.indexOf(tok);if(p<0)continue;
+    const trStart=tbl.lastIndexOf('<hp:tr',p);
+    const trEndIdx=tbl.indexOf('</hp:tr>',p);
+    if(trStart<0||trEndIdx<0)continue;
+    tbl=tbl.slice(0,trStart)+tbl.slice(trEndIdx+'</hp:tr>'.length);removed++;
+  }
+  if(removed){
+    tbl=tbl.replace(/(<hp:tbl\b[^>]*\browCnt=")(\d+)(")/,(mm,a,num,b)=>a+(parseInt(num,10)-removed)+b);
+    // 새 마지막 사례행에 원래 맨아래 행의 하단 테두리 글꼴(borderFill)을 입힘 (41→42,16→38,18→27)
+    if(filled>=1){
+      const tok='{{사례'+filled+'_법정동}}';
+      const p=tbl.indexOf(tok);
+      if(p>=0){
+        const trStart=tbl.lastIndexOf('<hp:tr',p);
+        const trEnd=tbl.indexOf('</hp:tr>',p)+'</hp:tr>'.length;
+        let row=tbl.slice(trStart,trEnd);
+        row=row.replace(/borderFillIDRef="41"/g,'borderFillIDRef="42"')
+               .replace(/borderFillIDRef="16"/g,'borderFillIDRef="38"')
+               .replace(/borderFillIDRef="18"/g,'borderFillIDRef="27"');
+        tbl=tbl.slice(0,trStart)+row+tbl.slice(trEnd);
+      }
+    }
+  }
+  return xml.slice(0,tblStart)+tbl+xml.slice(tblEnd);
 }
 // buildData 결과(d)를 v2.0 템플릿 토큰 129종으로 확장
 // 거래사례 기호 — 감정평가서 거래사례 목록표(㉠㉡㉢…)와 통일. 표시순서(shownC) 기준.
