@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 건축물대장 조회
+  지번 입력 → V-World로 PNU 확인 → 국토부 건축HUB(표제부·층별개요·지역지구) 조회
+  KAIS 건축물대장(일반) 화면과 같은 구성으로 보여주고, 층별현황은 엑셀로 그대로 복사된다.
+  Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>건축물대장 조회 — Ongyeol</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  input:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
+  #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
+  #mode-bar .mb-title{color:#e2e8f0;font-weight:700;font-size:13px;}
+  #mode-bar a{border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
+  #mode-bar a:hover{border-color:#2563eb;color:#fff;}
+  .wrap{max-width:1500px;margin:12px auto;padding:0 12px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:12px 14px;margin-bottom:10px;}
+  .card h2{font-size:13px;font-weight:700;color:#1a2744;margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  input[type=text]{font:inherit;font-size:13px;padding:6px 9px;border:1px solid #e2e5ea;border-radius:3px;}
+  select{font:inherit;font-size:12px;padding:5px 8px;border:1px solid #e2e5ea;border-radius:3px;}
+  .btn{background:#2563eb;color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;}
+  .btn:hover{background:#1d4ed8;} .btn:disabled{opacity:.5;cursor:default;}
+  .btn.gh{background:#fff;color:#2563eb;border:1px solid #2563eb;}
+  .btn.sm{padding:4px 11px;font-size:12px;}
+  .hint{color:#94a3b8;font-size:11px;}
+  .status{margin:8px 0 0;color:#555;min-height:16px;font-size:12px;}
+  .status.err{color:#dc2626;font-weight:600;}
+  .status.ok{color:#166534;font-weight:600;}
+  table{border-collapse:collapse;width:100%;font-size:12px;background:#fff;}
+  th,td{border:1px solid #cdd3dc;padding:4px 7px;text-align:center;}
+  th{background:#dfe4ec;font-size:11px;font-weight:700;white-space:nowrap;}
+  th.lbl{background:#eef1f6;text-align:center;white-space:nowrap;width:120px;font-weight:700;}
+  td.l{text-align:left;}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .tw{overflow-x:auto;}
+  .note{background:#f6f8fa;border:1px solid #e2e5ea;border-left:3px solid #94a3b8;border-radius:4px;padding:7px 11px;font-size:11px;color:#475569;margin-top:8px;}
+  #result{display:none;}
+  .hl{background:#fff9e6;font-weight:700;}
+  .foot{text-align:center;color:#94a3b8;font-size:11px;padding:8px;}
+  #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
+  #fallbackPanel a{word-break:break-all;color:#2563eb;}
+  #fallbackPanel textarea{width:100%;font:inherit;font-size:11px;padding:7px;border:1px solid #e2e5ea;border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="mode-bar">
+  <a href="test.html">🧪 개발허브</a>
+  <span class="mb-title">🏢 건축물대장 조회</span>
+</div>
+
+<div class="wrap">
+  <div class="card">
+    <div class="row">
+      <input type="text" id="q" size="42" placeholder="예: 안산시 단원구 선부동 1017-11" onkeydown="if(event.key==='Enter')go()">
+      <button class="btn" id="btnGo" onclick="go()">조회</button>
+      <span class="hint">시·구·동까지 쓰면 정확합니다. (예: 안양시 동안구 관양동 1443-5)</span>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="result">
+    <!-- 동명세 -->
+    <div class="card">
+      <h2>동명세
+        <span class="row" style="margin-left:auto">
+          <select id="dongSel" onchange="renderDong()" style="display:none"></select>
+        </span>
+      </h2>
+      <div class="tw"><table id="tblDong"></table></div>
+    </div>
+
+    <!-- 건축물정보 -->
+    <div class="card">
+      <h2>건축물정보</h2>
+      <div class="tw"><table id="tblInfo"></table></div>
+    </div>
+
+    <!-- 주차장 / 승강기 -->
+    <div class="card">
+      <h2>주차장 · 승강기</h2>
+      <div class="tw"><table id="tblPark"></table></div>
+    </div>
+
+    <!-- 건축물현황 (층별) -->
+    <div class="card">
+      <h2>건축물현황
+        <span class="row" style="margin-left:auto">
+          <button class="btn gh sm" onclick="copyExcel()">📋 엑셀 복사</button>
+          <button class="btn gh sm" onclick="copyExcel(true)">📋 층별만 복사</button>
+        </span>
+      </h2>
+      <div class="tw"><table id="tblFlr"></table></div>
+      <div class="note">「엑셀 복사」를 누르고 엑셀에서 <b>Ctrl+V</b> 하면 대지위치 + 층별현황이 그대로 붙습니다.
+        「층별만 복사」는 머리글+데이터만 복사합니다.</div>
+      <div class="status" id="copyMsg"></div>
+    </div>
+  </div>
+
+  <!-- 자동 호출 차단 시 수동 폴백 -->
+  <div class="card" id="fallbackPanel" hidden>
+    <b>⚠ 자동 호출이 차단되어 수동 모드로 전환합니다</b>
+    <div class="hint">아래 링크를 새 탭에서 열고, 나온 글자 전체를 복사(Ctrl+A→Ctrl+C)해 붙여넣은 뒤 [적용]을 누르세요.</div>
+    <div style="margin:8px 0"><a id="fbLink" href="#" target="_blank" rel="noopener"></a></div>
+    <textarea id="fbPaste" rows="4"></textarea>
+    <div style="margin-top:6px"><button class="btn sm" id="btnFbApply">적용</button></div>
+  </div>
+
+  <div class="foot">© 2026 정우진 감정평가사 · 자료: 국토교통부 건축HUB 건축물대장 / 국토교통부 V-World</div>
+</div>
+
+<script>
+'use strict';
+var API_BASE='https://api.vworld.kr';
+var KEY_STORAGE='exact-vworld-key';
+var DEFAULT_VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';
+var DATAGO_KEY='gmQSMNpJvNH5CARAFXivvjOf05MEgLxhGS5YeZTvy6%2BdL8qvsOysZGoGauJ8qcctoD7GdhmEklawkm2bBr64Ag%3D%3D';
+var BLD_BASE='https://apis.data.go.kr/1613000/BldRgstHubService';
+var PROXY_BASE='https://ongyeol-proxy.woojin-apr.workers.dev';
+function getKey(){try{return localStorage.getItem(KEY_STORAGE)||DEFAULT_VKEY;}catch(e){return DEFAULT_VKEY;}}
+
+// ── 호출 (fetch → JSONP → 수동붙여넣기) ──
+var netModes={};
+function hostOf(u){var m=/^https?:\/\/([^\/]+)/.exec(u);return m?m[1]:'x';}
+function tryFetch(u){return fetch(u).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});}
+function tryJsonp(u){return new Promise(function(res,rej){
+  var cb='__cb'+Math.floor(Math.random()*1e9),sc=document.createElement('script'),done=false;
+  window[cb]=function(d){done=true;cl();res(d);};
+  function cl(){delete window[cb];if(sc.parentNode)sc.parentNode.removeChild(sc);}
+  sc.onerror=function(){if(!done){cl();rej(new Error('JSONP 실패'));}};
+  setTimeout(function(){if(!done){cl();rej(new Error('JSONP 시간초과'));}},8000);
+  sc.src=u+(u.indexOf('?')>=0?'&':'?')+'callback='+cb;document.head.appendChild(sc);});}
+var mq=Promise.resolve();
+function tryManual(u){
+  mq=mq.then(function(){return new Promise(function(res){
+    var p=document.getElementById('fallbackPanel'),l=document.getElementById('fbLink'),t=document.getElementById('fbPaste');
+    p.hidden=false;l.href=u;l.textContent=u;t.value='';t.focus();
+    document.getElementById('btnFbApply').onclick=function(){
+      var v=t.value.trim();if(!v){alert('붙여넣은 내용이 없습니다');return;}
+      try{var j=JSON.parse(v);p.hidden=true;res(j);}catch(e){alert('JSON 형식이 아닙니다. 페이지 전체(Ctrl+A)를 복사했는지 확인하세요.');}};
+  });});
+  return mq;
+}
+function callApi(u){
+  var h=hostOf(u),m=netModes[h]||'auto';
+  if(m==='fetch')return tryFetch(u);
+  if(m==='jsonp')return tryJsonp(u);
+  if(m==='manual')return tryManual(u);
+  return tryFetch(u).then(function(d){netModes[h]='fetch';return d;})
+    .catch(function(){return tryJsonp(u).then(function(d){netModes[h]='jsonp';return d;})
+      .catch(function(){netModes[h]='manual';return tryManual(u);});});
+}
+
+// ── 유틸 ──
+function items(d){
+  var b=d&&d.response&&d.response.body,h=d&&d.response&&d.response.header;
+  if(h&&h.resultCode&&!/^0+$/.test(h.resultCode))throw new Error((h.resultMsg||'오류')+' ('+h.resultCode+')');
+  var it=b&&b.items&&b.items.item;
+  return it?(Array.isArray(it)?it:[it]):[];
+}
+function esc(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+function dt(v){var m=String(v||'').match(/(\d{4})\D?(\d{2})\D?(\d{2})/);return m?(m[1]+'-'+m[2]+'-'+m[3]):'';}
+function n1(v){var x=Number(v);return (v===''||v==null||isNaN(x))?'':x.toLocaleString('ko-KR',{maximumFractionDigits:4});}
+function txt(v){return String(v==null?'':v).trim();}
+function joinPurps(main,etc){var a=txt(main),b=txt(etc);return b?(a?a+'('+b+')':b):a;}
+
+var STATE={addr:'',pnu:'',titles:[],flrs:[],jijigu:[],dongIdx:0};
+
+function setStatus(msg,cls){var el=document.getElementById('status');el.textContent=msg;el.className='status'+(cls?' '+cls:'');}
+
+async function go(){
+  var q=document.getElementById('q').value.trim();
+  if(!q){alert('지번을 입력하세요');return;}
+  var btn=document.getElementById('btnGo');btn.disabled=true;
+  document.getElementById('result').style.display='none';
+  setStatus('주소 확인 중… '+q);
+  try{
+    // 1) V-World로 PNU
+    var key=getKey();
+    var su=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(q)
+          +'&type=address&category=parcel&format=json&errorformat=json&key='+key;
+    var sd=await callApi(su);
+    var rp=sd&&sd.response;
+    if(!rp||rp.status!=='OK'||!rp.result||!rp.result.items||!rp.result.items.length)
+      throw new Error('주소를 찾지 못했습니다: '+q+(rp&&rp.error?(' ('+rp.error.text+')'):''));
+    var it0=rp.result.items[0];
+    STATE.pnu=it0.id;
+    STATE.addr=(it0.address&&(it0.address.parcel||it0.address.road))||it0.title||q;
+
+    // 2) 건축HUB — 표제부 / 층별개요 / 지역지구
+    setStatus('건축물대장 조회 중… ('+STATE.addr+')');
+    var pnu=STATE.pnu;
+    var sigungu=pnu.slice(0,5),bjdong=pnu.slice(5,10);
+    var platGb=(pnu.charAt(10)==='2')?'1':'0';
+    var bun=pnu.slice(11,15),ji=pnu.slice(15,19);
+    function url(op){
+      return PROXY_BASE ? PROXY_BASE+'/bld?op='+op+'&pnu='+pnu
+        : BLD_BASE+'/'+op+'?sigunguCd='+sigungu+'&bjdongCd='+bjdong+'&platGbCd='+platGb+'&bun='+bun+'&ji='+ji
+          +'&numOfRows=200&pageNo=1&_type=json&serviceKey='+DATAGO_KEY;
+    }
+    var res=await Promise.all([
+      callApi(url('getBrTitleInfo')),
+      callApi(url('getBrFlrOulnInfo')),
+      callApi(url('getBrJijiguInfo')).catch(function(){return null;})
+    ]);
+    STATE.titles=items(res[0]);
+    STATE.flrs=items(res[1]);
+    STATE.jijigu=res[2]?items(res[2]):[];
+
+    if(!STATE.titles.length&&!STATE.flrs.length)
+      throw new Error('해당 지번의 건축물대장을 찾지 못했습니다. (대장 미등록이거나 지번 확인 필요)');
+
+    // 동 선택
+    var sel=document.getElementById('dongSel');
+    if(STATE.titles.length>1){
+      sel.innerHTML=STATE.titles.map(function(t,i){
+        return '<option value="'+i+'">'+esc(txt(t.dongNm)||txt(t.bldNm)||('제'+(i+1)+'동'))+'</option>';}).join('');
+      sel.style.display='';
+    }else{sel.style.display='none';}
+    STATE.dongIdx=0;
+    renderDong();
+    document.getElementById('result').style.display='block';
+    setStatus('✅ 조회 완료 — '+STATE.addr+' · 동 '+(STATE.titles.length||1)+'개 · 층별 '+STATE.flrs.length+'행','ok');
+  }catch(e){
+    console.error('건축물대장 조회',e);
+    setStatus('실패: '+e.message,'err');
+  }finally{btn.disabled=false;}
+}
+
+function renderDong(){
+  var i=+(document.getElementById('dongSel').value||0);
+  STATE.dongIdx=i;
+  var t=STATE.titles[i]||{};
+
+  // ── 동명세 ──
+  document.getElementById('tblDong').innerHTML=
+    '<tr><th>대장종류</th><th>주/부</th><th>대지위치</th><th>건축물명칭</th><th>동명칭 및 번호</th><th>주용도</th><th>연면적(㎡)</th><th>건축물대장 PK</th></tr>'+
+    '<tr><td>'+esc(txt(t.regstrKindCdNm))+(txt(t.regstrGbCdNm)?'('+esc(txt(t.regstrGbCdNm))+')':'')+'</td>'+
+    '<td>'+esc(txt(t.mainAtchGbCdNm).slice(0,1)||'-')+'</td>'+
+    '<td class="l">'+esc(txt(t.platPlc)||STATE.addr)+'</td>'+
+    '<td>'+esc(txt(t.bldNm)||'-')+'</td>'+
+    '<td>'+esc(txt(t.dongNm)||'-')+'</td>'+
+    '<td class="l">'+esc(joinPurps(t.mainPurpsCdNm,t.etcPurps))+'</td>'+
+    '<td class="num hl">'+n1(t.totArea)+'</td>'+
+    '<td>'+esc(txt(t.mgmBldrgstPk))+'</td></tr>';
+
+  // ── 건축물정보 ──
+  var jj=STATE.jijigu.filter(function(x){return /지역/.test(txt(x.jijiguGbCdNm));})
+          .map(function(x){return txt(x.jijiguCdNm);}).filter(Boolean);
+  var jg=STATE.jijigu.filter(function(x){return /지구/.test(txt(x.jijiguGbCdNm));})
+          .map(function(x){return txt(x.jijiguCdNm);}).filter(Boolean);
+  var gy=STATE.jijigu.filter(function(x){return /구역/.test(txt(x.jijiguGbCdNm));})
+          .map(function(x){return txt(x.jijiguCdNm);}).filter(Boolean);
+  var addrParts=(txt(t.platPlc)||STATE.addr).trim();
+  var jibun=(txt(t.bun)?String(Number(t.bun)):'')+(txt(t.ji)&&Number(t.ji)?('-'+Number(t.ji)):'');
+  document.getElementById('tblInfo').innerHTML=
+    row2('대지위치',addrParts.replace(/\s*\d+(-\d+)?\s*$/,''),'지번',jibun||'-')+
+    row2('용도지역',jj.join(', ')||'-','용도지구',jg.join(', ')||'-')+
+    row2('구역',gy.join(', ')||'-','도로명주소',txt(t.newPlatPlc)||'-')+
+    row2('대지면적(㎡)',n1(t.platArea),'연면적(㎡)',n1(t.totArea),true)+
+    row2('건축면적(㎡)',n1(t.archArea),'용적률산정용 연면적(㎡)',n1(t.vlRatEstmTotArea),true)+
+    row2('건폐율(%)',n1(t.bcRat),'용적률(%)',n1(t.vlRat),true)+
+    row2('주용도(기타용도)',joinPurps(t.mainPurpsCdNm,t.etcPurps),'주구조(기타구조)',joinPurps(t.strctCdNm,t.etcStrct))+
+    row2('지붕(기타지붕)',joinPurps(t.roofCdNm,t.etcRoof),'세대/가구/호',
+         (txt(t.hhldCnt)||'0')+'세대 / '+(txt(t.fmlyCnt)||'0')+'가구 / '+(txt(t.hoCnt)||'0')+'호')+
+    row2('허가일자',dt(t.pmsDay)||'-','착공일자',dt(t.stcnsDay)||'-')+
+    row2('사용승인일자',dt(t.useAprDay)||'-','층수',(txt(t.grndFlrCnt)||'0')+'층 / 지하 '+(txt(t.ugrndFlrCnt)||'0')+'층',false,true)+
+    row2('높이(m)',n1(t.heit),'부속건축물',(txt(t.atchBldCnt)||'0')+'동 '+(n1(t.atchBldArea)||'0')+'㎡');
+
+  // ── 주차장 · 승강기 ──
+  document.getElementById('tblPark').innerHTML=
+    '<tr><th rowspan="2" class="lbl">주차장</th><th>옥내 자주식</th><th>옥내 기계식</th><th>옥외 자주식</th><th>옥외 기계식</th></tr>'+
+    '<tr><td>'+pk(t.indrAutoUtcnt,t.indrAutoArea)+'</td><td>'+pk(t.indrMechUtcnt,t.indrMechArea)+'</td>'+
+    '<td>'+pk(t.oudrAutoUtcnt,t.oudrAutoArea)+'</td><td>'+pk(t.oudrMechUtcnt,t.oudrMechArea)+'</td></tr>'+
+    '<tr><th class="lbl">승강기</th><td colspan="2">승용 '+(txt(t.rideUseElvtCnt)||'0')+'대</td>'+
+    '<td colspan="2">비상용 '+(txt(t.emgenUseElvtCnt)||'0')+'대</td></tr>';
+
+  renderFlr();
+}
+function row2(l1,v1,l2,v2,num,hl){
+  return '<tr><th class="lbl">'+l1+'</th><td class="'+(num?'num':'l')+(hl?' hl':'')+'">'+esc(v1||'-')+'</td>'+
+         '<th class="lbl">'+l2+'</th><td class="'+(num?'num':'l')+(hl?' hl':'')+'">'+esc(v2||'-')+'</td></tr>';
+}
+function pk(cnt,area){var c=txt(cnt)||'0',a=n1(area)||'0';return c+'대 / '+a+'㎡';}
+
+// 현재 선택된 동의 층별 목록
+function curFlrs(){
+  var t=STATE.titles[STATE.dongIdx]||{};
+  var dong=txt(t.dongNm);
+  var list=STATE.flrs;
+  if(STATE.titles.length>1&&dong)
+    list=STATE.flrs.filter(function(f){return txt(f.dongNm)===dong;});
+  // 지하 → 지상, 층번호 오름차순
+  return list.slice().sort(function(a,b){
+    var g=String(a.flrGbCd||'').localeCompare(String(b.flrGbCd||''));
+    return g!==0?g:(Number(a.flrNo||0)-Number(b.flrNo||0));
+  });
+}
+// 구분: 주건축물이면 '주1', 부속이면 '부1' (KAIS 표기와 동일)
+function gubun(f){
+  var mk=/부속/.test(txt(f.mainAtchGbCdNm))?'부':'주';
+  var seq=STATE.titles.length>1?(STATE.dongIdx+1):1;
+  return mk+seq;
+}
+function renderFlr(){
+  var list=curFlrs();
+  var h='<tr><th>구분</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>연면적(㎡)</th></tr>';
+  var sum=0;
+  list.forEach(function(f){
+    var a=Number(f.area)||0;sum+=a;
+    h+='<tr><td>'+esc(gubun(f))+'</td><td>'+esc(txt(f.flrGbCdNm))+'</td><td>'+esc(txt(f.flrNoNm))+'</td>'+
+       '<td class="l">'+esc(joinPurps(f.strctCdNm,f.etcStrct))+'</td>'+
+       '<td class="l">'+esc(joinPurps(f.mainPurpsCdNm,f.etcPurps))+'</td>'+
+       '<td class="num">'+n1(f.area)+'</td></tr>';
+  });
+  h+='<tr><td colspan="5" style="text-align:right;font-weight:700">합계</td><td class="num hl">'+n1(sum)+'</td></tr>';
+  document.getElementById('tblFlr').innerHTML=h;
+}
+
+// ── 엑셀 복사 (첫 화면 스샷과 같은 배치) ──
+function copyExcel(onlyTable){
+  var list=curFlrs();
+  if(!list.length){alert('복사할 층별 정보가 없습니다.');return;}
+  var t=STATE.titles[STATE.dongIdx]||{};
+  var lines=[];
+  if(!onlyTable){
+    lines.push(txt(t.platPlc)||STATE.addr);   // 1행: 대지위치
+    lines.push('');lines.push('');lines.push('');  // 2~4행 비움
+  }
+  lines.push(['구분','층구분','층별','구조','용도','연면적(㎡)'].join('\t'));
+  list.forEach(function(f){
+    lines.push([gubun(f),txt(f.flrGbCdNm),txt(f.flrNoNm),
+      joinPurps(f.strctCdNm,f.etcStrct),joinPurps(f.mainPurpsCdNm,f.etcPurps),
+      (f.area==null||f.area==='')?'':Number(f.area)].join('\t'));
+  });
+  var text=lines.join('\n');
+  var msg=document.getElementById('copyMsg');
+  function ok(){msg.className='status ok';msg.textContent='✅ 복사 완료 — 엑셀에서 Ctrl+V 하세요 ('+list.length+'행)';}
+  function fail(e){
+    console.error('클립보드 복사 실패',e);
+    var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');ok();}
+    catch(e2){console.error('execCommand 실패',e2);msg.className='status err';msg.textContent='복사가 안 됩니다. 표를 마우스로 긁어서 복사하세요.';}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok).catch(fail);
+  else fail(new Error('clipboard API 없음'));
+}
+</script>
+</body>
+</html>
