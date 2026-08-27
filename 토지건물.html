@@ -196,7 +196,9 @@
           </div>
           <div class="row" style="margin-top:8px">
             <button class="btn gh sm" id="btnAddBld">+ 층 추가</button>
+            <button class="btn gh sm" onclick="copyBldExcel()">📋 엑셀 복사</button>
             <span class="hint">연면적 합계: <b id="bldSum">0</b> ㎡</span>
+            <span class="hint" id="bldCopyMsg" style="margin-left:auto"></span>
           </div>
         </div>
       </div>
@@ -615,6 +617,48 @@ function addBldRow(v){v=v||{};
 function sumBld(){var s=0;document.querySelectorAll('#bldBody tr').forEach(function(tr){
   var a=num(tr.children[BLD_COLS.indexOf('연면적')].querySelector('input').value);if(a)s+=a;});
   document.getElementById('bldSum').textContent=s.toLocaleString('ko-KR',{maximumFractionDigits:4});return s;}
+// 건물 표를 엑셀로 그대로 복사 — 표 위에 대지위치·구조·주용도·층수·사용승인일 머리행을 붙인다
+function copyBldExcel(){
+  var rows=bldRows().filter(function(r){return BLD_COLS.some(function(k){return String(r[k]||'').trim();});});
+  var msg=document.getElementById('bldCopyMsg');
+  if(!rows.length){if(msg)msg.textContent='복사할 층별 정보가 없습니다.';return;}
+  var L0=LANDS[0]||{};
+  var addr=L0.fullAddr||((L0['소재지']||'')+' '+(L0['지번']||'')).trim();
+  var val=function(id){var el=document.getElementById(id);return el?el.value.trim():'';};
+  var useDong=rows.some(function(r){return String(r['동']||'').trim();});
+  var cols=useDong?BLD_COLS:BLD_COLS.filter(function(c){return c!=='동';});
+  var head=cols.map(function(c){return c==='연면적'?'연면적(㎡)':c;});
+
+  var lines=[];
+  lines.push(['대지위치',addr].join('\t'));
+  lines.push(['구조',val('bt_strct'),'','주용도',val('bt_purps')].join('\t'));
+  lines.push(['층수(지상/지하)',val('bt_flrs'),'','사용승인일',val('bt_useApr')].join('\t'));
+  lines.push('');
+  lines.push(head.join('\t'));
+  var sum=0;
+  rows.forEach(function(r){
+    lines.push(cols.map(function(c){
+      if(c!=='연면적')return String(r[c]||'');
+      var a=num(r['연면적']);if(a)sum+=a;
+      return (r['연면적']==null||String(r['연면적']).trim()==='')?'':a;
+    }).join('\t'));
+  });
+  var sumFixed=Math.round(sum*10000)/10000;   // 부동소수점 잔여 제거
+  lines.push(cols.map(function(c,i){
+    return i===cols.length-2?'합계':(i===cols.length-1?sumFixed:'');}).join('\t'));
+
+  var text=lines.join('\n');
+  function ok(){if(msg)msg.textContent='✅ 복사 완료 — 엑셀에서 Ctrl+V ('+rows.length+'행)';}
+  function fallback(e){
+    console.error('클립보드 복사 실패',e);
+    var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');ok();}
+    catch(e2){console.error('execCommand 실패',e2);if(msg)msg.textContent='복사 실패 — 표를 마우스로 긁어 복사하세요.';}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok).catch(fallback);
+  else fallback(new Error('clipboard API 없음'));
+}
 function bldRows(){var out=[];document.querySelectorAll('#bldBody tr').forEach(function(tr){
   var r={};BLD_COLS.forEach(function(k,i){r[k]=tr.children[i].querySelector('input').value;});out.push(r);});return out;}
 
@@ -649,6 +693,7 @@ bindQuery('btnLand','landQuery','landStatus',function(v,out){
   var i=fillOrPush(LANDS,LAND_COLS,{소재지:v.소재지,지번:v.지번,지목:v.지목,면적:v.면적,용도지역:v.용도지역,
     이용상황:v.이용상황,도로교통:v.도로교통,형상:v.형상,지세:v.지세,공시지가:v.공시지가,비고:'-'});
   LANDS[i].pnu=(out&&out.pnu)||'';
+  LANDS[i].fullAddr=(out&&out.addr)||'';   // 엑셀 복사 머리행에 쓰는 전체 대지위치
   renderLands();saveForm();sd();
 });
 bindQuery('btnStd','stdQuery','stdStatus',function(v){
