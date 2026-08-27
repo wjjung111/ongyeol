@@ -1734,6 +1734,8 @@ function IpjTabSarye({ov,cases,setCases}){
     e.preventDefault();try{const rows=parseKaisRow(t,cases.length);if(rows&&rows.length){setCases(prev=>[...prev,...rows.map((r,i)=>({...r,symbol:IPJ_CIRCLED[prev.length+i]||"",isShown:true,_orig:{location:r.location,jibun:r.jibun,aptName:r.aptName,dong:r.dong,floor:r.floor,ho:r.ho,exclusiveArea:r.exclusiveArea,price:r.price,unitPrice:r.unitPrice,tradeDate:r.tradeDate,approvalDate:r.approvalDate}}))]);}}catch(err){alert("붙여넣기 인식 실패");}};
   const uc=(id,k,v)=>setCases(prev=>prev.map(c=>c.id===id?{...c,[k]:v}:c));
   const restoreCase=id=>setCases(prev=>prev.map(c=>c.id===id&&c._orig?{...c,...c._orig}:c)); // KAIS 원본값으로 되돌리기 (시점수정·표시는 유지)
+  // 스냅샷(_orig) 없는 기존 저장 사례는 화면 진입 시점의 현재값을 원본으로 백필 → 구버전에서 붙여넣은 행에도 ↺ 제공
+  useEffect(()=>{if(cases.some(c=>!c._orig))setCases(prev=>prev.map(c=>c._orig?c:{...c,_orig:{location:c.location,jibun:c.jibun,aptName:c.aptName,dong:c.dong,floor:c.floor,ho:c.ho,exclusiveArea:c.exclusiveArea,price:c.price,unitPrice:c.unitPrice,tradeDate:c.tradeDate,approvalDate:c.approvalDate}}));},[cases]);
   const delc=id=>setCases(prev=>prev.filter(c=>c.id!==id));
   const addc=()=>setCases(prev=>[...prev,{id:"c"+Date.now(),symbol:IPJ_CIRCLED[prev.length]||"",location:"",jibun:"",aptName:"",dong:"",floor:"",ho:"",exclusiveArea:"",price:"",unitPrice:"",tradeDate:"",approvalDate:"",timeAdj:null,timeAdjDetail:"",isShown:true}]);
   return(<div>
