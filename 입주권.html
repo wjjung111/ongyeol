@@ -1367,7 +1367,7 @@ const ipjEmptyOv=()=>({
 });
 
 // ── 청구서(수수료) — 실비 전 항목 직접입력·자동계산 ──
-const ipjEmptyFee=()=>({feeText:"",feeBasis:"하한",feeMain:"",feeTravel:"40,000",feeSurvey:"15,000",feeDoc:"15,000",feeEtc:"0",specialFee:"0",downPayment:"0"});
+const ipjEmptyFee=()=>({feeText:"",feeBasis:"하한",feeMain:"",feeTravel:"40,000",feeSurvey:"15,000",feeDoc:"15,000",feeEtc:"0",specialFee:"0",specialFeeMode:"직접입력",downPayment:"0"});
 function ipjCheonggu(fee){
   const P=k=>pNum(fee[k])||0, rd=n=>Math.floor((n||0)/1000)*1000;
   const 평가수수료=rd(P("feeMain"));
@@ -1771,11 +1771,15 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
   const dl=async(f)=>{setBusy(f.key);try{await ipjDownloadDoc(f,ov,cases);}catch(e){alert(f.label+" 생성 실패: "+e.message);}setBusy("");};
   const dlAll=async()=>{setBusy("all");try{await ipjDownloadAllDocs(ov,cases);}catch(e){alert("생성 실패: "+e.message);}setBusy("");};
   const P=k=>pNum(fee[k])||0, rd0=n=>Math.floor((n||0)/1000)*1000;
-  const 평가수수료=rd0(P("feeMain")), 소계=P("feeTravel")+P("feeSurvey")+P("feeDoc")+P("feeEtc")+P("specialFee");
+  // 특별용역비 방식: 상한-하한/기준-하한은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감 — 집합건물과 동일
+  const specialFeeMode=fee.specialFeeMode||"직접입력";
+  const specialFeeAuto=(()=>{if(specialFeeMode==="직접입력")return null;try{const f=parseFeeStatement(fee.feeText||"");if(!f.하한수수료)return null;const hi=specialFeeMode==="상한-하한"?f.상한수수료:f.기준수수료;if(!hi)return null;return rd0(hi)-rd0(f.하한수수료);}catch(e){return null;}})();
+  const specialFeeEff=specialFeeMode==="직접입력"?P("specialFee"):(specialFeeAuto||0);
+  const 평가수수료=rd0(P("feeMain")), 소계=P("feeTravel")+P("feeSurvey")+P("feeDoc")+P("feeEtc")+specialFeeEff;
   const 합계=rd0(평가수수료+소계), 부가세=Math.round(합계*0.1), 총계=합계+부가세, 정산=총계-P("downPayment");
   const setF=(k,v)=>setFee(p=>({...p,[k]:fmtComma(v)}));
   const pasteFee=e=>{const t=(e.clipboardData||window.clipboardData).getData("text");try{const f=parseFeeStatement(t);const v=fee.feeBasis==="기준"?f.기준수수료:fee.feeBasis==="상한"?f.상한수수료:f.하한수수료;if(v){e.preventDefault();setFee(p=>({...p,feeText:t,feeMain:fmtComma(String(v))}));}}catch(err){}};
-  const dlCheonggu=async()=>{try{const map=ipjCheongguMap(ov,fee);const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);triggerDownload(bytes,`6. 청구서_${ov.client||"의뢰인"}.hwpx`);}catch(e){alert("청구서 생성 실패: "+e.message);}};
+  const dlCheonggu=async()=>{try{const map=ipjCheongguMap(ov,{...fee,specialFee:fmtComma(String(specialFeeEff))});const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);triggerDownload(bytes,`6. 청구서_${ov.client||"의뢰인"}.hwpx`);}catch(e){alert("청구서 생성 실패: "+e.message);}};
   const _bd="1px solid #d9cfcf";
   const grpTd={border:_bd,padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#6d2b2b",background:"#f6f0f0",width:64};
   const nmTd={border:_bd,padding:"6px 12px",color:"#333"};
@@ -1845,7 +1849,8 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
           <div style={{fontWeight:700,color:C.pri}}>청구서 (수수료)</div>
           <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{fontSize:12,color:"#2563eb"}}>수수료 계산 사이트 ↗</a>
-          <label style={{fontSize:12,color:"#555"}}>요율기준 <select value={fee.feeBasis} onChange={e=>setFee(p=>({...p,feeBasis:e.target.value}))} style={{...S.sel2,marginLeft:2}}><option>하한</option><option>기준</option><option>상한</option></select></label>
+          <label style={{fontSize:12,color:"#555"}}>특별용역비 <select value={fee.specialFeeMode||"직접입력"} onChange={e=>setFee(p=>({...p,specialFeeMode:e.target.value}))} style={{...S.sel2,marginLeft:2}} title="상한-하한/기준-하한은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감해 자동입력"><option>직접입력</option><option>상한-하한</option><option>기준-하한</option></select></label>
+          <label style={{fontSize:12,color:"#555"}}>요율기준 <select value={fee.feeBasis} onChange={e=>{const b=e.target.value;setFee(p=>{let feeMain=p.feeMain;try{const f=parseFeeStatement(p.feeText||"");const v=b==="기준"?f.기준수수료:b==="상한"?f.상한수수료:f.하한수수료;if(v)feeMain=fmtComma(String(v));}catch(err){}return{...p,feeBasis:b,feeMain};});}} style={{...S.sel2,marginLeft:2}}><option>하한</option><option>기준</option><option>상한</option></select></label>
           <input onPaste={pasteFee} value={fee.feeText?"계산서 인식됨 ✓ (평가수수료 자동입력)":""} readOnly placeholder="여기에 수수료 계산서 붙여넣기 → 평가수수료 자동입력(직접 입력도 가능)" style={{...S.inp,flex:1,minWidth:220,color:"#16a34a"}}/>
         </div>
         <table style={{width:"100%",maxWidth:580,borderCollapse:"collapse",fontSize:13}}>
@@ -1859,7 +1864,7 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
             <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input value={fee.feeSurvey||""} onChange={e=>setF("feeSurvey",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input value={fee.feeDoc||""} onChange={e=>setF("feeDoc",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>기타실비</td><td style={valTd}><input value={fee.feeEtc||""} onChange={e=>setF("feeEtc",e.target.value)} style={inTd}/></td></tr>
-            <tr><td style={nmTd}>특별용역비</td><td style={valTd}><input value={fee.specialFee||""} onChange={e=>setF("specialFee",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>특별용역비{specialFeeMode!=="직접입력"&&<span style={{fontSize:10,color:"#2563eb"}}> ({specialFeeMode} 자동)</span>}</td><td style={valTd}><input value={specialFeeMode==="직접입력"?(fee.specialFee||""):fmt(specialFeeEff)} onChange={e=>setF("specialFee",e.target.value)} readOnly={specialFeeMode!=="직접입력"} style={{...inTd,...(specialFeeMode!=="직접입력"?{background:"#f1f5f9"}:{})}}/></td></tr>
             <tr><td style={nmTd}>소　계</td><td style={roTd}>{fmt(소계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>합계 (가 + 나)</td><td style={sumV}>￦ {fmt(합계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>부가가치세</td><td style={roTd}>{fmt(부가세)}</td></tr>
