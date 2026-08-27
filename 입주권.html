@@ -1419,7 +1419,9 @@ const ipjCalc=(ov,cases)=>{
   const finalAmt=gwolli+paid+premiumHap;                  // ①+②+③ 합계
   const fUnit=pNum(ov.finalRndUnit)||1000000;
   const fMode=ov.finalRndMode||"none";
-  const finalDecided=fMode==="none"?Math.round(finalAmt):ipjRound(finalAmt,fUnit,fMode); // ⭐ 최종 결정 입주권 감정평가액
+  // ⭐ 최종 결정 입주권 감정평가액 — 집합건물 applyR과 동일: 선택 단위 '자리에서' 반올림/절사 (예: 십만원 자리 반올림 → 백만원 배수. 306,655,515 → 307,000,000)
+  const fD=fUnit*10;
+  const finalDecided=fMode==="round"?Math.round(finalAmt/fD)*fD:fMode==="floor"?Math.floor(finalAmt/fD)*fD:Math.round(finalAmt);
   const bunboCalc=bunyangHap-gwolli;                      // 분담금(추산) = 분양대상추산액 − 권리가액
   return {rows,aptHap,bunyangHap,premiumHap,gwolli,paid,finalAmt,finalDecided,bunboCalc};
 };
