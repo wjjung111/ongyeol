@@ -1554,7 +1554,7 @@ async function ipjDownloadDoc(fileDef, ov, cases){
   const naEmpty=(ov.units||[]).length<=1 || !na || !(pStr(na.dong)||pStr(na.ho));  // 1호수 평가 여부
   const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty});
   triggerDownload(bytes, fileDef.fn(ov));
-  try{window.arapUsageLog&&window.arapUsageLog("다운로드",{caseNo:ov.caseNoDisplay||ov.caseNo,addr:(ov.projLoc||ov.beopjeongdong||""),kind:"입주권 "+fileDef.label,amount:fmt(cal.finalAmt)});}catch(e){}
+  try{window.arapUsageLog&&window.arapUsageLog("다운로드",{caseNo:ov.caseNoDisplay||ov.caseNo,addr:(ov.projLoc||ov.beopjeongdong||""),kind:"입주권 "+fileDef.label,amount:fmt(cal.finalDecided)});}catch(e){}
 }
 async function ipjDownloadAllDocs(ov, cases){
   for(const f of IPJ_FILES){ await ipjDownloadDoc(f, ov, cases); await new Promise(r=>setTimeout(r,250)); }
@@ -1644,7 +1644,7 @@ function IpjSidebar({ov,cal,collapsed,setCollapsed}){
       {item("권리가액",fmt(cal.gwolli))}{item("프리미엄합",fmt(cal.premiumHap))}
       <div style={{marginTop:8,padding:"6px 8px",background:"#0f1c33",borderRadius:6}}>
         <div style={{color:"#94a3b8",fontSize:11}}>입주권 감정평가액</div>
-        <div style={{fontSize:15,fontWeight:700,color:"#86efac"}}>{fmt(cal.finalAmt)} 원</div></div>
+        <div style={{fontSize:15,fontWeight:700,color:"#86efac"}}>{fmt(cal.finalDecided)} 원</div></div>
     </div>);
 }
 
@@ -1844,6 +1844,7 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
       <div style={{marginTop:16}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
           <div style={{fontWeight:700,color:C.pri}}>청구서 (수수료)</div>
+          <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{fontSize:12,color:"#2563eb"}}>수수료 계산 사이트 ↗</a>
           <label style={{fontSize:12,color:"#555"}}>요율기준 <select value={fee.feeBasis} onChange={e=>setFee(p=>({...p,feeBasis:e.target.value}))} style={{...S.sel2,marginLeft:2}}><option>하한</option><option>기준</option><option>상한</option></select></label>
           <input onPaste={pasteFee} value={fee.feeText?"계산서 인식됨 ✓ (평가수수료 자동입력)":""} readOnly placeholder="여기에 수수료 계산서 붙여넣기 → 평가수수료 자동입력(직접 입력도 가능)" style={{...S.inp,flex:1,minWidth:220,color:"#16a34a"}}/>
         </div>
@@ -1912,7 +1913,7 @@ function App(){
       ipjLS.set(ipjCaseKey(id),JSON.stringify({ov,cases,fee}));
       setCaseList(prev=>{const nl=[{id,label,updated:today()},...prev.filter(x=>x.id!==id)];ipjLS.set(IPJ_LIST_KEY,JSON.stringify(nl));return nl;});
       setCurrentId(id);setSaveStatus("saved");
-      try{if(!/^SAMPLE/i.test(cn))window.arapUsageLog&&window.arapUsageLog("저장",{caseNo:ov.caseNoDisplay||cn,addr:(ov.projLoc||""),kind:"입주권",amount:fmt(cal.finalAmt)});}catch(e){}
+      try{if(!/^SAMPLE/i.test(cn))window.arapUsageLog&&window.arapUsageLog("저장",{caseNo:ov.caseNoDisplay||cn,addr:(ov.projLoc||""),kind:"입주권",amount:fmt(cal.finalDecided)});}catch(e){}
     },1500);return()=>clearTimeout(t);
   },[ov,cases,fee]);
 
