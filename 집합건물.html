@@ -3412,11 +3412,11 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             <th style={{padding:"7px",border:"1px solid #6d2b2b",width:180}}>금　액</th>
           </tr></thead><tbody>
             <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료</td><td style={roTd}>{fmt(c.평가수수료)}</td></tr>
-            <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비</td><td style={valTd}><input style={inTd} value={ov.feeTravel==null?"40,000":ov.feeTravel} onChange={e=>setOv(p=>({...p,feeTravel:fmtComma(stripComma(e.target.value))}))}/></td></tr>
+            <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비{travelAuto!=null&&<span title="소재지 기준 여비 자동값으로 복원" style={{cursor:"pointer",color:"#2563eb",marginLeft:4}} onClick={()=>setOv(p=>({...p,feeTravel:fmtComma(String(travelAuto))}))}>↺</span>}</td><td style={valTd}><input style={inTd} value={ov.feeTravel==null?"40,000":ov.feeTravel} onChange={e=>setOv(p=>({...p,feeTravel:fmtComma(stripComma(e.target.value))}))}/></td></tr>
             <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input style={inTd} value={feeSurvey} onChange={e=>setFeeSurvey(fmtComma(stripComma(e.target.value)))}/></td></tr>
             <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input style={inTd} value={feeDoc} onChange={e=>setFeeDoc(fmtComma(stripComma(e.target.value)))}/></td></tr>
             <tr><td style={nmTd}>기타실비</td><td style={valTd}><input style={inTd} value={feeEtc} onChange={e=>setFeeEtc(fmtComma(stripComma(e.target.value)))}/></td></tr>
-            <tr><td style={nmTd}>특별용역비</td><td style={valTd}>{rowSpecial}</td></tr>
+            <tr><td style={nmTd}>특별용역비{specialFeeMode!=="직접입력"&&specialFeeAuto!=null&&<span title="수수료 차액 자동값으로 복원" style={{cursor:"pointer",color:"#2563eb",marginLeft:4}} onClick={()=>setSpecialFee(fmtComma(String(specialFeeAuto)))}>↺</span>}</td><td style={valTd}>{rowSpecial}</td></tr>
             <tr><td style={nmTd}>소　계</td><td style={roTd}>{fmt(c.소계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>합계 (가 + 나)</td><td style={sumV}>￦ {fmt(c.합계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>부가가치세</td><td style={roTd}>{fmt(c.부가세)}</td></tr>

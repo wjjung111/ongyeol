@@ -1731,8 +1731,9 @@ function IpjTabJeopsu({ov,setOv}){
 function IpjTabSarye({ov,cases,setCases}){
   const [sjCase,setSjCase]=useState(null);
   const paste=e=>{const t=e.clipboardData.getData("text");if(!t||!t.includes("\t"))return;
-    e.preventDefault();try{const rows=parseKaisRow(t,cases.length);if(rows&&rows.length){setCases(prev=>[...prev,...rows.map((r,i)=>({...r,symbol:IPJ_CIRCLED[prev.length+i]||"",isShown:true}))]);}}catch(err){alert("붙여넣기 인식 실패");}};
+    e.preventDefault();try{const rows=parseKaisRow(t,cases.length);if(rows&&rows.length){setCases(prev=>[...prev,...rows.map((r,i)=>({...r,symbol:IPJ_CIRCLED[prev.length+i]||"",isShown:true,_orig:{location:r.location,jibun:r.jibun,aptName:r.aptName,dong:r.dong,floor:r.floor,ho:r.ho,exclusiveArea:r.exclusiveArea,price:r.price,unitPrice:r.unitPrice,tradeDate:r.tradeDate,approvalDate:r.approvalDate}}))]);}}catch(err){alert("붙여넣기 인식 실패");}};
   const uc=(id,k,v)=>setCases(prev=>prev.map(c=>c.id===id?{...c,[k]:v}:c));
+  const restoreCase=id=>setCases(prev=>prev.map(c=>c.id===id&&c._orig?{...c,...c._orig}:c)); // KAIS 원본값으로 되돌리기 (시점수정·표시는 유지)
   const delc=id=>setCases(prev=>prev.filter(c=>c.id!==id));
   const addc=()=>setCases(prev=>[...prev,{id:"c"+Date.now(),symbol:IPJ_CIRCLED[prev.length]||"",location:"",jibun:"",aptName:"",dong:"",floor:"",ho:"",exclusiveArea:"",price:"",unitPrice:"",tradeDate:"",approvalDate:"",timeAdj:null,timeAdjDetail:"",isShown:true}]);
   return(<div>
@@ -1753,7 +1754,7 @@ function IpjTabSarye({ov,cases,setCases}){
           <td style={S.td}><input value={c.tradeDate||""} onChange={e=>uc(c.id,"tradeDate",e.target.value)} style={{...S.inp,width:84}}/></td>
           <td style={S.td}><input value={c.approvalDate||""} onChange={e=>uc(c.id,"approvalDate",e.target.value)} style={{...S.inp,width:84}}/></td>
           <td style={{...S.td,cursor:"pointer",background:c.timeAdj?"#eff6ff":"#fef9c3"}} onClick={()=>setSjCase(c)}>{c.timeAdj?Number(c.timeAdj).toFixed(5):"입력"}</td>
-          <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delc(c.id)}>✕</span></td>
+          <td style={S.td}>{c._orig&&<span title="KAIS 붙여넣기 원본값으로 복원" style={{cursor:"pointer",color:"#2563eb",marginRight:6}} onClick={()=>restoreCase(c.id)}>↺</span>}<span style={{cursor:"pointer",color:C.dng}} onClick={()=>delc(c.id)}>✕</span></td>
         </tr>))}
       </tbody></table></div>
       <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 본건 가/나에 대응할 사례는 ④ 가격산출에서 선택합니다. (가=㉠, 나=㉣ 슬롯으로 문서에 배치됨)</div>
@@ -1781,6 +1782,9 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
   // 여비 자동: 소재지(사업위치·시군구·법정동) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
   const travelAuto=arapTravelFee(`${ov.projLoc||""} ${ov.sigungu||""} ${ov.beopjeongdong||""}`);
   useEffect(()=>{if(travelAuto!=null&&fee.travelKey!==String(travelAuto))setFee(p=>({...p,feeTravel:fmtComma(String(travelAuto)),travelKey:String(travelAuto)}));},[travelAuto]);
+  // 평가수수료 자동값(붙여넣은 계산서 + 요율기준). ↺(자동값 복원) 버튼용
+  const feeMainAuto=(()=>{try{const f=parseFeeStatement(fee.feeText||"");const v=fee.feeBasis==="기준"?f.기준수수료:fee.feeBasis==="상한"?f.상한수수료:f.하한수수료;return v||null;}catch(e){return null;}})();
+  const Redo=({on,fn,tip})=>on?<span title={tip||"자동 계산값으로 복원"} onClick={fn} style={{cursor:"pointer",color:"#2563eb",marginLeft:4,fontSize:13,userSelect:"none"}}>↺</span>:null;
   const 평가수수료=rd0(P("feeMain")), 소계=P("feeTravel")+P("feeSurvey")+P("feeDoc")+P("feeEtc")+P("specialFee");
   const 합계=rd0(평가수수료+소계), 부가세=Math.round(합계*0.1), 총계=합계+부가세, 정산=총계-P("downPayment");
   const setF=(k,v)=>setFee(p=>({...p,[k]:fmtComma(v)}));
@@ -1865,12 +1869,12 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
             <th style={{padding:"8px",border:"1px solid #6d2b2b",width:190}}>금　액</th>
           </tr></thead>
           <tbody>
-            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료</td><td style={valTd}><input value={fee.feeMain||""} onChange={e=>setF("feeMain",e.target.value)} style={inTd}/></td></tr>
-            <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비</td><td style={valTd}><input value={fee.feeTravel||""} onChange={e=>setF("feeTravel",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료<Redo on={feeMainAuto!=null} fn={()=>setF("feeMain",String(feeMainAuto))} tip="계산서·요율 기준 자동값으로 복원"/></td><td style={valTd}><input value={fee.feeMain||""} onChange={e=>setF("feeMain",e.target.value)} style={inTd}/></td></tr>
+            <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비<Redo on={travelAuto!=null} fn={()=>setF("feeTravel",String(travelAuto))} tip="소재지 기준 여비 자동값으로 복원"/></td><td style={valTd}><input value={fee.feeTravel||""} onChange={e=>setF("feeTravel",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input value={fee.feeSurvey||""} onChange={e=>setF("feeSurvey",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input value={fee.feeDoc||""} onChange={e=>setF("feeDoc",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>기타실비</td><td style={valTd}><input value={fee.feeEtc||""} onChange={e=>setF("feeEtc",e.target.value)} style={inTd}/></td></tr>
-            <tr><td style={nmTd}>특별용역비{specialFeeMode!=="직접입력"&&<span style={{fontSize:10,color:"#2563eb"}}> ({specialFeeMode} 자동)</span>}</td><td style={valTd}><input value={fee.specialFee||""} onChange={e=>setF("specialFee",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>특별용역비{specialFeeMode!=="직접입력"&&<span style={{fontSize:10,color:"#2563eb"}}> ({specialFeeMode} 자동)</span>}<Redo on={specialFeeMode!=="직접입력"&&specialFeeAuto!=null} fn={()=>setF("specialFee",String(specialFeeAuto))} tip="수수료 차액 자동값으로 복원"/></td><td style={valTd}><input value={fee.specialFee||""} onChange={e=>setF("specialFee",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>소　계</td><td style={roTd}>{fmt(소계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>합계 (가 + 나)</td><td style={sumV}>￦ {fmt(합계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>부가가치세</td><td style={roTd}>{fmt(부가세)}</td></tr>
