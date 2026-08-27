@@ -1248,12 +1248,22 @@ function ipjPruneNaRows(xml){
     return head+reindexed.join("")+tbl.slice(last);
   });
 }
-// 의견서 선정 요약표(마.선정사유 아래 ㉠·㉣ 2행 표): 1호수면 ㉣행(사례4_ 토큰 행) 제거.
-// 거래사례 목록표는 사례2_ 토큰이 있어 제외되므로 4개 사례 표기는 유지됨. 나-행 제거(ipjPruneNaRows) 후에 실행
+// 의견서 선정사례 표 재지정: 선정요약표·개별요인표·산정표는 템플릿상 사례1_(=㉠)·사례4_(=㉣) 토큰을 하드코딩으로 참조.
+// 목록표를 입력 순서 그대로 두면서도 이 표들이 "실제 선정한 사례"를 보여주도록, 사례2_가 없는 표에서만 토큰을 선정가사례_/선정나사례_로 개명하고
+// 요약표의 고정 ㉠·㉣ 기호도 실제 선정 기호 토큰으로 바꿈. (목록표는 사례2_가 있어 제외 → 4개 사례 입력순 표기 유지)
+function ipjRetargetSelTables(xml){
+  return xml.replace(/<hp:tbl\b[\s\S]*?<\/hp:tbl>/g,tbl=>{
+    if(!/\{\{사례1_[^}]*\}\}/.test(tbl)||/\{\{사례2_[^}]*\}\}/.test(tbl))return tbl;
+    return tbl.split("{{사례1_").join("{{선정가사례_").split("{{사례4_").join("{{선정나사례_")
+              .split("<hp:t>㉠</hp:t>").join("<hp:t>{{선정_가_기호}}</hp:t>")
+              .split("<hp:t>㉣</hp:t>").join("<hp:t>{{선정_나_기호}}</hp:t>");
+  });
+}
+// 의견서 선정 요약표: 1호수면 나(선정나사례_ 토큰) 행 제거. 나-행 제거(ipjPruneNaRows) 후·개명(ipjRetargetSelTables) 후에 실행
 function ipjPruneNaSummaryRow(xml){
-  const S4=/\{\{사례4_[^}]*\}\}/;
+  const S4=/\{\{선정나사례_[^}]*\}\}/;
   xml=xml.replace(/<hp:tbl\b[\s\S]*?<\/hp:tbl>/g,tbl=>{
-    if(!S4.test(tbl)||/\{\{사례2_[^}]*\}\}/.test(tbl))return tbl;
+    if(!S4.test(tbl))return tbl;
     const rows=tbl.match(/<hp:tr\b[\s\S]*?<\/hp:tr>/g);if(!rows)return tbl;
     const kept=rows.filter(r=>!S4.test(r));
     if(kept.length===rows.length)return tbl;
@@ -1273,7 +1283,8 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
-      if(opts&&opts.naEmpty){xml=ipjPruneNaBlock(xml);xml=ipjPruneNaRows(xml);xml=ipjPruneNaSummaryRow(xml);}  // 1호수: 명세표 '나' 블록 + 의견서 각 표 '나' 행 + 선정요약표 ㉣행·'각각' 제거
+      xml=ipjRetargetSelTables(xml);                     // 선정요약표·개별요인표·산정표 토큰을 '선정 사례' 기준으로 개명 (항상)
+      if(opts&&opts.naEmpty){xml=ipjPruneNaBlock(xml);xml=ipjPruneNaRows(xml);xml=ipjPruneNaSummaryRow(xml);}  // 1호수: 명세표 '나' 블록 + 의견서 각 표 '나' 행 + 선정요약표 나행·'각각' 제거
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("hwpx 미치환 토큰",e.name,left);
@@ -1432,13 +1443,11 @@ function buildIpjMap(ov,cases){
   const rGa=cal.rows[0]||{}, rNa=cal.rows[1]||{};
   const gaCase=ipjGetSelCase(ga,cases), naCase=ipjGetSelCase(na,cases);
   const shown=cases.filter(c=>c.isShown!==false);
-  const others=shown.filter(c=>c!==gaCase&&c!==naCase);
-  // 가 선택사례 → ㉠, 나 선택사례 → ㉣, 나머지 사례는 중간 슬롯(㉡㉢). 산정표가 사례1_단가=가 비준단가를 쓰므로 이 배치라야 4개 모두 표기되고 산정도 맞음
-  let slot;
-  if(gaCase&&naCase)      slot=[gaCase,others[0]||null,others[1]||null,naCase];          // 2호수
-  else if(gaCase)         slot=[gaCase,others[0]||null,others[1]||null,others[2]||null];  // 1호수(가만 선택): 가=㉠, 나머지 ㉡㉢㉣
-  else                    slot=[shown[0]||null,shown[1]||null,shown[2]||null,shown[3]||null]; // 미선택: 입력순
-  const sjGa=ipjSjFields(gaCase||slot[0],ov), sjNa=ipjSjFields(naCase,ov);
+  // 거래사례 목록표는 앱 입력 순서 그대로 ㉠㉡㉢㉣ 표기. 선정사례 데이터는 선정가사례_/선정나사례_ 토큰(생성 시 표 안 사례1_/사례4_를 개명)으로 별도 주입
+  const slot=[shown[0]||null,shown[1]||null,shown[2]||null,shown[3]||null];
+  const gaCaseUse=gaCase||shown[0]||null;                                   // 가 미선택 시 첫 사례로 표기
+  const naCaseUse=naCase||((U.length>1&&shown.length>1)?shown[shown.length-1]:null);
+  const sjGa=ipjSjFields(gaCaseUse,ov), sjNa=ipjSjFields(naCaseUse,ov);
   const stripDot=s=>String(s||"").trim().replace(/\.$/,"");
   const m={};
   // 공통(표지·괄호)
@@ -1498,9 +1507,20 @@ function buildIpjMap(ov,cases){
     m[p+"전유"]=c?pStr(c.exclusiveArea):""; m[p+"거래금액"]=c?ipjMoney(pNum(c.price)):"";
     m[p+"단가"]=c?ipjMoney(pNum(c.unitPrice)):""; m[p+"거래시점"]=c?fmtDate(c.tradeDate):""; m[p+"승인일"]=c?fmtDate(c.approvalDate):"";
   }
-  // 의견서 — 선정 기호 (가는 항상 ㉠ 슬롯, 나는 ㉣ 슬롯에 배치되므로 고정. 1호수면 나 미표기)
-  m["선정_가_기호"]="㉠"; m["선정_나_기호"]="㉣";
-  m["선정_가_기호괄호"]="(㉠)"; m["선정_나_기호괄호"]="(㉣)"; m["선정_기호문구"]=naCase?"㉠, ㉣":"㉠";
+  // 의견서 — 선정 기호: 앱 입력 순서 기준 실제 기호 (예: ㉢ 선택 → 문서에도 ㉢)
+  const symOf=c=>{const i=shown.indexOf(c);return i>=0?(IPJ_CIRCLED[i]||""):"";};
+  const gaSym=symOf(gaCaseUse)||"㉠", naSym=symOf(naCaseUse)||"㉣";
+  m["선정_가_기호"]=gaSym; m["선정_나_기호"]=naSym;
+  m["선정_가_기호괄호"]="("+gaSym+")"; m["선정_나_기호괄호"]="("+naSym+")";
+  m["선정_기호문구"]=naCaseUse?(gaSym+", "+naSym):gaSym;
+  // 의견서 — 선정사례 데이터 (선정요약표·개별요인표·산정표용. 생성 시 해당 표의 사례1_/사례4_ 토큰이 이 이름으로 개명됨)
+  const selFill=(c,pre)=>{
+    m[pre+"법정동"]=c?(c.location||""):""; m[pre+"지번"]=c?(c.jibun||""):""; m[pre+"건물명"]=c?(c.aptName||""):"";
+    m[pre+"동층호"]=c?`${pStr(c.dong)}/${pStr(c.floor)}/${pStr(c.ho)}`:"";
+    m[pre+"전유"]=c?pStr(c.exclusiveArea):""; m[pre+"거래금액"]=c?ipjMoney(pNum(c.price)):"";
+    m[pre+"단가"]=c?ipjMoney(pNum(c.unitPrice)):""; m[pre+"거래시점"]=c?fmtDate(c.tradeDate):""; m[pre+"승인일"]=c?fmtDate(c.approvalDate):"";
+  };
+  selFill(gaCaseUse,"선정가사례_"); selFill(naCaseUse,"선정나사례_");
   // 의견서 — 시점수정
   m["시점_지역"]=ov.sijeomRegion||ov.sigungu||"";
   const sj=(sj,pre)=>{m[pre+"_거래월"]=sj.거래월;m[pre+"_거래지수"]=sj.거래지수;m[pre+"_기준월"]=sj.기준월;m[pre+"_기준지수"]=sj.기준지수;m[pre+"_상승률"]=sj.상승률;m[pre+"_시점수정치"]=sj.시점수정치;};
