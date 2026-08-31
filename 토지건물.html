@@ -169,7 +169,9 @@
           <div class="tw" style="margin-top:8px"><table id="landTbl"></table></div>
           <div class="row" style="margin-top:8px">
             <button class="btn gh sm" onclick="addLand()">+ 필지 추가</button>
+            <button class="btn gh sm" onclick="copyLandExcel()">📋 엑셀 복사</button>
             <span class="hint">여러 필지면 조회를 반복하면 행이 쌓입니다. 모든 칸은 클릭해서 수정 가능. 면적 합계: <b id="landSum">0</b> ㎡</span>
+            <span class="hint" id="landCopyMsg" style="margin-left:auto"></span>
           </div>
         </div>
 
@@ -661,6 +663,42 @@ function copyBldExcel(){
 }
 function bldRows(){var out=[];document.querySelectorAll('#bldBody tr').forEach(function(tr){
   var r={};BLD_COLS.forEach(function(k,i){r[k]=tr.children[i].querySelector('input').value;});out.push(r);});return out;}
+
+// 본건 토지 표를 엑셀로 그대로 복사 — 일련번호 + 토지 특성 + 면적 합계
+function copyLandExcel(){
+  var msg=document.getElementById('landCopyMsg');
+  var rows=LANDS.filter(function(L){return LAND_COLS.some(function(c){return String(L[c]||'').trim();});});
+  if(!rows.length){if(msg)msg.textContent='복사할 토지 정보가 없습니다.';return;}
+  var head=['일련번호'].concat(LAND_COLS.map(function(c){
+    return c==='면적'?'면적(㎡)':c==='공시지가'?'개별공시지가(원/㎡)':c;}));
+  var jimokCol=LAND_COLS.indexOf('지목')+1, areaCol=LAND_COLS.indexOf('면적')+1;   // 머리행 기준 열번호
+  var lines=[head.join('\t')];
+  var sum=0;
+  rows.forEach(function(L,i){
+    var cells=[String(i+1)];
+    LAND_COLS.forEach(function(c){
+      if(c==='면적'){var a=num(L['면적']);if(a)sum+=a;
+        cells.push((L['면적']==null||String(L['면적']).trim()==='')?'':a);}
+      else cells.push(String(L[c]||''));
+    });
+    lines.push(cells.join('\t'));
+  });
+  var sumFixed=Math.round(sum*10000)/10000;   // 부동소수점 잔여 제거
+  lines.push(head.map(function(_,idx){
+    return idx===jimokCol?'합계':(idx===areaCol?sumFixed:'');}).join('\t'));
+
+  var text=lines.join('\n');
+  function ok(){if(msg)msg.textContent='✅ 복사 완료 — 엑셀에서 Ctrl+V ('+rows.length+'행)';}
+  function fallback(e){
+    console.error('클립보드 복사 실패',e);
+    var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');ok();}
+    catch(e2){console.error('execCommand 실패',e2);if(msg)msg.textContent='복사 실패 — 표를 마우스로 긁어 복사하세요.';}
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok).catch(fallback);
+  else fallback(new Error('clipboard API 없음'));
+}
 
 function updatePeriod(){
   var g=document.getElementById('base_gongsi').value.trim(),j=document.getElementById('base_gijun').value.trim();

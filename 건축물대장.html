@@ -96,8 +96,8 @@
         </span>
       </h2>
       <div class="tw"><table id="tblFlr"></table></div>
-      <div class="note">「엑셀 복사」를 누르고 엑셀에서 <b>Ctrl+V</b> 하면 대지위치 + 층별현황이 그대로 붙습니다.
-        「층별만 복사」는 머리글+데이터만 복사합니다.</div>
+      <div class="note">「엑셀 복사」를 누르고 엑셀에서 <b>Ctrl+V</b> 하면 대지위치 + 사용승인일 + 층별현황이 그대로 붙습니다.
+        「층별만 복사」는 사용승인일 + 머리글 + 데이터를 복사합니다.</div>
       <div class="status" id="copyMsg"></div>
     </div>
   </div>
@@ -309,7 +309,11 @@ function gubun(f){
 }
 function renderFlr(){
   var list=curFlrs();
-  var h='<tr><th>구분</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>연면적(㎡)</th></tr>';
+  var t=STATE.titles[STATE.dongIdx]||{};
+  var useApr=dt(t.useAprDay)||'-';
+  var h='<tr><td colspan="4" style="border:none;background:#fff"></td>'+
+        '<th class="lbl">사용승인일</th><td class="hl">'+esc(useApr)+'</td></tr>'+
+        '<tr><th>구분</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>연면적(㎡)</th></tr>';
   var sum=0;
   list.forEach(function(f){
     var a=Number(f.area)||0;sum+=a;
@@ -330,8 +334,10 @@ function copyExcel(onlyTable){
   var lines=[];
   if(!onlyTable){
     lines.push(txt(t.platPlc)||STATE.addr);   // 1행: 대지위치
-    lines.push('');lines.push('');lines.push('');  // 2~4행 비움
+    lines.push('');                            // 2행: 비움
   }
+  // 사용승인일 행 — 오른쪽 2칸(용도·연면적 열)에 라벨·값
+  lines.push(['','','','','사용승인일',dt(t.useAprDay)||'-'].join('\t'));
   lines.push(['구분','층구분','층별','구조','용도','연면적(㎡)'].join('\t'));
   list.forEach(function(f){
     lines.push([gubun(f),txt(f.flrGbCdNm),txt(f.flrNoNm),
