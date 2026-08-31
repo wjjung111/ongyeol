@@ -10,63 +10,212 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>집합건물 시점수정 — 온결</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background:#f5f6f8; font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; color:#1e293b; }
-  #top { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center; padding:10px 16px; background:#0f172a; border-bottom:2px solid #334155; }
-  #top a.home { color:#cbd5e1; text-decoration:none; font-size:13px; font-weight:600; border:1px solid #475569; background:#1e293b; padding:6px 14px; border-radius:6px; }
-  #top a.home:hover { border-color:#2563eb; color:#fff; }
-  #top .title { color:#e2e8f0; font-weight:700; font-size:14px; }
-  .wrap { max-width:640px; margin:24px auto; padding:0 16px; }
-  .card { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:20px; box-shadow:0 1px 4px rgba(15,23,42,.06); }
-  .tabs { display:flex; gap:8px; margin-bottom:16px; }
-  .tabs button { flex:1; padding:10px; font-size:14px; font-weight:700; border-radius:8px; border:1px solid #cbd5e1; background:#f1f5f9; color:#64748b; cursor:pointer; font-family:inherit; }
-  .tabs button.on { background:#2563eb; border-color:#2563eb; color:#fff; }
-  label { display:block; font-size:12px; font-weight:700; color:#475569; margin:12px 0 4px; }
-  select, input[type=text] { width:100%; padding:9px 10px; font-size:14px; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; background:#fff; }
-  input:focus, select:focus { outline:2px solid #2563eb; outline-offset:-1px; background:#eff6ff; }
-  .row { display:flex; gap:10px; } .row > div { flex:1; }
-  .calc { width:100%; margin-top:18px; padding:12px; font-size:15px; font-weight:700; color:#fff; background:#2563eb; border:none; border-radius:8px; cursor:pointer; font-family:inherit; }
-  .calc:hover { background:#1d4ed8; }
-  .calc:disabled { background:#cbd5e1; cursor:default; }
-  .err { margin-top:12px; padding:10px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#dc2626; font-size:13px; font-weight:600; display:none; }
-  #out { margin-top:16px; display:none; }
-  .big { text-align:center; padding:14px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; margin-bottom:10px; }
-  .big .num { font-size:30px; font-weight:800; color:#1d4ed8; letter-spacing:1px; }
-  .big .cap { font-size:12px; color:#64748b; margin-top:2px; }
-  textarea { width:100%; height:190px; padding:10px; font-size:13px; line-height:1.6; border:1px solid #cbd5e1; border-radius:6px; font-family:inherit; resize:vertical; }
-  .copy { width:100%; margin-top:8px; padding:10px; font-size:14px; font-weight:700; background:#0f172a; color:#e2e8f0; border:none; border-radius:8px; cursor:pointer; font-family:inherit; }
-  .copy:hover { background:#1e293b; }
-  .meta { margin-top:14px; font-size:11px; color:#94a3b8; text-align:center; line-height:1.6; }
+  :root{
+    color-scheme: light;
+    --bg:#f2f3f5;
+    --surface:#ffffff;
+    --ink:#1b2330;
+    --ink-2:#3d4655;
+    --muted:#626b78;
+    --faint:#9aa2ae;
+    --line:#e4e7ec;
+    --line-strong:#d3d8df;
+    --bar:#182231;
+    --accent:#2c5a8c;
+    --accent-strong:#234c7a;
+    --accent-ink:#22497a;
+    --danger:#b42318;
+    --danger-bg:#fdf2f1;
+    --danger-line:#f1c9c4;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Pretendard Variable','Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+
+  /* ── App bar ─────────────────────────────────────────── */
+  .appbar{position:sticky; top:0; z-index:20; background:var(--bar); border-bottom:1px solid #2a3242;}
+  .appbar-inner{max-width:1060px; margin:0 auto; height:50px; display:flex; align-items:center; justify-content:space-between; padding:0 20px;}
+  .appbar-left{display:flex; align-items:center; gap:14px; min-width:0;}
+  .appbar-title{font-size:14px; font-weight:600; color:#e6e9ef; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .appbar-brand{font-size:12px; color:#7c8494; letter-spacing:.02em; flex:none;}
+
+  /* ── Page ────────────────────────────────────────────── */
+  .page{max-width:1060px; margin:0 auto; padding:0 20px 48px;}
+  .page-head{margin:26px 0 18px;}
+  .page-head h1{font-size:21px; font-weight:700; color:var(--ink); letter-spacing:-.01em; text-wrap:balance;}
+  .lede{margin-top:7px; font-size:13.5px; color:var(--muted); line-height:1.6; max-width:62ch;}
+
+  /* ── Workspace: input | result ───────────────────────── */
+  .workspace{display:grid; grid-template-columns:minmax(0,400px) 1fr; background:var(--surface); border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .panel{padding:22px 24px;}
+  .panel-input{border-right:1px solid var(--line);}
+  .panel-head{font-size:11px; font-weight:700; letter-spacing:.09em; color:var(--faint); padding-bottom:11px; border-bottom:1px solid var(--line); margin-bottom:18px;}
+
+  /* segmented control */
+  .segmented{display:inline-flex; padding:3px; background:#eceef2; border:1px solid #e0e3e9; border-radius:5px; gap:2px;}
+  .seg{appearance:none; border:1px solid transparent; background:transparent; padding:6px 17px; font:inherit; font-size:13px; font-weight:600; color:var(--muted); border-radius:3px; cursor:pointer; line-height:1.2; transition:color .12s, background .12s, border-color .12s;}
+  .seg:hover{color:var(--ink-2);}
+  .seg.on{background:var(--surface); border-color:#d9dde4; color:var(--ink);}
+  .seg-note{margin-top:10px; font-size:12px; color:var(--muted);}
+
+  /* fields */
+  .fields{margin-top:20px;}
+  .field-pair{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .field-pair + .field-pair{margin-top:14px;}
+  .field label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:6px; letter-spacing:.005em;}
+  select, input[type=text]{width:100%; height:40px; padding:0 11px; font:inherit; font-size:14px; color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:4px; transition:border-color .12s, box-shadow .12s;}
+  select{cursor:pointer;}
+  input::placeholder{color:#b3b9c2;}
+  input:focus, select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(44,90,140,.13);}
+  .field-hint{margin-top:11px; font-size:11.5px; color:var(--faint); line-height:1.5;}
+
+  /* action */
+  .actions{display:flex; justify-content:flex-end; margin-top:22px;}
+  .btn-primary{height:40px; padding:0 22px; font:inherit; font-size:14px; font-weight:600; color:#fff; background:var(--accent); border:1px solid var(--accent); border-radius:4px; cursor:pointer; transition:background .12s, border-color .12s;}
+  .btn-primary:hover{background:var(--accent-strong); border-color:var(--accent-strong);}
+  .btn-primary:disabled{background:var(--line-strong); border-color:var(--line-strong); cursor:default;}
+
+  /* error */
+  .err{display:none; margin-top:16px; padding:10px 12px; font-size:12.5px; font-weight:500; color:var(--danger); background:var(--danger-bg); border:1px solid var(--danger-line); border-left:3px solid var(--danger); border-radius:4px; line-height:1.5;}
+
+  /* ── Result pane ─────────────────────────────────────── */
+  #out{display:none;}
+  .figure{padding-bottom:17px; border-bottom:1px solid var(--line);}
+  .figure-label{font-size:12px; font-weight:600; color:var(--muted);}
+  .figure-num{font-size:34px; font-weight:700; color:var(--accent-ink); letter-spacing:.005em; font-variant-numeric:tabular-nums; line-height:1.1; margin-top:7px;}
+  .figure-cap{font-size:11.5px; color:var(--faint); margin-top:5px;}
+
+  .formula{margin-top:17px;}
+  .formula-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;}
+  .formula-label{font-size:12px; font-weight:600; color:var(--muted);}
+  .formula-text{width:100%; min-height:170px; padding:12px 13px; font:inherit; font-size:13px; line-height:1.75; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:4px; resize:vertical; font-variant-numeric:tabular-nums; white-space:pre-wrap; word-break:break-word;}
+  .formula-text:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(44,90,140,.13);}
+
+  .btn-ghost{height:30px; padding:0 13px; font:inherit; font-size:12.5px; font-weight:600; color:var(--ink-2); background:var(--surface); border:1px solid var(--line-strong); border-radius:4px; cursor:pointer; transition:background .12s, border-color .12s, color .12s;}
+  .btn-ghost:hover{background:var(--bg); border-color:#c4c9d1;}
+
+  .empty{display:block; padding:26px 2px 8px; font-size:13px; color:var(--faint); line-height:1.65; max-width:36ch;}
+
+  /* ── Data status row ─────────────────────────────────── */
+  .datarow{display:flex; align-items:baseline; gap:12px; margin-top:16px; padding:13px 2px 2px; border-top:1px solid var(--line); flex-wrap:wrap;}
+  .datarow-label{font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--faint); flex:none;}
+  .datarow-meta{font-size:12px; color:var(--muted); line-height:1.65; font-variant-numeric:tabular-nums;}
+
+  /* focus-visible for keyboard */
+  .seg:focus-visible, .btn-primary:focus-visible, .btn-ghost:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  /* ── Responsive ──────────────────────────────────────── */
+  @media (max-width:840px){
+    .workspace{grid-template-columns:1fr;}
+    .panel-input{border-right:0; border-bottom:1px solid var(--line);}
+  }
+  @media (max-width:560px){
+    .appbar-brand{display:none;}
+  }
+  @media (max-width:400px){
+    .field-pair{grid-template-columns:1fr;}
+    .segmented{display:flex;}
+    .seg{flex:1; text-align:center;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important;}
+  }
 </style>
 </head>
 <body>
-<div id="top">
-  <a class="home" href="index.html">🏠 홈으로</a>
-  <span class="title">📈 집합건물 시점수정</span>
-</div>
-<div class="wrap"><div class="card">
-  <div class="tabs">
-    <button id="tab-res" class="on" type="button">주거용 (매매가격지수)</button>
-    <button id="tab-nr" type="button">비주거용 (자본수익률)</button>
+<header class="appbar">
+  <div class="appbar-inner">
+    <div class="appbar-left">
+      <span class="appbar-title">집합건물 시점수정</span>
+    </div>
+    <span class="appbar-brand">온결 · 감정평가 자동화</span>
   </div>
-  <div class="row">
-    <div><label>유형</label><select id="kind"></select></div>
-    <div><label>지역</label><select id="region"></select></div>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1>시점수정 계산</h1>
+    <p class="lede">한국부동산원 지수를 기준으로 거래시점에서 기준시점까지의 시점수정치를 산정합니다.</p>
   </div>
-  <div class="row">
-    <div><label>거래시점 (사례)</label><input type="text" id="tradeDate" placeholder="예: 2025.10.18"></div>
-    <div><label>기준시점</label><input type="text" id="baseDate" placeholder="예: 2026.07.30"></div>
+
+  <section class="workspace">
+    <!-- 입력 -->
+    <div class="panel panel-input">
+      <div class="panel-head">입력</div>
+
+      <div class="segmented" role="group" aria-label="평가 대상 구분">
+        <button id="tab-res" class="seg on" type="button">주거용</button>
+        <button id="tab-nr" class="seg" type="button">비주거용</button>
+      </div>
+      <p class="seg-note" id="segNote">산정 기준 · 매매가격지수 (한국부동산원)</p>
+
+      <div class="fields">
+        <div class="field-pair">
+          <div class="field">
+            <label for="kind">유형</label>
+            <select id="kind"></select>
+          </div>
+          <div class="field">
+            <label for="region">지역</label>
+            <select id="region"></select>
+          </div>
+        </div>
+        <div class="field-pair">
+          <div class="field">
+            <label for="tradeDate">거래시점 (사례)</label>
+            <input type="text" id="tradeDate" placeholder="YYYY.MM.DD">
+          </div>
+          <div class="field">
+            <label for="baseDate">기준시점</label>
+            <input type="text" id="baseDate" placeholder="YYYY.MM.DD">
+          </div>
+        </div>
+        <p class="field-hint">날짜 형식 · YYYY.MM.DD</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="btn-calc" type="button">시점수정치 계산</button>
+      </div>
+
+      <div class="err" id="err"></div>
+    </div>
+
+    <!-- 결과 -->
+    <div class="panel panel-result">
+      <div class="panel-head">결과</div>
+
+      <div class="result" id="out">
+        <div class="figure">
+          <div class="figure-label">시점수정치</div>
+          <div class="figure-num" id="adjNum"></div>
+          <div class="figure-cap">여섯째 자리에서 반올림</div>
+        </div>
+        <div class="formula">
+          <div class="formula-head">
+            <span class="formula-label">산식</span>
+            <button class="btn-ghost" id="btn-copy" type="button">산식 복사</button>
+          </div>
+          <textarea class="formula-text" id="resultText" readonly></textarea>
+        </div>
+      </div>
+
+      <div class="empty" id="empty">유형·지역과 거래·기준시점을 입력한 뒤 [시점수정치 계산]을 누르면 결과가 표시됩니다.</div>
+    </div>
+  </section>
+
+  <div class="datarow">
+    <span class="datarow-label">데이터 기준</span>
+    <span class="datarow-meta" id="meta"></span>
   </div>
-  <button class="calc" id="btn-calc" type="button">시점수정치 계산</button>
-  <div class="err" id="err"></div>
-  <div id="out">
-    <div class="big"><div class="num" id="adjNum"></div><div class="cap">시점수정치 (여섯째 자리 반올림)</div></div>
-    <textarea id="resultText" readonly></textarea>
-    <button class="copy" id="btn-copy" type="button">📋 산식 복사 (집합건물 앱에 붙여넣기)</button>
-  </div>
-  <div class="meta" id="meta"></div>
-</div></div>
+</main>
 
 <script src="arap_index_data.js"></script>
 <script>
@@ -186,10 +335,11 @@ function refreshSelectors(){
 }
 function updateMeta(){
   const D=idxData(),C=capData();
+  const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)";
   if(mode==="res"){const tbl=D&&D.tables[$("kind").value];
-    $("meta").textContent=tbl?`한국부동산원 매매가격지수 · ${idxYmDisp(tbl.latest)} 공표분까지 (${D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"⚠️ 지수 데이터 없음 — main에 arap_index_data.js가 매일 자동 갱신됩니다";}
+    $("meta").textContent=tbl?`한국부동산원 매매가격지수 · ${idxYmDisp(tbl.latest)} 공표분까지 (${D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"지수 데이터 없음 — main에 arap_index_data.js가 매일 자동 갱신됩니다";}
   else{const l=C&&C.types[$("kind").value]?C.types[$("kind").value].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);
-    $("meta").textContent=C?`상업용부동산 임대동향조사 자본수익률 · ${m?`${m[1]}.${m[2]}분기`:"-"} 공표분까지 (${C.fetchedAt||idxData().fetchedAt} 수신) · 첫/끝 분기 일수비례, 중간분기 복리`:"⚠️ 자본수익률 데이터 없음";}
+    $("meta").textContent=C?`상업용부동산 임대동향조사 자본수익률 · ${m?`${m[1]}.${m[2]}분기`:"-"} 공표분까지 (${C.fetchedAt||idxData().fetchedAt} 수신) · 첫/끝 분기 일수비례, 중간분기 복리`:"자본수익률 데이터 없음";}
 }
 $("tab-res").onclick=()=>{mode="res";$("tab-res").classList.add("on");$("tab-nr").classList.remove("on");refreshSelectors();};
 $("tab-nr").onclick=()=>{mode="nr";$("tab-nr").classList.add("on");$("tab-res").classList.remove("on");refreshSelectors();};
@@ -198,15 +348,15 @@ $("kind").onchange=()=>{lsSet(LS_KIND[mode],$("kind").value);
 $("region").onchange=()=>lsSet(LS_REG[mode],$("region").value);
 $("btn-calc").onclick=()=>{
   const r=(mode==="res"?buildSjIdxText:buildNrCapText)($("kind").value,$("region").value,$("tradeDate").value,$("baseDate").value);
-  if(r.err){$("err").textContent="⚠️ "+r.err;$("err").style.display="block";$("out").style.display="none";return;}
-  $("err").style.display="none";$("out").style.display="block";
+  if(r.err){$("err").textContent=r.err;$("err").style.display="block";$("out").style.display="none";$("empty").style.display="block";return;}
+  $("err").style.display="none";$("out").style.display="block";$("empty").style.display="none";
   $("adjNum").textContent=r.adj.toFixed(5);$("resultText").value=r.text;
 };
 $("btn-copy").onclick=async()=>{
   const t=$("resultText").value;
   try{await navigator.clipboard.writeText(t);}
   catch(e){console.error('clipboard',e);$("resultText").select();document.execCommand("copy");}
-  $("btn-copy").textContent="✅ 복사됨!";setTimeout(()=>{$("btn-copy").textContent="📋 산식 복사 (집합건물 앱에 붙여넣기)";},1500);
+  $("btn-copy").textContent="복사됨";setTimeout(()=>{$("btn-copy").textContent="산식 복사";},1500);
 };
 // 기준시점 기본값 = 오늘
 (()=>{const d=new Date();$("baseDate").value=`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;})();
