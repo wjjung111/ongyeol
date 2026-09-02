@@ -88,6 +88,48 @@
   .pst.ok{color:#166534;font-weight:600;} .pst.err{color:#dc2626;font-weight:600;}
   .fnote{font-size:11px;color:#475569;margin:5px 0 3px;}
   .del{color:#dc2626;cursor:pointer;font-weight:700;}
+  /* 건 관리 바 (집합건물과 동일 UX) */
+  .casebar{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:7px 11px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;}
+  .casebar-left,.casebar-right{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .casebar .btn.gh.on{background:#94a3b8;color:#fff;border-color:#94a3b8;}
+  .casebar-status{font-size:11px;font-weight:600;}
+  .casebar-status .warn,.casebar-status .ing{color:#f59e0b;}
+  .casebar-status .ok{color:#059669;} .casebar-status .err{color:#dc2626;}
+  .ctag{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:700;}
+  .ctag.alt{background:#ecfdf5;color:#065f46;border-color:#a7f3d0;}
+  .caselist{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:10px;margin-bottom:8px;max-height:300px;overflow-y:auto;}
+  .caselist-empty{color:#999;font-size:12px;text-align:center;padding:14px;}
+  .caselist-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+  .caselist-tbl th{background:#f0f2f5;font-size:11px;font-weight:600;color:#1a2744;padding:5px 7px;border:1px solid #e2e5ea;white-space:nowrap;}
+  .caselist-tbl td{padding:5px 7px;border:1px solid #e2e5ea;text-align:center;}
+  .caselist-tbl td.l{text-align:left;} .caselist-tbl td.cid{font-weight:700;color:#2563eb;}
+  .caselist-tbl tr.cur{background:#eff6ff;}
+  .caselist-tbl .del-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+  .caselist-tbl .del-btn:hover{background:#fee2e2;}
+  /* 우측 메모장 (집합건물과 동일) */
+  #mainShell{grid-template-columns:186px minmax(0,1fr) 300px;}
+  #mainShell.memo-collapsed{grid-template-columns:186px minmax(0,1fr) 30px;}
+  .memo{position:sticky;top:52px;background:#fafbfc;border:1px solid #e2e5ea;border-radius:6px;max-height:calc(100vh - 64px);overflow-y:auto;font-size:12px;}
+  .memo-head{display:flex;justify-content:space-between;align-items:center;padding:10px 10px 6px;}
+  .memo-title{font-weight:700;font-size:13px;color:#1a2744;}
+  .memo-toggle{cursor:pointer;font-size:10px;color:#94a3b8;}
+  .memo-body{padding:0 10px 12px;}
+  .memo-hint{margin-bottom:8px;font-size:10px;color:#888;}
+  .memo-body textarea{width:100%;border:1px solid #e2e5ea;border-radius:4px;padding:6px;font-size:12px;resize:vertical;min-height:50px;outline:none;font-family:inherit;margin-bottom:4px;}
+  .memo-body .btn{width:100%;padding:6px 0;font-size:11px;}
+  .memo-item{background:#fff;border:1px solid #e2e5ea;border-radius:4px;padding:8px;margin-top:6px;}
+  .memo-item .mi-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .memo-item .mi-time{font-size:10px;color:#999;}
+  .memo-item .mi-del{cursor:pointer;color:#dc2626;font-size:10px;font-weight:700;}
+  .memo-item .mi-text{font-size:12px;white-space:pre-wrap;word-break:break-all;}
+  .memo-item img{width:100%;border-radius:3px;cursor:pointer;}
+  .memo-collapsed-bar{display:none;}
+  .memo.collapsed .memo-head,.memo.collapsed .memo-body{display:none;}
+  .memo.collapsed .memo-collapsed-bar{display:flex;align-items:flex-start;justify-content:center;padding-top:12px;cursor:pointer;min-height:120px;}
+  .memo.collapsed .memo-collapsed-bar span{color:#666;font-size:11px;writing-mode:vertical-rl;letter-spacing:2px;}
+  #memoViewer{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:99999;cursor:pointer;}
+  #memoViewer[hidden]{display:none;}
+  #memoViewer img{max-width:90vw;max-height:90vh;border-radius:8px;}
   #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
 </style>
@@ -100,7 +142,7 @@
   <span class="mb-tag">개발중 v0.2</span>
 </div>
 
-<div class="shell">
+<div class="shell" id="mainShell">
   <!-- 좌측 요약 사이드바 -->
   <div class="side">
     <h3>접수번호</h3><div class="v" id="sd_caseNo">-</div>
@@ -117,6 +159,20 @@
   </div>
 
   <div>
+    <!-- 건 관리 바 (집합건물과 동일 UX) -->
+    <div class="casebar">
+      <div class="casebar-left">
+        <button class="btn sm" onclick="newCase()">+ 새 평가서</button>
+        <button class="btn gh sm" id="btnCaseList" onclick="toggleCaseList()">📂 저장된 건 (0)</button>
+        <span id="caseStatus" class="casebar-status"></span>
+      </div>
+      <div class="casebar-right">
+        <span id="caseTag" class="ctag" hidden></span>
+        <span class="ctag alt">필지 <b id="caseLandCnt">0</b></span>
+      </div>
+    </div>
+    <div id="caseListPanel" class="caselist" hidden></div>
+
     <div class="tabs">
       <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">대상물건</button>
       <button id="tabbtn-gongsi" onclick="showTab('gongsi')">공시지가기준법</button>
@@ -137,9 +193,9 @@
           <span class="fld"><label>접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
           <span class="fld"><label>의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
           <span class="fld"><label>의뢰일</label><input type="text" id="ov_orderDay" placeholder="20250925"></span>
-          <span class="fld"><label>평가목적</label><input type="text" id="ov_purpose" placeholder="일반거래(시가참고)"></span>
-          <span class="fld"><label>제출처</label><input type="text" id="ov_submit" placeholder="국세청 및 관할세무서"></span>
-          <span class="fld"><label>평가구분</label><input type="text" id="ov_kind" placeholder="상속"></span>
+          <span class="fld"><label>평가목적</label><input type="text" id="ov_purpose" value="일반거래(시가참고)" placeholder="일반거래(시가참고)"></span>
+          <span class="fld"><label>제출처</label><input type="text" id="ov_submit" value="국세청 및 관할세무서" placeholder="국세청 및 관할세무서"></span>
+          <span class="fld"><label>평가구분</label><input type="text" id="ov_kind" value="상속(증여)" placeholder="상속(증여)"></span>
           <span class="fld"><label>기준시점</label><input type="text" id="base_gijun" placeholder="2025.09.25"></span>
           <span class="fld"><label>기준시점근거</label>
             <select id="ov_gijunBasis">
@@ -243,7 +299,7 @@
               <table>
                 <thead><tr><th>기간</th><th>대상지역</th><th>용도지역</th><th>지가변동률(%)</th><th>시점수정치</th></tr></thead>
                 <tbody><tr>
-                  <td><input type="text" id="jb_period" readonly></td>
+                  <td style="min-width:170px"><input type="text" id="jb_period" readonly style="width:100%;min-width:162px"></td>
                   <td><input type="text" id="jb_region" placeholder="경기도 안양동안구"></td>
                   <td><input type="text" id="jb_use" placeholder="주거지역"></td>
                   <td><input type="text" id="jb_rate" placeholder="1.944" oninput="calcSijeom()"></td>
@@ -442,7 +498,24 @@
     </div>
 
   </div>
+
+    <!-- 우측 메모장 (집합건물과 동일) -->
+    <div class="memo" id="memoPanel">
+      <div class="memo-head">
+        <span class="memo-title">📝 메모장</span>
+        <span class="memo-toggle" onclick="toggleMemo()">접기 ▶</span>
+      </div>
+      <div class="memo-body">
+        <div class="memo-hint">이미지: Ctrl+V로 붙여넣기</div>
+        <textarea id="memoInput" placeholder="텍스트 입력 후 Enter / 이미지 Ctrl+V"></textarea>
+        <button class="btn" onclick="addMemoText()">+ 메모 추가</button>
+        <div id="memoList"></div>
+      </div>
+      <div class="memo-collapsed-bar" onclick="toggleMemo()"><span>◀ 메모</span></div>
+    </div>
 </div>
+
+<div id="memoViewer" hidden onclick="this.hidden=true"><img alt="메모 이미지"></div>
 
 <!-- 수동붙여넣기 폴백 (API 자동호출 차단 시) -->
 <div class="shell" style="margin-top:0">
@@ -1328,10 +1401,12 @@ function collect(){
   return o;
 }
 var saveTimer=null;
-function saveForm(){clearTimeout(saveTimer);saveTimer=setTimeout(function(){
-  try{localStorage.setItem(FORM_STORAGE,JSON.stringify(collect()));}catch(e){console.error('form save',e);}},400);}
-function restore(){
-  var o=null;try{o=JSON.parse(localStorage.getItem(FORM_STORAGE)||'null');}catch(e){}
+function saveForm(){clearTimeout(saveTimer);
+  if(document.getElementById('ov_caseNo').value.trim()){saveStatus='⏳';renderCaseBar();}
+  saveTimer=setTimeout(function(){
+    try{var o=collect();localStorage.setItem(FORM_STORAGE,JSON.stringify(o));saveCurrentCase(o);}
+    catch(e){console.error('form save',e);}},400);}
+function applyForm(o){
   if(!o)return false;
   if(o.base){document.getElementById('base_gongsi').value=o.base.gongsi||'';document.getElementById('base_gijun').value=o.base.gijun||'';document.getElementById('base_josa').value=o.base.josa||'';}
   if(o.ov)OV_IDS.forEach(function(id){if(o.ov[id]!=null)document.getElementById(id).value=o.ov[id];});
@@ -1339,6 +1414,7 @@ function restore(){
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
   STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
   renderStds();renderLands();
+  document.getElementById('bldBody').innerHTML='';   // 재로드 시 기존 층 행 제거(중복 방지)
   (o.bld&&o.bld.length?o.bld:[{},{}]).forEach(addBldRow);
   if(o.jb){['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value=(o.jb[k]||'');});}
   if(o.gongsi)GONGSI_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.gongsi[id]!=null)el.value=o.gongsi[id];});
@@ -1349,17 +1425,178 @@ function restore(){
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
   return true;
 }
+function restore(){
+  var o=null;try{o=JSON.parse(localStorage.getItem(FORM_STORAGE)||'null');}catch(e){}
+  return applyForm(o);
+}
+
+// 감정평가 개요 기본값 — 비어 있는 칸만 채운다(평가사가 자유 수정, 다른 값이면 그대로 유지)
+var OV_DEFAULTS={ov_purpose:'일반거래(시가참고)',ov_submit:'국세청 및 관할세무서',ov_kind:'상속(증여)',ov_value:'시장가치'};
+function applyOvDefaults(){Object.keys(OV_DEFAULTS).forEach(function(id){
+  var el=document.getElementById(id);if(el&&!el.value.trim())el.value=OV_DEFAULTS[id];});}
+// 날짜 칸 자동 인식 — 8자리 숫자(YYYYMMDD)면 YYYY.MM.DD로 바꿔줌 (그 외 형식은 그대로)
+function fmtDateField(el){var v=(el.value||'').trim();
+  if(/^\d{8}$/.test(v))el.value=v.slice(0,4)+'.'+v.slice(4,6)+'.'+v.slice(6,8);}
+
+// ================= 건 관리 (저장된 평가서 목록) — 집합건물과 동일 UX =================
+// 저장키는 추가만 (기존 tojigeonmul-v0.2 작업저장은 그대로 유지 — 절대 개명 금지)
+var LAND_LIST_KEY='tojigeonmul-list';
+function landCaseKey(id){return 'tojigeonmul-case:'+id;}
+var caseList=[],currentId=null,showCaseList=false,saveStatus='';
+function getLandList(){try{return JSON.parse(localStorage.getItem(LAND_LIST_KEY)||'[]')||[];}catch(e){return [];}}
+function setLandList(list){try{localStorage.setItem(LAND_LIST_KEY,JSON.stringify(list));}catch(e){console.error('list save',e);}}
+function eh(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+function jsq(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+
+// 현재 폼을 '건'으로 저장 (접수번호가 ID). 접수번호 없으면 저장 안 함.
+function saveCurrentCase(o){
+  var id=document.getElementById('ov_caseNo').value.trim();
+  if(!id){currentId=null;saveStatus='';renderCaseBar();return;}
+  try{
+    localStorage.setItem(landCaseKey(id),JSON.stringify(o||collect()));
+    var L0=LANDS[0]||{};
+    var label=(id+' '+((L0['소재지']||'')+' '+(L0['지번']||'')).trim()).trim();
+    var list=getLandList().filter(function(c){return c.id!==id;});
+    list.unshift({id:id,label:label,updated:new Date().toISOString()});
+    setLandList(list);caseList=list;
+    currentId=id;saveStatus='✅';
+  }catch(e){saveStatus='❌';console.error('case save',e);}
+  renderCaseBar();
+}
+
+// 폼 전체 비우기 (새 평가서용)
+function clearForm(){
+  ['base_gongsi','base_gijun','base_josa'].forEach(function(id){document.getElementById(id).value='';});
+  OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
+  BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  LANDS=[{}];STDS=[{}];renderStds();renderLands();
+  document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});
+  ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
+  GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var pa=document.getElementById('gj_pickA'),pb=document.getElementById('gj_pickB');if(pa)pa.checked=true;if(pb)pb.checked=false;
+  TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
+}
+function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();}
+
+function newCase(){
+  clearForm();applyOvDefaults();
+  TRADES=[{},{},{}];   // 새 평가서는 거래사례 빈 열 3개로 시작
+  currentId=null;saveStatus='';
+  try{localStorage.removeItem(FORM_STORAGE);}catch(e){}
+  showCaseList=false;document.getElementById('caseListPanel').hidden=true;
+  refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);
+}
+function loadCase(id){
+  var raw=null;try{raw=localStorage.getItem(landCaseKey(id));}catch(e){}
+  if(!raw){alert('불러오기 실패 — 저장 데이터가 없습니다.');return;}
+  var o=null;try{o=JSON.parse(raw);}catch(e){}
+  if(!o){alert('불러오기 실패 — 데이터가 손상되었습니다.');return;}
+  clearForm();applyForm(o);applyOvDefaults();
+  currentId=id;saveStatus='✅';
+  try{localStorage.setItem(FORM_STORAGE,raw);}catch(e){}
+  showCaseList=false;document.getElementById('caseListPanel').hidden=true;
+  refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);
+}
+function deleteCase(id){
+  if(!confirm(id+' 건을 삭제할까요?'))return;
+  try{localStorage.removeItem(landCaseKey(id));}catch(e){}
+  caseList=getLandList().filter(function(c){return c.id!==id;});
+  setLandList(caseList);
+  if(currentId===id)newCase();
+  else{renderCaseBar();renderCaseListPanel();}
+}
+function toggleCaseList(){
+  showCaseList=!showCaseList;
+  document.getElementById('caseListPanel').hidden=!showCaseList;
+  if(showCaseList)renderCaseListPanel();
+  renderCaseBar();
+}
+function renderCaseBar(){
+  var id=document.getElementById('ov_caseNo').value.trim();
+  var btn=document.getElementById('btnCaseList');
+  if(btn){btn.textContent='📂 저장된 건 ('+caseList.length+')';btn.classList.toggle('on',showCaseList);}
+  var st=document.getElementById('caseStatus');
+  if(st){
+    if(!id)st.innerHTML='<span class="warn">⚠️ 접수번호 입력 시 자동저장</span>';
+    else if(saveStatus==='⏳')st.innerHTML='<span class="ing">⏳ '+eh(id)+' 저장중…</span>';
+    else if(saveStatus==='✅')st.innerHTML='<span class="ok">💾 '+eh(id)+' 저장완료</span>';
+    else if(saveStatus==='❌')st.innerHTML='<span class="err">❌ 저장 실패</span>';
+    else st.innerHTML='';
+  }
+  var tag=document.getElementById('caseTag');
+  if(tag){if(id){tag.textContent=id+(id.indexOf('SAMPLE-')===0?' (샘플)':'');tag.hidden=false;}else tag.hidden=true;}
+  var lc=document.getElementById('caseLandCnt');if(lc)lc.textContent=LANDS.length;
+}
+function renderCaseListPanel(){
+  var p=document.getElementById('caseListPanel');
+  if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.</div>';return;}
+  var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th style="width:112px">작업</th></tr></thead><tbody>';
+  caseList.forEach(function(c){
+    var when='-';try{var d=new Date(c.updated);when=d.toLocaleDateString('ko-KR')+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}catch(e){}
+    var obj=(c.label||'').replace(c.id,'').trim()||'-';
+    h+='<tr'+(c.id===currentId?' class="cur"':'')+'>'+
+       '<td class="cid">'+eh(c.id)+(String(c.id).indexOf('SAMPLE-')===0?' (샘플)':'')+'</td>'+
+       '<td class="l">'+eh(obj)+'</td><td>'+eh(when)+'</td>'+
+       '<td><button class="btn sm" onclick="loadCase(\''+jsq(c.id)+'\')">열기</button> '+
+       '<button class="btn sm del-btn" onclick="deleteCase(\''+jsq(c.id)+'\')">삭제</button></td></tr>';
+  });
+  p.innerHTML=h+'</tbody></table>';
+}
+
+// ================= 우측 메모장 (집합건물과 동일 UX, 접수번호별 저장) =================
+var MEMO_PREFIX='tojigeonmul-memo:', MEMO_COLLAPSE_KEY='tojigeonmul-memo-collapsed';
+function memoKey(){return MEMO_PREFIX+(document.getElementById('ov_caseNo').value.trim()||'_temp');}
+function getMemos(){try{return JSON.parse(localStorage.getItem(memoKey())||'[]')||[];}catch(e){return [];}}
+function setMemos(list){try{localStorage.setItem(memoKey(),JSON.stringify(list));}catch(e){console.warn('memo save',e);}}
+function addMemoText(){var ta=document.getElementById('memoInput'),t=ta.value;if(!t.trim())return;
+  var l=getMemos();l.unshift({id:Date.now(),type:'text',content:t,time:new Date().toLocaleString('ko-KR')});setMemos(l);ta.value='';renderMemos();}
+function addMemoImage(url){var l=getMemos();l.unshift({id:Date.now(),type:'image',content:url,time:new Date().toLocaleString('ko-KR')});setMemos(l);renderMemos();}
+function delMemo(id){setMemos(getMemos().filter(function(n){return n.id!==id;}));renderMemos();}
+function memoPaste(e){var items=(e.clipboardData||{}).items;if(!items)return;
+  for(var i=0;i<items.length;i++){var it=items[i];
+    if(it.type&&it.type.indexOf('image/')===0){e.preventDefault();var f=it.getAsFile();var r=new FileReader();
+      r.onload=function(ev){addMemoImage(ev.target.result);};r.readAsDataURL(f);return;}}}
+function memoView(src){var v=document.getElementById('memoViewer');v.querySelector('img').src=src;v.hidden=false;}
+function renderMemos(){var box=document.getElementById('memoList');if(!box)return;
+  box.innerHTML=getMemos().map(function(n){
+    var body=n.type==='image'?'<img src="'+eh(n.content)+'" onclick="memoView(this.src)">':'<div class="mi-text">'+eh(n.content)+'</div>';
+    return '<div class="memo-item"><div class="mi-head"><span class="mi-time">'+eh(n.time)+'</span>'+
+      '<span class="mi-del" onclick="delMemo('+n.id+')">✕</span></div>'+body+'</div>';}).join('');}
+function toggleMemo(){var p=document.getElementById('memoPanel'),s=document.getElementById('mainShell');
+  var col=!p.classList.contains('collapsed');p.classList.toggle('collapsed',col);s.classList.toggle('memo-collapsed',col);
+  try{localStorage.setItem(MEMO_COLLAPSE_KEY,col?'1':'');}catch(e){}}
+function initMemo(){
+  var col=false;try{col=localStorage.getItem(MEMO_COLLAPSE_KEY)==='1';}catch(e){}
+  if(col){document.getElementById('memoPanel').classList.add('collapsed');document.getElementById('mainShell').classList.add('memo-collapsed');}
+  var ta=document.getElementById('memoInput');
+  ta.addEventListener('paste',memoPaste);
+  ta.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addMemoText();}});
+  document.getElementById('ov_caseNo').addEventListener('input',renderMemos);
+  renderMemos();}
 
 // ================= 초기화 =================
 ['base_gongsi','base_gijun'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){updatePeriod();saveForm();});});
 ['base_josa'].concat(OV_IDS).concat(BT_IDS).concat(GJ_IDS).concat(FN_IDS).forEach(function(id){
-  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){saveForm();sd();});});
+  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){saveForm();sd();renderCaseBar();});});
 GONGSI_IDS.concat(GEORAE_IDS).forEach(function(id){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',saveForm);});
 if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});}
+applyOvDefaults();
+// 저장된 건 목록 로드 + 현재 작업건(접수번호) 목록 편입
+caseList=getLandList();
+(function(){var id=document.getElementById('ov_caseNo').value.trim();
+  if(id){currentId=id;saveStatus='✅';
+    if(!caseList.some(function(c){return c.id===id;}))saveCurrentCase();}})();
+renderCaseBar();
+if(!TRADES.length)TRADES=[{},{},{}];   // 거래사례 빈 열 3개 기본
 updatePeriod();sumBld();renderTrade();renderAppr();syncPick();
 document.getElementById('btnAddBld').onclick=function(){addBldRow({});saveForm();};
 document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx 생성은 다음 단계에서 연결됩니다.');};
+// 날짜 칸: 8자리(YYYYMMDD)만 입력해도 YYYY.MM.DD로 자동 인식
+['base_gijun','base_josa','base_gongsi','ov_writeDay'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el)el.addEventListener('blur',function(){fmtDateField(el);updatePeriod();saveForm();sd();});});
+initMemo();
 calcGongsi();
 </script>
 </body>
