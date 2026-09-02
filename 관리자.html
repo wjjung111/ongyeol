@@ -49,9 +49,14 @@
 <div class="wrap">
   <div class="card" id="login">
     <div style="font-weight:700;margin-bottom:10px;">관리자 비밀번호</div>
-    <input type="password" id="pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')load()">
-    <button onclick="load()">조회</button>
-    <button class="gray" onclick="ping()">연결 점검</button>
+    <!-- form 제출로 처리해야 엔터가 자동완성 팝업과 상관없이 항상 조회로 이어지고, 브라우저 비밀번호 저장도 정상 동작 -->
+    <form onsubmit="load();return false;" autocomplete="on" style="display:inline;">
+      <!-- 크롬 비밀번호 저장·자동완성용 아이디 칸(화면 밖). 아이디가 있어야 크롬이 "온결관리자" 계정으로 저장하고 다음에 자동으로 채운다 -->
+      <input type="text" name="username" value="온결관리자" autocomplete="username" readonly tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
+      <input type="password" id="pw" name="password" placeholder="비밀번호" autocomplete="current-password" autofocus>
+      <button type="submit">조회</button>
+      <button type="button" class="gray" onclick="ping()">연결 점검</button>
+    </form>
     <div class="err" id="err"></div>
     <div class="muted">비밀번호는 관리자 수신함(앱스 스크립트)에서 검증됩니다. 틀리면 빈 결과가 옵니다.<br>
       기록이 0건이면 <b>연결 점검</b>을 눌러보세요 — 수신함이 살아있는지, 시트에 몇 줄 쌓였는지 알려줍니다.</div>
