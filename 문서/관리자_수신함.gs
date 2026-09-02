@@ -18,10 +18,10 @@ var VISIT_HEADER = ['시각', '사용자', '페이지', '동작', '기기', '브
 function _sheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_NAME);
-  // '기록' 탭이 없으면: 시트가 하나뿐인 문서면 그걸 그대로 쓰고(기존 데이터 보존), 여러 개면 새로 만든다
+  // '기록' 탭이 없으면: '접속' 탭을 뺀 나머지가 하나뿐이면(예: 기본 이름 '시트1') 그걸 그대로 쓰고(기존 데이터 보존), 여러 개면 새로 만든다
   if (!sh) {
-    var all = ss.getSheets();
-    sh = (all.length === 1) ? all[0] : ss.insertSheet(SHEET_NAME);
+    var rest = ss.getSheets().filter(function (s) { return s.getName() !== VISIT_SHEET; });
+    sh = (rest.length === 1) ? rest[0] : ss.insertSheet(SHEET_NAME);
   }
   if (sh.getLastRow() === 0) sh.appendRow(HEADER);
   return sh;
