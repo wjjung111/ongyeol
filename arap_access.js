@@ -9,6 +9,8 @@
 */
 (function(){
   var ARAP_ACCESS_HASH="b512d3c5b704463be22b9038d5c78fe3b0bf8d545f1be7af4d798e64d50eeb6b";
+  // 한/영 키를 안 바꾸고 영어 자판으로 친 경우도 통과 (같은 코드를 영어 상태로 친 값의 해시)
+  var ARAP_ACCESS_HASH_ALT="895bb56f94b695c394a6bec71e84f75715d562a8a2ebeaee0764525330c268c6";
   var KEY="arap-access-ok";
 
   // ── 순수 JS SHA-256 (crypto.subtle이 없는 환경·file:// 열기에서도 동작) ──
@@ -85,7 +87,8 @@
     function done(){
       var v=(input.value||"").trim();
       if(!v){input.focus();return;}
-      if(sha256(v)===ARAP_ACCESS_HASH){
+      var hv=sha256(v);
+      if(hv===ARAP_ACCESS_HASH||hv===ARAP_ACCESS_HASH_ALT){
         lsSet(KEY,ARAP_ACCESS_HASH);
         document.documentElement.classList.remove("arap-locked");
         gate.remove();
