@@ -51,11 +51,14 @@
   // 수신함 스크립트 원본·설치법: 문서/관리자_수신함.gs, 문서/관리자_수신함_설정.md
   window.ARAP_USAGE_URL="https://script.google.com/macros/s/AKfycbxx2D6-vWHBS7UPUrhdd4Fz5iayqUlgM4IZcqlNCAuERxY3Wpijdo3xw29Xz3_gs_7Leg/exec";
   // 사용 허용 이름 — 여기서만 관리. 목록에 없는 이름(옛 자동번호 "사용자-XXXX" 포함)은 무효 → 첫 화면에서 다시 고르게 한다.
-  window.ARAP_USERS=["김서연","박찬희","이경민","이선우","wdw","최진욱"];
+  window.ARAP_USERS=["김서연","박찬희","이경민","이선우","최진욱"];          // 첫 화면 드롭다운에 보이는 이름
+  window.ARAP_HIDDEN_USERS=["wdw"];                                        // 관리자 — 드롭다운엔 안 보이지만 저장돼 있으면 통과. 새 기기는 주소 뒤에 ?user=wdw 한 번
+  window.arapUserAllowed=n=>window.ARAP_USERS.includes(n)||window.ARAP_HIDDEN_USERS.includes(n);
   window.arapUserName=function(forceAsk){
     const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+    try{const q=new URLSearchParams(location.search).get("user");if(q&&window.arapUserAllowed(q))localStorage.setItem("arap-user-name",q);}catch(e){}
     let name=lsGet("arap-user-name")||"";
-    if(!window.ARAP_USERS.includes(name))name="";
+    if(!window.arapUserAllowed(name))name="";
     const el=document.getElementById("mb-user");if(el)el.textContent=name?"🙋 "+name:"🙋 이름 선택";
     if(forceAsk||!name){try{window.arapShowNameGate&&window.arapShowNameGate(name);}catch(e){console.error('name gate',e);}}
     return name;   // 이름이 없으면 "" — 기록도 보내지 않는다 (arapUsageLog에서 걸러짐)
