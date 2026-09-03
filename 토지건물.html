@@ -90,6 +90,8 @@
      계산값(회색·굵게, 손댈 수 없음) / 평가사가 정하는 값(연한 노랑, 손대는 곳) */
   .calc-c{background:#eef2f7;font-weight:700;color:#0f2547;}
   .jud-c{background:#fff9e6;}
+  .calc-c input{color:#0f2547;font-weight:700;}
+  .calc-c.ovr input{color:#2563eb;}
   /* 안내문은 무채색 — 노란색은 '평가사가 정하는 칸'에만 쓴다 */
   .note{background:#f6f8fa;border:1px solid #e2e5ea;border-left:3px solid #94a3b8;border-radius:4px;padding:7px 11px;font-size:11px;color:#475569;margin-top:7px;}
   .res{background:#1a2744;color:#fff;border-radius:6px;padding:8px 13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:9px;}
@@ -362,7 +364,7 @@
                 <div class="pst" id="pTradeMsg"></div>
               </div>
               <div class="tw"><table id="tblTrade"></table></div>
-              <div class="note">토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산</b>. 실거래가에 없는 값(토지면적·주구조·재조달원가·잔존연수)만 채우면 됩니다.</div>
+              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 토지 행 + 건물 행으로 나온 일괄 거래는 붙여넣으면 한 사례로 합쳐집니다.</div>
             </div>
 
             <!-- 평가사례 -->
@@ -1055,27 +1057,65 @@ function pick(head,r,names){
 var TRADE_ROWS=[
   ['소재지','loc','in'],['용도지역','use','in'],['지목','jimok','in'],
   ['토지면적(㎡)','landA','in'],['건물면적(㎡)','bldA','in'],
-  ['사용승인일','appr','in'],['주구조','struct','in'],
-  ['재조달원가(원/㎡)','reCost','jud'],['내용연수','life','jud'],['잔존연수','rest','jud'],
-  ['건물 적용단가(원/㎡)','bldUnit','calc'],['건물금액(원)','bldAmt','calc'],
+  ['사용승인일','appr','in'],['주구조','struct','jud'],
+  ['재조달원가(원/㎡)','reCost','jud'],['내용연수','life','jud'],['잔존연수','rest','auto'],
+  ['건물 적용단가(원/㎡)','bldUnit','auto'],['건물금액(원)','bldAmt','auto'],
   ['총 거래금액(원)','total','in'],['거래일자','date','in'],
-  ['토지금액(원)','landAmt','calc'],['토지단가(원/㎡)','landUnit','calc']
+  ['토지금액(원)','landAmt','auto'],['토지단가(원/㎡)','landUnit','auto']
 ];
+// auto 칸: 비어 있으면 자동계산값을 채워 보여주고, 사용자가 직접 적으면 그 값을 우선(비우면 다시 자동)
+var TRADE_AUTO_KEYS=['rest','bldUnit','bldAmt','landAmt','landUnit'];
 var TRADES=[];
+function hasV(v){return String(v==null?'':v).trim()!=='';}
+function attr(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+// 경과연수: 사용승인일 → 거래일자 만(滿) 연수
+function elapsedYears(a,b){var p=parseYmd(a),q=parseYmd(b);if(!p||!q)return null;
+  var y=q.y-p.y;if(q.mo<p.mo||(q.mo===p.mo&&q.d<p.d))y--;return y<0?0:y;}
 function tradeCalc(c){
-  var bu=num(c.life)>0?num(c.reCost)*num(c.rest)/num(c.life):0;
-  var ba=bu*num(c.bldA),la=num(c.total)-ba,lu=num(c.landA)>0?la/num(c.landA):0;
-  return {bldUnit:bu,bldAmt:ba,landAmt:la,landUnit:lu};
+  var life=num(c.life),el=elapsedYears(c.appr,c.date);
+  var restAuto=(life>0&&el!=null)?Math.max(life-el,0):null;
+  var rest=hasV(c.rest)?num(c.rest):(restAuto==null?0:restAuto);
+  var bu=hasV(c.bldUnit)?num(c.bldUnit):(life>0?Math.round(num(c.reCost)*rest/life):0);
+  var ba=hasV(c.bldAmt)?num(c.bldAmt):bu*num(c.bldA);
+  var la=hasV(c.landAmt)?num(c.landAmt):num(c.total)-ba;
+  var lu=hasV(c.landUnit)?num(c.landUnit):(num(c.landA)>0?la/num(c.landA):0);
+  return {elapsed:el,restAuto:restAuto,rest:rest,bldUnit:bu,bldAmt:ba,landAmt:la,landUnit:lu};
+}
+function fmtAuto(k,cal){
+  if(k==='rest')return cal.restAuto==null?'':String(cal.restAuto);
+  if(k==='landUnit')return cal.landUnit?cal.landUnit.toLocaleString('ko-KR',{maximumFractionDigits:2}):'0';
+  return won(cal[k]);
+}
+function tradeTitle(k,c,cal){
+  if(hasV(c[k]))return '직접 입력값 — 비우면 자동계산으로 돌아갑니다';
+  if(k==='rest')return cal.elapsed==null?'자동: 내용연수 − 경과연수 (사용승인일·거래일자를 채우면 계산)':'자동: 내용연수 '+num(c.life)+' − 경과연수 '+cal.elapsed+' = '+cal.restAuto+' (직접 고칠 수 있음)';
+  if(k==='bldUnit')return '자동: 재조달원가 × 잔존연수 ÷ 내용연수 (직접 고칠 수 있음)';
+  if(k==='bldAmt')return '자동: 건물 적용단가 × 건물면적 (직접 고칠 수 있음)';
+  if(k==='landAmt')return '자동: 총 거래금액 − 건물금액 (직접 고칠 수 있음)';
+  return '자동: 토지금액 ÷ 토지면적 (직접 고칠 수 있음)';
+}
+function tradeCell(c,i,r){
+  var k=r[1],t=r[2];
+  if(t==='auto'){var cal=tradeCalc(c),ov=hasV(c[k]);
+    return '<td class="calc-c'+(ov?' ovr':'')+'"><input data-i="'+i+'" data-k="'+k+'" value="'+(ov?attr(c[k]):fmtAuto(k,cal))+'" title="'+attr(tradeTitle(k,c,cal))+'" oninput="tradeIn('+i+',\''+k+'\',this.value)" onblur="refreshTradeCol('+i+')"></td>';}
+  return '<td class="'+(t==='jud'?'jud-c':'')+'"><input value="'+attr(c[k]||'')+'" oninput="tradeIn('+i+',\''+k+'\',this.value)"></td>';
+}
+// 입력 중에는 표를 통째로 다시 그리지 않고(포커스 유지) 같은 열의 자동 칸만 갱신
+function tradeIn(i,k,v){TRADES[i][k]=v;refreshTradeCol(i);calcGongsi();saveForm();}
+function refreshTradeCol(i){
+  var c=TRADES[i];if(!c)return;var cal=tradeCalc(c),tbl=document.getElementById('tblTrade');
+  TRADE_AUTO_KEYS.forEach(function(k){
+    var inp=tbl.querySelector('input[data-i="'+i+'"][data-k="'+k+'"]');if(!inp)return;
+    var ov=hasV(c[k]);inp.parentNode.classList.toggle('ovr',ov);inp.title=tradeTitle(k,c,cal);
+    if(inp===document.activeElement)return;
+    inp.value=ov?c[k]:fmtAuto(k,cal);
+  });
 }
 function renderTrade(){
   var h='<tr><th>구분</th>'+TRADES.map(function(c,i){return '<th>거래사례 #'+(i+1)+' <span class="del" title="이 사례 삭제" onclick="delTrade('+i+')">✕</span></th>';}).join('')+'</tr>';
   TRADE_ROWS.forEach(function(r){
     h+='<tr><th class="rowh">'+r[0]+'</th>';
-    TRADES.forEach(function(c,i){
-      var cal=tradeCalc(c);
-      if(r[2]==='calc'){h+='<td class="calc-c">'+won(cal[r[1]])+'</td>';}
-      else{h+='<td class="'+(r[2]==='jud'?'jud-c':'')+'"><input value="'+String(c[r[1]]||'').replace(/"/g,'&quot;')+'" oninput="TRADES['+i+'].'+r[1]+'=this.value;renderTrade();calcGongsi();"></td>';}
-    });
+    TRADES.forEach(function(c,i){h+=tradeCell(c,i,r);});
     h+='</tr>';
   });
   h+='<tr><th class="rowh">선정</th>'+TRADES.map(function(c,i){
@@ -1126,18 +1166,38 @@ document.getElementById('pTrade').addEventListener('paste',function(){setTimeout
 function applyTrade(text){
   var msg=document.getElementById('pTradeMsg'),rows=parseTsv(text);
   if(rows.length<2){msg.className='pst err';msg.textContent='머리글 + 데이터 행이 필요합니다.';return;}
-  var hi=-1;for(var i=0;i<Math.min(rows.length,4);i++)if(rows[i].join('').indexOf('소재지')>=0){hi=i;break;}
-  if(hi<0){msg.className='pst err';msg.textContent='머리글(소재지·지번 등)을 찾지 못했습니다.';return;}
-  var head=rows[hi],out=[];
-  for(var i=hi+1;i<rows.length;i++){var r=rows[i];
-    out.push({loc:(pick(head,r,['소재지'])+' '+pick(head,r,['지번'])).trim(),use:shortY(pick(head,r,['용도지역'])),jimok:pick(head,r,['지목']),
-      landA:pick(head,r,['토지면적']),bldA:pick(head,r,['전체면적','건물면적','연면적']),appr:dot(pick(head,r,['사용승인일자','사용승인일'])),
-      struct:pick(head,r,['건물구조','주구조','구조']),reCost:'',life:'40',rest:'',
-      total:pick(head,r,['물건금액','거래금액','총거래금액']),date:dot(pick(head,r,['거래시점','거래일자']))});}
-  out=out.filter(function(c){return c.loc.trim()||num(c.total);});
-  if(!out.length){msg.className='pst err';msg.textContent='데이터 행을 읽지 못했습니다.';return;}
-  TRADES=out;renderTrade();syncPick();calcGongsi();
-  msg.className='pst ok';msg.textContent='✅ '+out.length+'건 반영 — 소재지·용도지역·지목·건물면적·사용승인일·거래금액·거래일자 자동. 남은 칸: 토지면적·주구조·재조달원가·잔존연수';
+  // 머리글 행은 여러 번 나올 수 있다(토지+건물 일괄 거래를 블록별로 복사한 경우) — 나올 때마다 머리글을 갈아끼움
+  var isHead=function(r){var j=r.join('');return j.indexOf('소재지')>=0&&(j.indexOf('지번')>=0||j.indexOf('물건금액')>=0||j.indexOf('거래')>=0);};
+  var head=null,recs=[];
+  rows.forEach(function(r){
+    if(isHead(r)){head=r;return;}
+    if(!head)return;
+    recs.push({kind:pick(head,r,['상세물건구분','물건구분']),
+      loc:(pick(head,r,['소재지'])+' '+pick(head,r,['지번'])).trim(),use:shortY(pick(head,r,['용도지역'])),jimok:pick(head,r,['지목']),
+      landA:pick(head,r,['토지면적']),bldA:pick(head,r,['건물면적','연면적']),
+      area:pick(head,r,['전용면적'])||pick(head,r,['전체면적','면적']),
+      appr:dot(pick(head,r,['사용승인일자','사용승인일'])),struct:pick(head,r,['건물구조','주구조','구조']),
+      total:pick(head,r,['물건금액','거래금액','총거래금액']),date:dot(pick(head,r,['거래시점','거래일자']))});
+  });
+  if(!head){msg.className='pst err';msg.textContent='머리글(소재지·지번 등)을 찾지 못했습니다.';return;}
+  recs=recs.filter(function(c){return c.loc.trim()||num(c.total);});
+  if(!recs.length){msg.className='pst err';msg.textContent='데이터 행을 읽지 못했습니다.';return;}
+  // 같은 소재지·거래일·금액의 토지 행 + 건물 행 = 한 건의 일괄 거래 → 한 사례로 합침
+  var out=[],map={},merged=0;
+  recs.forEach(function(rc){
+    var key=rc.loc+'|'+rc.date+'|'+num(rc.total),c=map[key];
+    if(!c){c={loc:rc.loc,use:'',jimok:'',landA:'',bldA:'',appr:'',struct:'',reCost:'',life:'40',rest:'',total:rc.total,date:rc.date,_n:0};map[key]=c;out.push(c);}
+    c._n++;if(c._n===2)merged++;
+    var kind=rc.kind||'';
+    if(/토지/.test(kind)){c.landA=rc.landA||rc.area||c.landA;}
+    else if(/건물/.test(kind)){c.bldA=rc.bldA||rc.area||c.bldA;}
+    else{c.landA=c.landA||rc.landA;c.bldA=c.bldA||rc.bldA||rc.area;}
+    ['use','jimok','appr','struct'].forEach(function(f){if(!c[f]&&rc[f])c[f]=rc[f];});
+  });
+  out.forEach(function(c){delete c._n;});
+  TRADES=out;renderTrade();syncPick();calcGongsi();saveForm();
+  msg.className='pst ok';
+  msg.textContent='✅ '+out.length+'건 반영'+(merged?' (토지+건물 일괄 '+merged+'건은 한 사례로 합침)':'')+' — 소재지·용도지역·지목·토지면적·건물면적·사용승인일·거래금액·거래일자 자동. 남은 칸: 주구조·재조달원가·내용연수 → 잔존연수·건물단가·토지단가 자동';
 }
 document.getElementById('pAppr').addEventListener('paste',function(){setTimeout(function(){applyAppr(document.getElementById('pAppr').value);},30);});
 function applyAppr(text){
