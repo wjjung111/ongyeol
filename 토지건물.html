@@ -361,11 +361,11 @@
             <!-- 거래사례 (세로 표) -->
             <div class="sub active">
               <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 거래사례</b>
-                <span class="hint">국토부 실거래가·KAIS 엑셀에서 머리글째 복사 → 열마다 있는 <b>kais붙여넣기</b> 칸에 Ctrl+V (토지 행·건물 행을 따로 붙여도 같은 사례로 합쳐짐)</span>
+                <span class="hint">국토부 실거래가·KAIS 엑셀에서 머리글째 복사 → 열마다 있는 <b>토지 kais</b>(토지 행) · <b>건물 kais</b>(건물 행) 칸에 각각 Ctrl+V → 같은 열에 합쳐짐</span>
                 <button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
               <div class="pst" id="pTradeMsg"></div>
               <div class="tw"><table id="tblTrade"></table></div>
-              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>kais붙여넣기</b> 칸에 — 토지 행 + 건물 행으로 나온 일괄 거래는 한 번에 붙이든 따로 붙이든 한 사례로 합쳐집니다. ✕는 3열까지는 비우기, 4열부터는 삭제입니다.</div>
+              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다.</div>
             </div>
 
             <!-- 평가사례 -->
@@ -1115,8 +1115,10 @@ function refreshTradeCol(i){
 function renderTrade(){
   while(TRADES.length<3)TRADES.push({});   // 기본 화면은 항상 빈 3열
   var h='<tr><th>구분</th>'+TRADES.map(function(c,i){return '<th>거래사례 #'+(i+1)+' <span class="del" title="이 사례 비우기/삭제" onclick="delTrade('+i+')">✕</span></th>';}).join('')+'</tr>';
-  h+='<tr><th class="rowh" style="font-weight:400;color:#64748b;font-size:11px">붙여넣기</th>'+TRADES.map(function(c,i){
-    return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" title="실거래가 엑셀에서 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워집니다" onpaste="kaisPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
+  [['토지','토지 행(토지면적)'],['건물','건물 행(건물면적·사용승인일)']].forEach(function(k){
+    h+='<tr><th class="rowh" style="font-weight:600;color:#475569;font-size:11px">'+k[0]+' kais</th>'+TRADES.map(function(c,i){
+      return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" data-kind="'+k[0]+'" data-i="'+i+'" title="실거래가 엑셀의 '+k[1]+'을 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워집니다" onpaste="kaisPaste(event,'+i+',\''+k[0]+'\')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
+  });
   TRADE_ROWS.forEach(function(r){
     h+='<tr><th class="rowh">'+r[0]+'</th>';
     TRADES.forEach(function(c,i){h+=tradeCell(c,i,r);});
@@ -1178,7 +1180,7 @@ function mergeRec(c,rc){
   ['loc','use','jimok','appr','struct','total','date'].forEach(function(f){if(!hasV(c[f])&&hasV(rc[f]))c[f]=rc[f];});
   if(!hasV(c.life))c.life='40';
 }
-function parseTradeText(text){
+function parseTradeText(text,defKind){
   var rows=parseTsv(text);
   if(rows.length<2)return {err:'머리글 + 데이터 행이 필요합니다. 엑셀에서 머리글째 복사하세요.'};
   var isHead=function(r){var j=r.join('');return j.indexOf('소재지')>=0&&(j.indexOf('지번')>=0||j.indexOf('물건금액')>=0||j.indexOf('거래')>=0);};
@@ -1186,7 +1188,7 @@ function parseTradeText(text){
   rows.forEach(function(r){
     if(isHead(r)){head=r;return;}
     if(!head)return;
-    recs.push({kind:pick(head,r,['상세물건구분','물건구분']),
+    recs.push({kind:pick(head,r,['상세물건구분','물건구분'])||defKind||'',
       loc:(pick(head,r,['소재지'])+' '+pick(head,r,['지번'])).trim(),use:shortY(pick(head,r,['용도지역'])),jimok:pick(head,r,['지목']),
       landA:pick(head,r,['토지면적']),bldA:pick(head,r,['건물면적','연면적']),
       area:pick(head,r,['전용면적'])||pick(head,r,['전체면적','면적']),
@@ -1208,11 +1210,11 @@ function parseTradeText(text){
 }
 // 열별 kais붙여넣기: i번 열부터 채운다. 붙여넣은 사례가 여러 건이면 다음 열로 이어서(모자라면 열 추가).
 // 같은 소재지·거래일·금액이 이미 그 열에 있으면(토지 행 먼저, 건물 행 나중 등) 합친다.
-function kaisPaste(e,i){
+function kaisPaste(e,i,kind){
   var text=(e.clipboardData||window.clipboardData).getData('text');
   e.preventDefault();
   var ta=e.target;if(ta)ta.value='';
-  var msg=document.getElementById('pTradeMsg'),res=parseTradeText(text);
+  var msg=document.getElementById('pTradeMsg'),res=parseTradeText(text,kind);
   if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
   var filled=[];
   res.out.forEach(function(rec,k){
@@ -1226,7 +1228,8 @@ function kaisPaste(e,i){
   renderTrade();syncPick();calcGongsi();saveForm();
   msg.className='pst ok';
   msg.textContent='✅ 거래사례 '+filled.join('·')+' 채움'+(res.merged?' (토지+건물 일괄 '+res.merged+'건은 한 사례로 합침)':'')+' — 남은 칸: 주구조·재조달원가·내용연수 → 잔존연수·건물단가·토지단가 자동';
-  var nx=document.querySelectorAll('#tblTrade .kp')[i+res.out.length];
+  var last=i+res.out.length-1;
+  var nx=kind==='토지'?document.querySelector('#tblTrade .kp[data-kind="건물"][data-i="'+last+'"]'):document.querySelector('#tblTrade .kp[data-kind="토지"][data-i="'+(last+1)+'"]');
   if(nx)nx.focus();
 }
 document.getElementById('pAppr').addEventListener('paste',function(){setTimeout(function(){applyAppr(document.getElementById('pAppr').value);},30);});
