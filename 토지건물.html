@@ -21,7 +21,8 @@
   #mode-bar a.mb-home:hover{border-color:#2563eb;color:#fff;}
   #mode-bar .mb-tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
 
-  .shell{display:grid;grid-template-columns:186px minmax(0,1fr);gap:10px;max-width:1900px;margin:10px auto;padding:0 10px;align-items:start;}
+  /* 좌측 패널은 화면 왼쪽에 바짝 — 가운데 정렬·최대폭 없이 전체 폭 사용 */
+  .shell{display:grid;grid-template-columns:186px minmax(0,1fr);gap:10px;margin:10px 0;padding:0 6px;align-items:start;}
   .side{position:sticky;top:52px;background:#1a2744;border-radius:6px;padding:12px;color:#cbd5e1;}
   .side h3{font-size:11px;color:#94a3b8;font-weight:600;margin:9px 0 2px;}
   .side h3:first-child{margin-top:0;}
@@ -39,12 +40,29 @@
   .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:11px 13px;margin-bottom:9px;}
   .card h2{font-size:13px;font-weight:700;color:#1a2744;margin-bottom:7px;padding-bottom:5px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
   .card h3{font-size:12px;font-weight:700;color:#334155;margin:9px 0 4px;}
-  .lr{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;}
+  .lr{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:42%;}
   @media(min-width:1380px){.lr{grid-template-columns:minmax(0,42fr) minmax(0,58fr);}}
-  .cols2{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;}
+  .cols2{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:330px;}
   @media(min-width:1280px){.cols2{grid-template-columns:330px minmax(0,1fr);}}
-  .cols5050{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;}
+  .cols5050{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;--sl:calc(50% - 5px);}
   @media(min-width:1280px){.cols5050{grid-template-columns:1fr 1fr;}}
+  /* 좌/우 너비 조절 손잡이 — 2단 레이아웃 가운데를 드래그. 너비는 --sl(왼쪽 열)로 정하고 localStorage에 저장 */
+  .split-h{display:none;}
+  @media(min-width:1380px){
+    .lr.split{grid-template-columns:minmax(0,var(--sl)) 0 minmax(0,1fr);column-gap:5px;}
+    .lr.split>.split-h{display:block;}
+  }
+  @media(min-width:1280px){
+    .cols2.split,.cols5050.split{grid-template-columns:minmax(0,var(--sl)) 0 minmax(0,1fr);column-gap:5px;}
+    .cols2.split>.split-h,.cols5050.split>.split-h{display:block;}
+  }
+  .split-h{width:12px;margin-left:-6px;align-self:stretch;min-height:40px;cursor:col-resize;position:relative;z-index:2;touch-action:none;}
+  .split-h::after{content:'';position:absolute;left:5px;top:0;bottom:0;width:2px;border-radius:2px;background:#e2e5ea;transition:background .12s;}
+  .split-h::before{content:'⋮';position:absolute;left:1px;right:1px;top:50%;transform:translateY(-50%);text-align:center;font-size:12px;line-height:1;color:#94a3b8;background:#fff;border:1px solid #e2e5ea;padding:5px 0;border-radius:5px;z-index:1;}
+  .split-h:hover::after,.split-h.on::after{background:#2563eb;}
+  .split-h:hover::before,.split-h.on::before{color:#2563eb;}
+  body.col-dragging{cursor:col-resize;user-select:none;-webkit-user-select:none;}
+  body.col-dragging *{cursor:col-resize!important;}
 
   table{border-collapse:collapse;width:100%;font-size:12px;background:#fff;}
   th,td{border:1px solid #cdd3dc;padding:4px 6px;text-align:center;}
@@ -107,9 +125,15 @@
   .caselist-tbl .del-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
   .caselist-tbl .del-btn:hover{background:#fee2e2;}
   /* 우측 메모장 (집합건물과 동일) */
-  #mainShell{grid-template-columns:186px minmax(0,1fr) 300px;}
+  #mainShell{--memo-w:300px;grid-template-columns:186px minmax(0,1fr) var(--memo-w);}
   #mainShell.memo-collapsed{grid-template-columns:186px minmax(0,1fr) 30px;}
-  .memo{position:sticky;top:52px;background:#fafbfc;border:1px solid #e2e5ea;border-radius:6px;max-height:calc(100vh - 64px);overflow-y:auto;font-size:12px;}
+  .memo-wrap{position:sticky;top:52px;min-width:0;}
+  .memo{background:#fafbfc;border:1px solid #e2e5ea;border-radius:6px;max-height:calc(100vh - 64px);overflow-y:auto;font-size:12px;}
+  /* 메모장 좌우 너비 조절 손잡이 — 메모장 왼쪽 가장자리를 드래그(더블클릭 = 기본 300px). 스크롤 영역 밖(래퍼)에 두어 항상 보임 */
+  .memo-h{position:absolute;left:-6px;top:0;bottom:0;width:12px;cursor:col-resize;z-index:3;touch-action:none;}
+  .memo-h::after{content:'';position:absolute;left:5px;top:0;bottom:0;width:2px;border-radius:2px;background:transparent;transition:background .12s;}
+  .memo-h:hover::after,.memo-h.on::after{background:#2563eb;}
+  #mainShell.memo-collapsed .memo-h{display:none;}
   .memo-head{display:flex;justify-content:space-between;align-items:center;padding:10px 10px 6px;}
   .memo-title{font-weight:700;font-size:13px;color:#1a2744;}
   .memo-toggle{cursor:pointer;font-size:10px;color:#94a3b8;}
@@ -499,7 +523,9 @@
 
   </div>
 
-    <!-- 우측 메모장 (집합건물과 동일) -->
+    <!-- 우측 메모장 (집합건물과 동일) + 좌우 너비 조절 손잡이 -->
+    <div class="memo-wrap">
+    <div class="memo-h" id="memoResize" title="드래그: 메모장 너비 조절 / 더블클릭: 기본 너비"></div>
     <div class="memo" id="memoPanel">
       <div class="memo-head">
         <span class="memo-title">📝 메모장</span>
@@ -512,6 +538,7 @@
         <div id="memoList"></div>
       </div>
       <div class="memo-collapsed-bar" onclick="toggleMemo()"><span>◀ 메모</span></div>
+    </div>
     </div>
 </div>
 
@@ -1577,6 +1604,62 @@ function initMemo(){
   document.getElementById('ov_caseNo').addEventListener('input',renderMemos);
   renderMemos();}
 
+// ================= 좌/우 너비 조절 (2단 레이아웃 가운데 손잡이 + 메모장 왼쪽 가장자리) =================
+// 저장 키: tojigeonmul-split:<탭id>:<레이아웃>  /  tojigeonmul-memo-width
+var SPLIT_PREFIX='tojigeonmul-split:', MEMO_WIDTH_KEY='tojigeonmul-memo-width', MEMO_W_DEF=300, MEMO_W_MIN=200, MEMO_W_MAX=720;
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}}
+// 드래그 공통: pointer 캡처로 마우스·터치 모두 지원, 드래그 중엔 글자 선택 막음
+function dragX(handle,onMove,onEnd){
+  handle.addEventListener('pointerdown',function(e){
+    if(e.button!==undefined&&e.button!==0)return;
+    e.preventDefault();handle.classList.add('on');document.body.classList.add('col-dragging');
+    try{handle.setPointerCapture(e.pointerId);}catch(_){}
+    function mv(ev){onMove(ev.clientX);}
+    function up(ev){handle.classList.remove('on');document.body.classList.remove('col-dragging');
+      handle.removeEventListener('pointermove',mv);handle.removeEventListener('pointerup',up);handle.removeEventListener('pointercancel',up);
+      try{handle.releasePointerCapture(ev.pointerId);}catch(_){}
+      if(onEnd)onEnd();}
+    handle.addEventListener('pointermove',mv);handle.addEventListener('pointerup',up);handle.addEventListener('pointercancel',up);
+  });
+}
+function initSplits(){
+  var els=document.querySelectorAll('.lr,.cols2,.cols5050');
+  Array.prototype.forEach.call(els,function(el){
+    var kids=Array.prototype.filter.call(el.children,function(c){return c.nodeType===1;});
+    if(kids.length!==2)return;
+    var tab=el.closest('.tab'),cls=/\blr\b/.test(el.className)?'lr':(/\bcols2\b/.test(el.className)?'cols2':'cols5050');
+    var key=SPLIT_PREFIX+(tab?tab.id:'root')+':'+cls;
+    var h=document.createElement('div');h.className='split-h';h.title='드래그: 좌우 너비 조절 / 더블클릭: 기본 너비';
+    el.insertBefore(h,kids[1]);el.classList.add('split');
+    var saved=parseFloat(lsGet(key));
+    if(saved>0)el.style.setProperty('--sl',saved+'%');
+    var pct=null;
+    dragX(h,function(x){
+      var r=el.getBoundingClientRect();if(r.width<=0)return;
+      pct=Math.round(((x-r.left)/r.width)*1000)/10;
+      pct=Math.max(20,Math.min(80,pct));
+      el.style.setProperty('--sl',pct+'%');
+    },function(){if(pct!=null)lsSet(key,String(pct));});
+    h.addEventListener('dblclick',function(){el.style.removeProperty('--sl');lsSet(key,null);});
+  });
+}
+function applyMemoWidth(w){var s=document.getElementById('mainShell');
+  if(w)s.style.setProperty('--memo-w',w+'px');else s.style.removeProperty('--memo-w');}
+function initMemoResize(){
+  var h=document.getElementById('memoResize'),s=document.getElementById('mainShell');if(!h||!s)return;
+  var saved=parseInt(lsGet(MEMO_WIDTH_KEY),10);
+  if(saved>=MEMO_W_MIN&&saved<=MEMO_W_MAX)applyMemoWidth(saved);
+  var w=null;
+  dragX(h,function(x){
+    var r=s.getBoundingClientRect(),pr=parseFloat(getComputedStyle(s).paddingRight)||0;
+    w=Math.round(r.right-pr-x);
+    w=Math.max(MEMO_W_MIN,Math.min(MEMO_W_MAX,w));
+    applyMemoWidth(w);
+  },function(){if(w!=null)lsSet(MEMO_WIDTH_KEY,String(w));});
+  h.addEventListener('dblclick',function(){applyMemoWidth(null);lsSet(MEMO_WIDTH_KEY,null);});
+}
+
 // ================= 초기화 =================
 ['base_gongsi','base_gijun'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){updatePeriod();saveForm();});});
 ['base_josa'].concat(OV_IDS).concat(BT_IDS).concat(GJ_IDS).concat(FN_IDS).forEach(function(id){
@@ -1600,6 +1683,7 @@ document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx �
   var el=document.getElementById(id);
   if(el)el.addEventListener('blur',function(){fmtDateField(el);updatePeriod();saveForm();sd();});});
 initMemo();
+initSplits();initMemoResize();
 calcGongsi();
 </script>
 </body>
