@@ -61,13 +61,15 @@
     <div class="row" style="gap:14px">
       <span class="row" style="gap:6px">
         <span style="font-weight:700;color:#475569;white-space:nowrap">지번</span>
-        <input type="text" id="q" size="34" placeholder="예: 안산시 단원구 선부동 1017-11" onkeydown="if(event.key==='Enter')go()">
+        <input type="text" id="q" size="34" list="qHist" autocomplete="off" placeholder="예: 안산시 단원구 선부동 1017-11" onkeydown="if(event.key==='Enter')go()">
+        <datalist id="qHist"></datalist>
         <button class="btn" id="btnGo" onclick="go()">조회</button>
       </span>
       <span class="hint">또는</span>
       <span class="row" style="gap:6px">
         <span style="font-weight:700;color:#475569;white-space:nowrap">도로명주소</span>
-        <input type="text" id="qRoad" size="34" placeholder="예: 서대문구 세무서2길 64" onkeydown="if(event.key==='Enter')goRoad()">
+        <input type="text" id="qRoad" size="34" list="qRoadHist" autocomplete="off" placeholder="예: 서대문구 세무서2길 64" onkeydown="if(event.key==='Enter')goRoad()">
+        <datalist id="qRoadHist"></datalist>
         <button class="btn" id="btnGoRoad" onclick="goRoad()">조회</button>
       </span>
     </div>
@@ -95,14 +97,13 @@
       </div>
       <div class="status" id="hoStatus"></div>
       <div id="hoResult" style="display:none">
-        <div class="row" style="gap:18px;margin:6px 0 10px;flex-wrap:wrap">
-          <div><span class="hint">전유면적</span><div style="font-size:22px;font-weight:700;color:#1a2744"><span id="hoExpos"></span> ㎡</div></div>
-          <div><span class="hint">공용면적 합계</span><div style="font-size:16px;font-weight:600"><span id="hoPub"></span> ㎡</div></div>
-          <div><span class="hint">계약면적(전유+공용)</span><div style="font-size:16px;font-weight:600"><span id="hoTot"></span> ㎡</div></div>
-          <div><span class="hint">전용률</span><div style="font-size:16px;font-weight:600"><span id="hoRate"></span></div></div>
-        </div>
+        <!-- 한 줄 요약: 동명·호명·용도·층번호·전유·공용·계약 (엑셀 복사도 이 줄) -->
         <div class="tw"><table id="tblHo"></table></div>
-        <div class="note">전유·공용 행은 국토교통부 건축HUB 「전유공용면적」 대장 원자료 그대로입니다. 계약면적·전용률은 그 합으로 계산한 값입니다.</div>
+        <div class="row" style="margin-top:6px;gap:10px">
+          <a href="#" id="hoDetailToggle" style="font-size:12px;color:#2563eb;text-decoration:none" onclick="toggleHoDetail();return false;">공용 세부 내역 보기 ▾</a>
+          <span class="hint">공용·계약면적은 국토교통부 건축HUB 「전유공용면적」 대장의 공용 행을 합한 값입니다.</span>
+        </div>
+        <div class="tw" id="hoDetail" style="display:none;margin-top:6px"><table id="tblHoDetail"></table></div>
       </div>
     </div>
 
@@ -275,6 +276,21 @@ function offerPick(cands,onPick,msg){
 }
 function busy(on){document.getElementById('btnGo').disabled=on;document.getElementById('btnGoRoad').disabled=on;}
 
+// ── 검색 기록 (자동완성) — 조회에 성공한 주소를 이 브라우저에 최근 30개까지 저장, 입력칸에 datalist로 띄운다 ──
+var HIST_KEY={parcel:'arap-bld-history-parcel',road:'arap-bld-history-road'};
+function histRead(kind){try{var a=JSON.parse(localStorage.getItem(HIST_KEY[kind])||'[]');return Array.isArray(a)?a:[];}catch(e){return[];}}
+function histAdd(kind,v){
+  v=String(v||'').trim();if(!v)return;
+  var a=histRead(kind).filter(function(x){return x!==v;});a.unshift(v);
+  try{localStorage.setItem(HIST_KEY[kind],JSON.stringify(a.slice(0,30)));}catch(e){console.error('history save',e);}
+  histRender();
+}
+function histRender(){
+  document.getElementById('qHist').innerHTML=histRead('parcel').map(function(v){return '<option value="'+esc(v).replace(/"/g,'&quot;')+'">';}).join('');
+  document.getElementById('qRoadHist').innerHTML=histRead('road').map(function(v){return '<option value="'+esc(v).replace(/"/g,'&quot;')+'">';}).join('');
+}
+histRender();
+
 // 지번으로 조회
 async function go(){
   var q=document.getElementById('q').value.trim();
@@ -325,6 +341,7 @@ async function goRoad(){
         if(!pc.length)throw new Error('지번 '+c.parcel+'의 필지 번호(PNU)를 받지 못했습니다 — 지번 칸에 "'+c.parcel+'"을 넣어 조회해보세요.');
         document.getElementById('q').value=c.parcel;   // 지번 칸에도 채워서 무엇으로 조회했는지 보이게
         await lookup(pc[0].id,pc[0].addr);
+        if(STATE.titles.length||STATE.flrs.length)histAdd('road',c.road);
       }catch(e){console.error('도로명→지번',e);setStatus('실패: '+e.message,'err');}
       finally{busy(false);}
     },'도로명주소에 해당하는 곳이 '+cands.length+'곳입니다 — 아래에서 고르세요.');
@@ -366,6 +383,7 @@ async function lookup(pnu,addr){
     STATE.dongIdx=0;
     renderDong();
     setupHoPanel();
+    histAdd('parcel',STATE.addr);   // 조회 성공한 지번 주소를 검색 기록에 (시·도까지 붙은 전체 주소라 다음엔 바로 조회됨)
     document.getElementById('result').style.display='block';
     setStatus('✅ 조회 완료 — '+STATE.addr+' · 동 '+(STATE.titles.length||1)+'개 · 층별 '+STATE.flrs.length+'행','ok');
   }catch(e){
@@ -440,34 +458,48 @@ async function loadHoDetail(){
     var expos=0,pub=0;
     rows.forEach(function(x){var a=Number(x.area)||0;if(/전유/.test(txt(x.exposPubuseGbCdNm)))expos+=a;else pub+=a;});
     var tot=expos+pub;
-    document.getElementById('hoExpos').textContent=n1(expos.toFixed(4));
-    document.getElementById('hoPub').textContent=n1(pub.toFixed(4));
-    document.getElementById('hoTot').textContent=n1(tot.toFixed(4));
-    document.getElementById('hoRate').textContent=tot?(expos/tot*100).toFixed(1)+'%':'-';
-    var h='<tr><th>구분</th><th>주/부</th><th>동명칭</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>면적(㎡)</th><th>건축물대장 PK</th></tr>';
+    // 한 줄 요약 (용도·층번호는 전유 행 기준)
+    var s=hoSummary(rows);
+    document.getElementById('tblHo').innerHTML=
+      '<tr><th>동명</th><th>호명</th><th>용도</th><th>층번호</th><th>전유(㎡)</th><th>공용(㎡)</th><th>계약(㎡)</th><th>전용률</th><th>건축물대장 PK</th></tr>'+
+      '<tr><td>'+esc(s.dong||'-')+'</td><td>'+esc(s.ho)+'</td><td>'+esc(s.purps||'-')+'</td><td>'+esc(s.flr)+'</td>'+
+      '<td class="num hl" style="font-size:14px">'+n1(s.expos)+'</td><td class="num">'+n1(s.pub)+'</td><td class="num hl">'+n1(s.tot)+'</td>'+
+      '<td class="num">'+(s.tot?(s.expos/s.tot*100).toFixed(1)+'%':'-')+'</td><td>'+esc(s.pk)+'</td></tr>';
+    // 공용 세부 내역 (접힘)
+    var h='<tr><th>구분</th><th>주/부</th><th>동명칭</th><th>층구분</th><th>층별</th><th>구조</th><th>용도</th><th>면적(㎡)</th></tr>';
     rows.forEach(function(x){
       var ex=/전유/.test(txt(x.exposPubuseGbCdNm));
       h+='<tr'+(ex?' class="hl"':'')+'><td>'+esc(txt(x.exposPubuseGbCdNm))+'</td><td>'+esc(txt(x.mainAtchGbCdNm).slice(0,1)||'-')+'</td>'+
          '<td>'+esc(txt(x.dongNm)||'-')+'</td><td>'+esc(txt(x.flrGbCdNm))+'</td><td>'+esc(txt(x.flrNoNm))+'</td>'+
          '<td class="l">'+esc(joinPurps(x.strctCdNm,x.etcStrct))+'</td><td class="l">'+esc(joinPurps(x.mainPurpsCdNm,x.etcPurps))+'</td>'+
-         '<td class="num">'+n1(x.area)+'</td><td>'+esc(txt(x.mgmBldrgstPk))+'</td></tr>';
+         '<td class="num">'+n1(x.area)+'</td></tr>';
     });
-    h+='<tr><td colspan="7" style="text-align:right;font-weight:700">전유 '+n1(expos.toFixed(4))+' + 공용 '+n1(pub.toFixed(4))+' = 계약</td><td class="num hl">'+n1(tot.toFixed(4))+'</td><td></td></tr>';
-    document.getElementById('tblHo').innerHTML=h;
+    h+='<tr><td colspan="7" style="text-align:right;font-weight:700">전유 '+n1(expos.toFixed(4))+' + 공용 '+n1(pub.toFixed(4))+' = 계약</td><td class="num hl">'+n1(tot.toFixed(4))+'</td></tr>';
+    document.getElementById('tblHoDetail').innerHTML=h;
+    document.getElementById('hoDetail').style.display='none';document.getElementById('hoDetailToggle').textContent='공용 세부 내역 보기 ▾';
     res.style.display='block';document.getElementById('btnHoCopy').style.display='';
     st.className='status ok';st.textContent='✅ '+(dong?dong+' ':'')+ho+' · 전유 '+n1(expos.toFixed(4))+'㎡ · 행 '+rows.length+'개';
   }catch(e){console.error('호 상세',e);st.className='status err';st.textContent='실패: '+e.message;}
 }
+// 호 한 줄 요약값: 동명·호명·용도·층번호(전유 행 기준)·전유·공용·계약·PK
+function hoSummary(rows){
+  var expos=0,pub=0,ex=null;
+  rows.forEach(function(x){var a=Number(x.area)||0;if(/전유/.test(txt(x.exposPubuseGbCdNm))){expos+=a;if(!ex)ex=x;}else pub+=a;});
+  var f=ex||rows[0]||{};
+  return{dong:txt(f.dongNm)||STATE.hoDong,ho:txt(f.hoNm)||STATE.hoNm,purps:txt(f.mainPurpsCdNm)||joinPurps(f.mainPurpsCdNm,f.etcPurps),
+    flr:txt(f.flrNo)!==''?String(Number(f.flrNo)):txt(f.flrNoNm),expos:Number(expos.toFixed(4)),pub:Number(pub.toFixed(4)),tot:Number((expos+pub).toFixed(4)),pk:txt(f.mgmBldrgstPk)};
+}
+function toggleHoDetail(){
+  var d=document.getElementById('hoDetail'),t=document.getElementById('hoDetailToggle');
+  var open=d.style.display==='none';d.style.display=open?'':'none';t.textContent=open?'공용 세부 내역 닫기 ▴':'공용 세부 내역 보기 ▾';
+}
+// 엑셀 복사: 머리글 + 한 줄 (동명 호명 용도 층번호 전유 공유 계약)
 function copyHo(){
   var rows=STATE.hoRows;if(!rows.length){alert('복사할 호 내역이 없습니다.');return;}
-  var expos=0,pub=0;rows.forEach(function(x){var a=Number(x.area)||0;if(/전유/.test(txt(x.exposPubuseGbCdNm)))expos+=a;else pub+=a;});
-  var lines=[STATE.addr+' '+(STATE.hoDong?STATE.hoDong+' ':'')+STATE.hoNm,'',
-    ['전유면적',Number(expos.toFixed(4)),'공용면적',Number(pub.toFixed(4)),'계약면적',Number((expos+pub).toFixed(4)),'전용률',(expos+pub)?(expos/(expos+pub)*100).toFixed(1)+'%':''].join('\t'),'',
-    ['구분','주/부','동명칭','층구분','층별','구조','용도','면적(㎡)'].join('\t')];
-  rows.forEach(function(x){lines.push([txt(x.exposPubuseGbCdNm),txt(x.mainAtchGbCdNm),txt(x.dongNm),txt(x.flrGbCdNm),txt(x.flrNoNm),
-    joinPurps(x.strctCdNm,x.etcStrct),joinPurps(x.mainPurpsCdNm,x.etcPurps),(x.area==null||x.area==='')?'':Number(x.area)].join('\t'));});
+  var s=hoSummary(rows);
+  var lines=[['동명','호명','용도','층번호','전유','공유','계약'].join('\t'),[s.dong,s.ho,s.purps,s.flr,s.expos,s.pub,s.tot].join('\t')];
   var text=lines.join('\n'),st=document.getElementById('hoStatus');
-  function ok(){st.className='status ok';st.textContent='✅ 복사 완료 — 엑셀에서 Ctrl+V 하세요 ('+rows.length+'행)';}
+  function ok(){st.className='status ok';st.textContent='✅ 복사 완료 — 엑셀에서 Ctrl+V 하세요 ('+s.dong+' '+s.ho+' · 전유 '+s.expos+' · 공용 '+s.pub+' · 계약 '+s.tot+')';}
   function fail(e){console.error('클립보드 복사 실패',e);var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
     try{document.execCommand('copy');ok();}catch(e2){st.className='status err';st.textContent='복사가 안 됩니다. 표를 마우스로 긁어서 복사하세요.';}document.body.removeChild(ta);}
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok).catch(fail);else fail(new Error('clipboard API 없음'));
