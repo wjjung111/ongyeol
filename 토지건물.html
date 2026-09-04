@@ -388,14 +388,13 @@
             <!-- 평가사례 -->
             <div class="sub">
               <div class="paste">
-                <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 KAPA HUB 붙여넣기</b>
-                  <span class="hint">감정평가정보센터에서 복사 → Ctrl+V</span>
+                <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 평가사례</b>
+                  <span class="hint">감정평가정보센터(KAPA HUB)에서 머리글째 복사 → 행마다 있는 <b>kapa hub</b> 칸에 Ctrl+V → 그 행부터 채워짐(여러 건이면 아래 행으로 이어짐)</span>
                   <button class="btn gh sm" style="margin-left:auto" onclick="addAppr()">+ 사례 추가</button></div>
-                <textarea id="pAppr" rows="2" placeholder="Is Selected  평가목적  …  단가  면적  …  기준시점 …"></textarea>
                 <div class="pst" id="pApprMsg"></div>
               </div>
               <div class="tw"><table id="tblAppr"></table></div>
-              <div class="note">붙여넣으면 필요한 항목(소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적)만 골라 채웁니다. 모든 칸은 직접 수정할 수 있습니다.</div>
+              <div class="note">행마다 있는 <b>kapa hub</b> 칸에 붙여넣으면 필요한 항목(소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적)만 골라 그 행에 채웁니다. 여러 건을 한꺼번에 붙이면 아래 행으로 이어지고(모자라면 행 추가), 모든 칸은 직접 수정할 수 있습니다. ✕는 3행까지는 비우기, 4행부터는 삭제입니다.</div>
             </div>
 
             <!-- 그 밖의 요인 -->
@@ -1346,20 +1345,35 @@ function undoTrade(){
 // ================= 평가사례 (가로 표) =================
 var APPRS=[];
 var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지목','jimok'],['이용<br>상황','cond'],['사례단가<br>(원/㎡)','unit'],['기준시점','base'],['평가<br>목적','purp']];
+function apprHasData(a){return a&&['loc','use','jimok','cond','unit','base','purp'].some(function(k){return String(a[k]||'').trim()!=='';});}
 function renderAppr(){
-  var h='<tr><th>선정</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
+  while(APPRS.length<3)APPRS.push({});   // 기본 화면은 항상 빈 3행(거래사례와 같은 규격)
+  var h='<tr><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px">kapa hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
     h+='<tr><td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';
-    APPR_COLS.forEach(function(c){h+='<td><input value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();"></td>';});
-    h+='<td><span class="del" title="삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
+    h+='<td class="kp-c" style="min-width:90px"><textarea class="kp" rows="1" placeholder="kapa hub" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
+    APPR_COLS.forEach(function(c){h+='<td><input value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();saveForm();"></td>';});
+    h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
   document.getElementById('tblAppr').innerHTML=h;
 }
 function addAppr(){APPRS.push({no:'abcdefghij'[APPRS.length]||String(APPRS.length+1),use:'2종일주',jimok:'대'});renderAppr();syncPick();saveForm();}
 function delAppr(i){
+  // 3행까지는 항상 남긴다: 3행 이하면 그 행만 비우고, 4행 이상이면 행을 없앤다
+  if(APPRS.length<=3){APPRS[i]={};renderAppr();syncPick();calcGongsi();saveForm();return;}
   APPRS.splice(i,1);
   if(ETC.type==='a'&&ETC.idx>=APPRS.length)ETC.idx=Math.max(0,APPRS.length-1);
   renderAppr();syncPick();calcGongsi();saveForm();
+}
+// 행별 kapa hub 붙여넣기: 붙인 행부터 차례로 채운다(여러 건이면 아래 행으로, 모자라면 행 추가). 기호는 행 순서대로 a,b,c…
+function apprPaste(e,i){
+  var text=(e.clipboardData||window.clipboardData).getData('text');
+  e.preventDefault();if(e.target)e.target.value='';
+  var msg=document.getElementById('pApprMsg'),res=parseApprText(text);
+  if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
+  res.out.forEach(function(a,k){var j=i+k;while(APPRS.length<=j)APPRS.push({});a.no='abcdefghij'[j]||String(j+1);APPRS[j]=a;});
+  renderAppr();syncPick();calcGongsi();saveForm();
+  msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 반영(행 '+(i+1)+(res.out.length>1?'~'+(i+res.out.length):'')+') — 소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적 자동';
 }
 
 // 붙여넣은 텍스트 → 사례 목록. 머리글은 여러 번 나올 수 있고(토지+건물 일괄 거래를 블록별로 복사),
@@ -1425,12 +1439,11 @@ function kaisPaste(e,i,kind){
   var nx=kind==='토지'?document.querySelector('#tblTrade .kp[data-kind="건물"][data-i="'+last+'"]'):document.querySelector('#tblTrade .kp[data-kind="토지"][data-i="'+(last+1)+'"]');
   if(nx)nx.focus();
 }
-document.getElementById('pAppr').addEventListener('paste',function(){setTimeout(function(){applyAppr(document.getElementById('pAppr').value);},30);});
-function applyAppr(text){
-  var msg=document.getElementById('pApprMsg'),rows=parseTsv(text);
+function parseApprText(text){
+  var rows=parseTsv(text);
   var hi=-1;for(var i=0;i<Math.min(rows.length,4);i++)if(rows[i].join('').indexOf('평가목적')>=0){hi=i;break;}
-  if(hi<0){msg.className='pst err';msg.textContent='머리글(평가목적 등)을 찾지 못했습니다.';return;}
-  var head=rows[hi],out=[],tag='abcdefghij';
+  if(hi<0)return {err:'머리글(평가목적 등)을 찾지 못했습니다. 감정평가정보센터에서 머리글째 복사하세요.'};
+  var head=rows[hi],out=[];
   for(var i=hi+1;i<rows.length;i++){var r=rows[i];
     var loc=pick(head,r,['소재지']).split(' ').filter(Boolean).pop()||'';
     var jib=pick(head,r,['지번']).replace(/\*/g,'').trim();
@@ -1438,10 +1451,8 @@ function applyAppr(text){
       jimok:pick(head,r,['(개별)지목','지목/건물용도','지목']),cond:pick(head,r,['(개별)이용상황','이용상황']),
       unit:pick(head,r,['단가']),base:pick(head,r,['기준시점']),purp:pick(head,r,['평가목적'])});}
   out=out.filter(function(a){return a.loc.trim()||num(a.unit);});
-  out.forEach(function(a,i){a.no=tag[i]||String(i+1);});
-  if(!out.length){msg.className='pst err';msg.textContent='데이터 행을 읽지 못했습니다. 머리글째 다시 복사해보세요.';return;}
-  APPRS=out;renderAppr();syncPick();calcGongsi();
-  msg.className='pst ok';msg.textContent='✅ '+out.length+'건 반영 — 소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적 자동';
+  if(!out.length)return {err:'데이터 행을 읽지 못했습니다. 머리글째 다시 복사해보세요.'};
+  return {out:out};
 }
 
 // ================= 그 밖의 요인 =================
@@ -1449,7 +1460,7 @@ var ETC={type:'t',idx:0};
 function syncPick(){
   var sel=document.getElementById('etcPick'),h='';
   TRADES.forEach(function(c,i){h+='<option value="t'+i+'"'+(ETC.type==='t'&&ETC.idx===i?' selected':'')+'>거래사례 #'+(i+1)+' — '+(c.loc||'')+'</option>';});
-  APPRS.forEach(function(a,i){h+='<option value="a'+i+'"'+(ETC.type==='a'&&ETC.idx===i?' selected':'')+'>평가사례 '+a.no+' — '+(a.loc||'')+'</option>';});
+  APPRS.forEach(function(a,i){if(!apprHasData(a))return;h+='<option value="a'+i+'"'+(ETC.type==='a'&&ETC.idx===i?' selected':'')+'>평가사례 '+a.no+' — '+(a.loc||'')+'</option>';});
   sel.innerHTML=h;
   sel.onchange=function(){ETC={type:this.value[0],idx:+this.value.slice(1)};renderTrade();renderAppr();calcGongsi();autoEtcTime();};
 }
