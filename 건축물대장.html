@@ -374,7 +374,8 @@ async function lookup(pnu,addr){
 }
 
 // ── 집합건물 호별 전유면적 ──
-function isJiphap(){return STATE.titles.some(function(t){return /집합/.test(txt(t.regstrKindCdNm));});}
+// 실제 API는 '집합'이 대장구분(regstrGbCdNm)에 오고 대장종류(regstrKindCdNm)는 '표제부' — 둘 다 본다
+function isJiphap(){return STATE.titles.some(function(t){return /집합/.test(txt(t.regstrGbCdNm)+' '+txt(t.regstrKindCdNm));});}
 function hoNum(s){var m=String(s||'').match(/\d+/);return m?Number(m[0]):0;}
 function setupHoPanel(){
   var p=document.getElementById('hoPanel');
@@ -489,12 +490,11 @@ function renderDong(){
     '<td>'+esc(txt(t.mgmBldrgstPk))+'</td></tr>';
 
   // ── 건축물정보 ──
-  var jj=STATE.jijigu.filter(function(x){return /지역/.test(txt(x.jijiguGbCdNm));})
-          .map(function(x){return txt(x.jijiguCdNm);}).filter(Boolean);
-  var jg=STATE.jijigu.filter(function(x){return /지구/.test(txt(x.jijiguGbCdNm));})
-          .map(function(x){return txt(x.jijiguCdNm);}).filter(Boolean);
-  var gy=STATE.jijigu.filter(function(x){return /구역/.test(txt(x.jijiguGbCdNm));})
-          .map(function(x){return txt(x.jijiguCdNm);}).filter(Boolean);
+  // 지역지구는 동마다 한 행씩 와서 같은 이름이 반복됨 → 중복 제거
+  function uniq(a){return a.filter(function(v,i){return v&&a.indexOf(v)===i;});}
+  var jj=uniq(STATE.jijigu.filter(function(x){return /지역/.test(txt(x.jijiguGbCdNm));}).map(function(x){return txt(x.jijiguCdNm);}));
+  var jg=uniq(STATE.jijigu.filter(function(x){return /지구/.test(txt(x.jijiguGbCdNm));}).map(function(x){return txt(x.jijiguCdNm);}));
+  var gy=uniq(STATE.jijigu.filter(function(x){return /구역/.test(txt(x.jijiguGbCdNm));}).map(function(x){return txt(x.jijiguCdNm);}));
   var addrParts=(txt(t.platPlc)||STATE.addr).trim();
   var jibun=(txt(t.bun)?String(Number(t.bun)):'')+(txt(t.ji)&&Number(t.ji)?('-'+Number(t.ji)):'');
   document.getElementById('tblInfo').innerHTML=
