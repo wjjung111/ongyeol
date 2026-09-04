@@ -275,7 +275,6 @@
           <h2>본건 건물</h2>
           <div class="row">
             <button class="btn" id="btnFetchBld">🏢 건축물대장 불러오기</button>
-            <span class="hint">본건 토지를 먼저 조회하면 그 지번(PNU)으로 표제부·층별개요를 불러옵니다.</span>
           </div>
           <div class="status" id="bldStatus"></div>
           <div class="grid2" style="margin-top:8px;grid-template-columns:1fr 1fr;">
@@ -1095,16 +1094,19 @@ async function autoEtcTime(force){
   try{
     await jbPrepare(st,e.y*100+e.mo);
     var regs=jbState.regs,uses=jbState.uses;
-    // 사례 소재지에 시군구가 없으면(예 "상봉동 74-6") 본건 지역으로 대체하고 '(추정)' 표시 — 소재지에 시군구를 적으면 그 지역으로 계산
-    var guess=false,ri=jbPickRegion(regs,c.loc);
-    if(ri<0){ri=regs.indexOf(document.getElementById('jb_selRegion').value);guess=true;}
-    if(ri<0)throw new Error('사례 소재지("'+(c.loc||'')+'")에 맞는 지역을 지가변동률 표에서 찾지 못했습니다. 소재지에 시군구까지 적어 주세요.');
+    // 지역: 소재지에 시군구가 있으면 그대로, 없으면("상봉동 74-6") 주소 조회로 시군구를 찾아 씀(사례에 sgg로 저장). 그래도 못 찾으면 본건 시군구
+    var ri=jbPickRegion(regs,c.loc);
+    if(ri<0&&c.sgg==null){if(st)st.textContent='사례 소재지의 시군구 확인 중… '+(c.loc||'');c.sgg=await caseSgg(c.loc);}
+    if(ri<0&&c.sgg)ri=jbPickRegion(regs,c.sgg+' '+(c.loc||''));
+    if(ri<0)ri=jbPickRegion(regs,subjectSgg());
+    if(ri<0)ri=regs.indexOf(document.getElementById('jb_selRegion').value);
+    if(ri<0)throw new Error('사례 소재지("'+(c.loc||'')+'")에 맞는 지역을 지가변동률 표에서 찾지 못했습니다.');
     var ui=jbPickUse(uses,c.use);if(ui<0)ui=uses.indexOf(document.getElementById('jb_selUse').value);if(ui<0)ui=jbPickUse(uses,'주거');
     if(ui<0)throw new Error('사례 용도지역("'+(c.use||'')+'")에 맞는 용도를 지가변동률 표에서 찾지 못했습니다.');
     var reg=regs[ri],use=uses[ui];
     if(st){st.className='status';st.textContent='그밖의요인 시점수정 계산 중… '+jbRegLabel(reg)+' ('+use+')';}
     var f=await roneCumulative(reg,use,g,e,function(ym){if(st)st.textContent='그밖의요인 월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';});
-    c.timeMeta={reg:jbRegLabel(reg)+(guess?'(추정)':''),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5)};
+    c.timeMeta={reg:jbRegLabel(reg),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5)};
     delete c.timeBusy;refreshTradeTime();
     if(mine()&&tok===etcTimeTok){eIn.value=f.toFixed(5);eIn.placeholder='1.00699';}
     calcGongsi();saveForm();
@@ -1112,9 +1114,33 @@ async function autoEtcTime(force){
   }catch(err){
     console.error('그밖의요인 시점수정 자동',err);
     delete c.timeBusy;c.timeErr=err.message;refreshTradeTime();
-    if(mine()&&tok===etcTimeTok)eIn.placeholder='1.00699';
+    if(mine()&&tok===etcTimeTok){eIn.placeholder='1.00699';sd();}
     if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동 실패: '+err.message;}
   }
+}
+// 본건 시군구("서울특별시 중랑구") — 본건 토지 조회 결과(fullAddr) 또는 지가변동률 대상지역 칸
+function subjectSgg(){
+  var L0=LANDS[0]||{},a=String(L0.fullAddr||'').trim();
+  if(a)return sggOfAddr(a);
+  return String(document.getElementById('jb_region').value||'').trim();
+}
+// "서울특별시 중랑구 상봉동 74-6" → "서울특별시 중랑구" (동·읍·면·리·가 앞까지)
+function sggOfAddr(addr){var out=[],ts=String(addr||'').trim().split(/\s+/);
+  for(var i=0;i<ts.length;i++){if(/(동|읍|면|리|가)$/.test(ts[i])&&i>0)break;if(/^\d/.test(ts[i]))break;out.push(ts[i]);}
+  return out.join(' ');}
+// 사례 소재지(예 "상봉동 74-6")의 시군구를 V-World 주소검색으로 찾는다. 후보가 여럿이면 본건과 같은 시·도를 우선.
+// 실패하면 '' (호출한 쪽에서 본건 시군구로 대체). 수동 붙여넣기 단계(tryManual)는 쓰지 않는다 — 배경 작업이라 사용자에게 창을 띄우지 않기 위해.
+function caseSgg(loc){
+  loc=String(loc||'').trim();if(!loc)return Promise.resolve('');
+  var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(loc)+'&type=address&category=parcel&format=json&errorformat=json&key='+getKey();
+  return tryFetch(url).catch(function(){return tryJsonp(url);}).then(function(d){
+    var items=(d&&d.response&&d.response.result&&d.response.result.items)||[];
+    var addrs=items.map(function(it){return (it.address&&(it.address.parcel||it.address.road))||it.title||'';}).filter(Boolean);
+    if(!addrs.length)return '';
+    var sido=subjectSgg().split(' ')[0]||'';
+    var pick=addrs.find(function(a){return sido&&a.indexOf(sido)===0;})||addrs[0];
+    return sggOfAddr(pick);
+  }).catch(function(e){console.error('사례 시군구 조회',e);return '';});
 }
 // 각주용 문구: "서울특별시 중랑구 (26.01.31~26.04.14) (주거)"
 function timeMetaLabel(m){if(!m)return '';return m.reg+' ('+m.from+'~'+m.to+') ('+m.use+')';}
@@ -1212,7 +1238,7 @@ function tradeCell(c,i,r){
 // 입력 중에는 표를 통째로 다시 그리지 않고(포커스 유지) 같은 열의 자동 칸만 갱신
 function tradeIn(i,k,v){TRADES[i][k]=v;
   // 거래일자·소재지·용도지역이 바뀌면 계산해 둔 시점수정치는 더 이상 맞지 않으므로 지운다(다시 선정하면 재계산)
-  if(k==='date'||k==='loc'||k==='use'){delete TRADES[i].timeMeta;delete TRADES[i].timeErr;refreshTradeTime();}
+  if(k==='date'||k==='loc'||k==='use'){delete TRADES[i].timeMeta;delete TRADES[i].timeErr;if(k==='loc')delete TRADES[i].sgg;refreshTradeTime();}
   refreshTradeCol(i);calcGongsi();saveForm();}
 function refreshTradeCol(i){
   var c=TRADES[i];if(!c)return;var cal=tradeCalc(c),tbl=document.getElementById('tblTrade');
@@ -1628,7 +1654,20 @@ function calcFinal(){
 }
 
 // ================= 좌측 요약 사이드바 =================
+// 예시 회색글씨(placeholder): 본건 토지가 한 번 조회돼 실제 소재지가 들어오면 "예: 안양시 동안구 …" 같은 예시값은 전부 지운다.
+// '-'·'반올림'·'kais붙여넣기'·'⏳ 계산 중…'처럼 형식 안내인 것만 남긴다. 본건이 비면 원래 예시로 되돌린다.
+var KEEP_PH=['-','반올림','kais붙여넣기','⏳ 계산 중…'];
+function hideExamples(){
+  var has=!!String((LANDS[0]||{})['소재지']||'').trim();
+  document.querySelectorAll('input,textarea').forEach(function(el){
+    if(el.dataset.ph==null){if(!el.placeholder)return;el.dataset.ph=el.placeholder;}
+    var o=el.dataset.ph,keep=KEEP_PH.indexOf(o)>=0||/…|Ctrl\+V/.test(o);
+    var want=(has&&!keep)?'':o;
+    if(el.placeholder!==want&&KEEP_PH.indexOf(el.placeholder)<0)el.placeholder=want;
+  });
+}
 function sd(){
+  hideExamples();
   document.getElementById('sd_caseNo').textContent=document.getElementById('ov_caseNo').value||'-';
   var L0=LANDS[0]||{};
   var addr=((L0['소재지']||'')+' '+(L0['지번']||'')).trim();
