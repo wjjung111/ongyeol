@@ -12,7 +12,12 @@
  *  /bld?op=getBrRecapTitleInfo&pnu=... 총괄표제부 (여러 동인 경우)
  *  /bld?op=getBrJijiguInfo&pnu=...     지역/지구/구역
  *  /bld?op=getBrBasisOulnInfo&pnu=...  기본개요
+ *  /bld?op=getBrExposInfo&pnu=...&dongNm=101동            전유부 (집합건물 호 목록 — 동 이름으로 거름)
+ *  /bld?op=getBrExposPubuseAreaInfo&pnu=...&dongNm=101동&hoNm=102호   전유공용면적 (호 하나의 전유·공용 내역)
+ *    공통 추가 파라미터: pageNo(기본 1), numOfRows(기본 200, 최대 1000), dongNm, hoNm — 있으면 그대로 국토부 API에 전달
  *  /rone?...                          부동산원 R-ONE (지가변동률 등 — 쿼리 그대로 전달)
+ *
+ * 버전: 2 (2026-09-04 — 동·호·페이지 전달, 전유부 추가). 상태 확인(/) 응답의 ver 값으로 확인.
  *
  * 설치법: 문서/클라우드플레어_프록시_설정.md 참고.
  * 환경변수(Settings → Variables and Secrets):
@@ -55,17 +60,26 @@ export default {
           "getBrRecapTitleInfo",     // 총괄표제부(여러 동)
           "getBrJijiguInfo",         // 지역/지구/구역
           "getBrBasisOulnInfo",      // 기본개요
-          "getBrExposPubuseAreaInfo",// 전유공용면적
+          "getBrExposPubuseAreaInfo",// 전유공용면적 (호별 전유·공용 내역)
+          "getBrExposInfo",          // 전유부 (호 목록)
         ];
         const op = ALLOWED_OPS.includes(url.searchParams.get("op")) ? url.searchParams.get("op") : "getBrFlrOulnInfo";
         const sigungu = pnu.slice(0, 5), bjdong = pnu.slice(5, 10);
         const platGb = pnu.charAt(10) === "2" ? "1" : "0"; // 필지구분(1일반/2산)→대장(0대지/1산)
         const bun = pnu.slice(11, 15), ji = pnu.slice(15, 19);
+        // 페이지·행수·동·호 — 페이지에서 보내온 값이 있으면 그대로 전달 (행수는 1~1000으로 제한)
+        const pageNo = Math.max(1, parseInt(url.searchParams.get("pageNo") || "1", 10) || 1);
+        const numOfRows = Math.min(1000, Math.max(1, parseInt(url.searchParams.get("numOfRows") || "200", 10) || 200));
+        const dongNm = url.searchParams.get("dongNm") || "";
+        const hoNm = url.searchParams.get("hoNm") || "";
         // 키가 이미 URL인코딩된 형태(%2B 포함 등)면 그대로, 아니면 인코딩해서 붙임
         const key = /%[0-9A-Fa-f]{2}/.test(env.DATAGO_KEY) ? env.DATAGO_KEY : encodeURIComponent(env.DATAGO_KEY);
         const target = `https://apis.data.go.kr/1613000/BldRgstHubService/${op}`
           + `?sigunguCd=${sigungu}&bjdongCd=${bjdong}&platGbCd=${platGb}&bun=${bun}&ji=${ji}`
-          + `&numOfRows=200&pageNo=1&_type=json&serviceKey=${key}`;
+          + `&numOfRows=${numOfRows}&pageNo=${pageNo}`
+          + (dongNm ? `&dongNm=${encodeURIComponent(dongNm)}` : "")
+          + (hoNm ? `&hoNm=${encodeURIComponent(hoNm)}` : "")
+          + `&_type=json&serviceKey=${key}`;
         const r = await fetch(target);
         const body = await r.text();
         return new Response(body, { status: r.status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
@@ -87,7 +101,7 @@ export default {
       }
 
       // ── 상태 확인: / ──
-      return json({ ok: true, service: "ongyeol-proxy", paths: ["/bld?pnu=", "/rone?..."] }, 200, cors);
+      return json({ ok: true, service: "ongyeol-proxy", ver: 2, paths: ["/bld?pnu=", "/rone?..."] }, 200, cors);
     } catch (e) {
       return json({ error: String(e && e.message || e) }, 502, cors);
     }
