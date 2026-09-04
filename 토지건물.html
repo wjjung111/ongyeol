@@ -96,6 +96,10 @@
   .kp{display:block;width:100%;height:22px;border:1px dashed #94a3b8;border-radius:3px;font-size:11px;font-family:inherit;padding:2px 4px;resize:none;overflow:hidden;white-space:nowrap;text-align:center;line-height:16px;color:#2563eb;background:#fff;}
   .kp::placeholder{color:#2563eb;opacity:.9;}
   .calc-c.ovr input{color:#2563eb;}
+  /* 그 밖의 요인 표 — 자동 칸을 직접 고쳐 자동계산값과 달라지면 빨간 글씨 */
+  .calc-c.mis{background:#fef2f2;}
+  .calc-c.mis input{color:#dc2626;}
+  .etc-warn{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #dc2626;border-radius:4px;padding:6px 10px;font-size:11px;color:#b91c1c;font-weight:600;margin-top:6px;}
   /* 안내문은 무채색 — 노란색은 '평가사가 정하는 칸'에만 쓴다 */
   .note{background:#f6f8fa;border:1px solid #e2e5ea;border-left:3px solid #94a3b8;border-radius:4px;padding:7px 11px;font-size:11px;color:#475569;margin-top:7px;}
   .res{background:#1a2744;color:#fff;border-radius:6px;padding:8px 13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:9px;}
@@ -391,14 +395,26 @@
               </div>
               <div class="tw"><table>
                 <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
-                <tr><th class="rowh">사례기준<br>표준지평가</th><td id="eSrc">-</td><td>-</td>
+                <tr><th class="rowh">사례기준<br>표준지평가</th>
+                    <td class="calc-c" id="eSrc"><input class="eo" data-k="src" onblur="calcGongsi()" oninput="etcOv('src',this.value)"></td>
+                    <td class="jud-c"><input id="eSaj1" value="" placeholder="-" oninput="calcGongsi()"></td>
                     <td class="jud-c"><input id="eTime" value="" placeholder="1.00699" oninput="calcGongsi()"></td>
                     <td class="jud-c"><input id="eArea" value="1.000" oninput="calcGongsi()"></td>
-                    <td class="calc-c" id="eIndSum">-</td><td class="calc-c" id="eOut1">-</td>
-                    <td class="calc-c" id="eRatio" rowspan="2" style="font-size:14px">-</td></tr>
-                <tr><th class="rowh">표준지공시지가<br>시점수정</th><td id="eStd">-</td><td>-</td>
-                    <td id="eStdTime">-</td><td>1.000</td><td></td><td class="calc-c" id="eOut2">-</td></tr>
+                    <td class="calc-c" id="eIndSum"><input class="eo" data-k="ind" onblur="calcGongsi()" oninput="etcOv('ind',this.value)"></td>
+                    <td class="calc-c" id="eOut1"><input class="eo" data-k="out1" onblur="calcGongsi()" oninput="etcOv('out1',this.value)"></td>
+                    <td class="calc-c" id="eRatio" rowspan="2"><input class="eo" data-k="ratio" style="font-size:14px" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td></tr>
+                <tr><th class="rowh">표준지공시지가<br>시점수정</th>
+                    <td class="calc-c" id="eStd"><input class="eo" data-k="std" onblur="calcGongsi()" oninput="etcOv('std',this.value)"></td>
+                    <td class="jud-c"><input id="eSaj2" value="" placeholder="-" oninput="calcGongsi()"></td>
+                    <td class="calc-c" id="eStdTime"><input class="eo" data-k="stdTime" onblur="calcGongsi()" oninput="etcOv('stdTime',this.value)"></td>
+                    <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()"></td>
+                    <td class="jud-c"><input id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
+                    <td class="calc-c" id="eOut2"><input class="eo" data-k="out2" onblur="calcGongsi()" oninput="etcOv('out2',this.value)"></td></tr>
               </table></div>
+              <div class="etc-warn" id="etcWarn" style="display:none">
+                <span id="etcWarnMsg">⚠ 직접 수정된 칸이 있습니다(빨간 글씨) — 자동계산값과 다릅니다.</span>
+                <button class="btn gh sm" style="margin-left:auto" onclick="etcRestore()">↺ 원래대로 복원</button>
+              </div>
 
               <div class="fnote">1) 시점수정(사례시점~기준시점) : <b id="fnTime">-</b></div>
               <div class="fnote">2) 지역요인비교치 : <b id="fnArea">1.00</b></div>
@@ -418,9 +434,10 @@
 
               <div class="tw" style="margin-top:8px"><table>
                 <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
-                <tr><td class="calc-c" id="eRatio2">-</td><td class="jud-c"><input id="eDecide" placeholder="예 1.61" oninput="calcGongsi()"></td><td>1</td></tr>
+                <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="jud-c"><input id="eDecide" placeholder="예 1.61" oninput="calcGongsi()"></td><td>1</td></tr>
               </table></div>
-              <div class="note">산출 비교치는 <b>자동</b>, 최종 <b>결정 보정치</b>는 평가사가 정함(절사·조정). 결정치가 아래 시산가액 패널에 즉시 반영됩니다.</div>
+              <div class="note">산출 비교치는 <b>자동</b>, 최종 <b>결정 보정치</b>는 평가사가 정함(절사·조정). 결정치가 아래 시산가액 패널에 즉시 반영됩니다.<br>
+                <b>회색 칸(적용사례단가·개별요인·산출단가·비교치·공시지가·시점수정)은 자동 계산이지만 직접 고칠 수 있습니다.</b> 고친 값이 자동계산값과 다르면 <span style="color:#dc2626;font-weight:700">빨간 글씨</span>로 표시되고 뒤 칸(산출단가·비교치·시산가액)에 그대로 이어집니다. 칸을 비우거나 <b>↺ 원래대로 복원</b>을 누르면 자동계산값으로 돌아갑니다.</div>
             </div>
           </div>
         </div>
@@ -1262,6 +1279,48 @@ function syncPick(){
 }
 function srcUnit(){if(ETC.type==='t'){var c=TRADES[ETC.idx];return c?tradeCalc(c).landUnit:0;}var a=APPRS[ETC.idx];return a?num(a.unit):0;}
 
+// ── 그 밖의 요인 표의 회색(자동) 칸 직접 수정 ──
+// 값은 현재 표준지 STDS[sj].etcOvr[k]에 보관(건 저장에 같이 들어감). 비우면 자동값, 자동값과 다르면 빨간 글씨 + 경고띠 + 복원 버튼.
+var ETC_OV_NAME={src:'적용사례 단가',ind:'개별요인',out1:'산출단가(사례기준)',std:'공시지가',stdTime:'표준지 시점수정',out2:'산출단가(표준지)',ratio:'비교치'};
+function etcFmt(k,v){
+  if(!v)return '';
+  if(k==='ind')return v.toFixed(3);
+  if(k==='stdTime')return v.toFixed(5);
+  if(k==='ratio')return v.toFixed(4);
+  return won(v);
+}
+function etcStdIdx(){return Math.min(+(document.getElementById('etcStd').value||0),STDS.length-1);}
+function etcOv(k,v){
+  var S=STDS[etcStdIdx()];if(!S)return;
+  S.etcOvr=S.etcOvr||{};
+  if(hasV(v))S.etcOvr[k]=v;else delete S.etcOvr[k];
+  calcGongsi();saveForm();
+}
+function etcRestore(){
+  var S=STDS[etcStdIdx()];if(!S)return;
+  S.etcOvr={};calcGongsi();saveForm();
+}
+function etcPaint(OV,AUTO){
+  var mis=[];
+  document.querySelectorAll('input.eo').forEach(function(inp){
+    var k=inp.dataset.k,over=hasV(OV[k]),autoTxt=etcFmt(k,AUTO[k]);
+    var diff=over&&etcFmt(k,num(OV[k]))!==autoTxt;
+    inp.parentNode.classList.toggle('mis',diff);
+    inp.placeholder='-';
+    inp.title=over?('직접 입력값 (자동계산: '+(autoTxt||'-')+') — 비우면 자동계산으로 돌아갑니다'):('자동계산값 — 직접 고칠 수 있습니다');
+    if(diff&&mis.indexOf(k)<0)mis.push(k);
+    if(inp===document.activeElement)return;
+    inp.value=over?OV[k]:autoTxt;
+  });
+  var w=document.getElementById('etcWarn');
+  if(mis.length){
+    var parts=mis.map(function(k){var s=ETC_OV_NAME[k]+' '+etcFmt(k,num(OV[k]))+' ≠ 자동 '+(etcFmt(k,AUTO[k])||'-');
+      if(k==='ind')s+=' (아래 개별요인비교치 계와 불일치)';return s;});
+    document.getElementById('etcWarnMsg').textContent='⚠ 직접 수정된 칸이 자동계산값과 다릅니다: '+parts.join(' / ');
+    w.style.display='flex';
+  }else w.style.display='none';
+}
+
 // ================= 거래사례비교법 채택 =================
 var GA={idx:0};
 function syncGeorae(){renderTradePick();calcGeorae();}
@@ -1281,24 +1340,26 @@ function renderGaebyeol(){
 function calcGongsi(){
   renderGaebyeol();
   var ef=mul('.ef');
-  document.getElementById('efSum').textContent=ef.toFixed(3);
-  document.getElementById('eIndSum').textContent=ef.toFixed(3);
+  document.getElementById('efSum').textContent=ef.toFixed(3);   // 아래 개별요인비교치 박스의 '계' — 항상 자동값(기준)
 
   // ── 그 밖의 요인: 선택된 표준지 기준 ──
   var sj=Math.min(+(document.getElementById('etcStd').value||0),STDS.length-1);
   var S=STDS[sj]||{};
   var su=srcUnit(),et=num(document.getElementById('eTime').value),ea=num(document.getElementById('eArea').value)||1;
-  var o1=su*et*ea*ef;
-  var stf=num(document.getElementById('jb_factor').value)||1;
-  var sp=num(S['공시지가']),o2=sp*stf;
-  document.getElementById('eSrc').textContent=su?won(su):'-';
-  document.getElementById('eStd').textContent=sp?won(sp):'-';
-  document.getElementById('eStdTime').textContent=stf.toFixed(5);
-  document.getElementById('eOut1').textContent=o1?won(o1):'-';
-  document.getElementById('eOut2').textContent=o2?won(o2):'-';
-  var ratio=o2>0?o1/o2:0;
-  document.getElementById('eRatio').textContent=ratio?ratio.toFixed(4):'-';
-  document.getElementById('eRatio2').textContent=ratio?ratio.toFixed(4):'-';
+  // 회색(자동) 칸 직접 수정값: 표준지별 S.etcOvr에 보관. 값이 있으면 그 값을 우선, 비우면 자동 (뒤 칸으로 그대로 이어짐)
+  var OV=S.etcOvr||{};var ov=function(k,auto){return hasV(OV[k])?num(OV[k]):auto;};
+  var AUTO={};
+  AUTO.src=su;su=ov('src',su);
+  var saj1=num(document.getElementById('eSaj1').value)||1;
+  AUTO.ind=ef;var ind=ov('ind',ef);
+  AUTO.out1=su*saj1*et*ea*ind;var o1=ov('out1',AUTO.out1);
+  var stf=num(document.getElementById('jb_factor').value)||1;   // 시산가액 패널은 항상 지가변동률 칸(jb_factor) 값을 씀
+  AUTO.stdTime=stf;var stf2=ov('stdTime',stf);                     // 이 표 안에서만 직접 수정값 반영
+  var sp=num(S['공시지가']);AUTO.std=sp;sp=ov('std',sp);
+  var saj2=num(document.getElementById('eSaj2').value)||1,ea2=num(document.getElementById('eArea2').value)||1,ind2=num(document.getElementById('eInd2').value)||1;
+  AUTO.out2=sp*stf2*saj2*ea2*ind2;var o2=ov('out2',AUTO.out2);
+  AUTO.ratio=o2>0?o1/o2:0;var ratio=ov('ratio',AUTO.ratio);
+  etcPaint(OV,AUTO);
   document.getElementById('fnTime').textContent=et?et.toFixed(5):'-';
   document.getElementById('fnArea').textContent=ea.toFixed(2);
   // 화면의 결정치 입력값을 현재 표준지에 저장
@@ -1501,7 +1562,7 @@ function sub(i,btn){
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice','ov_reportNo'];
 var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
-var GONGSI_IDS=['g_daegu','g_opinion','eTime','eArea','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
+var GONGSI_IDS=['g_daegu','g_opinion','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion'];
 var GJ_IDS=['gj_review','gj_decide'];
 var FN_IDS=['fn_opinion'];
