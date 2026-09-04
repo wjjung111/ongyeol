@@ -81,6 +81,31 @@
   </div>
 
   <div id="result">
+    <!-- 집합건물 호별 전유면적 — 동 → 호를 고르면 그 호의 전유·공용 내역 -->
+    <div class="card" id="hoPanel" style="display:none">
+      <h2>호별 전유면적 <span class="hint" style="font-weight:400">(집합건물 · 전유부·전유공용면적 대장)</span>
+        <span class="row" style="margin-left:auto">
+          <button class="btn gh sm" id="btnHoCopy" onclick="copyHo()" style="display:none">📋 호 내역 복사</button>
+        </span>
+      </h2>
+      <div class="row" style="margin-bottom:8px">
+        <label>동 <select id="hoDongSel" onchange="loadHoList()"></select></label>
+        <label>호 <select id="hoSel" onchange="loadHoDetail()"><option value="">호를 선택하세요</option></select></label>
+        <span class="hint" id="hoHint"></span>
+      </div>
+      <div class="status" id="hoStatus"></div>
+      <div id="hoResult" style="display:none">
+        <div class="row" style="gap:18px;margin:6px 0 10px;flex-wrap:wrap">
+          <div><span class="hint">전유면적</span><div style="font-size:22px;font-weight:700;color:#1a2744"><span id="hoExpos"></span> ㎡</div></div>
+          <div><span class="hint">공용면적 합계</span><div style="font-size:16px;font-weight:600"><span id="hoPub"></span> ㎡</div></div>
+          <div><span class="hint">계약면적(전유+공용)</span><div style="font-size:16px;font-weight:600"><span id="hoTot"></span> ㎡</div></div>
+          <div><span class="hint">전용률</span><div style="font-size:16px;font-weight:600"><span id="hoRate"></span></div></div>
+        </div>
+        <div class="tw"><table id="tblHo"></table></div>
+        <div class="note">전유·공용 행은 국토교통부 건축HUB 「전유공용면적」 대장 원자료 그대로입니다. 계약면적·전용률은 그 합으로 계산한 값입니다.</div>
+      </div>
+    </div>
+
     <!-- 동명세 -->
     <div class="card">
       <h2>동명세
@@ -117,30 +142,6 @@
       <div class="status" id="copyMsg"></div>
     </div>
 
-    <!-- 집합건물 호별 전유면적 — 동 → 호를 고르면 그 호의 전유·공용 내역 -->
-    <div class="card" id="hoPanel" style="display:none">
-      <h2>호별 전유면적 <span class="hint" style="font-weight:400">(집합건물 · 전유부·전유공용면적 대장)</span>
-        <span class="row" style="margin-left:auto">
-          <button class="btn gh sm" id="btnHoCopy" onclick="copyHo()" style="display:none">📋 호 내역 복사</button>
-        </span>
-      </h2>
-      <div class="row" style="margin-bottom:8px">
-        <label>동 <select id="hoDongSel" onchange="loadHoList()"></select></label>
-        <label>호 <select id="hoSel" onchange="loadHoDetail()"><option value="">호를 선택하세요</option></select></label>
-        <span class="hint" id="hoHint"></span>
-      </div>
-      <div class="status" id="hoStatus"></div>
-      <div id="hoResult" style="display:none">
-        <div class="row" style="gap:18px;margin:6px 0 10px;flex-wrap:wrap">
-          <div><span class="hint">전유면적</span><div style="font-size:22px;font-weight:700;color:#1a2744"><span id="hoExpos"></span> ㎡</div></div>
-          <div><span class="hint">공용면적 합계</span><div style="font-size:16px;font-weight:600"><span id="hoPub"></span> ㎡</div></div>
-          <div><span class="hint">계약면적(전유+공용)</span><div style="font-size:16px;font-weight:600"><span id="hoTot"></span> ㎡</div></div>
-          <div><span class="hint">전용률</span><div style="font-size:16px;font-weight:600"><span id="hoRate"></span></div></div>
-        </div>
-        <div class="tw"><table id="tblHo"></table></div>
-        <div class="note">전유·공용 행은 국토교통부 건축HUB 「전유공용면적」 대장 원자료 그대로입니다. 계약면적·전용률은 그 합으로 계산한 값입니다.</div>
-      </div>
-    </div>
   </div>
 
   <!-- 자동 호출 차단 시 수동 폴백 -->
