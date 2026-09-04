@@ -357,6 +357,13 @@
             <div class="tw"><table id="tblGaebyeol"></table></div>
             <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함."></div>
           </div>
+
+          <!-- 시산가액: 왼쪽 계산 흐름의 마지막 칸(거래사례비교법 탭과 같은 자리) -->
+          <div class="card" id="pinLand">
+            <h2>시산가액</h2>
+            <div class="tw"><table id="tblSisan"></table></div>
+            <div class="note">산출단가까지 자동 계산됩니다 → <b>결정단가</b>(반올림 자리)만 정하면 시산가액 자동. 비워두면 만원 단위 반올림값을 씁니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
+          </div>
         </div>
 
         <!-- 우: 사례 · 그밖의요인 -->
@@ -450,12 +457,6 @@
         </div>
       </div>
 
-      <!-- 시산가액: 항상 보이는 하단 고정 패널 -->
-      <div class="card" id="pinLand">
-        <h2>시산가액</h2>
-        <div class="tw"><table id="tblSisan"></table></div>
-        <div class="note">산출단가까지 자동 계산됩니다 → <b>결정단가</b>(반올림 자리)만 정하면 시산가액 자동. 비워두면 만원 단위 반올림값을 씁니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
-      </div>
     </div>
 
     <!-- ═══════════ 거래사례비교법 ═══════════ -->
@@ -477,6 +478,7 @@
               <td class="calc-c" id="ga_indSum">1.000</td>
               <td class="calc-c" id="ga_calc">-</td></tr>
         </table></div>
+        <div class="fnote" id="gaTimeNote" style="margin-top:4px">시점수정 : <b id="gaTimeText">-</b> <button class="btn gh sm" style="margin-left:8px" onclick="autoGaTime(true)" title="채택한 거래사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 새로 조회">↻ 시점수정 자동</button></div>
         <h3>개별요인 (필지별)</h3>
         <div class="tw"><table id="tblGaFactors"></table></div>
         <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
@@ -1072,27 +1074,22 @@ function ymdShort(d){return d?(String(d.y).slice(-2)+'.'+String(d.mo).padStart(2
 // 지역·용도는 본건이 아니라 **사례의 소재지·용도지역** 기준(사례가 다른 시군구여도 맞게). 지가변동률 표가 준비돼 있지 않으면 스스로 준비한다.
 // 결과는 사례 객체(c.timeMeta)에 남겨 두어 다른 사례로 옮겨 다녀도 거래사례 표 '시점수정치' 행에 계속 보인다(건 저장에 포함).
 // 이미 같은 기간으로 계산해 둔 사례를 다시 고르면 조회 없이 그 값을 쓰고, 「↻ 시점수정 자동」 버튼(force)은 새로 조회한다.
-var etcTimeTok=0;
+var etcTimeTok=0,gaTimeTok=0;
 function etcCase(){return ETC.type==='t'?(TRADES[ETC.idx]||null):(APPRS[ETC.idx]||null);}
-async function autoEtcTime(force){
-  var st=document.getElementById('jbStatus'),eIn=document.getElementById('eTime');
-  var type=ETC.type,idx=ETC.idx,c=etcCase();if(!c)return;
-  var tok=++etcTimeTok,mine=function(){return ETC.type===type&&ETC.idx===idx;};
+// 사례 하나의 시점수정치 계산(공통) — 그 밖의 요인(autoEtcTime)과 거래사례비교법(autoGaTime)이 같이 쓴다.
+// 거래일자(평가사례는 기준시점)~본건 기준시점, 지역·용도는 사례 기준. 결과는 c.timeMeta에 저장.
+// 반환 {meta, cached}: 같은 기간으로 이미 계산돼 있으면(force 아님) 조회 없이 cached=true. 날짜가 없으면 throw(사례에 오류 표시는 안 함).
+// 첫 await 전까지는 동기로 돌므로, 호출 직후 c.timeBusy를 보면 "지금 계산 중인지" 알 수 있다.
+async function computeCaseTime(c,type,st,force){
   var e=parseYmd(document.getElementById('base_gijun').value);
-  if(!e){if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: 대상물건 탭에서 기준시점을 먼저 입력하세요.';}return;}
+  if(!e)throw new Error('대상물건 탭에서 기준시점을 먼저 입력하세요.');
   var startStr=String((type==='t'?c.date:c.base)||'').trim();
   if(/^\d{8}$/.test(startStr))startStr=startStr.slice(0,4)+'.'+startStr.slice(4,6)+'.'+startStr.slice(6,8);
   var g=parseYmd(startStr);
-  if(!g){if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: 선택한 사례의 '+(type==='t'?'거래일자':'기준시점')+'가 없습니다.';}return;}
-  // 같은 기간으로 이미 계산돼 있으면 재조회 없이 그대로 사용
+  if(!g)throw new Error('선택한 사례의 '+(type==='t'?'거래일자':'기준시점')+'가 없습니다.');
   var m0=c.timeMeta;
-  if(!force&&m0&&m0.from===ymdShort(g)&&m0.to===ymdShort(e)){
-    eIn.value=m0.factor;calcGongsi();saveForm();
-    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 = '+m0.factor+'  '+etcTimeLabel()+' (저장된 값)';}
-    return;
-  }
+  if(!force&&m0&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
   c.timeBusy=true;delete c.timeErr;refreshTradeTime();
-  if(mine()){eIn.value='';eIn.placeholder='⏳ 계산 중…';calcGongsi();}
   try{
     await jbPrepare(st,e.y*100+e.mo);
     var regs=jbState.regs,uses=jbState.uses;
@@ -1106,19 +1103,55 @@ async function autoEtcTime(force){
     var ui=jbPickUse(uses,c.use);if(ui<0)ui=uses.indexOf(document.getElementById('jb_selUse').value);if(ui<0)ui=jbPickUse(uses,'주거');
     if(ui<0)throw new Error('사례 용도지역("'+(c.use||'')+'")에 맞는 용도를 지가변동률 표에서 찾지 못했습니다.');
     var reg=regs[ri],use=uses[ui];
-    if(st){st.className='status';st.textContent='그밖의요인 시점수정 계산 중… '+jbRegLabel(reg)+' ('+use+')';}
-    var f=await roneCumulative(reg,use,g,e,function(ym){if(st)st.textContent='그밖의요인 월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';});
+    if(st){st.className='status';st.textContent='시점수정 계산 중… '+jbRegLabel(reg)+' ('+use+')';}
+    var f=await roneCumulative(reg,use,g,e,function(ym){if(st)st.textContent='월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';});
     c.timeMeta={reg:jbRegLabel(reg),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5)};
     delete c.timeBusy;refreshTradeTime();
-    if(mine()&&tok===etcTimeTok){eIn.value=f.toFixed(5);eIn.placeholder='1.00699';}
+    return {meta:c.timeMeta,cached:false};
+  }catch(err){delete c.timeBusy;c.timeErr=err.message;refreshTradeTime();throw err;}
+}
+// 그 밖의 요인: 선택된 적용사례의 시점수정치를 eTime에 채움
+async function autoEtcTime(force){
+  var st=document.getElementById('jbStatus'),eIn=document.getElementById('eTime');
+  var type=ETC.type,idx=ETC.idx,c=etcCase();if(!c)return;
+  var tok=++etcTimeTok,mine=function(){return ETC.type===type&&ETC.idx===idx&&tok===etcTimeTok;};
+  try{
+    var p=computeCaseTime(c,type,st,force);
+    if(c.timeBusy&&mine()){eIn.value='';eIn.placeholder='⏳ 계산 중…';calcGongsi();}
+    var r=await p;
+    if(mine()){eIn.value=r.meta.factor;eIn.placeholder='1.00699';}
     calcGongsi();saveForm();
-    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 자동 = '+f.toFixed(5)+'  '+timeMetaLabel(c.timeMeta);}
+    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 = '+r.meta.factor+'  '+timeMetaLabel(r.meta)+(r.cached?' (저장된 값)':'');}
   }catch(err){
     console.error('그밖의요인 시점수정 자동',err);
-    delete c.timeBusy;c.timeErr=err.message;refreshTradeTime();
-    if(mine()&&tok===etcTimeTok){eIn.placeholder='1.00699';sd();}
-    if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동 실패: '+err.message;}
+    if(mine()){eIn.placeholder='1.00699';sd();}
+    if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: '+err.message;}
   }
+}
+// 거래사례비교법: 채택한 거래사례의 시점수정치(거래사례 표에 계산해 둔 값)를 ga_time에 끌어온다.
+// onlyIfEmpty=true(탭 열 때)면 칸이 비어 있을 때만 채운다(손으로 적은 값은 유지). 채택을 바꾸거나 ↻ 버튼이면 항상 채운다.
+async function autoGaTime(force,onlyIfEmpty){
+  var c=TRADES[GA.idx];if(!c)return;
+  var inp=document.getElementById('ga_time'),st=document.getElementById('jbStatus');
+  if(onlyIfEmpty&&hasV(inp.value))return;
+  var idx=GA.idx,tok=++gaTimeTok,mine=function(){return GA.idx===idx&&tok===gaTimeTok;};
+  try{
+    var p=computeCaseTime(c,'t',st,force);
+    if(c.timeBusy&&mine()){inp.value='';inp.placeholder='⏳ 계산 중…';calcGeorae();}
+    var r=await p;
+    if(mine()){inp.value=r.meta.factor;inp.placeholder='1.05378';calcGeorae();saveForm();}
+  }catch(err){
+    console.error('거래사례비교법 시점수정 자동',err);
+    if(mine()){inp.placeholder='1.05378';calcGeorae();sd();}
+  }
+}
+// 거래사례비교법 보정표 아래 근거줄: 칸 값이 계산해 둔 값 그대로면 "1.00443 — 서울 중랑구 (…) (주거지역)", 손으로 바꿨으면 숫자만
+function gaTimeNote(){
+  var el=document.getElementById('gaTimeText');if(!el)return;
+  var c=TRADES[GA.idx]||{},inp=document.getElementById('ga_time'),v=num(inp.value);
+  if(c.timeBusy){el.textContent='⏳ 계산 중…';return;}
+  var m=c.timeMeta,same=v&&m&&m.factor===v.toFixed(5);
+  el.textContent=v?(v.toFixed(5)+(same?' — '+timeMetaLabel(m):'')):(c.timeErr?('⚠ '+c.timeErr):'-');
 }
 // 본건 시군구("서울특별시 중랑구") — 본건 토지 조회 결과(fullAddr) 또는 지가변동률 대상지역 칸
 function subjectSgg(){
@@ -1158,6 +1191,7 @@ function tradeTimeText(c){
 function refreshTradeTime(){
   TRADES.forEach(function(c,i){var td=document.getElementById('tradeTime_'+i);if(!td)return;
     td.textContent=tradeTimeText(c);td.classList.toggle('sel',ETC.type==='t'&&ETC.idx===i);td.classList.toggle('busy',!!c.timeBusy);});
+  gaTimeNote();
 }
 document.getElementById('jb_selRegion').onchange=jbCompute;
 document.getElementById('jb_selUse').onchange=jbCompute;
@@ -1275,7 +1309,7 @@ function renderTradePick(){
   var tbl=document.getElementById('tblTradePick');if(!tbl)return;
   var h='<tr><th>채택</th><th>사례</th><th>소재지</th><th>토지면적(㎡)</th><th>토지단가(원/㎡)</th><th>거래일자</th></tr>';
   TRADES.forEach(function(c,i){var cal=tradeCalc(c);
-    h+='<tr><td class="jud-c"><input type="radio" name="pickTradeGeorae" '+(GA.idx===i?'checked':'')+' onchange="GA.idx='+i+';syncGeorae();"></td>'+
+    h+='<tr><td class="jud-c"><input type="radio" name="pickTradeGeorae" '+(GA.idx===i?'checked':'')+' onchange="GA.idx='+i+';syncGeorae();autoGaTime();"></td>'+
        '<td>#'+(i+1)+'</td><td>'+(c.loc||'')+'</td><td>'+(c.landA||'')+'</td><td>'+won(cal.landUnit)+'</td><td>'+(c.date||'')+'</td></tr>';});
   tbl.innerHTML=h;
 }
@@ -1283,13 +1317,30 @@ function addCase(){TRADES.push({});renderTrade();syncPick();saveForm();}
 // 거래사례: 실제 입력값이 하나도 없으면 빈 열 3개로 맞춘다(빈 항목 1~2개만 있어도 3개로)
 function tradeHasData(c){return c&&Object.keys(c).some(function(k){return String(c[k]||'').trim()!=='';});}
 function ensureTrade3(){if(!TRADES.some(tradeHasData))TRADES=[{},{},{}];while(TRADES.length<3)TRADES.push({});}
+// ✕로 지운 사례는 보관해 두고 「↩ 복구」로 되돌릴 수 있다(가장 최근 것부터, 페이지를 닫기 전까지)
+var TRADE_UNDO=[];
 function delTrade(i){
+  if(!tradeHasData(TRADES[i])&&TRADES.length<=3)return;   // 이미 빈 열이면 할 일 없음
+  var snap={i:i,data:JSON.parse(JSON.stringify(TRADES[i])),spliced:TRADES.length>3,etc:JSON.parse(JSON.stringify(ETC)),ga:JSON.parse(JSON.stringify(GA))};
+  TRADE_UNDO.push(snap);
   // 3열까지는 항상 남긴다: 3열 이하면 그 열만 비우고, 4열 이상이면 열을 없앤다
-  if(TRADES.length<=3){TRADES[i]={};renderTrade();syncPick();calcGongsi();saveForm();return;}
-  TRADES.splice(i,1);
-  if(ETC.type==='t'&&ETC.idx>=TRADES.length)ETC.idx=TRADES.length-1;
-  if(GA.idx>=TRADES.length)GA.idx=0;
+  if(!snap.spliced){TRADES[i]={};}
+  else{TRADES.splice(i,1);
+    if(ETC.type==='t'&&ETC.idx>=TRADES.length)ETC.idx=TRADES.length-1;
+    if(GA.idx>=TRADES.length)GA.idx=0;}
   renderTrade();syncPick();calcGongsi();saveForm();
+  var msg=document.getElementById('pTradeMsg');
+  msg.className='pst';
+  msg.innerHTML='거래사례 #'+(i+1)+'('+eh(snap.data.loc||'내용 없음')+')을 '+(snap.spliced?'삭제':'비움')+'했습니다. <button class="btn gh sm" onclick="undoTrade()">↩ 복구</button>';
+}
+function undoTrade(){
+  var s=TRADE_UNDO.pop();if(!s)return;
+  if(s.spliced)TRADES.splice(s.i,0,s.data);else TRADES[s.i]=s.data;
+  ETC=s.etc;GA=s.ga;
+  renderTrade();syncPick();calcGongsi();saveForm();
+  var msg=document.getElementById('pTradeMsg');
+  msg.className='pst ok';
+  msg.innerHTML='✅ 거래사례 #'+(s.i+1)+' 복구했습니다.'+(TRADE_UNDO.length?' <button class="btn gh sm" onclick="undoTrade()">↩ 이전 삭제도 복구</button>':'');
 }
 
 // ================= 평가사례 (가로 표) =================
@@ -1538,6 +1589,7 @@ function calcGeorae(){
   var cal=tradeCalc(c);
   document.getElementById('ga_unit').textContent=cal.landUnit?won(cal.landUnit):'-';
   var sj=num(document.getElementById('ga_sajeong').value)||1,st=num(document.getElementById('ga_time').value)||1,ar=num(document.getElementById('ga_area').value)||1;
+  gaTimeNote();
 
   // 개별요인 — 필지별
   var hf='<tr><th>일련<br>번호</th><th>사례</th><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>';
@@ -1691,6 +1743,7 @@ function showTab(name){
     document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
   });
   if(name==='bld')renderBldCalc();
+  if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   window.scrollTo(0,0);
 }
 function sub(i,btn){
