@@ -99,6 +99,11 @@
   /* 그 밖의 요인 표 — 자동 칸을 직접 고쳐 자동계산값과 달라지면 빨간 글씨 */
   .calc-c.mis{background:#fef2f2;}
   .calc-c.mis input{color:#dc2626;}
+  /* 거래사례 표 '시점수정치' 행 — 선정된 사례는 굵게, 계산 중이면 회색 깜빡임 */
+  td.tt-c{font-size:11px;color:#475569;background:#f8fafc;line-height:1.35;}
+  td.tt-c.sel{font-weight:700;color:#0f2547;background:#eef2f7;}
+  td.tt-c.busy{color:#2563eb;animation:ttBlink 1s ease-in-out infinite;}
+  @keyframes ttBlink{0%,100%{opacity:1;}50%{opacity:.45;}}
   .etc-warn{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #dc2626;border-radius:4px;padding:6px 10px;font-size:11px;color:#b91c1c;font-weight:600;margin-top:6px;}
   /* 안내문은 무채색 — 노란색은 '평가사가 정하는 칸'에만 쓴다 */
   .note{background:#f6f8fa;border:1px solid #e2e5ea;border-left:3px solid #94a3b8;border-radius:4px;padding:7px 11px;font-size:11px;color:#475569;margin-top:7px;}
@@ -369,7 +374,7 @@
                 <button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
               <div class="pst" id="pTradeMsg"></div>
               <div class="tw"><table id="tblTrade"></table></div>
-              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다.</div>
+              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다. <b>시점수정치</b> 행은 사례를 <b>선정</b>할 때 그 사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 조회해 채우고, 한 번 계산된 값은 저장돼 다른 사례로 옮겨도 계속 보입니다.</div>
             </div>
 
             <!-- 평가사례 -->
@@ -392,7 +397,7 @@
                 <select class="box" id="etcPick" style="max-width:240px"></select>
                 <span class="hint">/ 표준지</span>
                 <select class="box" id="etcStd" style="max-width:120px;display:none" onchange="calcGongsi()"></select>
-                <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime()" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
+                <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime(true)" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
               </div>
               <div class="tw"><table>
                 <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
@@ -985,7 +990,8 @@ function jbSplit(r){
 function jbPickRegion(regs,hint){
   hint=String(hint||'').replace(/\s/g,'');if(!hint)return -1;
   var bi=-1,bs=0;
-  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p&&hint.indexOf(p)>=0)score+=p.length;});if(score>bs){bs=score;bi=i;}});
+  // 접미사를 뗀 조각이 한 글자(동구→'동', 중구→'중', 남구→'남')면 동 이름과 우연히 겹치므로 무시 — "상봉동 74-6"이 "대전 동구"로 잡히는 것 방지
+  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p.length>=2&&hint.indexOf(p)>=0)score+=p.length;});if(score>bs){bs=score;bi=i;}});
   return bi;
 }
 function jbFactor(rates,g,e){
@@ -1063,33 +1069,68 @@ function ymdShort(d){return d?(String(d.y).slice(-2)+'.'+String(d.mo).padStart(2
 
 // 그 밖의 요인: 선택된 적용사례(거래사례=거래일자, 평가사례=기준시점) → 기준시점까지의 지가변동률 시점수정치를 eTime에 자동 기입.
 // 지역·용도는 본건이 아니라 **사례의 소재지·용도지역** 기준(사례가 다른 시군구여도 맞게). 지가변동률 표가 준비돼 있지 않으면 스스로 준비한다.
-async function autoEtcTime(){
-  var st=document.getElementById('jbStatus');
+// 결과는 사례 객체(c.timeMeta)에 남겨 두어 다른 사례로 옮겨 다녀도 거래사례 표 '시점수정치' 행에 계속 보인다(건 저장에 포함).
+// 이미 같은 기간으로 계산해 둔 사례를 다시 고르면 조회 없이 그 값을 쓰고, 「↻ 시점수정 자동」 버튼(force)은 새로 조회한다.
+var etcTimeTok=0;
+function etcCase(){return ETC.type==='t'?(TRADES[ETC.idx]||null):(APPRS[ETC.idx]||null);}
+async function autoEtcTime(force){
+  var st=document.getElementById('jbStatus'),eIn=document.getElementById('eTime');
+  var type=ETC.type,idx=ETC.idx,c=etcCase();if(!c)return;
+  var tok=++etcTimeTok,mine=function(){return ETC.type===type&&ETC.idx===idx;};
   var e=parseYmd(document.getElementById('base_gijun').value);
   if(!e){if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: 대상물건 탭에서 기준시점을 먼저 입력하세요.';}return;}
-  var c=ETC.type==='t'?(TRADES[ETC.idx]||{}):(APPRS[ETC.idx]||{});
-  var startStr=String((ETC.type==='t'?c.date:c.base)||'').trim();
+  var startStr=String((type==='t'?c.date:c.base)||'').trim();
   if(/^\d{8}$/.test(startStr))startStr=startStr.slice(0,4)+'.'+startStr.slice(4,6)+'.'+startStr.slice(6,8);
   var g=parseYmd(startStr);
-  if(!g){if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: 선택한 사례의 '+(ETC.type==='t'?'거래일자':'기준시점')+'가 없습니다.';}return;}
+  if(!g){if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: 선택한 사례의 '+(type==='t'?'거래일자':'기준시점')+'가 없습니다.';}return;}
+  // 같은 기간으로 이미 계산돼 있으면 재조회 없이 그대로 사용
+  var m0=c.timeMeta;
+  if(!force&&m0&&m0.from===ymdShort(g)&&m0.to===ymdShort(e)){
+    eIn.value=m0.factor;calcGongsi();saveForm();
+    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 = '+m0.factor+'  '+etcTimeLabel()+' (저장된 값)';}
+    return;
+  }
+  c.timeBusy=true;delete c.timeErr;refreshTradeTime();
+  if(mine()){eIn.value='';eIn.placeholder='⏳ 계산 중…';calcGongsi();}
   try{
     await jbPrepare(st,e.y*100+e.mo);
     var regs=jbState.regs,uses=jbState.uses;
-    var ri=jbPickRegion(regs,c.loc);if(ri<0)ri=regs.indexOf(document.getElementById('jb_selRegion').value);
-    if(ri<0)throw new Error('사례 소재지("'+(c.loc||'')+'")에 맞는 지역을 지가변동률 표에서 찾지 못했습니다.');
+    // 사례 소재지에 시군구가 없으면(예 "상봉동 74-6") 본건 지역으로 대체하고 '(추정)' 표시 — 소재지에 시군구를 적으면 그 지역으로 계산
+    var guess=false,ri=jbPickRegion(regs,c.loc);
+    if(ri<0){ri=regs.indexOf(document.getElementById('jb_selRegion').value);guess=true;}
+    if(ri<0)throw new Error('사례 소재지("'+(c.loc||'')+'")에 맞는 지역을 지가변동률 표에서 찾지 못했습니다. 소재지에 시군구까지 적어 주세요.');
     var ui=jbPickUse(uses,c.use);if(ui<0)ui=uses.indexOf(document.getElementById('jb_selUse').value);if(ui<0)ui=jbPickUse(uses,'주거');
     if(ui<0)throw new Error('사례 용도지역("'+(c.use||'')+'")에 맞는 용도를 지가변동률 표에서 찾지 못했습니다.');
     var reg=regs[ri],use=uses[ui];
     if(st){st.className='status';st.textContent='그밖의요인 시점수정 계산 중… '+jbRegLabel(reg)+' ('+use+')';}
     var f=await roneCumulative(reg,use,g,e,function(ym){if(st)st.textContent='그밖의요인 월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';});
-    ETC.timeMeta={reg:jbRegLabel(reg),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5)};
-    document.getElementById('eTime').value=f.toFixed(5);
+    c.timeMeta={reg:jbRegLabel(reg)+(guess?'(추정)':''),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5)};
+    delete c.timeBusy;refreshTradeTime();
+    if(mine()&&tok===etcTimeTok){eIn.value=f.toFixed(5);eIn.placeholder='1.00699';}
     calcGongsi();saveForm();
-    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 자동 = '+f.toFixed(5)+'  '+etcTimeLabel();}
-  }catch(err){console.error('그밖의요인 시점수정 자동',err);if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동 실패: '+err.message;}}
+    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 자동 = '+f.toFixed(5)+'  '+timeMetaLabel(c.timeMeta);}
+  }catch(err){
+    console.error('그밖의요인 시점수정 자동',err);
+    delete c.timeBusy;c.timeErr=err.message;refreshTradeTime();
+    if(mine()&&tok===etcTimeTok)eIn.placeholder='1.00699';
+    if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동 실패: '+err.message;}
+  }
 }
 // 각주용 문구: "서울특별시 중랑구 (26.01.31~26.04.14) (주거)"
-function etcTimeLabel(){var m=ETC.timeMeta;if(!m)return '';return m.reg+' ('+m.from+'~'+m.to+') ('+m.use+')';}
+function timeMetaLabel(m){if(!m)return '';return m.reg+' ('+m.from+'~'+m.to+') ('+m.use+')';}
+function etcTimeMeta(){var c=etcCase();return (c&&c.timeMeta)||ETC.timeMeta||null;}   // ETC.timeMeta는 옛 저장 호환
+function etcTimeLabel(){return timeMetaLabel(etcTimeMeta());}
+// 거래사례 표 '시점수정치' 행 한 칸의 내용
+function tradeTimeText(c){
+  if(c.timeBusy)return '⏳ 계산 중…';
+  if(c.timeMeta)return c.timeMeta.factor+' — '+timeMetaLabel(c.timeMeta);
+  if(c.timeErr)return '⚠ '+c.timeErr;
+  return '-';
+}
+function refreshTradeTime(){
+  TRADES.forEach(function(c,i){var td=document.getElementById('tradeTime_'+i);if(!td)return;
+    td.textContent=tradeTimeText(c);td.classList.toggle('sel',ETC.type==='t'&&ETC.idx===i);td.classList.toggle('busy',!!c.timeBusy);});
+}
 document.getElementById('jb_selRegion').onchange=jbCompute;
 document.getElementById('jb_selUse').onchange=jbCompute;
 document.getElementById('btnJb').onclick=async function(){
@@ -1169,7 +1210,10 @@ function tradeCell(c,i,r){
   return '<td class="'+(t==='jud'?'jud-c':'')+'"><input value="'+attr(c[k]||'')+'" oninput="tradeIn('+i+',\''+k+'\',this.value)"></td>';
 }
 // 입력 중에는 표를 통째로 다시 그리지 않고(포커스 유지) 같은 열의 자동 칸만 갱신
-function tradeIn(i,k,v){TRADES[i][k]=v;refreshTradeCol(i);calcGongsi();saveForm();}
+function tradeIn(i,k,v){TRADES[i][k]=v;
+  // 거래일자·소재지·용도지역이 바뀌면 계산해 둔 시점수정치는 더 이상 맞지 않으므로 지운다(다시 선정하면 재계산)
+  if(k==='date'||k==='loc'||k==='use'){delete TRADES[i].timeMeta;delete TRADES[i].timeErr;refreshTradeTime();}
+  refreshTradeCol(i);calcGongsi();saveForm();}
 function refreshTradeCol(i){
   var c=TRADES[i];if(!c)return;var cal=tradeCalc(c),tbl=document.getElementById('tblTrade');
   TRADE_AUTO_KEYS.forEach(function(k){
@@ -1193,6 +1237,9 @@ function renderTrade(){
   });
   h+='<tr><th class="rowh">선정</th>'+TRADES.map(function(c,i){
     return '<td class="jud-c"><input type="radio" name="pickTrade" '+(ETC.type==='t'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'t\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';}).join('')+'</tr>';
+  // 시점수정치: 선정할 때 계산되고, 계산된 값은 사례별로 남아 다른 사례로 옮겨도 계속 보인다
+  h+='<tr><th class="rowh" title="선정 시 사례 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준). 한 번 계산되면 저장돼 계속 보임">시점<br>수정치</th>'+TRADES.map(function(c,i){
+    return '<td class="tt-c'+(ETC.type==='t'&&ETC.idx===i?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
   document.getElementById('tblTrade').innerHTML=h;
   renderTradePick();
 }
@@ -1411,7 +1458,7 @@ function calcGongsi(){
   AUTO.ratio=o2>0?o1/o2:0;var ratio=ov('ratio',AUTO.ratio);
   etcPaint(OV,AUTO);
   // 자동계산된 값 그대로면 "1.00443 — 서울특별시 중랑구 (26.01.31~26.04.14) (주거)"처럼 근거를 같이 보여줌
-  var tm=ETC.timeMeta,tl=(et&&tm&&tm.factor===et.toFixed(5))?(' — '+etcTimeLabel()):'';
+  var tm=etcTimeMeta(),tl=(et&&tm&&tm.factor===et.toFixed(5))?(' — '+timeMetaLabel(tm)):'';
   document.getElementById('fnTime').textContent=(et?et.toFixed(5):'-')+tl;
   document.getElementById('fnArea').textContent=ea.toFixed(2);
   // 화면의 결정치 입력값을 현재 표준지에 저장
