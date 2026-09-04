@@ -392,7 +392,7 @@
                 <select class="box" id="etcPick" style="max-width:240px"></select>
                 <span class="hint">/ 표준지</span>
                 <select class="box" id="etcStd" style="max-width:120px;display:none" onchange="calcGongsi()"></select>
-                <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime()" title="선택한 거래사례의 거래일자~기준시점 지가변동률로 시점수정치 자동계산 (지가변동률 자동조회 먼저)">↻ 시점수정 자동</button>
+                <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime()" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
               </div>
               <div class="tw"><table>
                 <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
@@ -1025,24 +1025,71 @@ async function jbCompute(){
     saveForm();calcGongsi();autoEtcTime();
   }catch(err){console.error('지가변동률',err);st.className='status err';st.textContent='실패: '+err.message;}
 }
-// 그 밖의 요인: 선택된 적용사례(거래사례=거래일자, 평가사례=기준시점) → 기준시점 시점수정치 자동계산해 eTime에 채움
+// 지가변동률 표 준비(통계표 확정 → 최신 발표월 → 지역·용도 목록). 자동조회 버튼과 그밖의요인 자동 시점수정이 같이 씀.
+// 한 번 준비되면 jbState.tbl/regs/uses에 남아 다시 조회하지 않는다.
+var jbPrepPromise=null;
+function jbPrepare(st,endYm){
+  if(jbState.tbl&&jbState.regs&&jbState.regs.length)return Promise.resolve();
+  if(jbPrepPromise)return jbPrepPromise;
+  jbPrepPromise=(async function(){
+    if(st)st.textContent='지가변동률 통계표 찾는 중…';
+    jbState.tbl=await jbFindTable(endYm);
+    var rows=null,ym=endYm;
+    for(var back=0;back<=8;back++){ym=ymAdd(endYm,-back);if(st)st.textContent='최신 발표월 확인 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';rows=await jbMonthRows(jbState.tbl.id,ym);if(rows.length)break;}
+    if(!rows||!rows.length)throw new Error('최근 발표 자료를 찾지 못했습니다.');
+    jbState.latestYm=ym;jbDetect(rows);
+    var regs=[],uses=[];
+    rows.forEach(function(r){var d=jbSplit(r);if(d.reg&&regs.indexOf(d.reg)<0)regs.push(d.reg);if(d.use&&uses.indexOf(d.use)<0)uses.push(d.use);});
+    if(!regs.length||!uses.length)throw new Error('표 구조를 해석하지 못했습니다.');
+    jbState.regs=regs;jbState.uses=uses;
+    var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
+    selR.innerHTML=regs.map(function(x){return '<option>'+x.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
+    selU.innerHTML=uses.map(function(x){return '<option>'+x.replace(/</g,'&lt;')+'</option>';}).join('');
+    selR.style.display='';selU.style.display='';
+    var ri=jbPickRegion(regs,document.getElementById('jb_region').value);if(ri>=0)selR.selectedIndex=ri;
+    var ui=jbPickUse(uses,document.getElementById('jb_use').value||'주거');if(ui>=0)selU.selectedIndex=ui;
+  })();
+  return jbPrepPromise.catch(function(e){jbState.tbl=null;throw e;}).finally(function(){jbPrepPromise=null;});
+}
+// 용도지역 문구(정식·약칭 모두) → 지가변동률 표의 용도 항목(주거·상업·공업·녹지·관리·농림·자연환경) 고르기
+function jbUseGroup(v){v=String(v||'');
+  if(/상업/.test(v))return '상업';if(/공업/.test(v))return '공업';if(/녹지/.test(v))return '녹지';
+  if(/관리/.test(v))return '관리';if(/농림/.test(v))return '농림';if(/자연환경/.test(v))return '자연환경';
+  if(/주/.test(v))return '주거';return '';}
+function jbPickUse(uses,hint){var h=jbUseGroup(hint)||String(hint||'').replace(/지역$/,'');if(!h)return -1;
+  return uses.findIndex(function(u){return u.indexOf(h)>=0;});}
+function jbRegLabel(reg){return String(reg||'').split('>').map(function(p){return p.trim();}).filter(Boolean).join(' ');}
+function ymdShort(d){return d?(String(d.y).slice(-2)+'.'+String(d.mo).padStart(2,'0')+'.'+String(d.d).padStart(2,'0')):'';}
+
+// 그 밖의 요인: 선택된 적용사례(거래사례=거래일자, 평가사례=기준시점) → 기준시점까지의 지가변동률 시점수정치를 eTime에 자동 기입.
+// 지역·용도는 본건이 아니라 **사례의 소재지·용도지역** 기준(사례가 다른 시군구여도 맞게). 지가변동률 표가 준비돼 있지 않으면 스스로 준비한다.
 async function autoEtcTime(){
-  if(!jbState.tbl)return;   // 지가변동률 자동조회 전이면 스킵(수동 입력 유지)
-  var reg=document.getElementById('jb_selRegion').value,use=document.getElementById('jb_selUse').value;
-  if(!reg||!use)return;
-  var e=parseYmd(document.getElementById('base_gijun').value);if(!e)return;
-  var startStr=ETC.type==='t'?((TRADES[ETC.idx]||{}).date):((APPRS[ETC.idx]||{}).base);
-  startStr=String(startStr||'').trim();
-  if(/^\d{8}$/.test(startStr))startStr=startStr.slice(0,4)+'.'+startStr.slice(4,6)+'.'+startStr.slice(6,8);
-  var g=parseYmd(startStr);if(!g)return;   // 거래일자(또는 기준시점) 없으면 스킵
   var st=document.getElementById('jbStatus');
+  var e=parseYmd(document.getElementById('base_gijun').value);
+  if(!e){if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: 대상물건 탭에서 기준시점을 먼저 입력하세요.';}return;}
+  var c=ETC.type==='t'?(TRADES[ETC.idx]||{}):(APPRS[ETC.idx]||{});
+  var startStr=String((ETC.type==='t'?c.date:c.base)||'').trim();
+  if(/^\d{8}$/.test(startStr))startStr=startStr.slice(0,4)+'.'+startStr.slice(4,6)+'.'+startStr.slice(6,8);
+  var g=parseYmd(startStr);
+  if(!g){if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: 선택한 사례의 '+(ETC.type==='t'?'거래일자':'기준시점')+'가 없습니다.';}return;}
   try{
-    var f=await roneCumulative(reg,use,g,e);
+    await jbPrepare(st,e.y*100+e.mo);
+    var regs=jbState.regs,uses=jbState.uses;
+    var ri=jbPickRegion(regs,c.loc);if(ri<0)ri=regs.indexOf(document.getElementById('jb_selRegion').value);
+    if(ri<0)throw new Error('사례 소재지("'+(c.loc||'')+'")에 맞는 지역을 지가변동률 표에서 찾지 못했습니다.');
+    var ui=jbPickUse(uses,c.use);if(ui<0)ui=uses.indexOf(document.getElementById('jb_selUse').value);if(ui<0)ui=jbPickUse(uses,'주거');
+    if(ui<0)throw new Error('사례 용도지역("'+(c.use||'')+'")에 맞는 용도를 지가변동률 표에서 찾지 못했습니다.');
+    var reg=regs[ri],use=uses[ui];
+    if(st){st.className='status';st.textContent='그밖의요인 시점수정 계산 중… '+jbRegLabel(reg)+' ('+use+')';}
+    var f=await roneCumulative(reg,use,g,e,function(ym){if(st)st.textContent='그밖의요인 월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';});
+    ETC.timeMeta={reg:jbRegLabel(reg),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5)};
     document.getElementById('eTime').value=f.toFixed(5);
     calcGongsi();saveForm();
-    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 자동 = '+f.toFixed(5)+'  ('+startStr+' ~ '+document.getElementById('base_gijun').value+')';}
-  }catch(err){console.error('그밖의요인 시점수정 자동',err);}
+    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 자동 = '+f.toFixed(5)+'  '+etcTimeLabel();}
+  }catch(err){console.error('그밖의요인 시점수정 자동',err);if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동 실패: '+err.message;}}
 }
+// 각주용 문구: "서울특별시 중랑구 (26.01.31~26.04.14) (주거)"
+function etcTimeLabel(){var m=ETC.timeMeta;if(!m)return '';return m.reg+' ('+m.from+'~'+m.to+') ('+m.use+')';}
 document.getElementById('jb_selRegion').onchange=jbCompute;
 document.getElementById('jb_selUse').onchange=jbCompute;
 document.getElementById('btnJb').onclick=async function(){
@@ -1051,23 +1098,7 @@ document.getElementById('btnJb').onclick=async function(){
   if(!g||!e){alert('대상물건 탭에서 공시기준일·기준시점을 먼저 입력하세요.');return;}
   btn.disabled=true;st.className='status';
   try{
-    st.textContent='지가변동률 통계표 찾는 중…';
-    var endYm=e.y*100+e.mo;
-    jbState.tbl=await jbFindTable(endYm);
-    var rows=null,ym=endYm;
-    for(var back=0;back<=8;back++){ym=ymAdd(endYm,-back);st.textContent='최신 발표월 확인 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';rows=await jbMonthRows(jbState.tbl.id,ym);if(rows.length)break;}
-    if(!rows||!rows.length)throw new Error('최근 발표 자료를 찾지 못했습니다.');
-    jbState.latestYm=ym;jbDetect(rows);
-    var regs=[],uses=[];
-    rows.forEach(function(r){var d=jbSplit(r);if(d.reg&&regs.indexOf(d.reg)<0)regs.push(d.reg);if(d.use&&uses.indexOf(d.use)<0)uses.push(d.use);});
-    if(!regs.length||!uses.length)throw new Error('표 구조를 해석하지 못했습니다.');
-    var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
-    selR.innerHTML=regs.map(function(x){return '<option>'+x.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
-    selU.innerHTML=uses.map(function(x){return '<option>'+x.replace(/</g,'&lt;')+'</option>';}).join('');
-    selR.style.display='';selU.style.display='';
-    var ri=jbPickRegion(regs,document.getElementById('jb_region').value);if(ri>=0)selR.selectedIndex=ri;
-    var uh=document.getElementById('jb_use').value||'주거';
-    var ui=uses.findIndex(function(u){return u.indexOf(uh.replace(/지역$/,''))>=0;});if(ui>=0)selU.selectedIndex=ui;
+    await jbPrepare(st,e.y*100+e.mo);
     await jbCompute();
   }catch(err){console.error('지가변동률',err);st.className='status err';st.textContent='실패: '+err.message;}
   finally{btn.disabled=false;}
@@ -1192,7 +1223,7 @@ var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지�
 function renderAppr(){
   var h='<tr><th>선정</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
-    h+='<tr><td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcGongsi();"></td>';
+    h+='<tr><td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';
     APPR_COLS.forEach(function(c){h+='<td><input value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();"></td>';});
     h+='<td><span class="del" title="삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
@@ -1379,7 +1410,9 @@ function calcGongsi(){
   AUTO.out2=sp*stf2*saj2*ea2*ind2;var o2=ov('out2',AUTO.out2);
   AUTO.ratio=o2>0?o1/o2:0;var ratio=ov('ratio',AUTO.ratio);
   etcPaint(OV,AUTO);
-  document.getElementById('fnTime').textContent=et?et.toFixed(5):'-';
+  // 자동계산된 값 그대로면 "1.00443 — 서울특별시 중랑구 (26.01.31~26.04.14) (주거)"처럼 근거를 같이 보여줌
+  var tm=ETC.timeMeta,tl=(et&&tm&&tm.factor===et.toFixed(5))?(' — '+etcTimeLabel()):'';
+  document.getElementById('fnTime').textContent=(et?et.toFixed(5):'-')+tl;
   document.getElementById('fnArea').textContent=ea.toFixed(2);
   // 화면의 결정치 입력값을 현재 표준지에 저장
   var dv=document.getElementById('eDecide').value;
