@@ -392,6 +392,7 @@
                 <select class="box" id="etcPick" style="max-width:240px"></select>
                 <span class="hint">/ 표준지</span>
                 <select class="box" id="etcStd" style="max-width:120px;display:none" onchange="calcGongsi()"></select>
+                <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime()" title="선택한 거래사례의 거래일자~기준시점 지가변동률로 시점수정치 자동계산 (지가변동률 자동조회 먼저)">↻ 시점수정 자동</button>
               </div>
               <div class="tw"><table>
                 <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
@@ -1021,8 +1022,26 @@ async function jbCompute(){
     document.getElementById('jb_rate').value=((factor-1)*100).toFixed(3);
     document.getElementById('jb_factor').value=factor.toFixed(5);
     st.className='status';st.textContent='✅ 완료 · 시점수정치 '+factor.toFixed(5);
-    saveForm();calcGongsi();
+    saveForm();calcGongsi();autoEtcTime();
   }catch(err){console.error('지가변동률',err);st.className='status err';st.textContent='실패: '+err.message;}
+}
+// 그 밖의 요인: 선택된 적용사례(거래사례=거래일자, 평가사례=기준시점) → 기준시점 시점수정치 자동계산해 eTime에 채움
+async function autoEtcTime(){
+  if(!jbState.tbl)return;   // 지가변동률 자동조회 전이면 스킵(수동 입력 유지)
+  var reg=document.getElementById('jb_selRegion').value,use=document.getElementById('jb_selUse').value;
+  if(!reg||!use)return;
+  var e=parseYmd(document.getElementById('base_gijun').value);if(!e)return;
+  var startStr=ETC.type==='t'?((TRADES[ETC.idx]||{}).date):((APPRS[ETC.idx]||{}).base);
+  startStr=String(startStr||'').trim();
+  if(/^\d{8}$/.test(startStr))startStr=startStr.slice(0,4)+'.'+startStr.slice(4,6)+'.'+startStr.slice(6,8);
+  var g=parseYmd(startStr);if(!g)return;   // 거래일자(또는 기준시점) 없으면 스킵
+  var st=document.getElementById('jbStatus');
+  try{
+    var f=await roneCumulative(reg,use,g,e);
+    document.getElementById('eTime').value=f.toFixed(5);
+    calcGongsi();saveForm();
+    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 자동 = '+f.toFixed(5)+'  ('+startStr+' ~ '+document.getElementById('base_gijun').value+')';}
+  }catch(err){console.error('그밖의요인 시점수정 자동',err);}
 }
 document.getElementById('jb_selRegion').onchange=jbCompute;
 document.getElementById('jb_selUse').onchange=jbCompute;
@@ -1142,7 +1161,7 @@ function renderTrade(){
     h+='</tr>';
   });
   h+='<tr><th class="rowh">선정</th>'+TRADES.map(function(c,i){
-    return '<td class="jud-c"><input type="radio" name="pickTrade" '+(ETC.type==='t'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'t\',idx:'+i+'};syncPick();calcGongsi();"></td>';}).join('')+'</tr>';
+    return '<td class="jud-c"><input type="radio" name="pickTrade" '+(ETC.type==='t'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'t\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';}).join('')+'</tr>';
   document.getElementById('tblTrade').innerHTML=h;
   renderTradePick();
 }
@@ -1275,7 +1294,7 @@ function syncPick(){
   TRADES.forEach(function(c,i){h+='<option value="t'+i+'"'+(ETC.type==='t'&&ETC.idx===i?' selected':'')+'>거래사례 #'+(i+1)+' — '+(c.loc||'')+'</option>';});
   APPRS.forEach(function(a,i){h+='<option value="a'+i+'"'+(ETC.type==='a'&&ETC.idx===i?' selected':'')+'>평가사례 '+a.no+' — '+(a.loc||'')+'</option>';});
   sel.innerHTML=h;
-  sel.onchange=function(){ETC={type:this.value[0],idx:+this.value.slice(1)};renderTrade();renderAppr();calcGongsi();};
+  sel.onchange=function(){ETC={type:this.value[0],idx:+this.value.slice(1)};renderTrade();renderAppr();calcGongsi();autoEtcTime();};
 }
 function srcUnit(){if(ETC.type==='t'){var c=TRADES[ETC.idx];return c?tradeCalc(c).landUnit:0;}var a=APPRS[ETC.idx];return a?num(a.unit):0;}
 
@@ -1839,6 +1858,44 @@ document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx �
 initMemo();
 initSplits();initMemoResize();
 calcGongsi();
+
+// ================= 키보드 셀 이동 (↑/↓ 방향키 + Tab) =================
+// 텍스트 입력칸에서 ↑/↓ 로 위·아래 칸으로 포커스 이동(같은 열 우선). ←→·Tab은 기본 동작 유지.
+(function(){
+  function navInputs(){
+    return [].slice.call(document.querySelectorAll('input')).filter(function(x){
+      var t=(x.getAttribute('type')||'text').toLowerCase();
+      if(['text','number','tel','search',''].indexOf(t)<0)return false;
+      if(x.disabled||x.readOnly)return false;
+      if(x.offsetParent===null)return false;   // 숨김(비활성 탭·display:none) 제외
+      return true;
+    });
+  }
+  function moveVert(el,dir){
+    var r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+    var band=Math.max(r.width/2,40);           // 같은 열 허용 범위
+    var col=[],oth=[];
+    navInputs().forEach(function(x){
+      if(x===el)return;
+      var xr=x.getBoundingClientRect(),xcx=xr.left+xr.width/2,xcy=xr.top+xr.height/2,dy=xcy-cy;
+      if(dir>0?dy>2:dy<-2){var it={el:x,dy:Math.abs(dy),dx:Math.abs(xcx-cx)};(it.dx<=band?col:oth).push(it);}
+    });
+    var pick=null;
+    if(col.length){col.sort(function(a,b){return a.dy-b.dy;});pick=col[0].el;}
+    else if(oth.length){oth.sort(function(a,b){return (a.dy+a.dx*2)-(b.dy+b.dx*2);});pick=oth[0].el;}
+    if(pick){pick.focus();try{pick.select();}catch(e){}}
+    return !!pick;
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')return;
+    if(e.ctrlKey||e.altKey||e.metaKey)return;
+    var el=e.target;
+    if(!el||el.tagName!=='INPUT')return;
+    var t=(el.getAttribute('type')||'text').toLowerCase();
+    if(['text','number','tel','search',''].indexOf(t)<0)return;
+    if(moveVert(el,e.key==='ArrowDown'?1:-1))e.preventDefault();
+  });
+})();
 </script>
 </body>
 </html>
