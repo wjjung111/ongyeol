@@ -100,6 +100,8 @@
   .calc-c.mis{background:#fef2f2;}
   .calc-c.mis input{color:#dc2626;}
   /* 거래사례 표 '시점수정치' 행 — 선정된 사례는 굵게, 계산 중이면 회색 깜빡임 */
+  /* 고정 계산값(수정 불가) — 직접 고칠 수 있는 회색 칸(calc-c)보다 한 단계 진하게 */
+  .calc-c.fixed{background:#d6deea;color:#0f2547;}
   td.tt-c{font-size:11px;color:#475569;background:#f8fafc;line-height:1.35;}
   td.tt-c.sel{font-weight:700;color:#0f2547;background:#eef2f7;}
   td.tt-c.busy{color:#2563eb;animation:ttBlink 1s ease-in-out infinite;}
@@ -433,7 +435,7 @@
                   <td class="jud-c"><input class="ef" id="e_f4" value="1.00" oninput="calcGongsi()"></td>
                   <td class="jud-c"><input class="ef" id="e_f5" value="1.00" oninput="calcGongsi()"></td>
                   <td class="jud-c"><input class="ef" id="e_f6" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="calc-c" id="efSum">1.000</td></tr>
+                  <td class="calc-c fixed" id="efSum" title="자동 계산(여섯 조건의 곱) — 이 칸은 고칠 수 없고, 위 조건 칸을 고치면 따라 바뀝니다">1.000</td></tr>
                 <tr><th class="rowh">의견</th><td colspan="6" style="text-align:left"><input id="e_opinion" value="" placeholder="표준지는 평가사례와 비교하여 …" style="text-align:left"></td></tr>
               </table></div>
 
