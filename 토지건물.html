@@ -100,6 +100,8 @@
   .calc-c.mis{background:#fef2f2;}
   .calc-c.mis input{color:#dc2626;}
   /* 거래사례 표 '시점수정치' 행 — 선정된 사례는 굵게, 계산 중이면 회색 깜빡임 */
+  .undo{color:#2563eb;cursor:pointer;font-weight:700;margin-left:2px;}
+  .undo:hover{text-decoration:underline;}
   /* 고정 계산값(수정 불가) — 직접 고칠 수 있는 회색 칸(calc-c)보다 한 단계 진하게 */
   .calc-c.fixed{background:#d6deea;color:#0f2547;}
   td.tt-c{font-size:11px;color:#475569;background:#f8fafc;line-height:1.35;}
@@ -1286,7 +1288,9 @@ function refreshTradeCol(i){
 }
 function renderTrade(){
   while(TRADES.length<3)TRADES.push({});   // 기본 화면은 항상 빈 3열
-  var h='<tr><th>구분</th>'+TRADES.map(function(c,i){return '<th>거래사례 #'+(i+1)+' <span class="del" title="이 사례 비우기/삭제" onclick="delTrade('+i+')">✕</span></th>';}).join('')+'</tr>';
+  var u=TRADE_UNDO.length?TRADE_UNDO[TRADE_UNDO.length-1]:null,ui=u?Math.min(u.i,TRADES.length-1):-1;
+  var h='<tr><th>구분</th>'+TRADES.map(function(c,i){return '<th>거래사례 #'+(i+1)+' <span class="del" title="이 사례 비우기/삭제" onclick="delTrade('+i+')">✕</span>'+
+    (i===ui?' <span class="undo" title="방금 '+(u.spliced?'삭제':'비움')+'한 거래사례 #'+(u.i+1)+'('+attr(u.data.loc||'내용 없음')+') 복구" onclick="undoTrade()">↩</span>':'')+'</th>';}).join('')+'</tr>';
   [['토지','토지 행(토지면적)'],['건물','건물 행(건물면적·사용승인일)']].forEach(function(k){
     h+='<tr><th class="rowh" style="font-weight:600;color:#475569;font-size:11px">'+k[0]+' kais</th>'+TRADES.map(function(c,i){
       return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" data-kind="'+k[0]+'" data-i="'+i+'" title="실거래가 엑셀의 '+k[1]+'을 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워집니다" onpaste="kaisPaste(event,'+i+',\''+k[0]+'\')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
@@ -1329,8 +1333,7 @@ function delTrade(i){
     if(GA.idx>=TRADES.length)GA.idx=0;}
   renderTrade();syncPick();calcGongsi();saveForm();
   var msg=document.getElementById('pTradeMsg');
-  msg.className='pst';
-  msg.innerHTML='거래사례 #'+(i+1)+'('+eh(snap.data.loc||'내용 없음')+')을 '+(snap.spliced?'삭제':'비움')+'했습니다. <button class="btn gh sm" onclick="undoTrade()">↩ 복구</button>';
+  msg.className='pst';msg.textContent='거래사례 #'+(i+1)+'('+(snap.data.loc||'내용 없음')+')을 '+(snap.spliced?'삭제':'비움')+'했습니다 — 머리글의 ↩로 복구할 수 있습니다.';
 }
 function undoTrade(){
   var s=TRADE_UNDO.pop();if(!s)return;
@@ -1338,8 +1341,7 @@ function undoTrade(){
   ETC=s.etc;GA=s.ga;
   renderTrade();syncPick();calcGongsi();saveForm();
   var msg=document.getElementById('pTradeMsg');
-  msg.className='pst ok';
-  msg.innerHTML='✅ 거래사례 #'+(s.i+1)+' 복구했습니다.'+(TRADE_UNDO.length?' <button class="btn gh sm" onclick="undoTrade()">↩ 이전 삭제도 복구</button>':'');
+  msg.className='pst ok';msg.textContent='✅ 거래사례 #'+(s.i+1)+' 복구했습니다.'+(TRADE_UNDO.length?' (이전에 지운 것도 ↩로 복구 가능)':'');
 }
 
 // ================= 평가사례 (가로 표) =================
