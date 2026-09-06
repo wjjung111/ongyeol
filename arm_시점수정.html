@@ -243,6 +243,7 @@
 </main>
 
 <script src="arap_index_data.js"></script>
+<script src="arap_jibyun_data.js"></script><!-- 토지 지가변동률(매일 06시 자동갱신, 없으면 프록시로 받음) -->
 <script>
 // ── 아래 계산 로직은 집합건물.html의 buildSjIdxText / buildNrCapText와 동일 규칙 (수정 시 양쪽 함께)
 const idxData=()=>window.ARAP_INDEX_DATA||null;
@@ -447,11 +448,12 @@ const jbLoadPrep=()=>{try{const c=JSON.parse(localStorage.getItem(JB_PREP_KEY)||
 const jbSavePrep=()=>{try{localStorage.setItem(JB_PREP_KEY,JSON.stringify({t:Date.now(),tbl:jbState.tbl,latestYm:jbState.latestYm,regs:jbState.regs,uses:jbState.uses,useF:jbState.useF,regF:jbState.regF,regFromUsePath:jbState.regFromUsePath}));}catch(e){console.error("jb prep save",e);}};
 let jbRates=null;   // {"ym|reg|use": rate}
 const jbLoadRates=()=>{if(jbRates)return jbRates;try{const c=JSON.parse(localStorage.getItem(JB_RATE_KEY)||"null");jbRates=(c&&c.t&&Date.now()-c.t<JB_TTL&&c.v)?c.v:{};}catch(e){jbRates={};}return jbRates;};
-const jbSaveRates=()=>{try{localStorage.setItem(JB_RATE_KEY,JSON.stringify({t:Date.now(),v:jbRates}));}catch(e){console.error("jb rates save",e);}};
+const jbSaveRates=()=>{if(jbState.fromFile)return;try{localStorage.setItem(JB_RATE_KEY,JSON.stringify({t:Date.now(),v:jbRates}));}catch(e){console.error("jb rates save",e);}};
 // 한 달치 표를 받으면 그 달의 모든 지역·용도 값을 한꺼번에 저장 (다음에 다른 지역을 골라도 즉시)
 async function jbMonthRates(ym){
   const R=jbLoadRates();if(R["m:"+ym])return;
   const rows=await jbMonthRows(jbState.tbl.id,ym);
+  if(!jbState.useF&&rows.length)jbDetect(rows);   // 파일로 준비된 경우 표 구조 판별이 아직 안 돼 있음 (파일 밖 오래된 달을 프록시로 받을 때)
   rows.forEach(r=>{const x=jbSplit(r);if(x.reg&&x.use&&r.DTA_VAL!=null&&r.DTA_VAL!=="")R[ym+"|"+x.reg+"|"+x.use]=parseFloat(r.DTA_VAL);});
   if(rows.length)R["m:"+ym]=1;
 }
@@ -460,6 +462,18 @@ function jbPrepare(status){
   if(jbState.tbl&&jbState.regs.length)return Promise.resolve();
   if(jbPrepPromise)return jbPrepPromise;
   jbPrepPromise=(async()=>{
+    // 0) 매일 받아 둔 파일(arap_jibyun_data.js)이 있으면 그걸로 즉시 준비 — 통신 없음
+    const F=window.ARAP_JIBYUN_DATA;
+    if(F&&F.rates&&F.regs&&F.regs.length){
+      const rank=reg=>{const p=reg.split(">")[0].trim();if(/^전국/.test(p))return -1;const i=ROOT_ORDER.findIndex(k=>p.startsWith(k));return i<0?99:i;};
+      const parts=reg=>reg.split(">").map(x=>x.trim()).filter(Boolean);
+      const regs=F.regs.slice().sort((a,b)=>{const pa=parts(a),pb=parts(b),ra=rank(a),rb=rank(b);if(ra!==rb)return ra-rb;if(pa[0]!==pb[0])return pa[0].localeCompare(pb[0],"ko");if(pa.length!==pb.length&&(pa.length===1||pb.length===1))return pa.length-pb.length;return pa.slice(1).join(" ").localeCompare(pb.slice(1).join(" "),"ko");});
+      Object.assign(jbState,{tbl:F.tbl,latestYm:+F.latestYm,regs,uses:F.uses,fromFile:true,fileAt:F.fetchedAt});
+      const R=jbLoadRates();
+      Object.keys(F.rates).forEach(reg=>{Object.keys(F.rates[reg]).forEach(use=>{const ser=F.rates[reg][use];Object.keys(ser).forEach(ym=>{R[ym+"|"+reg+"|"+use]=ser[ym];});});});
+      (F.months||[]).forEach(ym=>{R["m:"+ym]=1;});
+      return;
+    }
     const c=jbLoadPrep();
     if(c){Object.assign(jbState,{tbl:c.tbl,latestYm:c.latestYm,regs:c.regs,uses:c.uses,useF:c.useF,regF:c.regF,regFromUsePath:c.regFromUsePath});return;}
     const d=new Date(),endYm=d.getFullYear()*100+d.getMonth()+1;
@@ -553,7 +567,7 @@ function fillLandSelectors(){
 function updateMeta(){
   const D=idxData(),C=capData();
   const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":mode==="nr"?"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)":"산정 기준 · 지가변동률 (한국부동산원, 용도지역별 월간)";
-  if(mode==="land"){$("meta").textContent=jbState.latestYm?`한국부동산원 지가변동률(용도지역별) · ${ymDisp(jbState.latestYm)} 공표분까지 (접속 시 조회) · 첫/끝 달 일수비례, 미공표 월은 마지막 공표월 변동률로 일할 추정`:"한국부동산원 지가변동률 · 목록 불러오는 중…";}
+  if(mode==="land"){$("meta").textContent=jbState.latestYm?`한국부동산원 지가변동률(용도지역별) · ${ymDisp(jbState.latestYm)} 공표분까지 (${jbState.fromFile?`${jbState.fileAt} 수신, 매일 06시 자동갱신`:"접속 시 조회"}) · 첫/끝 달 일수비례, 미공표 월은 마지막 공표월 변동률로 일할 추정`:"한국부동산원 지가변동률 · 목록 불러오는 중…";}
   else if(mode==="res"){const tbl=D&&D.tables[$("kind").value];
     $("meta").textContent=tbl?`한국부동산원 매매가격지수 · ${idxYmDisp(tbl.latest)} 공표분까지 (${D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"지수 데이터 없음 — main에 arap_index_data.js가 매일 자동 갱신됩니다";}
   else{const l=C&&C.types[$("kind").value]?C.types[$("kind").value].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);

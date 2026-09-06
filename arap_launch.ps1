@@ -2,13 +2,14 @@
 # - 'EXACT 실행.bat'이 이 파일을 호출한다. 직접 실행해도 된다.
 # - 지수 데이터(arap_index_data.js)가 없으면: 먼저 받고 앱을 연다.
 # - 있으면: 앱을 먼저 열고, 하루 이상 지난 경우 백그라운드로 새로 받는다.
-param([switch]$FetchOnly, [switch]$CapOnly)   # -CapOnly: 자본수익률(비주거)만 받아 기존 데이터에 병합 (주거 매매지수 재수신 생략 — 테스트·부분갱신용)
+param([switch]$FetchOnly, [switch]$CapOnly, [switch]$JibyunOnly)   # -CapOnly: 자본수익률(비주거)만 받아 기존 데이터에 병합 / -JibyunOnly: 지가변동률(토지)만 받아 arap_jibyun_data.js 갱신 (테스트·부분갱신용)
 
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $root     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dataFile = Join-Path $root "arap_index_data.js"
+$jibyunFile = Join-Path $root "arap_jibyun_data.js"   # 토지 시점수정용 지가변동률(용도지역별 월간) — arm_시점수정.html이 읽음
 $htmlFile = Join-Path $root "exact_집합건물v1.0.html"
 # API 키는 저장소(공개)에 올리지 않는다 — 환경변수 RONE_API_KEY 또는 로컬파일 arap_apikey.local.txt에서 읽음.
 # 두 곳 다 없으면 지수 수신만 생략, 앱은 기존 데이터로 정상 작동.
@@ -139,6 +140,110 @@ function Fetch-CapReturn {
 }
 
 # -CapOnly: 주거 매매지수는 그대로 두고 자본수익률만 새로 받아 기존 파일에 병합 (테스트 1회 2~3분)
+# ── 토지 시점수정용 지가변동률(용도지역별 월간) — arm_시점수정.html 토지 탭이 접속할 때 프록시로 한 달씩 받던 것을 매일 파일로 미리 받아 둔다.
+#    표 구조 판별·지역/용도 나누기는 arm_시점수정.html의 jbDetect/jbSplit과 같은 규칙 (수정 시 양쪽 함께).
+#    결과: { fetchedAt, tbl:{id,name}, latestYm, months:[YYYYMM…], uses:[…], regs:[…], rates:{ 지역:{ 용도:{ YYYYMM: 변동률(%) } } } }
+#    ※ 실패해도 매매지수·자본수익률 저장에는 영향 없음(파일이 없으면 앱은 종전대로 프록시로 받는다).
+$JB_USE_RE = "주거|상업|녹지|공업|관리지역|농림|자연환경|용도"
+$JB_MONTHS = 36   # 최근 36개월 (거래사례 대부분이 3년 안쪽)
+function Get-JbField($r, $f) { $v = [string]$r.($f + "_NM"); if (-not $v) { $v = [string]$r.($f + "_FULLNM") }; return $v.Trim() }
+function Get-JbFull($r, $f)  { $v = [string]$r.($f + "_FULLNM"); if (-not $v) { $v = [string]$r.($f + "_NM") }; return $v.Trim() }
+function Get-JbRows($tblId, $ym) {
+  $all = New-Object System.Collections.ArrayList
+  for ($pg = 1; $pg -le 10; $pg++) {
+    $url = "{0}?STATBL_ID={1}&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID={2}&Type=json&pIndex={3}&pSize=1000&KEY={4}" -f $apiBase, $tblId, $ym, $pg, $apiKey
+    $j = Invoke-Rone $url
+    $rows = if ($j.SttsApiTblData -and @($j.SttsApiTblData).Count -ge 2) { $j.SttsApiTblData[1].row } else { $null }
+    if (-not $rows) { break }
+    foreach ($r in @($rows)) { [void]$all.Add($r) }
+    if (@($rows).Count -lt 1000) { break }
+  }
+  return $all
+}
+function Add-Months([int]$ym, [int]$n) { $y = [math]::Floor($ym / 100); $m = ($ym % 100) + $n; $y += [math]::Floor(($m - 1) / 12); $m = ((($m - 1) % 12) + 12) % 12 + 1; return [int]($y * 100 + $m) }
+function Fetch-Jibyun {
+  Write-Host "지가변동률(용도지역별 월간) 수신 중..." -ForegroundColor Cyan
+  # 1) 통계표: 이름에 '지가변동률'+월간, '용도지역' 들어간 것 우선. 최근 달 자료에 용도 항목이 실제로 있는 첫 표를 채택
+  $lj = Invoke-Rone ("{0}?STATBL_NM={1}&Type=json&pIndex=1&pSize=500&KEY={2}" -f $listBase, [uri]::EscapeDataString("지가변동률"), $apiKey)
+  $cands = @($lj.SttsApiTbl[1].row | Where-Object { $_.STATBL_NM -match "지가변동률" -and $_.DTACYCLE_NM -match "월" })
+  $cands = @($cands | Sort-Object { if ($_.STATBL_NM -match "용도지역") { 0 } else { 1 } })
+  foreach ($c in $cands) { Write-Host ("  [지가변동률 표 후보] {0} {1} ({2})" -f $c.STATBL_ID, $c.STATBL_NM, $c.DTACYCLE_NM) }
+  if ($cands.Count -eq 0) { throw "월간 지가변동률 표를 찾지 못함" }
+  $now = Get-Date; $thisYm = [int]($now.Year * 100 + $now.Month)
+  $tbl = $null; $latestYm = 0; $latestRows = $null
+  foreach ($c in @($cands | Select-Object -First 6)) {
+    for ($back = 0; $back -le 9; $back++) {
+      $ym = Add-Months $thisYm (-$back)
+      $rows = Get-JbRows ([string]$c.STATBL_ID) $ym
+      if ($rows.Count -eq 0) { continue }
+      $hasUse = $false
+      foreach ($r in $rows) { if (((Get-JbField $r "ITM") + (Get-JbFull $r "ITM") + (Get-JbFull $r "CLS")) -match $JB_USE_RE) { $hasUse = $true; break } }
+      if ($hasUse) { $tbl = @{ id = [string]$c.STATBL_ID; name = [string]$c.STATBL_NM }; $latestYm = $ym; $latestRows = $rows }
+      break   # 자료가 있는 가장 최근 달 하나로 판단 (용도 없으면 다음 후보 표)
+    }
+    if ($tbl) { break }
+  }
+  if (-not $tbl) { throw "용도지역별 지가변동률 표를 확정하지 못함" }
+  Write-Host ("  표 확정: {0} {1} · 최신 {2}" -f $tbl.id, $tbl.name, $latestYm) -ForegroundColor Cyan
+  # 2) 표 구조: 용도가 든 필드(GRP/CLS/ITM 중 용도 문구가 가장 많은 것), 지역 필드(나머지 중 값 종류가 가장 많은 것)
+  $fields = @("GRP", "CLS", "ITM")
+  $useF = "ITM"; $bestN = -1
+  foreach ($f in $fields) { $n = @($latestRows | Where-Object { (Get-JbField $_ $f) -match $JB_USE_RE }).Count; if ($n -gt $bestN) { $bestN = $n; $useF = $f } }
+  $regF = $null; $regN = -1
+  foreach ($f in $fields) {
+    if ($f -eq $useF) { continue }
+    $set = @{}; foreach ($r in $latestRows) { $v = Get-JbFull $r $f; if ($v) { $set[$v] = 1 } }
+    if ($set.Count -gt $regN) { $regN = $set.Count; $regF = $f }
+  }
+  $regFromUsePath = (-not $regF) -or ($regN -le 1)
+  function Split-JbRow($r) {
+    $use = Get-JbField $r $useF
+    if ($use -notmatch $JB_USE_RE) {
+      $m = @(((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $JB_USE_RE })
+      if ($m.Count -gt 0) { $use = $m[-1] }
+    }
+    if ($regFromUsePath) { $reg = ((((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne $use }) -join " > ") }
+    else { $reg = ((((Get-JbFull $r $regF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join " > ") }
+    return @{ reg = $reg; use = $use }
+  }
+  # 3) 최근 N개월 값 수집
+  $rates = [ordered]@{}; $regs = New-Object System.Collections.ArrayList; $uses = New-Object System.Collections.ArrayList; $months = New-Object System.Collections.ArrayList
+  for ($back = 0; $back -lt $JB_MONTHS; $back++) {
+    $ym = Add-Months $latestYm (-$back)
+    $rows = if ($back -eq 0) { $latestRows } else { Get-JbRows $tbl.id $ym }
+    if ($rows.Count -eq 0) { Write-Host ("    {0}: 자료 없음" -f $ym) -ForegroundColor Yellow; continue }
+    $cnt = 0
+    foreach ($r in $rows) {
+      $x = Split-JbRow $r
+      if (-not $x.reg -or -not $x.use) { continue }
+      $v = [string]$r.DTA_VAL; if ($v -eq "") { continue }
+      if (-not $rates.Contains($x.reg)) { $rates[$x.reg] = [ordered]@{}; [void]$regs.Add($x.reg) }
+      if (-not $rates[$x.reg].Contains($x.use)) { $rates[$x.reg][$x.use] = [ordered]@{} }
+      $rates[$x.reg][$x.use][[string]$ym] = [double]$v
+      if (-not $uses.Contains($x.use)) { [void]$uses.Add($x.use) }
+      $cnt++
+    }
+    [void]$months.Add([string]$ym)
+    Write-Host ("    {0}: {1}행" -f $ym, $cnt)
+  }
+  if ($regs.Count -eq 0) { throw "지가변동률 표 구조를 해석하지 못함" }
+  $out = [ordered]@{
+    fetchedAt = (Get-Date -Format "yyyy-MM-dd HH:mm")
+    source    = "한국부동산원 R-ONE 지가변동률 (용도지역별 월간)"
+    tbl       = [ordered]@{ id = $tbl.id; name = $tbl.name }
+    latestYm  = $latestYm
+    months    = @($months | Sort-Object)
+    uses      = @($uses)
+    regs      = @($regs)
+    rates     = $rates
+  }
+  $json = $out | ConvertTo-Json -Depth 8 -Compress
+  $tmp = $jibyunFile + ".tmp"
+  [IO.File]::WriteAllText($tmp, "window.ARAP_JIBYUN_DATA=" + $json + ";", (New-Object Text.UTF8Encoding($false)))
+  Move-Item -Force $tmp $jibyunFile
+  Write-Host ("완료: {0} (지역 {1}개 · 용도 {2}개 · {3}개월 · 최신 {4})" -f (Split-Path -Leaf $jibyunFile), $regs.Count, $uses.Count, $months.Count, $latestYm) -ForegroundColor Green
+}
+
 function Update-CapReturnOnly {
   if (-not $apiKey) { throw "API 키가 없습니다. (환경변수 RONE_API_KEY 또는 arap_apikey.local.txt)" }
   if (-not (Test-Path $dataFile)) { throw "기존 arap_index_data.js가 없습니다. 전체 수신(-FetchOnly)을 먼저 실행하세요." }
@@ -275,6 +380,7 @@ function Fetch-IndexData {
 }
 
 if ($CapOnly) { Update-CapReturnOnly; exit 0 }
+if ($JibyunOnly) { if (-not $apiKey) { throw "API 키가 없습니다 (RONE_API_KEY)" }; Fetch-Jibyun; exit 0 }
 
 $hasData = Test-Path $dataFile
 
@@ -295,5 +401,7 @@ else {
     Write-Host "인터넷 연결을 확인하세요. 데이터 없이 앱만 엽니다. (자동계산 버튼은 비활성 안내가 뜹니다)"
     Start-Sleep -Seconds 3
   }
+  # 토지 시점수정용 지가변동률 — 실패해도 매매지수 저장에는 영향 없음
+  if ($FetchOnly) { try { Fetch-Jibyun } catch { Write-Host "지가변동률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow } }
   if (-not $FetchOnly) { Start-Process $htmlFile }
 }
