@@ -142,7 +142,8 @@
 </style>
 </head>
 <body>
-<script src="arap_name.js"></script><!-- 사용자 이름 최초 1회 입력 (이름 없으면 계산 화면으로 못 넘어감) -->
+<script src="arap_name.js"></script>
+<script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 --><!-- 사용자 이름 최초 1회 입력 (이름 없으면 계산 화면으로 못 넘어감) -->
 <header class="appbar">
   <div class="appbar-inner">
     <div class="appbar-left">
@@ -190,14 +191,14 @@
         <div class="field-pair">
           <div class="field">
             <label for="tradeDate">거래시점 (사례)</label>
-            <input type="text" id="tradeDate" placeholder="YYYY.MM.DD">
+            <input type="text" id="tradeDate" data-date placeholder="YYYY.MM.DD">
           </div>
           <div class="field">
             <label for="baseDate">기준시점</label>
-            <input type="text" id="baseDate" placeholder="YYYY.MM.DD">
+            <input type="text" id="baseDate" data-date placeholder="YYYY.MM.DD">
           </div>
         </div>
-        <p class="field-hint">날짜 형식 · YYYY.MM.DD</p>
+        <p class="field-hint">날짜 형식 · YYYY.MM.DD (20260501 처럼 숫자만 쳐도 됩니다)</p>
       </div>
 
       <div class="actions">
