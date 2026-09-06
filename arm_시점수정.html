@@ -84,6 +84,7 @@
   .btn-primary:disabled{background:var(--line-strong); border-color:var(--line-strong); cursor:default;}
 
   /* error */
+  .status{display:none; margin-top:12px; font-size:12.5px; color:var(--muted); line-height:1.5;}
   .err{display:none; margin-top:16px; padding:10px 12px; font-size:12.5px; font-weight:500; color:var(--danger); background:var(--danger-bg); border:1px solid var(--danger-line); border-left:3px solid var(--danger); border-radius:4px; line-height:1.5;}
 
   /* ── Result pane ─────────────────────────────────────── */
@@ -145,7 +146,7 @@
 <main class="page">
   <div class="page-head">
     <h1>시점수정 계산</h1>
-    <p class="lede">한국부동산원 지수를 기준으로 거래시점에서 기준시점까지의 시점수정치를 산정합니다.</p>
+    <p class="lede">한국부동산원 매매가격지수·자본수익률·지가변동률을 기준으로 거래시점에서 기준시점까지의 시점수정치를 산정합니다.</p>
   </div>
 
   <section class="workspace">
@@ -156,17 +157,18 @@
       <div class="segmented" role="group" aria-label="평가 대상 구분">
         <button id="tab-res" class="seg on" type="button">주거용</button>
         <button id="tab-nr" class="seg" type="button">비주거용</button>
+        <button id="tab-land" class="seg" type="button">토지</button>
       </div>
       <p class="seg-note" id="segNote">산정 기준 · 매매가격지수 (한국부동산원)</p>
 
       <div class="fields">
         <div class="field-pair">
           <div class="field">
-            <label for="kind">유형</label>
+            <label for="kind" id="lbl-kind">유형</label>
             <select id="kind"></select>
           </div>
           <div class="field">
-            <label for="region">지역</label>
+            <label for="region" id="lbl-region">지역</label>
             <select id="region"></select>
           </div>
         </div>
@@ -187,6 +189,7 @@
         <button class="btn-primary" id="btn-calc" type="button">시점수정치 계산</button>
       </div>
 
+      <div class="status" id="status"></div>
       <div class="err" id="err"></div>
     </div>
 
@@ -327,37 +330,207 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   return{text,adj};
 };
 
+// ── 토지: 지가변동률 (R-ONE, 프록시 경유) — 토지건물.html의 지가변동률 자동조회와 같은 규칙 (수정 시 양쪽 함께)
+//    월별 변동률을 거래시점~기준시점까지 곱한다. 첫·끝 달은 일수비례, 미공표 월은 마지막 공표월 변동률로 일할 추정(관례).
+const PROXY_BASE="https://ongyeol-proxy.woojin-apr.workers.dev";
+const JB_TBL_KEY="tj-rone-jibyun-tbl";                 // 토지건물과 같은 키 — 한 번 찾은 통계표를 공유
+const JB_USE_RE=/주거|상업|녹지|공업|관리지역|농림|자연환경|용도/;
+const JB_FIELDS=[["GRP","GRP_FULLNM","GRP_NM"],["CLS","CLS_FULLNM","CLS_NM"],["ITM","ITM_FULLNM","ITM_NM"]];
+const jbState={tbl:null,latestYm:0,regs:[],uses:[],useF:null,regF:null,regFromUsePath:false};
+const jbMonthCache={};
+const callApi=async url=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),15000);
+  try{const r=await fetch(url,{signal:c.signal,cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return await r.json();}
+  catch(e){if(e.name==="AbortError")throw new Error("응답 시간 초과 (프록시)");throw e;}finally{clearTimeout(t);}};
+const roneRows=(j,root)=>{const a=j&&j[root];if(!a||a.length<2)return null;const r=a[1]&&a[1].row;if(!r)return null;return Array.isArray(r)?r:[r];};
+const ymAdd=(ym,n)=>{let y=Math.floor(ym/100),m=ym%100+n;y+=Math.floor((m-1)/12);m=((m-1)%12+12)%12+1;return y*100+m;};
+const parseYmd=s=>{const m=String(s||"").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?{y:+m[1],mo:+m[2],d:+m[3]}:null;};
+const daysIn=(y,mo)=>new Date(y,mo,0).getDate();
+const ymDisp=ym=>`${Math.floor(ym/100)}.${String(ym%100).padStart(2,"0")}`;
+async function jbFindTable(baseYm){
+  let c=null;try{c=JSON.parse(localStorage.getItem(JB_TBL_KEY)||"null");}catch(e){}
+  if(c&&c.id)return c;
+  const cands=[];let pg=1;
+  while(pg<=8){
+    const j=await callApi(PROXY_BASE+"/rone-list?STATBL_NM="+encodeURIComponent("지가변동률")+"&pSize=500&pIndex="+pg);
+    const rows=roneRows(j,"SttsApiTbl");if(!rows||!rows.length)break;
+    rows.forEach(r=>{if(/지가변동률/.test(r.STATBL_NM||"")&&/월/.test(r.DTACYCLE_NM||""))cands.push(r);});
+    if(rows.length<500)break;pg++;
+  }
+  cands.sort((a,b)=>(/용도지역/.test(b.STATBL_NM||"")?1:0)-(/용도지역/.test(a.STATBL_NM||"")?1:0));
+  if(!cands.length)throw new Error("R-ONE 목록에서 월간 지가변동률 표를 찾지 못했습니다.");
+  const ym0=ymAdd(baseYm,1);
+  for(let i=0;i<Math.min(cands.length,8);i++){
+    const id=cands[i].STATBL_ID,nm=cands[i].STATBL_NM;
+    for(let back=1;back<=9;back++){
+      const dj=await callApi(PROXY_BASE+"/rone?STATBL_ID="+id+"&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID="+ymAdd(ym0,-back)+"&pSize=1000&pIndex=1");
+      const rs=roneRows(dj,"SttsApiTblData");
+      if(rs&&rs.length){
+        if(rs.some(r=>JB_USE_RE.test(String(r.ITM_NM||"")+String(r.ITM_FULLNM||""))||JB_USE_RE.test(String(r.CLS_FULLNM||"")))){
+          const t={id,name:nm};try{localStorage.setItem(JB_TBL_KEY,JSON.stringify(t));}catch(e){}return t;
+        }
+        break;
+      }
+    }
+  }
+  throw new Error("용도지역별 지가변동률 표를 확정하지 못했습니다.");
+}
+async function jbMonthRows(tblId,ym){
+  const k=tblId+"|"+ym;if(jbMonthCache[k])return jbMonthCache[k];
+  let all=[],pg=1;
+  while(pg<=10){
+    const j=await callApi(PROXY_BASE+"/rone?STATBL_ID="+tblId+"&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID="+ym+"&pSize=1000&pIndex="+pg);
+    const rs=roneRows(j,"SttsApiTblData");if(!rs||!rs.length)break;all=all.concat(rs);if(rs.length<1000)break;pg++;
+  }
+  jbMonthCache[k]=all;return all;
+}
+const jbVal=(r,f)=>String(r[f[2]]||r[f[1]]||"").trim();
+const jbFull=(r,f)=>String(r[f[1]]||r[f[2]]||"").trim();
+function jbDetect(rows){
+  let best=null,bestN=-1;
+  JB_FIELDS.forEach(f=>{const n=rows.filter(r=>JB_USE_RE.test(jbVal(r,f))).length;if(n>bestN){bestN=n;best=f;}});
+  jbState.useF=bestN>0?best:JB_FIELDS[2];
+  let regF=null,regN=-1;
+  JB_FIELDS.forEach(f=>{if(f[0]===jbState.useF[0])return;const set={};let n=0;
+    rows.forEach(r=>{const v=jbFull(r,f);if(v&&!set[v]){set[v]=1;n++;}});if(n>regN){regN=n;regF=f;}});
+  jbState.regF=regF;jbState.regFromUsePath=(!regF||regN<=1);
+}
+function jbSplit(r){
+  const uf=jbState.useF,rf=jbState.regF;let use=jbVal(r,uf);
+  if(!JB_USE_RE.test(use)){const m=jbFull(r,uf).split(">").map(s=>s.trim()).filter(p=>JB_USE_RE.test(p));if(m.length)use=m[m.length-1];}
+  let reg="";
+  if(jbState.regFromUsePath)reg=jbFull(r,uf).split(">").map(s=>s.trim()).filter(p=>p&&p!==use).join(" > ");
+  else reg=jbFull(r,rf).split(">").map(s=>s.trim()).filter(Boolean).join(" > ");
+  return{reg,use};
+}
+const jbRegLabel=reg=>String(reg||"").split(">").map(p=>p.trim()).filter(Boolean).join(" ");
+// 월별 변동률(%) → 시점수정치. 첫·끝 달 일수비례, 미공표 월은 마지막 공표월 변동률. 산식 줄도 함께 만든다.
+function jbFactor(rates,g,e){
+  const ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;let factor=1,lastRate=null,lastYm=null;const facs=[],mlist=[];
+  // 거래월 이전의 마지막 공표월 값이 있으면 그것부터 이어받는다 (거래월 자체가 미공표일 때)
+  Object.keys(rates).map(Number).filter(k=>k<ymS).sort((x,y)=>x-y).forEach(k=>{lastRate=rates[k];lastYm=k;});
+  for(let ym=ymS;ym<=ymE;ym=ymAdd(ym,1)){
+    const y=Math.floor(ym/100),mo=ym%100,D=daysIn(y,mo);
+    const published=(ym in rates),r=published?rates[ym]:lastRate;
+    if(r==null)throw new Error(`${y}.${String(mo).padStart(2,"0")}월 변동률이 없습니다.`);
+    if(published){lastRate=r;lastYm=ym;}
+    const d1=(ym===ymS)?g.d:1,d2=(ym===ymE)?e.d:D,days=d2-d1+1,frac=days/D;
+    const rr=(Math.round(r/100*1e6)/1e6).toString();
+    if(frac>=1){factor*=1+r/100;facs.push(`(1+${rr})`);}
+    else{factor*=1+(r/100)*frac;facs.push(`(1+${rr}*${days}/${D})`);}
+    mlist.push(`${y}년 ${mo}월 : ${r}%`+(frac<1?` (${days}일/${D}일)`:"")+(published?"":` (미공표 → ${Math.floor(lastYm/100)}년 ${lastYm%100}월 변동률 적용)`));
+  }
+  return{factor,facs,mlist};
+}
+let jbPrepPromise=null;
+function jbPrepare(status){
+  if(jbState.tbl&&jbState.regs.length)return Promise.resolve();
+  if(jbPrepPromise)return jbPrepPromise;
+  jbPrepPromise=(async()=>{
+    const d=new Date(),endYm=d.getFullYear()*100+d.getMonth()+1;
+    status("지가변동률 통계표 찾는 중…");
+    jbState.tbl=await jbFindTable(endYm);
+    let rows=null,ym=endYm;
+    for(let back=0;back<=8;back++){ym=ymAdd(endYm,-back);status(`최신 발표월 확인 중… (${ymDisp(ym)})`);rows=await jbMonthRows(jbState.tbl.id,ym);if(rows.length)break;}
+    if(!rows||!rows.length)throw new Error("최근 발표 자료를 찾지 못했습니다.");
+    jbState.latestYm=ym;jbDetect(rows);
+    const regs=[],uses=[];
+    rows.forEach(r=>{const x=jbSplit(r);if(x.reg&&regs.indexOf(x.reg)<0)regs.push(x.reg);if(x.use&&uses.indexOf(x.use)<0)uses.push(x.use);});
+    if(!regs.length||!uses.length)throw new Error("표 구조를 해석하지 못했습니다.");
+    // 수도권(서울→경기→인천) 먼저, 나머지는 R-ONE 순서 그대로
+    const rank=reg=>{const p=reg.split(">")[0].trim();const i=ROOT_ORDER.findIndex(k=>p.startsWith(k));return i<0?99:i;};
+    jbState.regs=regs.map((r,i)=>({r,i})).sort((a,b)=>rank(a.r)-rank(b.r)||a.i-b.i).map(x=>x.r);
+    jbState.uses=uses;
+  })();
+  return jbPrepPromise.catch(e=>{jbState.tbl=null;throw e;}).finally(()=>{jbPrepPromise=null;});
+}
+async function buildLandText(use,reg,tradeDate,baseDate,status){
+  const g=parseYmd(tradeDate),e=parseYmd(baseDate);
+  if(!g)return{err:"거래시점 날짜를 입력하세요. (예: 2025.10.18)"};
+  if(!e)return{err:"기준시점 날짜를 입력하세요."};
+  if(new Date(g.y,g.mo-1,g.d)>new Date(e.y,e.mo-1,e.d))return{err:"거래시점이 기준시점보다 뒤입니다. 날짜를 확인하세요."};
+  if(!reg||!use)return{err:"지역과 용도지역을 선택하세요."};
+  await jbPrepare(status);
+  const rates={},ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;
+  // 거래시점부터 기준시점(또는 최신 공표월)까지 월별 변동률 수집. 거래월이 최신 공표월보다 뒤면 최신 공표월 값으로 추정
+  const from=Math.min(ymS,jbState.latestYm);
+  for(let ym=from;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
+    status(`월별 변동률 수집 중… (${ymDisp(ym)})`);
+    const rows=await jbMonthRows(jbState.tbl.id,ym);
+    const hit=rows.find(r=>{const x=jbSplit(r);return x.reg===reg&&x.use===use;});
+    if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=="")rates[ym]=parseFloat(hit.DTA_VAL);
+  }
+  if(ymS>jbState.latestYm&&rates[jbState.latestYm]==null)return{err:`${ymDisp(jbState.latestYm)}월 변동률이 없습니다.`};
+  let f;try{f=jbFactor(rates,g,e);}catch(err){return{err:err.message};}
+  const adj=Math.round(f.factor*1e5)/1e5;
+  const kd=d=>`${d.y}년 ${d.mo}월 ${d.d}일`;
+  const lines=["토지",`지역 : ${jbRegLabel(reg)}`,`용도지역 : ${use}`,
+    `지가변동률(한국부동산원) : ${kd(g)} ~ ${kd(e)}`,...f.mlist,
+    f.facs.join("*")+` ≒ ${adj.toFixed(5)}`];
+  if(ymE>jbState.latestYm)lines.push(`※ ${ymDisp(jbState.latestYm)}월 공표분까지 반영, 이후는 마지막 공표월 변동률로 일할 추정함`);
+  return{text:lines.join("\n"),adj};
+}
+
 // ── UI
 const $=id=>document.getElementById(id);
-let mode="res"; // res=주거용, nr=비주거용
-const LS_KIND={res:"arap-sjidx-kind",nr:"arap-nrcap-kind"},LS_REG={res:"arap-sjidx-region",nr:"arap-nrcap-region"};
+let mode="res"; // res=주거용, nr=비주거용, land=토지(지가변동률)
+const LS_KIND={res:"arap-sjidx-kind",nr:"arap-nrcap-kind",land:"arap-land-use"},LS_REG={res:"arap-sjidx-region",nr:"arap-nrcap-region",land:"arap-land-region"};
+const MODE_LABEL={res:"주거용",nr:"비주거용",land:"토지"};
 const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){console.error('ls get',e);return null;}};
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){console.error('ls set',e);}};
 function fillSelect(sel,opts,saved){sel.innerHTML="";opts.forEach(o=>{const el=document.createElement("option");el.value=el.textContent=o;sel.appendChild(el);});if(saved&&opts.includes(saved))sel.value=saved;}
 function refreshSelectors(){
   if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillSelect($("region"),idxRegionList($("kind").value),lsGet(LS_REG.res));}
-  else{const ts=capTypeList();fillSelect($("kind"),ts.length?ts:["집합상가"],lsGet(LS_KIND.nr));fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));}
+  else if(mode==="nr"){const ts=capTypeList();fillSelect($("kind"),ts.length?ts:["집합상가"],lsGet(LS_KIND.nr));fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));}
+  else{fillLandSelectors();}
+  $("lbl-kind").textContent=mode==="land"?"용도지역":"유형";
+  $("lbl-region").textContent=mode==="land"?"지역 (시군구)":"지역";
   updateMeta();
+}
+const setStatus=t=>{const el=$("status");el.textContent=t||"";el.style.display=t?"block":"none";};
+// 토지 탭: 목록은 R-ONE에서 받아야 하므로 처음엔 "불러오는 중"을 보이고, 준비되면 채운다
+function fillLandSelectors(){
+  if(jbState.regs.length){
+    fillSelect($("kind"),jbState.uses,lsGet(LS_KIND.land)||"주거지역");
+    const saved=lsGet(LS_REG.land);$("region").innerHTML="";
+    jbState.regs.forEach(r=>{const el=document.createElement("option");el.value=r;el.textContent=jbRegLabel(r);$("region").appendChild(el);});
+    if(saved&&jbState.regs.includes(saved))$("region").value=saved;
+    setStatus("");return;
+  }
+  fillSelect($("kind"),["불러오는 중…"]);fillSelect($("region"),["불러오는 중…"]);
+  jbPrepare(setStatus).then(()=>{if(mode==="land")fillLandSelectors();updateMeta();})
+    .catch(e=>{console.error("지가변동률 준비",e);setStatus("");$("err").textContent="지가변동률 목록을 못 받았습니다: "+e.message;$("err").style.display="block";});
 }
 function updateMeta(){
   const D=idxData(),C=capData();
-  const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)";
-  if(mode==="res"){const tbl=D&&D.tables[$("kind").value];
+  const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":mode==="nr"?"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)":"산정 기준 · 지가변동률 (한국부동산원, 용도지역별 월간)";
+  if(mode==="land"){$("meta").textContent=jbState.latestYm?`한국부동산원 지가변동률(용도지역별) · ${ymDisp(jbState.latestYm)} 공표분까지 (접속 시 조회) · 첫/끝 달 일수비례, 미공표 월은 마지막 공표월 변동률로 일할 추정`:"한국부동산원 지가변동률 · 목록 불러오는 중…";}
+  else if(mode==="res"){const tbl=D&&D.tables[$("kind").value];
     $("meta").textContent=tbl?`한국부동산원 매매가격지수 · ${idxYmDisp(tbl.latest)} 공표분까지 (${D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"지수 데이터 없음 — main에 arap_index_data.js가 매일 자동 갱신됩니다";}
   else{const l=C&&C.types[$("kind").value]?C.types[$("kind").value].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);
     $("meta").textContent=C?`상업용부동산 임대동향조사 자본수익률 · ${m?`${m[1]}.${m[2]}분기`:"-"} 공표분까지 (${C.fetchedAt||idxData().fetchedAt} 수신) · 첫/끝 분기 일수비례, 중간분기 복리`:"자본수익률 데이터 없음";}
 }
-$("tab-res").onclick=()=>{mode="res";$("tab-res").classList.add("on");$("tab-nr").classList.remove("on");refreshSelectors();};
-$("tab-nr").onclick=()=>{mode="nr";$("tab-nr").classList.add("on");$("tab-res").classList.remove("on");refreshSelectors();};
+const TABS={res:"tab-res",nr:"tab-nr",land:"tab-land"};
+const setMode=m=>{mode=m;Object.keys(TABS).forEach(k=>$(TABS[k]).classList.toggle("on",k===m));$("err").style.display="none";refreshSelectors();};
+Object.keys(TABS).forEach(k=>{$(TABS[k]).onclick=()=>setMode(k);});
 $("kind").onchange=()=>{lsSet(LS_KIND[mode],$("kind").value);
+  if(mode==="land")return;   // 토지는 용도지역이 바뀌어도 지역 목록은 그대로
   fillSelect($("region"),mode==="nr"?capRegionList($("kind").value):idxRegionList($("kind").value),lsGet(LS_REG[mode]));updateMeta();};
 $("region").onchange=()=>lsSet(LS_REG[mode],$("region").value);
-$("btn-calc").onclick=()=>{
-  const r=(mode==="res"?buildSjIdxText:buildNrCapText)($("kind").value,$("region").value,$("tradeDate").value,$("baseDate").value);
+let calcBusy=false;
+$("btn-calc").onclick=async()=>{
+  if(calcBusy)return;
+  let r;
+  if(mode==="land"){
+    if(!jbState.regs.length){$("err").textContent="지가변동률 목록을 아직 못 받았습니다. 잠시 뒤 다시 눌러주세요.";$("err").style.display="block";return;}
+    calcBusy=true;$("btn-calc").disabled=true;$("err").style.display="none";
+    try{r=await buildLandText($("kind").value,$("region").value,$("tradeDate").value,$("baseDate").value,setStatus);}
+    catch(e){console.error("지가변동률 계산",e);r={err:"지가변동률 조회 실패: "+e.message};}
+    finally{calcBusy=false;$("btn-calc").disabled=false;setStatus("");}
+  }else r=(mode==="res"?buildSjIdxText:buildNrCapText)($("kind").value,$("region").value,$("tradeDate").value,$("baseDate").value);
   if(r.err){$("err").textContent=r.err;$("err").style.display="block";$("out").style.display="none";$("empty").style.display="block";return;}
   $("err").style.display="none";$("out").style.display="block";$("empty").style.display="none";
   $("adjNum").textContent=r.adj.toFixed(5);$("resultText").value=r.text;
-  try{window.arapVisitLog&&window.arapVisitLog("계산",`${mode==="res"?"주거용":"비주거용"} ${$("kind").value} ${$("region").value} · ${$("tradeDate").value}→${$("baseDate").value} = ${r.adj.toFixed(5)}`);}catch(e){console.error('visit log',e);}
+  try{window.arapVisitLog&&window.arapVisitLog("계산",`${MODE_LABEL[mode]} ${$("kind").value} ${mode==="land"?jbRegLabel($("region").value):$("region").value} · ${$("tradeDate").value}→${$("baseDate").value} = ${r.adj.toFixed(5)}`);}catch(e){console.error('visit log',e);}
 };
 $("btn-copy").onclick=async()=>{
   const t=$("resultText").value;
