@@ -432,7 +432,7 @@ function jbFactor(rates,g,e){
 }
 // ── 속도: 준비 결과(통계표·최신 발표월·지역/용도 목록)와 월별 변동률 값을 브라우저에 하루 동안 저장.
 //    두 번째 접속부터는 부동산원에 다시 묻지 않고 바로 계산. 하루가 지나면 새로 받는다(신규 발표월 반영).
-const JB_PREP_KEY="arm-jb-prep-v1",JB_RATE_KEY="arm-jb-rates-v1",JB_TTL=24*3600*1000;
+const JB_PREP_KEY="arm-jb-prep-v2",JB_RATE_KEY="arm-jb-rates-v1",JB_TTL=24*3600*1000;
 const jbLoadPrep=()=>{try{const c=JSON.parse(localStorage.getItem(JB_PREP_KEY)||"null");return c&&c.t&&Date.now()-c.t<JB_TTL&&c.tbl&&c.regs&&c.regs.length?c:null;}catch(e){return null;}};
 const jbSavePrep=()=>{try{localStorage.setItem(JB_PREP_KEY,JSON.stringify({t:Date.now(),tbl:jbState.tbl,latestYm:jbState.latestYm,regs:jbState.regs,uses:jbState.uses,useF:jbState.useF,regF:jbState.regF,regFromUsePath:jbState.regFromUsePath}));}catch(e){console.error("jb prep save",e);}};
 let jbRates=null;   // {"ym|reg|use": rate}
@@ -468,9 +468,16 @@ function jbPrepare(status){
     const regs=[],uses=[];
     rows.forEach(r=>{const x=jbSplit(r);if(x.reg&&regs.indexOf(x.reg)<0)regs.push(x.reg);if(x.use&&uses.indexOf(x.use)<0)uses.push(x.use);});
     if(!regs.length||!uses.length)throw new Error("표 구조를 해석하지 못했습니다.");
-    // 수도권(서울→경기→인천) 먼저, 나머지는 R-ONE 순서 그대로
-    const rank=reg=>{const p=reg.split(">")[0].trim();const i=ROOT_ORDER.findIndex(k=>p.startsWith(k));return i<0?99:i;};
-    jbState.regs=regs.map((r,i)=>({r,i})).sort((a,b)=>rank(a.r)-rank(b.r)||a.i-b.i).map(x=>x.r);
+    // 정렬: 전국 → 서울 → 경기 → 인천 → 나머지 시도 가나다. 시도 안에서는 '시도 전체'가 맨 앞, 그 아래 시군구는 가나다순 (강남구가 서울 바로 다음)
+    const parts=reg=>reg.split(">").map(x=>x.trim()).filter(Boolean);
+    const rank=reg=>{const p=parts(reg)[0];if(/^전국/.test(p))return -1;const i=ROOT_ORDER.findIndex(k=>p.startsWith(k));return i<0?99:i;};
+    jbState.regs=regs.slice().sort((a,b)=>{
+      const pa=parts(a),pb=parts(b),ra=rank(a),rb=rank(b);
+      if(ra!==rb)return ra-rb;
+      if(pa[0]!==pb[0])return pa[0].localeCompare(pb[0],"ko");
+      if(pa.length!==pb.length&&(pa.length===1||pb.length===1))return pa.length-pb.length;   // 시도 전체 먼저
+      return pa.slice(1).join(" ").localeCompare(pb.slice(1).join(" "),"ko");
+    });
     jbState.uses=uses;
     jbSavePrep();
     await jbMonthRates(ym);jbSaveRates();   // 최신 월 값은 이미 받았으니 바로 저장
