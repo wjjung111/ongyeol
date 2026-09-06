@@ -179,6 +179,7 @@
 </head>
 <body>
 <script src="arap_access.js"></script>
+<script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
 <div id="mode-bar">
   <a class="mb-home" href="index.html" title="온결 입장 화면으로">🏠 홈</a>
   <span class="mb-title">🏞️ Ongyeol v1.0 · EXACT 토지건물</span>
@@ -235,21 +236,21 @@
         <div class="grid2">
           <span class="fld"><label>접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
           <span class="fld"><label>의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
-          <span class="fld"><label>의뢰일</label><input type="text" id="ov_orderDay" placeholder="20250925"></span>
+          <span class="fld"><label>의뢰일</label><input type="text" id="ov_orderDay" data-date placeholder="2025.09.25"></span>
           <span class="fld"><label>평가목적</label><input type="text" id="ov_purpose" value="일반거래(시가참고)" placeholder="일반거래(시가참고)"></span>
           <span class="fld"><label>제출처</label><input type="text" id="ov_submit" value="국세청 및 관할세무서" placeholder="국세청 및 관할세무서"></span>
           <span class="fld"><label>평가구분</label><input type="text" id="ov_kind" value="상속(증여)" placeholder="상속(증여)"></span>
-          <span class="fld"><label>기준시점</label><input type="text" id="base_gijun" placeholder="2025.09.25"></span>
+          <span class="fld"><label>기준시점</label><input type="text" id="base_gijun" data-date placeholder="2025.09.25"></span>
           <span class="fld"><label>기준시점근거</label>
             <select id="ov_gijunBasis">
               <option>귀 의뢰 요청 날짜인</option><option>귀 제시일인</option><option>실지조사 완료일인</option><option>가격조사 완료일인</option>
             </select></span>
-          <span class="fld"><label>실지조사일</label><input type="text" id="base_josa" placeholder="2026.07.31"></span>
-          <span class="fld"><label>작성일자</label><input type="text" id="ov_writeDay" placeholder="2026.08.01"></span>
+          <span class="fld"><label>실지조사일</label><input type="text" id="base_josa" data-date placeholder="2026.07.31"></span>
+          <span class="fld"><label>작성일자</label><input type="text" id="ov_writeDay" data-date placeholder="2026.08.01"></span>
           <span class="fld"><label>기준가치</label><input type="text" id="ov_value" placeholder="시장가치"></span>
           <span class="fld"><label>소유자</label><input type="text" id="ov_owner" placeholder="홍길동"></span>
           <span class="fld"><label>평가조건</label><input type="text" id="ov_cond" placeholder="-"></span>
-          <span class="fld"><label>공시기준일</label><input type="text" id="base_gongsi" placeholder="2025.01.01"></span>
+          <span class="fld"><label>공시기준일</label><input type="text" id="base_gongsi" data-date placeholder="2025.01.01"></span>
           <span class="fld"><label>탁상가격</label><input type="text" id="ov_deskPrice" placeholder="4,625,000,000"></span>
           <span class="fld"><label>감정서번호</label><input type="text" id="ov_reportNo" placeholder="온결2026-0001"></span>
         </div>
@@ -285,7 +286,7 @@
             <span class="fld"><label>구조</label><input type="text" id="bt_strct" placeholder="철근콘크리트조"></span>
             <span class="fld"><label>주용도</label><input type="text" id="bt_purps" placeholder="근린생활시설"></span>
             <span class="fld"><label>층수(지상/지하)</label><input type="text" id="bt_flrs" placeholder="6/1"></span>
-            <span class="fld"><label>사용승인일</label><input type="text" id="bt_useApr" placeholder="1993.10.09"></span>
+            <span class="fld"><label>사용승인일</label><input type="text" id="bt_useApr" data-date placeholder="1993.10.09"></span>
           </div>
           <div class="tw" style="margin-top:8px">
             <table id="bldTbl">
@@ -1270,7 +1271,7 @@ function tradeCell(c,i,r){
   var k=r[1],t=r[2];
   if(t==='auto'){var cal=tradeCalc(c),ov=hasV(c[k]);
     return '<td class="calc-c'+(ov?' ovr':'')+'"><input data-i="'+i+'" data-k="'+k+'" value="'+(ov?attr(c[k]):fmtAuto(k,cal))+'" title="'+attr(tradeTitle(k,c,cal))+'" oninput="tradeIn('+i+',\''+k+'\',this.value)" onblur="refreshTradeCol('+i+')"></td>';}
-  return '<td class="'+(t==='jud'?'jud-c':'')+'"><input value="'+attr(c[k]||'')+'" oninput="tradeIn('+i+',\''+k+'\',this.value)"></td>';
+  return '<td class="'+(t==='jud'?'jud-c':'')+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(c[k]||'')+'" oninput="tradeIn('+i+',\''+k+'\',this.value)"></td>';
 }
 // 입력 중에는 표를 통째로 다시 그리지 않고(포커스 유지) 같은 열의 자동 칸만 갱신
 function tradeIn(i,k,v){TRADES[i][k]=v;
@@ -1354,7 +1355,7 @@ function renderAppr(){
   APPRS.forEach(function(a,i){
     h+='<tr><td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';
     h+='<td class="kp-c" style="min-width:90px"><textarea class="kp" rows="1" placeholder="kapa hub" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
-    APPR_COLS.forEach(function(c){h+='<td><input value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();saveForm();"></td>';});
+    APPR_COLS.forEach(function(c){h+='<td><input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();saveForm();"></td>';});
     h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
   document.getElementById('tblAppr').innerHTML=h;
