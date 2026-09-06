@@ -64,8 +64,15 @@
   .seg{appearance:none; border:1px solid transparent; background:transparent; padding:6px 17px; font:inherit; font-size:13px; font-weight:600; color:var(--muted); border-radius:3px; cursor:pointer; line-height:1.2; transition:color .12s, background .12s, border-color .12s;}
   .seg:hover{color:var(--ink-2);}
   .seg.on{background:var(--surface); border-color:#d9dde4; color:var(--ink);}
-  .segmented-sub{margin-left:10px;}
-  .segmented-sub.off{display:none;}
+  /* 최상위 탭(집합건물 / 토지): 밑줄형. 그 아래 하위 탭(주거용 | 비주거용)은 들여쓴 작은 묶음 */
+  .tabs-top{display:flex; gap:4px; border-bottom:2px solid #e0e3e9;}
+  .tab{appearance:none; border:none; background:transparent; padding:9px 16px 8px; margin-bottom:-2px; font:inherit; font-size:15px; font-weight:700; color:var(--muted); border-bottom:2px solid transparent; cursor:pointer; line-height:1.2; transition:color .12s, border-color .12s;}
+  .tab:hover{color:var(--ink-2);}
+  .tab.on{color:var(--ink); border-bottom-color:var(--accent);}
+  .tab-sub{font-size:12px; font-weight:500; color:var(--muted);}
+  .tabs-sub{display:flex; align-items:center; gap:10px; margin:12px 0 0 14px; padding-left:12px; border-left:2px solid #e0e3e9;}
+  .tabs-sub.off{display:none;}
+  .tabs-sub-label{font-size:12px; color:var(--muted); white-space:nowrap;}
   .seg-note{margin-top:10px; font-size:12px; color:var(--muted);}
 
   /* fields */
@@ -113,7 +120,7 @@
   .datarow-meta{font-size:12px; color:var(--muted); line-height:1.65; font-variant-numeric:tabular-nums;}
 
   /* focus-visible for keyboard */
-  .seg:focus-visible, .btn-primary:focus-visible, .btn-ghost:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .tab:focus-visible, .seg:focus-visible, .btn-primary:focus-visible, .btn-ghost:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
 
   /* ── Responsive ──────────────────────────────────────── */
   @media (max-width:840px){
@@ -126,7 +133,9 @@
   @media (max-width:400px){
     .field-pair{grid-template-columns:1fr;}
     .segmented{display:flex;}
-    .segmented-sub{margin-left:0; margin-top:6px;}
+    .tabs-top .tab{flex:1; text-align:center;}
+    .tabs-sub{margin-left:0; padding-left:0; border-left:none; flex-wrap:wrap;}
+    .tabs-sub .segmented{flex:1;}
     .seg{flex:1; text-align:center;}
   }
   @media (prefers-reduced-motion:reduce){
@@ -157,13 +166,16 @@
     <div class="panel panel-input">
       <div class="panel-head">입력</div>
 
-      <div class="segmented" role="group" aria-label="물건 구분">
-        <button id="tab-bld" class="seg on" type="button">집합건물</button>
-        <button id="tab-land" class="seg" type="button">토지</button>
+      <div class="tabs-top" role="tablist" aria-label="물건 구분">
+        <button id="tab-bld" class="tab on" type="button">집합건물</button>
+        <button id="tab-land" class="tab" type="button">토지 <span class="tab-sub">(지가변동률)</span></button>
       </div>
-      <div class="segmented segmented-sub" id="sub-bld" role="group" aria-label="집합건물 용도 구분">
-        <button id="tab-res" class="seg on" type="button">주거용</button>
-        <button id="tab-nr" class="seg" type="button">비주거용</button>
+      <div class="tabs-sub" id="sub-bld" role="group" aria-label="집합건물 용도 구분">
+        <span class="tabs-sub-label">집합건물 용도</span>
+        <div class="segmented">
+          <button id="tab-res" class="seg on" type="button">주거용</button>
+          <button id="tab-nr" class="seg" type="button">비주거용</button>
+        </div>
       </div>
       <p class="seg-note" id="segNote">산정 기준 · 매매가격지수 (한국부동산원)</p>
 
