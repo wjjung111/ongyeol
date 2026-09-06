@@ -27,8 +27,9 @@ ongyeol/
 ├── 문서/관리자_수신함.gs      ← 기록을 받아 구글 시트에 쌓는 앱스 스크립트 원본 (관리자 구글 계정에 붙여넣어 배포)
 ├── 문서/관리자_수신함_설정.md ← 위 스크립트 설치·배포·점검 절차
 ├── arap_index_data.js  ← 매매가격지수 데이터 (자동생성 — 직접수정 금지). 집합건물.html이 상대경로로 로드
-├── arap_launch.ps1     ← 부동산원 R-ONE API 지수 수신 (로컬/Actions용)
-├── .github/workflows/update-index.yml ← 지수 자동갱신 (매일 06:00 KST, Secret RONE_API_KEY 필요)
+├── arap_jibyun_data.js ← 지가변동률(용도지역별 월간, 최근 36개월) 데이터 (자동생성 — 직접수정 금지). arm_시점수정.html 토지 탭이 읽어 통신 없이 계산. 없으면 프록시로 받음
+├── arap_launch.ps1     ← 부동산원 R-ONE API 지수 수신 (로컬/Actions용). 매매가격지수·자본수익률 → arap_index_data.js, 지가변동률 → arap_jibyun_data.js (`-JibyunOnly` 로 토지만)
+├── .github/workflows/update-index.yml ← 지수 자동갱신 (매일 06:00 KST, Secret RONE_API_KEY 필요). 수동 실행 입력: cap_only / jibyun_only
 ├── 템플릿/             ← v2 hwpx 원본 (감정평가서·청구서) — 런타임 미사용, 재생성용 보관
 └── 문서/               ← 플레이스홀더 매핑·작업이력·**결정기록.md**(설계·UX 결정과 기각안, Claude가 PR마다 추가)
 ```
