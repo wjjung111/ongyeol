@@ -367,27 +367,30 @@ async function jbFindTable(baseYm){
   const ym0=ymAdd(baseYm,1);
   for(let i=0;i<Math.min(cands.length,8);i++){
     const id=cands[i].STATBL_ID,nm=cands[i].STATBL_NM;
-    for(let back=1;back<=9;back++){
-      const dj=await callApi(PROXY_BASE+"/rone?STATBL_ID="+id+"&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID="+ymAdd(ym0,-back)+"&pSize=1000&pIndex=1");
-      const rs=roneRows(dj,"SttsApiTblData");
-      if(rs&&rs.length){
-        if(rs.some(r=>JB_USE_RE.test(String(r.ITM_NM||"")+String(r.ITM_FULLNM||""))||JB_USE_RE.test(String(r.CLS_FULLNM||"")))){
-          const t={id,name:nm};try{localStorage.setItem(JB_TBL_KEY,JSON.stringify(t));}catch(e){}return t;
-        }
-        break;
+    // 최근 9개월을 한꺼번에 조회해 자료가 있는 가장 최근 달로 표 구조를 확인 (순서대로 묻는 것보다 훨씬 빠름)
+    const got=await Promise.all([1,2,3,4,5,6,7,8,9].map(back=>jbMonthRows(id,ymAdd(ym0,-back)).catch(()=>[])));
+    const rs=got.find(x=>x&&x.length);
+    if(rs){
+      if(rs.some(r=>JB_USE_RE.test(String(r.ITM_NM||"")+String(r.ITM_FULLNM||""))||JB_USE_RE.test(String(r.CLS_FULLNM||"")))){
+        const t={id,name:nm};try{localStorage.setItem(JB_TBL_KEY,JSON.stringify(t));}catch(e){}return t;
       }
     }
   }
   throw new Error("용도지역별 지가변동률 표를 확정하지 못했습니다.");
 }
+const jbMonthPending={};
 async function jbMonthRows(tblId,ym){
   const k=tblId+"|"+ym;if(jbMonthCache[k])return jbMonthCache[k];
-  let all=[],pg=1;
-  while(pg<=10){
-    const j=await callApi(PROXY_BASE+"/rone?STATBL_ID="+tblId+"&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID="+ym+"&pSize=1000&pIndex="+pg);
-    const rs=roneRows(j,"SttsApiTblData");if(!rs||!rs.length)break;all=all.concat(rs);if(rs.length<1000)break;pg++;
-  }
-  jbMonthCache[k]=all;return all;
+  if(jbMonthPending[k])return jbMonthPending[k];
+  const pageUrl=pg=>PROXY_BASE+"/rone?STATBL_ID="+tblId+"&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID="+ym+"&pSize=1000&pIndex="+pg;
+  jbMonthPending[k]=(async()=>{
+    // 한 달치는 보통 2쪽(지역×용도 ≈ 1,750행) — 1·2쪽을 동시에 받고, 더 있으면 이어서
+    let all=[];const first=await Promise.all([callApi(pageUrl(1)),callApi(pageUrl(2))]);
+    for(const j of first){const rs=roneRows(j,"SttsApiTblData");if(rs&&rs.length)all=all.concat(rs);}
+    let pg=3;while(all.length>=2000&&pg<=10){const rs=roneRows(await callApi(pageUrl(pg)),"SttsApiTblData");if(!rs||!rs.length)break;all=all.concat(rs);if(rs.length<1000)break;pg++;}
+    jbMonthCache[k]=all;return all;
+  })().finally(()=>{delete jbMonthPending[k];});
+  return jbMonthPending[k];
 }
 const jbVal=(r,f)=>String(r[f[2]]||r[f[1]]||"").trim();
 const jbFull=(r,f)=>String(r[f[1]]||r[f[2]]||"").trim();
@@ -427,16 +430,39 @@ function jbFactor(rates,g,e){
   }
   return{factor,facs,mlist};
 }
+// ── 속도: 준비 결과(통계표·최신 발표월·지역/용도 목록)와 월별 변동률 값을 브라우저에 하루 동안 저장.
+//    두 번째 접속부터는 부동산원에 다시 묻지 않고 바로 계산. 하루가 지나면 새로 받는다(신규 발표월 반영).
+const JB_PREP_KEY="arm-jb-prep-v1",JB_RATE_KEY="arm-jb-rates-v1",JB_TTL=24*3600*1000;
+const jbLoadPrep=()=>{try{const c=JSON.parse(localStorage.getItem(JB_PREP_KEY)||"null");return c&&c.t&&Date.now()-c.t<JB_TTL&&c.tbl&&c.regs&&c.regs.length?c:null;}catch(e){return null;}};
+const jbSavePrep=()=>{try{localStorage.setItem(JB_PREP_KEY,JSON.stringify({t:Date.now(),tbl:jbState.tbl,latestYm:jbState.latestYm,regs:jbState.regs,uses:jbState.uses,useF:jbState.useF,regF:jbState.regF,regFromUsePath:jbState.regFromUsePath}));}catch(e){console.error("jb prep save",e);}};
+let jbRates=null;   // {"ym|reg|use": rate}
+const jbLoadRates=()=>{if(jbRates)return jbRates;try{const c=JSON.parse(localStorage.getItem(JB_RATE_KEY)||"null");jbRates=(c&&c.t&&Date.now()-c.t<JB_TTL&&c.v)?c.v:{};}catch(e){jbRates={};}return jbRates;};
+const jbSaveRates=()=>{try{localStorage.setItem(JB_RATE_KEY,JSON.stringify({t:Date.now(),v:jbRates}));}catch(e){console.error("jb rates save",e);}};
+// 한 달치 표를 받으면 그 달의 모든 지역·용도 값을 한꺼번에 저장 (다음에 다른 지역을 골라도 즉시)
+async function jbMonthRates(ym){
+  const R=jbLoadRates();if(R["m:"+ym])return;
+  const rows=await jbMonthRows(jbState.tbl.id,ym);
+  rows.forEach(r=>{const x=jbSplit(r);if(x.reg&&x.use&&r.DTA_VAL!=null&&r.DTA_VAL!=="")R[ym+"|"+x.reg+"|"+x.use]=parseFloat(r.DTA_VAL);});
+  if(rows.length)R["m:"+ym]=1;
+}
 let jbPrepPromise=null;
 function jbPrepare(status){
   if(jbState.tbl&&jbState.regs.length)return Promise.resolve();
   if(jbPrepPromise)return jbPrepPromise;
   jbPrepPromise=(async()=>{
+    const c=jbLoadPrep();
+    if(c){Object.assign(jbState,{tbl:c.tbl,latestYm:c.latestYm,regs:c.regs,uses:c.uses,useF:c.useF,regF:c.regF,regFromUsePath:c.regFromUsePath});return;}
     const d=new Date(),endYm=d.getFullYear()*100+d.getMonth()+1;
     status("지가변동률 통계표 찾는 중…");
     jbState.tbl=await jbFindTable(endYm);
+    // 최신 발표월: 이번 달부터 3달치를 한꺼번에 조회해 가장 최근 것을 고른다 (순서대로 묻는 것보다 빠름)
+    status("최신 발표월 확인 중…");
     let rows=null,ym=endYm;
-    for(let back=0;back<=8;back++){ym=ymAdd(endYm,-back);status(`최신 발표월 확인 중… (${ymDisp(ym)})`);rows=await jbMonthRows(jbState.tbl.id,ym);if(rows.length)break;}
+    for(let base=0;base<=6&&!(rows&&rows.length);base+=3){
+      const yms=[0,1,2].map(i=>ymAdd(endYm,-(base+i)));
+      const got=await Promise.all(yms.map(y=>jbMonthRows(jbState.tbl.id,y)));
+      for(let i=0;i<yms.length;i++){if(got[i].length){rows=got[i];ym=yms[i];break;}}
+    }
     if(!rows||!rows.length)throw new Error("최근 발표 자료를 찾지 못했습니다.");
     jbState.latestYm=ym;jbDetect(rows);
     const regs=[],uses=[];
@@ -446,6 +472,8 @@ function jbPrepare(status){
     const rank=reg=>{const p=reg.split(">")[0].trim();const i=ROOT_ORDER.findIndex(k=>p.startsWith(k));return i<0?99:i;};
     jbState.regs=regs.map((r,i)=>({r,i})).sort((a,b)=>rank(a.r)-rank(b.r)||a.i-b.i).map(x=>x.r);
     jbState.uses=uses;
+    jbSavePrep();
+    await jbMonthRates(ym);jbSaveRates();   // 최신 월 값은 이미 받았으니 바로 저장
   })();
   return jbPrepPromise.catch(e=>{jbState.tbl=null;throw e;}).finally(()=>{jbPrepPromise=null;});
 }
@@ -458,13 +486,12 @@ async function buildLandText(use,reg,tradeDate,baseDate,status){
   await jbPrepare(status);
   const rates={},ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;
   // 거래시점부터 기준시점(또는 최신 공표월)까지 월별 변동률 수집. 거래월이 최신 공표월보다 뒤면 최신 공표월 값으로 추정
-  const from=Math.min(ymS,jbState.latestYm);
-  for(let ym=from;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
-    status(`월별 변동률 수집 중… (${ymDisp(ym)})`);
-    const rows=await jbMonthRows(jbState.tbl.id,ym);
-    const hit=rows.find(r=>{const x=jbSplit(r);return x.reg===reg&&x.use===use;});
-    if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=="")rates[ym]=parseFloat(hit.DTA_VAL);
-  }
+  const from=Math.min(ymS,jbState.latestYm),yms=[];
+  for(let ym=from;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1))yms.push(ym);
+  const need=yms.filter(ym=>!jbLoadRates()["m:"+ym]);
+  if(need.length){status(`월별 변동률 수집 중… (${need.length}개월, 한꺼번에)`);await Promise.all(need.map(jbMonthRates));jbSaveRates();}
+  const R=jbLoadRates();
+  yms.forEach(ym=>{const v=R[ym+"|"+reg+"|"+use];if(v!=null)rates[ym]=v;});
   if(ymS>jbState.latestYm&&rates[jbState.latestYm]==null)return{err:`${ymDisp(jbState.latestYm)}월 변동률이 없습니다.`};
   let f;try{f=jbFactor(rates,g,e);}catch(err){return{err:err.message};}
   const adj=Math.round(f.factor*1e5)/1e5;
@@ -553,6 +580,8 @@ $("btn-copy").onclick=async()=>{
 // 기준시점 기본값 = 오늘
 (()=>{const d=new Date();$("baseDate").value=`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;})();
 refreshSelectors();
+// 토지 탭을 누르기 전에 미리 준비 (저장된 게 있으면 즉시, 없으면 뒤에서 조용히 받아 둠)
+jbPrepare(()=>{}).then(()=>{if(mode==="land")fillLandSelectors();}).catch(e=>console.error("지가변동률 미리준비",e));
 
 // ── 접속 기록 (관리자용) — 페이지 접속·계산 때 누가(이름)·무엇으로(기기·브라우저)·어디서(IP·지역) 썼는지 관리자 수신함 '접속' 탭에 보낸다 ──
 // IP·지역은 앱스 스크립트가 알 수 없어 브라우저가 IP 조회 서비스(ipwho.is → 실패 시 ipapi.co)에서 받아 함께 보낸다. 실패해도 기기·시각은 기록.
