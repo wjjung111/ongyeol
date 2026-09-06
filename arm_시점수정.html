@@ -70,9 +70,8 @@
   .tab:hover{color:var(--ink-2);}
   .tab.on{color:var(--ink); border-bottom-color:var(--accent);}
   .tab-sub{font-size:12px; font-weight:500; color:var(--muted);}
-  .tabs-sub{display:flex; align-items:center; gap:10px; margin:12px 0 0 14px; padding-left:12px; border-left:2px solid #e0e3e9;}
+  .tabs-sub{display:flex; align-items:center; margin-top:12px;}
   .tabs-sub.off{display:none;}
-  .tabs-sub-label{font-size:12px; color:var(--muted); white-space:nowrap;}
   .seg-note{margin-top:10px; font-size:12px; color:var(--muted);}
 
   /* fields */
@@ -134,7 +133,6 @@
     .field-pair{grid-template-columns:1fr;}
     .segmented{display:flex;}
     .tabs-top .tab{flex:1; text-align:center;}
-    .tabs-sub{margin-left:0; padding-left:0; border-left:none; flex-wrap:wrap;}
     .tabs-sub .segmented{flex:1;}
     .seg{flex:1; text-align:center;}
   }
@@ -171,7 +169,6 @@
         <button id="tab-land" class="tab" type="button">토지 <span class="tab-sub">(지가변동률)</span></button>
       </div>
       <div class="tabs-sub" id="sub-bld" role="group" aria-label="집합건물 용도 구분">
-        <span class="tabs-sub-label">집합건물 용도</span>
         <div class="segmented">
           <button id="tab-res" class="seg on" type="button">주거용</button>
           <button id="tab-nr" class="seg" type="button">비주거용</button>
