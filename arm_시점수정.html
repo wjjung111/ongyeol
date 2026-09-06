@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Ongyeol — 집합건물 시점수정 계산기 (단독 화면)
+  Ongyeol — 시점수정 계산기 (단독 화면): 집합건물(주거용·비주거용) / 토지(지가변동률)
   집합건물.html의 [지수 자동계산]·[자본수익률 자동계산] 로직을 그대로 옮긴 독립 도구.
   Copyright (c) 2026 정우진 감정평가사 (Woojin Jung, Certified Appraiser / wjjung9334@gmail.com). All Rights Reserved. 모든 권리 보유.
   무단 복제·수정·상업적 이용·재배포 금지. 상세: 저장소 LICENSE 파일 참조.
@@ -9,7 +9,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>집합건물 시점수정 — 온결</title>
+<title>시점수정 — 온결</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root{
@@ -64,6 +64,8 @@
   .seg{appearance:none; border:1px solid transparent; background:transparent; padding:6px 17px; font:inherit; font-size:13px; font-weight:600; color:var(--muted); border-radius:3px; cursor:pointer; line-height:1.2; transition:color .12s, background .12s, border-color .12s;}
   .seg:hover{color:var(--ink-2);}
   .seg.on{background:var(--surface); border-color:#d9dde4; color:var(--ink);}
+  .segmented-sub{margin-left:10px;}
+  .segmented-sub.off{display:none;}
   .seg-note{margin-top:10px; font-size:12px; color:var(--muted);}
 
   /* fields */
@@ -124,6 +126,7 @@
   @media (max-width:400px){
     .field-pair{grid-template-columns:1fr;}
     .segmented{display:flex;}
+    .segmented-sub{margin-left:0; margin-top:6px;}
     .seg{flex:1; text-align:center;}
   }
   @media (prefers-reduced-motion:reduce){
@@ -136,7 +139,7 @@
 <header class="appbar">
   <div class="appbar-inner">
     <div class="appbar-left">
-      <span class="appbar-title">집합건물 시점수정</span>
+      <span class="appbar-title">시점수정</span>
       <span id="arap-name-badge" style="font-size:12px;color:#9aa2ae;white-space:nowrap;"></span>
     </div>
     <span class="appbar-brand">온결 · 감정평가 자동화</span>
@@ -154,10 +157,13 @@
     <div class="panel panel-input">
       <div class="panel-head">입력</div>
 
-      <div class="segmented" role="group" aria-label="평가 대상 구분">
+      <div class="segmented" role="group" aria-label="물건 구분">
+        <button id="tab-bld" class="seg on" type="button">집합건물</button>
+        <button id="tab-land" class="seg" type="button">토지</button>
+      </div>
+      <div class="segmented segmented-sub" id="sub-bld" role="group" aria-label="집합건물 용도 구분">
         <button id="tab-res" class="seg on" type="button">주거용</button>
         <button id="tab-nr" class="seg" type="button">비주거용</button>
-        <button id="tab-land" class="seg" type="button">토지</button>
       </div>
       <p class="seg-note" id="segNote">산정 기준 · 매매가격지수 (한국부동산원)</p>
 
@@ -509,9 +515,15 @@ function updateMeta(){
   else{const l=C&&C.types[$("kind").value]?C.types[$("kind").value].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);
     $("meta").textContent=C?`상업용부동산 임대동향조사 자본수익률 · ${m?`${m[1]}.${m[2]}분기`:"-"} 공표분까지 (${C.fetchedAt||idxData().fetchedAt} 수신) · 첫/끝 분기 일수비례, 중간분기 복리`:"자본수익률 데이터 없음";}
 }
-const TABS={res:"tab-res",nr:"tab-nr",land:"tab-land"};
-const setMode=m=>{mode=m;Object.keys(TABS).forEach(k=>$(TABS[k]).classList.toggle("on",k===m));$("err").style.display="none";refreshSelectors();};
-Object.keys(TABS).forEach(k=>{$(TABS[k]).onclick=()=>setMode(k);});
+// 탭 2단: 집합건물(주거용 | 비주거용) / 토지.  mode는 그대로 res·nr·land 세 값
+let lastBld="res";
+const setMode=m=>{mode=m;if(m!=="land")lastBld=m;
+  $("tab-bld").classList.toggle("on",m!=="land");$("tab-land").classList.toggle("on",m==="land");
+  $("sub-bld").classList.toggle("off",m==="land");
+  $("tab-res").classList.toggle("on",m==="res");$("tab-nr").classList.toggle("on",m==="nr");
+  $("err").style.display="none";refreshSelectors();};
+$("tab-bld").onclick=()=>setMode(lastBld);$("tab-land").onclick=()=>setMode("land");
+$("tab-res").onclick=()=>setMode("res");$("tab-nr").onclick=()=>setMode("nr");
 $("kind").onchange=()=>{lsSet(LS_KIND[mode],$("kind").value);
   if(mode==="land")return;   // 토지는 용도지역이 바뀌어도 지역 목록은 그대로
   fillSelect($("region"),mode==="nr"?capRegionList($("kind").value):idxRegionList($("kind").value),lsGet(LS_REG[mode]));updateMeta();};
