@@ -430,14 +430,27 @@ function jbFactor(rates,g,e){
   Object.keys(rates).map(Number).filter(k=>k<ymS).sort((x,y)=>x-y).forEach(k=>{lastRate=rates[k];lastYm=k;});
   for(let ym=ymS;ym<=ymE;ym=ymAdd(ym,1)){
     const y=Math.floor(ym/100),mo=ym%100,D=daysIn(y,mo);
-    const published=(ym in rates),r=published?rates[ym]:lastRate;
-    if(r==null)throw new Error(`${y}.${String(mo).padStart(2,"0")}월 변동률이 없습니다.`);
-    if(published){lastRate=r;lastYm=ym;}
+    const published=(ym in rates);
+    if(!published){
+      // 미공표 구간(부동산원 방식): 미공표 첫날~기준시점 총일수를 한 덩어리로 (1 + 마지막 공표월 변동률 × 총일수/공표월 일수) 한 번만 곱한다.
+      // (달마다 복리로 곱하면 부동산원 지가변동률 조회 화면 값과 미세하게 달라짐)
+      if(lastRate==null)throw new Error(`${y}.${String(mo).padStart(2,"0")}월 변동률이 없습니다.`);
+      const ly=Math.floor(lastYm/100),lm=lastYm%100,LD=daysIn(ly,lm);
+      const d1=(ym===ymS)?g.d:1;
+      const days=Math.round((new Date(e.y,e.mo-1,e.d)-new Date(y,mo-1,d1))/86400000)+1;
+      const rr=(Math.round(lastRate/100*1e6)/1e6).toString();
+      // 부동산원은 공표 구간 누계 변동률을 소수 셋째 자리(%)로 반올림한 뒤 미공표 구간을 곱한다 → 같은 순서로 맞춘다
+      if(facs.length){const cum=Math.round((factor-1)*1e5)/1e5;factor=1+cum;facs.splice(0,facs.length,`(1+${cum.toFixed(5)})`);mlist.push(`공표 구간 누계 : ${(cum*100).toFixed(3)}%`);}
+      factor*=1+(lastRate/100)*days/LD;facs.push(`(1+${rr}*${days}/${LD})`);
+      mlist.push(`${y}년 ${mo}월 ${d1}일 ~ ${e.y}년 ${e.mo}월 ${e.d}일 : ${lastRate}% × ${days}일/${LD}일 (미공표 → ${ly}년 ${lm}월 변동률로 일할 추정)`);
+      break;
+    }
+    const r=rates[ym];lastRate=r;lastYm=ym;
     const d1=(ym===ymS)?g.d:1,d2=(ym===ymE)?e.d:D,days=d2-d1+1,frac=days/D;
     const rr=(Math.round(r/100*1e6)/1e6).toString();
     if(frac>=1){factor*=1+r/100;facs.push(`(1+${rr})`);}
     else{factor*=1+(r/100)*frac;facs.push(`(1+${rr}*${days}/${D})`);}
-    mlist.push(`${y}년 ${mo}월 : ${r}%`+(frac<1?` (${days}일/${D}일)`:"")+(published?"":` (미공표 → ${Math.floor(lastYm/100)}년 ${lastYm%100}월 변동률 적용)`));
+    mlist.push(`${y}년 ${mo}월 : ${r}%`+(frac<1?` (${days}일/${D}일)`:""));
   }
   return{factor,facs,mlist};
 }
@@ -530,7 +543,7 @@ async function buildLandText(use,reg,tradeDate,baseDate,status){
   const lines=["토지",`지역 : ${jbRegLabel(reg)}`,`용도지역 : ${use}`,
     `지가변동률(한국부동산원) : ${kd(g)} ~ ${kd(e)}`,...f.mlist,
     f.facs.join("*")+` ≒ ${adj.toFixed(5)}`];
-  if(ymE>jbState.latestYm)lines.push(`※ ${ymDisp(jbState.latestYm)}월 공표분까지 반영, 이후는 마지막 공표월 변동률로 일할 추정함`);
+  if(ymE>jbState.latestYm)lines.push(`※ ${ymDisp(jbState.latestYm)}월 공표분까지 반영, 이후는 마지막 공표월 변동률 × (경과일수/공표월 일수)로 일할 추정함 (부동산원 지가변동률 조회 방식)`);
   return{text:lines.join("\n"),adj};
 }
 
@@ -567,7 +580,7 @@ function fillLandSelectors(){
 function updateMeta(){
   const D=idxData(),C=capData();
   const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":mode==="nr"?"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)":"산정 기준 · 지가변동률 (한국부동산원, 용도지역별 월간)";
-  if(mode==="land"){$("meta").textContent=jbState.latestYm?`한국부동산원 지가변동률(용도지역별) · ${ymDisp(jbState.latestYm)} 공표분까지 (${jbState.fromFile?`${jbState.fileAt} 수신, 매일 06시 자동갱신`:"접속 시 조회"}) · 첫/끝 달 일수비례, 미공표 월은 마지막 공표월 변동률로 일할 추정`:"한국부동산원 지가변동률 · 목록 불러오는 중…";}
+  if(mode==="land"){$("meta").textContent=jbState.latestYm?`한국부동산원 지가변동률(용도지역별) · ${ymDisp(jbState.latestYm)} 공표분까지 (${jbState.fromFile?`${jbState.fileAt} 수신, 매일 06시 자동갱신`:"접속 시 조회"}) · 첫/끝 달 일수비례, 미공표 기간은 마지막 공표월 변동률 × 경과일수/공표월 일수 (부동산원 방식)`:"한국부동산원 지가변동률 · 목록 불러오는 중…";}
   else if(mode==="res"){const tbl=D&&D.tables[$("kind").value];
     $("meta").textContent=tbl?`한국부동산원 매매가격지수 · ${idxYmDisp(tbl.latest)} 공표분까지 (${D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"지수 데이터 없음 — main에 arap_index_data.js가 매일 자동 갱신됩니다";}
   else{const l=C&&C.types[$("kind").value]?C.types[$("kind").value].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);
