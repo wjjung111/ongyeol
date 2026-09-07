@@ -143,6 +143,18 @@
   .caselist-tbl tr.cur{background:#eff6ff;}
   .caselist-tbl .del-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
   .caselist-tbl .del-btn:hover{background:#fee2e2;}
+  .caselist-tbl .bak-btn{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;}
+  .caselist-tbl .bak-btn:hover{background:#dcfce7;}
+  .caselist-tbl tr.bakrow td{background:#f8fafc;text-align:left;padding:6px 10px;}
+  .baklist{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .baklist td{padding:3px 6px;border:none;border-bottom:1px dashed #e2e5ea;text-align:left;}
+  .baklist td.when{white-space:nowrap;font-weight:600;color:#1a2744;}
+  .baklist td.what{color:#475569;}
+  .baklist td.act{text-align:right;white-space:nowrap;}
+  .bakhint{font-size:11px;color:#64748b;margin-bottom:4px;}
+  /* 저장 충돌 안내줄 (다른 탭이 먼저 저장 / 같은 접수번호 건 있음) */
+  .conflict{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 11px;margin-bottom:8px;font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .conflict .dim{color:#a16207;font-size:11px;}
   /* 우측 메모장 (집합건물과 동일) */
   #mainShell{--memo-w:300px;grid-template-columns:186px minmax(0,1fr) var(--memo-w);}
   #mainShell.memo-collapsed{grid-template-columns:186px minmax(0,1fr) 30px;}
@@ -215,6 +227,8 @@
         <span class="ctag alt">필지 <b id="caseLandCnt">0</b></span>
       </div>
     </div>
+    <!-- 다른 창(탭)이 먼저 저장했거나 같은 접수번호 건이 이미 있을 때 — 덮어쓰기 전에 멈추고 묻는다 -->
+    <div id="conflictBar" class="conflict" hidden></div>
     <div id="caseListPanel" class="caselist" hidden></div>
 
     <div class="tabs">
@@ -1426,12 +1440,19 @@ function kaisPaste(e,i,kind){
   var ta=e.target;if(ta)ta.value='';
   var msg=document.getElementById('pTradeMsg'),res=parseTradeText(text,kind);
   if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
+  // 붙여넣은 사례가 여러 건이면 다음 열로 넘치는데, 그 열에 이미 다른 사례가 있으면 지우기 전에 묻는다 (취소하면 그 열은 두고 새 열에 추가)
+  var hit=[];
+  res.out.forEach(function(rec,k){var j=i+k,cur=TRADES[j];
+    if(k>0&&cur&&tradeHasData(cur)&&tradeKey(cur)!==tradeKey(rec))hit.push('#'+(j+1)+'('+(cur.loc||'내용 있음')+')');});
+  var keep=false;
+  if(hit.length)keep=!confirm('붙여넣은 사례가 '+res.out.length+'건이라 거래사례 #'+(i+1)+'부터 다음 열까지 채웁니다.\n이미 내용이 있는 거래사례 '+hit.join(' · ')+'을 덮어쓸까요?\n\n[확인] 덮어쓰기      [취소] 그 열은 그대로 두고 새 열에 추가');
   var filled=[];
   res.out.forEach(function(rec,k){
     var j=i+k;while(TRADES.length<=j)TRADES.push({});
     var cur=TRADES[j];
     if(tradeHasData(cur)&&tradeKey(cur)===tradeKey(rec)){
       Object.keys(rec).forEach(function(f){if(!hasV(rec[f]))return;if(f==='landA'||f==='bldA'||!hasV(cur[f]))cur[f]=rec[f];});}
+    else if(keep&&k>0&&tradeHasData(cur)){TRADES.push(rec);j=TRADES.length-1;}
     else{TRADES[j]=rec;}
     filled.push('#'+(j+1));
   });
@@ -1794,9 +1815,110 @@ function collect(){
 var saveTimer=null;
 function saveForm(){clearTimeout(saveTimer);
   if(document.getElementById('ov_caseNo').value.trim()){saveStatus='⏳';renderCaseBar();}
-  saveTimer=setTimeout(function(){
-    try{var o=collect();localStorage.setItem(FORM_STORAGE,JSON.stringify(o));saveCurrentCase(o);}
-    catch(e){console.error('form save',e);}},400);}
+  saveTimer=setTimeout(doSave,400);}
+// 실제 저장. 저장할 때마다 판 번호(_rev)를 붙여 두고, 저장소의 판이 이 탭이 아는 판과 다르면(다른 탭이 먼저 저장·같은 접수번호 건 존재) 덮어쓰지 않고 멈춘다.
+function doSave(){clearTimeout(saveTimer);saveTimer=null;
+  if(checkConflict()){saveStatus='❌';renderCaseBar();return;}
+  try{var o=collect();o._rev=newRev();var raw=JSON.stringify(o);
+    localStorage.setItem(FORM_STORAGE,raw);REVS[FORM_STORAGE]=o._rev;saveCurrentCase(o,raw);}
+  catch(e){console.error('form save',e);saveStatus='❌';renderCaseBar();}}
+// 창을 닫거나 다른 페이지로 갈 때 아직 안 쓴 저장(0.4초 대기 중)을 바로 쓴다
+window.addEventListener('pagehide',function(){if(saveTimer)doSave();});
+window.addEventListener('beforeunload',function(){if(saveTimer)doSave();});
+
+// ================= 저장 충돌 방지 (여러 탭) =================
+// 저장 데이터마다 _rev(저장 시각 + 탭 표시)를 붙인다. REVS[저장키] = 이 탭이 마지막으로 읽거나 쓴 판.
+// 저장 직전 저장소의 판이 REVS와 다르면 → 다른 탭이 그 사이 저장했거나, 접수번호를 바꿔 이미 있는 건에 겹친 것 → 저장을 멈추고 안내줄로 묻는다.
+var TAB_ID=Math.random().toString(36).slice(2,8);
+var REVS={};        // 저장키 → 판
+var CONFLICT=null;  // {key,id,kind:'other'|'exists'} 저장을 멈춘 상태
+function newRev(){return Date.now().toString(36)+'.'+TAB_ID;}
+function revTime(rev){var m=/^([0-9a-z]+)\./.exec(String(rev||''));var t=m?parseInt(m[1],36):NaN;return isFinite(t)?t:null;}
+function readJson(key){try{return JSON.parse(localStorage.getItem(key)||'null');}catch(e){return null;}}
+// 저장소에 있는 판. 없으면 null, 옛 데이터(판 없음)면 ''
+function storedRev(key){var o=readJson(key);if(!o)return null;return o._rev||'';}
+function adoptRev(key){var r=storedRev(key);if(r==null)delete REVS[key];else REVS[key]=r;}
+function guardKey(){var id=document.getElementById('ov_caseNo').value.trim();return id?landCaseKey(id):FORM_STORAGE;}
+function checkConflict(){
+  var id=document.getElementById('ov_caseNo').value.trim(),key=id?landCaseKey(id):FORM_STORAGE;
+  if(CONFLICT&&CONFLICT.key!==key)CONFLICT=null;   // 접수번호를 바꾸면 이전 충돌은 의미 없음
+  if(CONFLICT)return true;
+  var cur=storedRev(key);
+  if(cur==null)return false;            // 저장된 게 없음 → 그냥 저장
+  if(REVS[key]===cur)return false;      // 이 탭이 아는 판 그대로 → 그냥 저장
+  CONFLICT={key:key,id:id,kind:(key in REVS)?'other':'exists'};
+  renderConflict();return true;
+}
+function renderConflict(){
+  var bar=document.getElementById('conflictBar');if(!bar)return;
+  if(!CONFLICT){bar.hidden=true;bar.innerHTML='';return;}
+  var id=CONFLICT.id,msg;
+  if(CONFLICT.kind==='exists')msg='⚠️ <b>'+eh(id)+'</b> 접수번호로 저장된 건이 이미 있습니다. 그 건이 지워지지 않도록 이 화면의 자동저장을 멈췄습니다.';
+  else msg='⚠️ 다른 창(탭)에서 '+(id?'<b>'+eh(id)+'</b> 건':'이 화면')+'을 먼저 저장했습니다. 그 내용이 지워지지 않도록 이 화면의 자동저장을 멈췄습니다.';
+  bar.innerHTML='<span>'+msg+'</span>'+
+    '<button class="btn sm" onclick="conflictLoad()">저장된 내용 불러오기</button>'+
+    '<button class="btn sm del-btn" onclick="conflictOverwrite()">이 화면 내용으로 덮어쓰기</button>'+
+    (id?'<span class="dim">덮어써도 이전 내용은 「📂 저장된 건 → ↺ 이전 버전」에 남습니다.</span>':'');
+  bar.hidden=false;
+}
+function conflictLoad(){var c=CONFLICT;if(!c)return;CONFLICT=null;renderConflict();
+  if(c.id){loadCase(c.id);return;}
+  var o=readJson(FORM_STORAGE);
+  if(o){clearForm();applyForm(o);applyOvDefaults();REVS[FORM_STORAGE]=o._rev||'';refreshAfterLoad();}
+}
+function conflictOverwrite(){var c=CONFLICT;if(!c)return;adoptRev(c.key);CONFLICT=null;renderConflict();doSave();}
+// 다른 탭이 이 건을 저장하면 즉시 알아채 안내줄을 띄운다 (storage 이벤트는 다른 탭의 변경에만 온다)
+window.addEventListener('storage',function(e){
+  if(!e.key)return;
+  if(e.key===LAND_LIST_KEY){caseList=getLandList();renderCaseBar();if(showCaseList)renderCaseListPanel();return;}
+  if(e.key!==guardKey())return;
+  if(checkConflict()){saveStatus='❌';renderCaseBar();}
+});
+
+// ================= 자동 백업 (건별 이전 버전) =================
+// 건을 덮어쓰기 직전의 내용을 최대 5개 보관. 평소엔 5분에 하나씩, 거래사례·평가사례·표준지·토지가 줄어드는 저장이면 간격과 무관하게 보관.
+var BAK_PREFIX='tojigeonmul-bak:',BAK_MAX=5,BAK_GAP=5*60*1000;
+function bakKey(id){return BAK_PREFIX+id;}
+function getBak(id){try{return JSON.parse(localStorage.getItem(bakKey(id))||'[]')||[];}catch(e){return [];}}
+function setBak(id,ring){
+  for(;;){try{localStorage.setItem(bakKey(id),JSON.stringify(ring));return true;}
+    catch(e){if(ring.length<=1){console.warn('backup skipped',e);return false;}ring.pop();}}   // 용량 부족이면 오래된 것부터 버림
+}
+function dataScore(o){var n=0;if(!o)return 0;
+  (o.TRADES||[]).forEach(function(c){if(tradeHasData(c))n++;});
+  (o.APPRS||[]).forEach(function(a){if(apprHasData(a))n++;});
+  return n+(o.LANDS||[]).length+(o.STDS||[]).length;}
+function bakSummary(o){var t=0,a=0;
+  (o.TRADES||[]).forEach(function(c){if(tradeHasData(c))t++;});
+  (o.APPRS||[]).forEach(function(x){if(apprHasData(x))a++;});
+  return '거래사례 '+t+'건 · 평가사례 '+a+'건 · 표준지 '+(o.STDS||[]).length+' · 토지 '+(o.LANDS||[]).length;}
+function backupBefore(id,prevRaw,newObj){
+  var prev=null;try{prev=JSON.parse(prevRaw);}catch(e){return;}
+  if(!prev)return;
+  var ring=getBak(id),t=revTime(prev._rev)||Date.now();
+  if(ring.length&&ring[0].t===t)return;                                   // 같은 상태는 다시 안 담음
+  var shrink=dataScore(newObj)<dataScore(prev);
+  if(!shrink&&ring.length&&t-ring[0].t<BAK_GAP)return;
+  ring.unshift({t:t,data:prev});
+  while(ring.length>BAK_MAX)ring.pop();
+  setBak(id,ring);
+}
+function fmtWhen(t){try{var d=new Date(t);return d.toLocaleDateString('ko-KR')+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}catch(e){return '-';}}
+var bakOpen=null;   // 이전 버전 목록을 펼친 접수번호
+function toggleBak(id){bakOpen=(bakOpen===id)?null:id;renderCaseListPanel();}
+function restoreBak(id,k){
+  var ring=getBak(id),s=ring[k];if(!s||!s.data)return;
+  if(!confirm(id+' 건을 '+fmtWhen(s.t)+' 버전으로 되돌릴까요?\n('+bakSummary(s.data)+')\n\n지금 내용도 이전 버전 목록에 남으므로 다시 되돌릴 수 있습니다.'))return;
+  var key=landCaseKey(id);
+  var cur=readJson(key);
+  if(cur){var ct=revTime(cur._rev)||Date.now();if(!ring.some(function(x){return x.t===ct;}))ring.unshift({t:ct,data:cur});}
+  while(ring.length>BAK_MAX)ring.pop();
+  setBak(id,ring);
+  var o=s.data;o._rev=newRev();var raw=JSON.stringify(o);
+  try{localStorage.setItem(key,raw);localStorage.setItem(FORM_STORAGE,raw);}catch(e){alert('복구 실패: '+e.message);return;}
+  REVS[key]=o._rev;REVS[FORM_STORAGE]=o._rev;CONFLICT=null;renderConflict();
+  bakOpen=null;loadCase(id);doSave();
+}
 function applyForm(o){
   if(!o)return false;
   if(o.base){document.getElementById('base_gongsi').value=o.base.gongsi||'';document.getElementById('base_gijun').value=o.base.gijun||'';document.getElementById('base_josa').value=o.base.josa||'';}
@@ -1817,7 +1939,8 @@ function applyForm(o){
   return true;
 }
 function restore(){
-  var o=null;try{o=JSON.parse(localStorage.getItem(FORM_STORAGE)||'null');}catch(e){}
+  var o=readJson(FORM_STORAGE);
+  if(o)REVS[FORM_STORAGE]=o._rev||'';
   return applyForm(o);
 }
 
@@ -1840,11 +1963,14 @@ function eh(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {
 function jsq(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
 
 // 현재 폼을 '건'으로 저장 (접수번호가 ID). 접수번호 없으면 저장 안 함.
-function saveCurrentCase(o){
+function saveCurrentCase(o,raw){
   var id=document.getElementById('ov_caseNo').value.trim();
   if(!id){currentId=null;saveStatus='';renderCaseBar();return;}
   try{
-    localStorage.setItem(landCaseKey(id),JSON.stringify(o||collect()));
+    o=o||collect();if(!o._rev)o._rev=newRev();raw=raw||JSON.stringify(o);
+    var key=landCaseKey(id),prevRaw=null;try{prevRaw=localStorage.getItem(key);}catch(e){}
+    if(prevRaw&&prevRaw!==raw)backupBefore(id,prevRaw,o);   // 덮어쓰기 전 내용을 이전 버전으로 보관
+    localStorage.setItem(key,raw);REVS[key]=o._rev;
     var L0=LANDS[0]||{};
     var label=(id+' '+((L0['소재지']||'')+' '+(L0['지번']||'')).trim()).trim();
     var list=getLandList().filter(function(c){return c.id!==id;});
@@ -1873,7 +1999,10 @@ function newCase(){
   clearForm();applyOvDefaults();
   TRADES=[{},{},{}];   // 새 평가서는 거래사례 빈 열 3개로 시작
   currentId=null;saveStatus='';
+  clearTimeout(saveTimer);saveTimer=null;   // 비우기 직전에 걸려 있던 자동저장이 빈 화면을 쓰지 않도록
+  CONFLICT=null;renderConflict();
   try{localStorage.removeItem(FORM_STORAGE);}catch(e){}
+  REVS={};   // 새 평가서는 어떤 저장 건도 '내 것'이 아님 — 여기서 기존 접수번호를 치면 겹침 안내가 뜨도록
   showCaseList=false;document.getElementById('caseListPanel').hidden=true;
   refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);
 }
@@ -1882,15 +2011,19 @@ function loadCase(id){
   if(!raw){alert('불러오기 실패 — 저장 데이터가 없습니다.');return;}
   var o=null;try{o=JSON.parse(raw);}catch(e){}
   if(!o){alert('불러오기 실패 — 데이터가 손상되었습니다.');return;}
+  clearTimeout(saveTimer);saveTimer=null;   // 이전 건의 자동저장이 새로 연 건 위에 쓰이지 않도록
+  CONFLICT=null;renderConflict();
   clearForm();applyForm(o);applyOvDefaults();
   currentId=id;saveStatus='✅';
   try{localStorage.setItem(FORM_STORAGE,raw);}catch(e){}
+  REVS={};REVS[landCaseKey(id)]=o._rev||'';REVS[FORM_STORAGE]=o._rev||'';   // 연 건만 '내 것'
   showCaseList=false;document.getElementById('caseListPanel').hidden=true;
   refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);
 }
 function deleteCase(id){
-  if(!confirm(id+' 건을 삭제할까요?'))return;
-  try{localStorage.removeItem(landCaseKey(id));}catch(e){}
+  if(!confirm(id+' 건을 삭제할까요?'+(getBak(id).length?'\n(이전 버전 백업도 함께 지워집니다)':'')))return;
+  try{localStorage.removeItem(landCaseKey(id));localStorage.removeItem(bakKey(id));}catch(e){}
+  delete REVS[landCaseKey(id)];if(bakOpen===id)bakOpen=null;
   caseList=getLandList().filter(function(c){return c.id!==id;});
   setLandList(caseList);
   if(currentId===id)newCase();
@@ -1921,15 +2054,25 @@ function renderCaseBar(){
 function renderCaseListPanel(){
   var p=document.getElementById('caseListPanel');
   if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.</div>';return;}
-  var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th style="width:112px">작업</th></tr></thead><tbody>';
+  var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th style="width:196px">작업</th></tr></thead><tbody>';
   caseList.forEach(function(c){
     var when='-';try{var d=new Date(c.updated);when=d.toLocaleDateString('ko-KR')+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}catch(e){}
     var obj=(c.label||'').replace(c.id,'').trim()||'-';
+    var ring=getBak(c.id),open=bakOpen===c.id;
     h+='<tr'+(c.id===currentId?' class="cur"':'')+'>'+
        '<td class="cid">'+eh(c.id)+(String(c.id).indexOf('SAMPLE-')===0?' (샘플)':'')+'</td>'+
        '<td class="l">'+eh(obj)+'</td><td>'+eh(when)+'</td>'+
        '<td><button class="btn sm" onclick="loadCase(\''+jsq(c.id)+'\')">열기</button> '+
+       (ring.length?'<button class="btn sm bak-btn'+(open?' on':'')+'" title="덮어쓰기 전에 자동 보관된 이전 내용('+ring.length+'개)" onclick="toggleBak(\''+jsq(c.id)+'\')">↺ 이전 버전 '+ring.length+'</button> ':'')+
        '<button class="btn sm del-btn" onclick="deleteCase(\''+jsq(c.id)+'\')">삭제</button></td></tr>';
+    if(open&&ring.length){
+      var b='<div class="bakhint">거래사례가 지워졌거나 잘못 덮어쓴 경우, 아래에서 되돌릴 시각을 고르세요. 되돌려도 지금 내용은 이 목록에 남습니다.</div><table class="baklist">';
+      ring.forEach(function(s,k){
+        b+='<tr><td class="when">'+eh(fmtWhen(s.t))+'</td><td class="what">'+eh(bakSummary(s.data||{}))+'</td>'+
+           '<td class="act"><button class="btn sm" onclick="restoreBak(\''+jsq(c.id)+'\','+k+')">이 버전으로 되돌리기</button></td></tr>';
+      });
+      h+='<tr class="bakrow"><td colspan="4">'+b+'</table></td></tr>';
+    }
   });
   p.innerHTML=h+'</tbody></table>';
 }
@@ -2032,7 +2175,7 @@ applyOvDefaults();
 // 저장된 건 목록 로드 + 현재 작업건(접수번호) 목록 편입
 caseList=getLandList();
 (function(){var id=document.getElementById('ov_caseNo').value.trim();
-  if(id){currentId=id;saveStatus='✅';
+  if(id){currentId=id;saveStatus='✅';adoptRev(landCaseKey(id));   // 켤 때 저장소에 있는 판을 그대로 받아들임
     if(!caseList.some(function(c){return c.id===id;}))saveCurrentCase();}})();
 renderCaseBar();
 ensureTrade3();   // 거래사례: 실입력이 하나도 없으면 빈 열 3개로 시작
