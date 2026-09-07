@@ -158,9 +158,9 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
     <p class="hint">지번 주소(경기도 안산시 단원구 선부동 1017-11 형식)를 넣으면 토지특성(면적·개별공시지가)과 건축물대장(표제부·층별개요), 개별주택가격을 불러와 아래 칸을 채웁니다. 자동 매핑된 용도지수·층 특성에는 근거가 표시되니 반드시 검토하세요. 위반건축물·용도변경 시점은 대장 API에 없으므로 정부24 발급본으로 확인합니다.</p>
     <div class="status" id="apiStatus"></div>
     <div class="paste" id="fallbackPanel" hidden>
-      브라우저가 API를 직접 못 불러 수동 모드입니다. <a id="fbLink" href="#" target="_blank" rel="noopener">이 링크</a>를 새 탭에서 열어 내용 전체(Ctrl+A, Ctrl+C)를 아래에 붙여넣고 적용을 누르세요.
+      공공데이터포털 응답이 지연되고 있습니다. <b>자동 재시도</b>를 누르거나, <a id="fbLink" href="#" target="_blank" rel="noopener">이 링크</a>를 새 탭에서 열어 내용 전체(Ctrl+A, Ctrl+C)를 아래에 붙여넣고 적용을 누르세요.
       <textarea id="fbPaste"></textarea>
-      <div style="margin-top:6px"><button type="button" class="btn" id="btnFbApply">적용</button></div>
+      <div style="margin-top:6px;display:flex;gap:8px"><button type="button" class="btn primary" id="btnFbRetry">자동 재시도</button><button type="button" class="btn" id="btnFbApply">붙여넣은 내용 적용</button></div>
     </div>
     <details class="ref" id="apiLog" hidden><summary>불러온 원본 데이터 · 매핑 근거</summary><pre class="raw" id="apiRaw"></pre></details>
   </section>
@@ -552,7 +552,7 @@ function hostOf(u){ const m=/^https?:\/\/([^\/]+)/.exec(u); return m?m[1]:"x"; }
 function tryFetch(url,attempt=1){ return fetch(url).then(async r=>{
   const txt=await r.text(); let j=null; try{ j=JSON.parse(txt); }catch(e){}
   const upstreamFail = r.status>=500 || (j&&j.OpenAPI_ServiceResponse) || /SERVICETIMEOUT|연결실패/.test(txt);
-  if(upstreamFail && attempt<4){ await new Promise(res=>setTimeout(res,1500*attempt)); return tryFetch(url,attempt+1); }   // 공공데이터포털 간헐 타임아웃 재시도
+  if(upstreamFail && attempt<6){ await new Promise(res=>setTimeout(res,1000*attempt)); return tryFetch(url,attempt+1); }   // 공공데이터포털 간헐 타임아웃 재시도
   if(!r.ok) throw new Error("HTTP "+r.status); if(!j) throw new Error("JSON 아님"); return j; }); }
 function tryJsonp(url){ return new Promise((resolve,reject)=>{
   const cb="__vw_cb"+Math.floor(Math.random()*1e9); const sc=document.createElement("script"); let done=false;
@@ -567,6 +567,8 @@ function tryManual(url){
   manualQueue=manualQueue.then(()=>new Promise(resolve=>{
     const panel=$("fallbackPanel"), link=$("fbLink"), ta=$("fbPaste");
     panel.hidden=false; link.href=url; link.textContent="이 링크"; ta.value=""; ta.focus();
+    $("btnFbRetry").onclick=()=>{ const b=$("btnFbRetry"); b.disabled=true; b.textContent="재시도 중…";
+      tryFetch(url,1).then(j=>{ panel.hidden=true; resolve(j); }).catch(()=>alert("아직 공공데이터포털 응답이 없습니다. 잠시 후 다시 눌러 주세요.")).finally(()=>{ b.disabled=false; b.textContent="자동 재시도"; }); };
     $("btnFbApply").onclick=()=>{ const t=ta.value.trim(); if(!t){ alert("붙여넣은 내용이 없습니다"); return; }
       try{ const j=JSON.parse(t); panel.hidden=true; resolve(j); }catch(e){ alert("JSON 형식이 아닙니다. 페이지 전체를 복사했는지 확인하세요."); } };
   }));
