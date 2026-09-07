@@ -905,7 +905,9 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   const text=[kind,`지역 : ${region}`,`(${qa.y}.${qa.q} ~ ${qb.y}.${qb.q})`,...qlist,formula].join("\n");
   return{...fields,text};
 };
-const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;if(ov.areaOption==="share"){const sn=pNum(ov.shareNumer),sd=pNum(ov.shareDenom);if(!sn||!sd)return a;const dp=parseInt(ov.areaDecimal)||2;return parseFloat((a*sn/sd).toFixed(dp));}if(ov.areaOption==="areaAdj"){const ex=pNum(ov.excludeArea);if(!ex)return a;return parseFloat((a-ex).toFixed(parseInt(ov.areaDecimal)||2));}return a;};
+// 사정면적 자릿수 처리: areaDecimal(자리수) + areaRound("round" 반올림 | "floor" 절사). 부동소수 오차(75.325→75.32499…)를 1e-7로 보정한 뒤 처리
+const roundArea=(v,dp,m)=>{const f=Math.pow(10,dp);const x=v*f+1e-7;return (m==="floor"?Math.floor(x):Math.round(x))/f;};
+const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;const dp=parseInt(ov.areaDecimal)||2,m=ov.areaRound||"round";if(ov.areaOption==="share"){const sn=pNum(ov.shareNumer),sd=pNum(ov.shareDenom);if(!sn||!sd)return a;return roundArea(a*sn/sd,dp,m);}if(ov.areaOption==="areaAdj"){const ex=pNum(ov.excludeArea);if(!ex)return a;return roundArea(a-ex,dp,m);}return a;};
 
 function preTSV(text){let r="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')q=!q;else if(c==='\n'&&q)r+=" ";else r+=c;}return r;}
 function parseTSV(text){const clean=preTSV(text);const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
@@ -1579,10 +1581,14 @@ function Step2({ov,setOv,propType,setPropType}){
           <select style={{...S.sel2,width:70}} value={ov.areaDecimal||"2"} onChange={e=>u("areaDecimal",e.target.value)}>
             {[1,2,3,4].map(n=><option key={n} value={String(n)}>{n}자리</option>)}
           </select>
+          <select style={{...S.sel2,width:80}} value={ov.areaRound||"round"} onChange={e=>u("areaRound",e.target.value)} title="마지막 자리 처리: 반올림 또는 절사(버림)">
+            <option value="round">반올림</option>
+            <option value="floor">절사</option>
+          </select>
         </div>
         {(()=>{const ea=getEffArea(ov);const a=pNum(ov.area);return ea&&a&&ea!==a?(
           <div style={{padding:"8px 12px",background:"#fef3c7",borderRadius:4,fontSize:12}}>
-            <span style={{fontWeight:600}}>사정면적:</span> {a} × {ov.shareNumer}/{ov.shareDenom} = <b style={{color:C.dng,fontSize:14}}>{ea} ㎡</b>
+            <span style={{fontWeight:600}}>사정면적:</span> {a} × {ov.shareNumer}/{ov.shareDenom} = <b style={{color:C.dng,fontSize:14}}>{ea} ㎡</b> <span style={{color:"#888",fontSize:11}}>(소수점 {parseInt(ov.areaDecimal)||2}자리 {ov.areaRound==="floor"?"절사":"반올림"})</span>
           </div>
         ):null;})()}
       </div>)}
@@ -1594,10 +1600,14 @@ function Step2({ov,setOv,propType,setPropType}){
           <select style={{...S.sel2,width:70}} value={ov.areaDecimal||"2"} onChange={e=>u("areaDecimal",e.target.value)}>
             {[1,2,3,4].map(n=><option key={n} value={String(n)}>{n}자리</option>)}
           </select>
+          <select style={{...S.sel2,width:80}} value={ov.areaRound||"round"} onChange={e=>u("areaRound",e.target.value)} title="마지막 자리 처리: 반올림 또는 절사(버림)">
+            <option value="round">반올림</option>
+            <option value="floor">절사</option>
+          </select>
         </div>
         {(()=>{const ea=getEffArea(ov);const a=pNum(ov.area);return ea&&a&&ea!==a?(
           <div style={{padding:"8px 12px",background:"#fef3c7",borderRadius:4,fontSize:12}}>
-            <span style={{fontWeight:600}}>사정면적:</span> {a} - {ov.excludeArea} = <b style={{color:C.dng,fontSize:14}}>{ea} ㎡</b>
+            <span style={{fontWeight:600}}>사정면적:</span> {a} - {ov.excludeArea} = <b style={{color:C.dng,fontSize:14}}>{ea} ㎡</b> <span style={{color:"#888",fontSize:11}}>(소수점 {parseInt(ov.areaDecimal)||2}자리 {ov.areaRound==="floor"?"절사":"반올림"})</span>
           </div>
         ):null;})()}
       </div>)}
@@ -2521,7 +2531,7 @@ const V2_SAMPLE={
     area:"157.36",commonArea:"14.41",landArea:"132",
     approvalDate:"1979.05.09",zoning:"제3종일반주거지역",structure:"철근콘크리트조 슬래브지붕",
     complexScale:"1,340세대",totalFloorArea:"",landAreaTotal:"",floors:"14/1",floorDetail:"",
-    areaOption:"none",shareNumer:"",shareDenom:"",excludeArea:"",areaDecimal:"2",
+    areaOption:"none",shareNumer:"",shareDenom:"",excludeArea:"",areaDecimal:"2",areaRound:"round",
     mainUse:"공동주택(아파트)",mainUseJeonyu:"아파트",evalCategory:"증여",
     nearDesc:"'압구정초등학교' 북동측",nearAreaBase:"전유면적",nearPriceLow:"",nearPriceHigh:"",nearKind:"",
     nrType:"",nrRegion:"",nrMigosi:"",nrMigosiPrev:"",nrTradeDate:"",nrCapPct:"",nrCapVal:"",nrCapFormula:"",
@@ -3300,7 +3310,7 @@ const emptyOv={
   approvalDate:"",zoning:"",structure:"",
   complexScale:"",totalFloorArea:"",landAreaTotal:"",floors:"",floorDetail:"",
   // 면적 옵션
-  areaOption:"none",shareNumer:"",shareDenom:"",excludeArea:"",areaDecimal:"2",
+  areaOption:"none",shareNumer:"",shareDenom:"",excludeArea:"",areaDecimal:"2",areaRound:"round",
   // 용도
   mainUse:"",mainUseJeonyu:"",evalCategory:"",
   // 요항표 건물상황(외벽·창호) — 평가사 입력, 기본값은 표준
@@ -3797,7 +3807,9 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   const text=[kind,`지역 : ${region}`,`(${qa.y}.${qa.q} ~ ${qb.y}.${qb.q})`,...qlist,formula].join("\n");
   return{...fields,text};
 };
-const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;if(ov.areaOption==="share"){const sn=pNum(ov.shareNumer),sd=pNum(ov.shareDenom);if(!sn||!sd)return a;const dp=parseInt(ov.areaDecimal)||2;return parseFloat((a*sn/sd).toFixed(dp));}if(ov.areaOption==="areaAdj"){const ex=pNum(ov.excludeArea);if(!ex)return a;return parseFloat((a-ex).toFixed(parseInt(ov.areaDecimal)||2));}return a;};
+// 사정면적 자릿수 처리: areaDecimal(자리수) + areaRound("round" 반올림 | "floor" 절사). 부동소수 오차(75.325→75.32499…)를 1e-7로 보정한 뒤 처리
+const roundArea=(v,dp,m)=>{const f=Math.pow(10,dp);const x=v*f+1e-7;return (m==="floor"?Math.floor(x):Math.round(x))/f;};
+const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;const dp=parseInt(ov.areaDecimal)||2,m=ov.areaRound||"round";if(ov.areaOption==="share"){const sn=pNum(ov.shareNumer),sd=pNum(ov.shareDenom);if(!sn||!sd)return a;return roundArea(a*sn/sd,dp,m);}if(ov.areaOption==="areaAdj"){const ex=pNum(ov.excludeArea);if(!ex)return a;return roundArea(a-ex,dp,m);}return a;};
 
 function preTSV(text){let r="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')q=!q;else if(c==='\n'&&q)r+=" ";else r+=c;}return r;}
 function parseTSV(text){const clean=preTSV(text);const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
@@ -6021,7 +6033,7 @@ const caseKey=id=>`v2:case:${id}`;
 const HANGUL_SYMBOLS="가나다라마바사아자차카타파하";
 const symbolFor=i=>HANGUL_SYMBOLS.charAt(i)||String(i+1);
 const newUnit=id=>({id:id||Date.now()+Math.random(),dong:"",floor:"",ho:"",area:"",commonArea:"",landArea:"",mainUseJeonyu:"",evalArea:""});
-const emptyOv={caseNo:"",client:"",purpose:"일반거래(시가참고)",submitTo:"국세청 및 관할세무서",baseDate:"",surveyDate:"",writeDate:today(),baseValue:"시장가치",owner:"",condition:"-",listBasis:"등기사항전부증명서, 귀 제시목록 등",deskPrice:"",deskPrices:[],jibun:"",road:"",buildingName:"",kind:"",dong:"",floor:"",ho:"",area:"",commonArea:"",landArea:"",approvalDate:"",zoning:"",structure:"",complexScale:"",totalFloorArea:"",landAreaTotal:"",floors:"",areaOption:"none",shareNumer:"",shareDenom:"",excludeArea:"",areaDecimal:"2",mainUse:"",mainUseJeonyu:"",evalCategory:"",nearDesc:"",baseDateBasis:"",nearAreaBase:"전유면적",nearPriceLow:"",nearPriceHigh:"",nearKind:"",nrType:"",nrRegion:"",nrMigosi:"",nrMigosiPrev:"",nrTradeDate:"",nrCapPct:"",nrCapVal:"",nrCapFormula:"",units:[newUnit(1),newUnit(2)]};
+const emptyOv={caseNo:"",client:"",purpose:"일반거래(시가참고)",submitTo:"국세청 및 관할세무서",baseDate:"",surveyDate:"",writeDate:today(),baseValue:"시장가치",owner:"",condition:"-",listBasis:"등기사항전부증명서, 귀 제시목록 등",deskPrice:"",deskPrices:[],jibun:"",road:"",buildingName:"",kind:"",dong:"",floor:"",ho:"",area:"",commonArea:"",landArea:"",approvalDate:"",zoning:"",structure:"",complexScale:"",totalFloorArea:"",landAreaTotal:"",floors:"",areaOption:"none",shareNumer:"",shareDenom:"",excludeArea:"",areaDecimal:"2",areaRound:"round",mainUse:"",mainUseJeonyu:"",evalCategory:"",nearDesc:"",baseDateBasis:"",nearAreaBase:"전유면적",nearPriceLow:"",nearPriceHigh:"",nearKind:"",nrType:"",nrRegion:"",nrMigosi:"",nrMigosiPrev:"",nrTradeDate:"",nrCapPct:"",nrCapVal:"",nrCapFormula:"",units:[newUnit(1),newUnit(2)]};
 
 // ── 기기 동기화 패널 (GitHub Gist — 전역 window.ArapSync 사용) ──
 function SyncPanel(){
