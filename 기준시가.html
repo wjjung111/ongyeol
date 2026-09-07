@@ -549,7 +549,11 @@ const PROXY_BASE='https://ongyeol-proxy.woojin-apr.workers.dev';
 function getKey(){ try{ return localStorage.getItem(KEY_STORAGE)||DEFAULT_VKEY; }catch(e){ return DEFAULT_VKEY; } }
 const netModes={};
 function hostOf(u){ const m=/^https?:\/\/([^\/]+)/.exec(u); return m?m[1]:"x"; }
-function tryFetch(url){ return fetch(url).then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }); }
+function tryFetch(url,attempt=1){ return fetch(url).then(async r=>{
+  const txt=await r.text(); let j=null; try{ j=JSON.parse(txt); }catch(e){}
+  const upstreamFail = r.status>=500 || (j&&j.OpenAPI_ServiceResponse) || /SERVICETIMEOUT|연결실패/.test(txt);
+  if(upstreamFail && attempt<4){ await new Promise(res=>setTimeout(res,1500*attempt)); return tryFetch(url,attempt+1); }   // 공공데이터포털 간헐 타임아웃 재시도
+  if(!r.ok) throw new Error("HTTP "+r.status); if(!j) throw new Error("JSON 아님"); return j; }); }
 function tryJsonp(url){ return new Promise((resolve,reject)=>{
   const cb="__vw_cb"+Math.floor(Math.random()*1e9); const sc=document.createElement("script"); let done=false;
   window[cb]=d=>{ done=true; cleanup(); resolve(d); };
@@ -710,7 +714,7 @@ async function importByAddress(q){
     // 개별주택가격 (필드명이 서비스마다 달라 가격으로 보이는 값을 탐색)
     const hroot=houseD&&(houseD.indvdHousingPrices||houseD.indvdHousingPricess); const hf=(hroot&&hroot.field)||[];
     const hc=pickYear(hf,evalYear);
-    if(hc){ const k=Object.keys(hc).find(k=>/pc$|price|prc|amount|가격/i.test(k)&&Number(hc[k])>=1e6);
+    if(hc){ const k = (Number(hc.housePc)>=1e6) ? "housePc" : Object.keys(hc).find(k=>/pc$|price|prc|amount|가격/i.test(k)&&Number(hc[k])>=1e6);
       if(k){ $("housePrice").value=hc[k]; notes.push(`개별주택가격 ${hc.stdrYear}년 ${fmt(+hc[k])}원 (${k})`); } else notes.push("개별주택가격 응답은 있으나 가격 필드 판별 실패 — 원본 데이터 확인"); }
     else if(!(houseD&&houseD.err)) notes.push("개별주택가격 없음 (주택 부분이 없거나 미공시)");
     renderRef(); calc();
