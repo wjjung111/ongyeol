@@ -161,7 +161,8 @@ function Get-JbRows($tblId, $ym) {
   return $all
 }
 function Add-Months([int]$ym, [int]$n) { $y = [math]::Floor($ym / 100); $m = ($ym % 100) + $n; $y += [math]::Floor(($m - 1) / 12); $m = ((($m - 1) % 12) + 12) % 12 + 1; return [int]($y * 100 + $m) }
-# 표 구조 판별 → 행을 {reg, use}로 나누는 함수(지가변동률 표·지가지수 표 공용)
+# 표 구조 판별(지가변동률 표·지가지수 표 공용): 용도가 든 필드·지역 필드를 찾아 설정을 돌려준다. 행 나누기는 Split-JbRowWith
+#   (※ 스크립트블록.GetNewClosure() 방식은 닫힌 범위에서 Get-JbField 같은 스크립트 함수를 못 찾아 Actions에서 실패했음 → 일반 함수+설정 해시로)
 function New-JbSplitter($rows) {
   $fields = @("GRP", "CLS", "ITM")
   $useF = "ITM"; $bestN = -1
@@ -172,18 +173,18 @@ function New-JbSplitter($rows) {
     $set = @{}; foreach ($r in $rows) { $v = Get-JbFull $r $f; if ($v) { $set[$v] = 1 } }
     if ($set.Count -gt $regN) { $regN = $set.Count; $regF = $f }
   }
-  $regFromUsePath = (-not $regF) -or ($regN -le 1)
-  return {
-    param($r)
-    $use = Get-JbField $r $useF
-    if ($use -notmatch $JB_USE_RE) {
-      $m = @(((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $JB_USE_RE })
-      if ($m.Count -gt 0) { $use = $m[-1] }
-    }
-    if ($regFromUsePath) { $reg = ((((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne $use }) -join " > ") }
-    else { $reg = ((((Get-JbFull $r $regF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join " > ") }
-    return @{ reg = $reg; use = $use }
-  }.GetNewClosure()
+  return @{ useF = $useF; regF = $regF; regFromUsePath = ((-not $regF) -or ($regN -le 1)) }
+}
+function Split-JbRowWith($cfg, $r) {
+  $useF = $cfg.useF
+  $use = Get-JbField $r $useF
+  if ($use -notmatch $JB_USE_RE) {
+    $m = @(((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $JB_USE_RE })
+    if ($m.Count -gt 0) { $use = $m[-1] }
+  }
+  if ($cfg.regFromUsePath) { $reg = ((((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne $use }) -join " > ") }
+  else { $reg = ((((Get-JbFull $r $cfg.regF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join " > ") }
+  return @{ reg = $reg; use = $use }
 }
 # 연도 누계 — 부동산원 지가변동률 조회 화면은 그 해 1월 1일부터 포함되는 해를 월별 곱이 아니라 '누계'(지가지수 비율)로 곱한다.
 #   월별 표시값(소수 셋째 자리)을 곱하면 누계와 0.001%p쯤 어긋나 시점수정치 다섯째 자리가 달라짐 → 지가지수 표에서 누계% = (지수[해당월]/지수[전년 12월] − 1)×100 을 소수 셋째 자리로 계산해 둔다.
@@ -205,7 +206,7 @@ function Get-JbCum($months, $latestYm) {
   }
   if (-not $tbl) { throw "용도지역별 지가지수 표를 확정하지 못함" }
   Write-Host ("  표 확정: {0} {1}" -f $tbl.STATBL_ID, $tbl.STATBL_NM) -ForegroundColor Cyan
-  $split = New-JbSplitter $rows0
+  $splitCfg = New-JbSplitter $rows0
   # 필요한 달 = 변동률을 받은 달 + 각 해의 전년 12월
   $need = [ordered]@{}
   foreach ($ym in $months) { $need[[string]$ym] = 1; $need[[string]((([int]$ym / 100) -as [int]) - 1) + "12"] = 1 }
@@ -214,7 +215,7 @@ function Get-JbCum($months, $latestYm) {
     $rows = if ([int]$ym -eq [int]$latestYm) { $rows0 } else { Get-JbRows ([string]$tbl.STATBL_ID) $ym }
     $cnt = 0
     foreach ($r in $rows) {
-      $x = & $split $r
+      $x = Split-JbRowWith $splitCfg $r
       if (-not $x.reg -or -not $x.use) { continue }
       $v = [string]$r.DTA_VAL; if ($v -eq "") { continue }
       $idx[$x.reg + "|" + $x.use + "|" + $ym] = [double]$v; $cnt++
@@ -260,8 +261,8 @@ function Fetch-Jibyun {
   if (-not $tbl) { throw "용도지역별 지가변동률 표를 확정하지 못함" }
   Write-Host ("  표 확정: {0} {1} · 최신 {2}" -f $tbl.id, $tbl.name, $latestYm) -ForegroundColor Cyan
   # 2) 표 구조: 용도가 든 필드(GRP/CLS/ITM 중 용도 문구가 가장 많은 것), 지역 필드(나머지 중 값 종류가 가장 많은 것)
-  $splitter = New-JbSplitter $latestRows
-  function Split-JbRow($r) { return (& $splitter $r) }
+  $splitCfg = New-JbSplitter $latestRows
+  function Split-JbRow($r) { return (Split-JbRowWith $splitCfg $r) }
   # 3) 최근 N개월 값 수집
   $rates = [ordered]@{}; $regs = New-Object System.Collections.ArrayList; $uses = New-Object System.Collections.ArrayList; $months = New-Object System.Collections.ArrayList
   for ($back = 0; $back -lt $JB_MONTHS; $back++) {
