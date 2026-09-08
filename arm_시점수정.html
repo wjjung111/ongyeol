@@ -423,8 +423,8 @@ function jbSplit(r){
   return{reg,use};
 }
 const jbRegLabel=reg=>String(reg||"").split(">").map(p=>p.trim()).filter(Boolean).join(" ");
-// 월별 변동률(%) → 시점수정치. 첫·끝 달 일수비례, 미공표 월은 마지막 공표월 변동률. 산식 줄도 함께 만든다.
-function jbFactor(rates,g,e){
+// 월별 변동률(%) → 시점수정치. 첫·끝 달 일수비례, 연도 누계(cum: {YYYYMM: 그 해 1월~해당월 누계%})가 있으면 부동산원처럼 누계 사용, 미공표 월은 마지막 공표월 변동률. 산식 줄도 함께 만든다.
+function jbFactor(rates,g,e,cum){
   const ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;let factor=1,lastRate=null,lastYm=null;const facs=[],mlist=[];
   // 거래월 이전의 마지막 공표월 값이 있으면 그것부터 이어받는다 (거래월 자체가 미공표일 때)
   Object.keys(rates).map(Number).filter(k=>k<ymS).sort((x,y)=>x-y).forEach(k=>{lastRate=rates[k];lastYm=k;});
@@ -443,6 +443,20 @@ function jbFactor(rates,g,e){
       factor*=1+(lastRate/100)*days/LD;facs.push(`(1+${rr}*${days}/${LD})`);
       mlist.push(`${y}년 ${mo}월 ${d1}일 ~ ${e.y}년 ${e.mo}월 ${e.d}일 : ${lastRate}% × ${days}일/${LD}일 (미공표 → ${ly}년 ${lm}월 변동률로 일할 추정)`);
       break;
+    }
+    // 연도 누계(부동산원 방식): 그 해 1월 1일부터 포함되고 누계값이 있으면, 1월~마지막 온전한 달을 월별 곱 대신 누계 한 덩어리로.
+    //   예) 2026.01.01~07.31 → (1+0.01354). 월별 표시값(셋째 자리)을 곱하면 부동산원 누계와 0.001%p 어긋날 수 있어서.
+    if(cum&&mo===1&&(ym>ymS||(ym===ymS&&g.d===1))){
+      let last=ym;   // 이 해에서 온전히 포함되는 마지막 공표월
+      for(let k=ym;Math.floor(k/100)===y&&k<=ymE&&(k in rates);k=ymAdd(k,1)){const KD=daysIn(y,k%100);if(k===ymE&&e.d<KD)break;last=k;if(k===ymE)break;}
+      const c=cum[last];
+      if(last>ym&&c!=null){
+        const cc=(Math.round(c/100*1e6)/1e6).toString();
+        factor*=1+c/100;facs.push(`(1+${cc})`);
+        for(let k=ym;k<=last;k=ymAdd(k,1))mlist.push(`${y}년 ${k%100}월 : ${rates[k]}%`);
+        mlist.push(`${y}년 1월 ~ ${last%100}월 누계 : ${c}%`);
+        lastRate=rates[last];lastYm=last;ym=last;continue;
+      }
     }
     const r=rates[ym];lastRate=r;lastYm=ym;
     const d1=(ym===ymS)?g.d:1,d2=(ym===ymE)?e.d:D,days=d2-d1+1,frac=days/D;
@@ -484,6 +498,7 @@ function jbPrepare(status){
       const R=jbLoadRates();
       Object.keys(F.rates).forEach(reg=>{Object.keys(F.rates[reg]).forEach(use=>{const ser=F.rates[reg][use];Object.keys(ser).forEach(ym=>{R[ym+"|"+reg+"|"+use]=ser[ym];});});});
       (F.months||[]).forEach(ym=>{R["m:"+ym]=1;});
+      jbState.cum=F.cum||null;   // 연도 누계 {지역:{용도:{YYYYMM: 누계%}}} (지가지수 표에서 계산, 없으면 월별 곱)
       return;
     }
     const c=jbLoadPrep();
@@ -536,7 +551,8 @@ async function buildLandText(use,reg,tradeDate,baseDate,status){
   const R=jbLoadRates();
   yms.forEach(ym=>{const v=R[ym+"|"+reg+"|"+use];if(v!=null)rates[ym]=v;});
   if(ymS>jbState.latestYm&&rates[jbState.latestYm]==null)return{err:`${ymDisp(jbState.latestYm)}월 변동률이 없습니다.`};
-  let f;try{f=jbFactor(rates,g,e);}catch(err){return{err:err.message};}
+  const cum=(jbState.cum&&jbState.cum[reg]&&jbState.cum[reg][use])||null;
+  let f;try{f=jbFactor(rates,g,e,cum);}catch(err){return{err:err.message};}
   const adj=Math.round(f.factor*1e5)/1e5;
   const kd=d=>`${d.y}년 ${d.mo}월 ${d.d}일`;
   const lines=["토지",`지역 : ${jbRegLabel(reg)}`,`용도지역 : ${use}`,
@@ -579,7 +595,7 @@ function fillLandSelectors(){
 function updateMeta(){
   const D=idxData(),C=capData();
   const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":mode==="nr"?"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)":"산정 기준 · 지가변동률 (한국부동산원, 용도지역별 월간)";
-  if(mode==="land"){$("meta").textContent=jbState.latestYm?`한국부동산원 지가변동률(용도지역별) · ${ymDisp(jbState.latestYm)} 공표분까지 (${jbState.fromFile?`${jbState.fileAt} 수신, 매일 06시 자동갱신`:"접속 시 조회"}) · 첫/끝 달 일수비례, 미공표 기간은 마지막 공표월 변동률 × 경과일수/공표월 일수 (부동산원 방식)`:"한국부동산원 지가변동률 · 목록 불러오는 중…";}
+  if(mode==="land"){$("meta").textContent=jbState.latestYm?`한국부동산원 지가변동률(용도지역별) · ${ymDisp(jbState.latestYm)} 공표분까지 (${jbState.fromFile?`${jbState.fileAt} 수신, 매일 06시 자동갱신`:"접속 시 조회"}) · 첫/끝 달 일수비례, 연도 누계·미공표 기간 일할은 부동산원 지가변동률 조회 방식과 동일`:"한국부동산원 지가변동률 · 목록 불러오는 중…";}
   else if(mode==="res"){const tbl=D&&D.tables[$("kind").value];
     $("meta").textContent=tbl?`한국부동산원 매매가격지수 · ${idxYmDisp(tbl.latest)} 공표분까지 (${D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"지수 데이터 없음 — main에 arap_index_data.js가 매일 자동 갱신됩니다";}
   else{const l=C&&C.types[$("kind").value]?C.types[$("kind").value].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);

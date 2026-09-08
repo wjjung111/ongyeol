@@ -142,7 +142,7 @@ function Fetch-CapReturn {
 # -CapOnly: 주거 매매지수는 그대로 두고 자본수익률만 새로 받아 기존 파일에 병합 (테스트 1회 2~3분)
 # ── 토지 시점수정용 지가변동률(용도지역별 월간) — arm_시점수정.html 토지 탭이 접속할 때 프록시로 한 달씩 받던 것을 매일 파일로 미리 받아 둔다.
 #    표 구조 판별·지역/용도 나누기는 arm_시점수정.html의 jbDetect/jbSplit과 같은 규칙 (수정 시 양쪽 함께).
-#    결과: { fetchedAt, tbl:{id,name}, latestYm, months:[YYYYMM…], uses:[…], regs:[…], rates:{ 지역:{ 용도:{ YYYYMM: 변동률(%) } } } }
+#    결과: { fetchedAt, tbl:{id,name}, latestYm, months:[YYYYMM…], uses:[…], regs:[…], rates:{ 지역:{ 용도:{ YYYYMM: 변동률(%) } } }, cum:{ 지역:{ 용도:{ YYYYMM: 그 해 1월~해당월 누계(%) } } } }
 #    ※ 실패해도 매매지수·자본수익률 저장에는 영향 없음(파일이 없으면 앱은 종전대로 프록시로 받는다).
 $JB_USE_RE = "주거|상업|녹지|공업|관리지역|농림|자연환경|용도"
 $JB_MONTHS = 36   # 최근 36개월 (거래사례 대부분이 3년 안쪽)
@@ -161,6 +161,80 @@ function Get-JbRows($tblId, $ym) {
   return $all
 }
 function Add-Months([int]$ym, [int]$n) { $y = [math]::Floor($ym / 100); $m = ($ym % 100) + $n; $y += [math]::Floor(($m - 1) / 12); $m = ((($m - 1) % 12) + 12) % 12 + 1; return [int]($y * 100 + $m) }
+# 표 구조 판별 → 행을 {reg, use}로 나누는 함수(지가변동률 표·지가지수 표 공용)
+function New-JbSplitter($rows) {
+  $fields = @("GRP", "CLS", "ITM")
+  $useF = "ITM"; $bestN = -1
+  foreach ($f in $fields) { $n = @($rows | Where-Object { (Get-JbField $_ $f) -match $JB_USE_RE }).Count; if ($n -gt $bestN) { $bestN = $n; $useF = $f } }
+  $regF = $null; $regN = -1
+  foreach ($f in $fields) {
+    if ($f -eq $useF) { continue }
+    $set = @{}; foreach ($r in $rows) { $v = Get-JbFull $r $f; if ($v) { $set[$v] = 1 } }
+    if ($set.Count -gt $regN) { $regN = $set.Count; $regF = $f }
+  }
+  $regFromUsePath = (-not $regF) -or ($regN -le 1)
+  return {
+    param($r)
+    $use = Get-JbField $r $useF
+    if ($use -notmatch $JB_USE_RE) {
+      $m = @(((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $JB_USE_RE })
+      if ($m.Count -gt 0) { $use = $m[-1] }
+    }
+    if ($regFromUsePath) { $reg = ((((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne $use }) -join " > ") }
+    else { $reg = ((((Get-JbFull $r $regF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join " > ") }
+    return @{ reg = $reg; use = $use }
+  }.GetNewClosure()
+}
+# 연도 누계 — 부동산원 지가변동률 조회 화면은 그 해 1월 1일부터 포함되는 해를 월별 곱이 아니라 '누계'(지가지수 비율)로 곱한다.
+#   월별 표시값(소수 셋째 자리)을 곱하면 누계와 0.001%p쯤 어긋나 시점수정치 다섯째 자리가 달라짐 → 지가지수 표에서 누계% = (지수[해당월]/지수[전년 12월] − 1)×100 을 소수 셋째 자리로 계산해 둔다.
+#   결과: { 지역:{ 용도:{ YYYYMM: 누계% } } }. 실패하면 $null (앱은 월별 곱으로 계산).
+function Get-JbCum($months, $latestYm) {
+  Write-Host "지가지수(용도지역별 월간) 수신 중... (연도 누계 계산용)" -ForegroundColor Cyan
+  $lj = Invoke-Rone ("{0}?STATBL_NM={1}&Type=json&pIndex=1&pSize=500&KEY={2}" -f $listBase, [uri]::EscapeDataString("지가지수"), $apiKey)
+  $cands = @($lj.SttsApiTbl[1].row | Where-Object { $_.STATBL_NM -match "지가지수" -and $_.DTACYCLE_NM -match "월" })
+  $cands = @($cands | Sort-Object { if ($_.STATBL_NM -match "용도지역") { 0 } else { 1 } })
+  foreach ($c in $cands) { Write-Host ("  [지가지수 표 후보] {0} {1} ({2})" -f $c.STATBL_ID, $c.STATBL_NM, $c.DTACYCLE_NM) }
+  if ($cands.Count -eq 0) { throw "월간 지가지수 표를 찾지 못함" }
+  $tbl = $null; $rows0 = $null
+  foreach ($c in @($cands | Select-Object -First 6)) {
+    $rows = Get-JbRows ([string]$c.STATBL_ID) $latestYm
+    if ($rows.Count -eq 0) { continue }
+    $hasUse = $false
+    foreach ($r in $rows) { if (((Get-JbField $r "ITM") + (Get-JbFull $r "ITM") + (Get-JbFull $r "CLS")) -match $JB_USE_RE) { $hasUse = $true; break } }
+    if ($hasUse) { $tbl = $c; $rows0 = $rows; break }
+  }
+  if (-not $tbl) { throw "용도지역별 지가지수 표를 확정하지 못함" }
+  Write-Host ("  표 확정: {0} {1}" -f $tbl.STATBL_ID, $tbl.STATBL_NM) -ForegroundColor Cyan
+  $split = New-JbSplitter $rows0
+  # 필요한 달 = 변동률을 받은 달 + 각 해의 전년 12월
+  $need = [ordered]@{}
+  foreach ($ym in $months) { $need[[string]$ym] = 1; $need[[string]((([int]$ym / 100) -as [int]) - 1) + "12"] = 1 }
+  $idx = @{}   # "reg|use|ym" → 지수
+  foreach ($ym in @($need.Keys | Sort-Object)) {
+    $rows = if ([int]$ym -eq [int]$latestYm) { $rows0 } else { Get-JbRows ([string]$tbl.STATBL_ID) $ym }
+    $cnt = 0
+    foreach ($r in $rows) {
+      $x = & $split $r
+      if (-not $x.reg -or -not $x.use) { continue }
+      $v = [string]$r.DTA_VAL; if ($v -eq "") { continue }
+      $idx[$x.reg + "|" + $x.use + "|" + $ym] = [double]$v; $cnt++
+    }
+    Write-Host ("    지수 {0}: {1}행" -f $ym, $cnt)
+  }
+  $cum = [ordered]@{}; $n = 0
+  foreach ($k in $idx.Keys) {
+    $p = $k -split "\|"; $reg = $p[0]; $use = $p[1]; $ym = [int]$p[2]
+    if ($months -notcontains ([string]$ym)) { continue }
+    $prev = [string]([math]::Floor($ym / 100) - 1) + "12"
+    $base = $idx[$reg + "|" + $use + "|" + $prev]
+    if (-not $base -or $base -le 0) { continue }
+    if (-not $cum.Contains($reg)) { $cum[$reg] = [ordered]@{} }
+    if (-not $cum[$reg].Contains($use)) { $cum[$reg][$use] = [ordered]@{} }
+    $cum[$reg][$use][[string]$ym] = [math]::Round(($idx[$k] / $base - 1) * 100, 3); $n++
+  }
+  Write-Host ("  연도 누계 {0}건 계산" -f $n)
+  return $cum
+}
 function Fetch-Jibyun {
   Write-Host "지가변동률(용도지역별 월간) 수신 중..." -ForegroundColor Cyan
   # 1) 통계표: 이름에 '지가변동률'+월간, '용도지역' 들어간 것 우선. 최근 달 자료에 용도 항목이 실제로 있는 첫 표를 채택
@@ -186,26 +260,8 @@ function Fetch-Jibyun {
   if (-not $tbl) { throw "용도지역별 지가변동률 표를 확정하지 못함" }
   Write-Host ("  표 확정: {0} {1} · 최신 {2}" -f $tbl.id, $tbl.name, $latestYm) -ForegroundColor Cyan
   # 2) 표 구조: 용도가 든 필드(GRP/CLS/ITM 중 용도 문구가 가장 많은 것), 지역 필드(나머지 중 값 종류가 가장 많은 것)
-  $fields = @("GRP", "CLS", "ITM")
-  $useF = "ITM"; $bestN = -1
-  foreach ($f in $fields) { $n = @($latestRows | Where-Object { (Get-JbField $_ $f) -match $JB_USE_RE }).Count; if ($n -gt $bestN) { $bestN = $n; $useF = $f } }
-  $regF = $null; $regN = -1
-  foreach ($f in $fields) {
-    if ($f -eq $useF) { continue }
-    $set = @{}; foreach ($r in $latestRows) { $v = Get-JbFull $r $f; if ($v) { $set[$v] = 1 } }
-    if ($set.Count -gt $regN) { $regN = $set.Count; $regF = $f }
-  }
-  $regFromUsePath = (-not $regF) -or ($regN -le 1)
-  function Split-JbRow($r) {
-    $use = Get-JbField $r $useF
-    if ($use -notmatch $JB_USE_RE) {
-      $m = @(((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -match $JB_USE_RE })
-      if ($m.Count -gt 0) { $use = $m[-1] }
-    }
-    if ($regFromUsePath) { $reg = ((((Get-JbFull $r $useF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne $use }) -join " > ") }
-    else { $reg = ((((Get-JbFull $r $regF) -split ">") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join " > ") }
-    return @{ reg = $reg; use = $use }
-  }
+  $splitter = New-JbSplitter $latestRows
+  function Split-JbRow($r) { return (& $splitter $r) }
   # 3) 최근 N개월 값 수집
   $rates = [ordered]@{}; $regs = New-Object System.Collections.ArrayList; $uses = New-Object System.Collections.ArrayList; $months = New-Object System.Collections.ArrayList
   for ($back = 0; $back -lt $JB_MONTHS; $back++) {
@@ -227,6 +283,9 @@ function Fetch-Jibyun {
     Write-Host ("    {0}: {1}행" -f $ym, $cnt)
   }
   if ($regs.Count -eq 0) { throw "지가변동률 표 구조를 해석하지 못함" }
+  # 4) 연도 누계(지가지수 표) — 실패해도 변동률 파일은 정상 저장(앱이 월별 곱으로 계산)
+  $cum = $null
+  try { $cum = Get-JbCum @($months | ForEach-Object { [string]$_ }) $latestYm } catch { Write-Host "지가지수(누계) 수신 실패 — 앱은 월별 곱으로 계산: $_" -ForegroundColor Yellow }
   $out = [ordered]@{
     fetchedAt = (Get-Date -Format "yyyy-MM-dd HH:mm")
     source    = "한국부동산원 R-ONE 지가변동률 (용도지역별 월간)"
@@ -237,6 +296,7 @@ function Fetch-Jibyun {
     regs      = @($regs)
     rates     = $rates
   }
+  if ($cum) { $out.cum = $cum }
   $json = $out | ConvertTo-Json -Depth 8 -Compress
   $tmp = $jibyunFile + ".tmp"
   [IO.File]::WriteAllText($tmp, "window.ARAP_JIBYUN_DATA=" + $json + ";", (New-Object Text.UTF8Encoding($false)))
