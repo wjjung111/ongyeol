@@ -2326,7 +2326,7 @@ async function downloadMyeongseXlsx(ov,totalAmount){
   const zipBuf=createZipStored(outEntries);
   const blob=new Blob([zipBuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;a.download=`4.명세표_${ov.client||"의뢰인"}.xlsx`;
+  const a=document.createElement("a");a.href=url;a.download=`2. 명세표_${ov.client||"의뢰인"}.xlsx`;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
@@ -2725,7 +2725,7 @@ async function downloadYohangHwpx(ov){
         e.data=new TextEncoder().encode(xml);
       }
     }
-    triggerDownload(createZipStored(entries),`요항표_${ov.client||"의뢰인"}.hwpx`);
+    triggerDownload(createZipStored(entries),`3. 요항표_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('요항표 hwpx 생성 실패',e);alert("요항표 생성 실패: "+e.message);}
 }
 try{window.buildEvalHwpxV2=buildEvalHwpxV2;window.buildV2TokenMap=buildV2TokenMap;window.buildCheongguTokenMap=buildCheongguTokenMap;window.buildTokenHwpx=buildTokenHwpx;window.V2CHEONGGU_TPL_B64=V2CHEONGGU_TPL_B64;window.V2CHEONGGU_BLUE2BLACK=V2CHEONGGU_BLUE2BLACK;}catch(e){console.error('v2 엔진 전역 노출 실패',e);}
@@ -3372,7 +3372,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       const data=buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,propType);
       const map=buildV2TokenMap(data,ov,cases,comp,fT);
       const bytes=await buildEvalHwpxV2(map);
-      triggerDownload(bytes,`3. 감정평가서_${ov.client||"의뢰인"}.hwpx`);
+      triggerDownload(bytes,`1. 감정평가서_${ov.client||"의뢰인"}.hwpx`);
       window.arapUsageLog&&window.arapUsageLog("감정평가서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""} · ${ov.jibun||""}`.trim(),kind:propType,amount:fT||""});
     }catch(e){console.error('v2 감정평가서 hwpx 생성 실패',e);alert("감정평가서(한글) 생성 실패: "+e.message);}
   };
