@@ -105,6 +105,17 @@
         </div>
         <div class="tw" id="hoDetail" style="display:none;margin-top:6px"><table id="tblHoDetail"></table></div>
       </div>
+      <!-- 이 동 전체 호 — 호명·층·전유면적 표 + 엑셀 복사 (동을 고른 뒤 버튼으로 받음. 호 하나 조회와 별개) -->
+      <div style="margin-top:10px;padding-top:8px;border-top:1px dashed #cdd3dc">
+        <div class="row" style="gap:10px">
+          <button class="btn gh sm" id="btnHoAll" onclick="loadHoAll()">📑 이 동 전체 호 불러오기</button>
+          <button class="btn sm" id="btnHoAllCopy" onclick="copyHoAll()" style="display:none">📋 전체 호 엑셀 복사</button>
+          <a href="#" id="hoAllToggle" style="display:none;font-size:12px;color:#2563eb;text-decoration:none" onclick="toggleHoAll();return false;">표 접기 ▴</a>
+          <span class="hint">호명·층·전유면적만 한 표로 — 엑셀에 그대로 붙습니다.</span>
+        </div>
+        <div class="status" id="hoAllStatus"></div>
+        <div id="hoAllWrap" style="display:none;margin-top:6px;max-height:360px;overflow:auto;border:1px solid #cdd3dc"><table id="tblHoAll"></table></div>
+      </div>
     </div>
 
     <!-- 동명세 -->
@@ -212,7 +223,7 @@ function n1(v){var x=Number(v);return (v===''||v==null||isNaN(x))?'':x.toLocaleS
 function txt(v){return String(v==null?'':v).trim();}
 function joinPurps(main,etc){var a=txt(main),b=txt(etc);return b?(a?a+'('+b+')':b):a;}
 
-var STATE={addr:'',pnu:'',titles:[],flrs:[],jijigu:[],dongIdx:0,hoList:[],hoRows:[],hoDong:'',hoNm:'',proxyOld:false};
+var STATE={addr:'',pnu:'',titles:[],flrs:[],jijigu:[],dongIdx:0,hoList:[],hoRows:[],hoDong:'',hoNm:'',hoAll:null,proxyOld:false};
 
 function setStatus(msg,cls){var el=document.getElementById('status');el.textContent=msg;el.className='status'+(cls?' '+cls:'');}
 function hidePick(){document.getElementById('pick').style.display='none';document.getElementById('pickList').innerHTML='';}
@@ -403,6 +414,7 @@ function setupHoPanel(){
   document.getElementById('btnHoCopy').style.display='none';
   document.getElementById('hoStatus').textContent='';document.getElementById('hoStatus').className='status';
   document.getElementById('hoSel').innerHTML='<option value="">호를 선택하세요</option>';
+  resetHoAll();
   if(!isJiphap()){p.style.display='none';return;}
   // 동 목록: 표제부의 동 이름(주건축물 우선). 동 이름이 없는 단일동 집합건물은 빈 값 하나
   var seen={},dongs=[];
@@ -419,6 +431,7 @@ async function loadHoList(){
   hs.innerHTML='<option value="">불러오는 중…</option>';
   document.getElementById('hoResult').style.display='none';document.getElementById('btnHoCopy').style.display='none';
   st.className='status';st.textContent='';
+  resetHoAll();                                            // 동이 바뀌면 전체 호 표도 비운다
   // 동명세 표도 같은 동으로 맞춘다
   var top=document.getElementById('dongSel');
   if(top.style.display!=='none'){var idx=STATE.titles.findIndex(function(t){return txt(t.dongNm)===dong;});if(idx>=0){top.value=String(idx);renderDong();}}
@@ -493,16 +506,88 @@ function toggleHoDetail(){
   var d=document.getElementById('hoDetail'),t=document.getElementById('hoDetailToggle');
   var open=d.style.display==='none';d.style.display=open?'':'none';t.textContent=open?'공용 세부 내역 닫기 ▴':'공용 세부 내역 보기 ▾';
 }
+// 탭 구분 문자열을 클립보드로. 성공하면 상태줄에 okMsg, 안 되면 옛 방식(execCommand)으로 한 번 더.
+function clipboardCopy(text,st,okMsg){
+  function ok(){st.className='status ok';st.textContent=okMsg;}
+  function fail(e){console.error('클립보드 복사 실패',e);var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');ok();}catch(e2){st.className='status err';st.textContent='복사가 안 됩니다. 표를 마우스로 긁어서 복사하세요.';}document.body.removeChild(ta);}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok).catch(fail);else fail(new Error('clipboard API 없음'));
+}
 // 엑셀 복사: 머리글 + 한 줄 (동명 호명 용도 층번호 전유 공유 계약)
 function copyHo(){
   var rows=STATE.hoRows;if(!rows.length){alert('복사할 호 내역이 없습니다.');return;}
   var s=hoSummary(rows);
   var lines=[['동명','호명','용도','층번호','전유','공유','계약'].join('\t'),[s.dong,s.ho,s.purps,s.flr,s.expos,s.pub,s.tot].join('\t')];
-  var text=lines.join('\n'),st=document.getElementById('hoStatus');
-  function ok(){st.className='status ok';st.textContent='✅ 복사 완료 — 엑셀에서 Ctrl+V 하세요 ('+s.dong+' '+s.ho+' · 전유 '+s.expos+' · 공용 '+s.pub+' · 계약 '+s.tot+')';}
-  function fail(e){console.error('클립보드 복사 실패',e);var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();
-    try{document.execCommand('copy');ok();}catch(e2){st.className='status err';st.textContent='복사가 안 됩니다. 표를 마우스로 긁어서 복사하세요.';}document.body.removeChild(ta);}
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok).catch(fail);else fail(new Error('clipboard API 없음'));
+  clipboardCopy(lines.join('\n'),document.getElementById('hoStatus'),
+    '✅ 복사 완료 — 엑셀에서 Ctrl+V 하세요 ('+s.dong+' '+s.ho+' · 전유 '+s.expos+' · 공용 '+s.pub+' · 계약 '+s.tot+')');
+}
+
+// ── 이 동 전체 호 (호명·층·전유면적) ──
+// 전유공용면적 대장을 호 지정 없이 동 단위로 통째로 받아(한 페이지 1,000행, 끝까지) 전유 행만 호별로 합산한다.
+// 국토부 API의 hoNm은 선택 조건이라 빼면 그 동 모든 호의 행이 온다 — 별도 "전체 호" API는 없고 행을 묶어 만드는 것.
+function resetHoAll(){
+  STATE.hoAll=null;
+  var st=document.getElementById('hoAllStatus');if(!st)return;
+  st.className='status';st.textContent='';
+  document.getElementById('hoAllWrap').style.display='none';document.getElementById('tblHoAll').innerHTML='';
+  document.getElementById('btnHoAllCopy').style.display='none';document.getElementById('hoAllToggle').style.display='none';
+  document.getElementById('btnHoAll').disabled=false;
+}
+// 층 표기: 지상은 숫자만(엑셀에서 정렬되게), 지하는 '지1', 옥탑은 '옥1'
+function flrLabel(x){
+  var n=txt(x.flrNo)!==''?String(Number(x.flrNo)):'',g=txt(x.flrGbCdNm);
+  if(!n)return txt(x.flrNoNm);
+  return /지하/.test(g)?'지'+n:/옥탑/.test(g)?'옥'+n:n;
+}
+async function loadHoAll(){
+  var dong=STATE.hoDong,st=document.getElementById('hoAllStatus'),btn=document.getElementById('btnHoAll');
+  btn.disabled=true;st.className='status';st.textContent='전유공용면적 대장을 동 전체로 받는 중… ('+(dong||'동 구분 없음')+') 호가 많으면 몇 초 걸립니다.';
+  try{
+    var r=await fetchAll('getBrExposPubuseAreaInfo',{dongNm:dong,numOfRows:1000});
+    var g={},order=[];
+    r.items.forEach(function(x){
+      if(dong&&txt(x.dongNm)!==dong)return;              // 구버전 프록시는 동 필터를 안 넘기므로 여기서 거른다
+      if(!/전유/.test(txt(x.exposPubuseGbCdNm)))return;   // 공용 행은 제외
+      var h=txt(x.hoNm);if(!h)return;
+      if(!g[h]){g[h]={hoNm:h,dong:txt(x.dongNm)||dong,expos:0,flr:'',flrNo:Number(x.flrNo)||0,flrGb:txt(x.flrGbCdNm),purps:joinPurps(x.mainPurpsCdNm,x.etcPurps),main:null};order.push(h);}
+      g[h].expos+=Number(x.area)||0;
+      // 층·용도는 주건축물 전유 행 기준 (부속 전유 행이 먼저 와도 주건축물 행이 오면 그것으로)
+      if(!g[h].main&&!/부속/.test(txt(x.mainAtchGbCdNm))){g[h].main=x;g[h].flrNo=Number(x.flrNo)||0;g[h].flrGb=txt(x.flrGbCdNm);g[h].flr=flrLabel(x);g[h].purps=joinPurps(x.mainPurpsCdNm,x.etcPurps);}
+      else if(!g[h].flr)g[h].flr=flrLabel(x);
+    });
+    var list=order.map(function(h){var o=g[h];o.expos=Number(o.expos.toFixed(4));return o;});
+    // 호 목록(전유부)에는 있는데 전유 행이 없는 호는 빈 칸으로 끼워 넣어 빠진 걸 보이게
+    var missing=0;
+    STATE.hoList.forEach(function(h){if(!g[h.hoNm]){missing++;list.push({hoNm:h.hoNm,dong:dong,expos:'',flr:(h.flrGb&&/지하/.test(h.flrGb)?'지':'')+(h.flrNo||''),flrNo:h.flrNo,flrGb:h.flrGb,purps:h.purps,main:null});}});
+    list.sort(function(a,b){return (a.flrGb>b.flrGb?1:a.flrGb<b.flrGb?-1:0)||(a.flrNo-b.flrNo)||(hoNum(a.hoNm)-hoNum(b.hoNm))||a.hoNm.localeCompare(b.hoNm);});
+    if(!list.length)throw new Error('이 동의 전유 행이 없습니다.'+(r.truncated?' 전체 '+r.total+'행 중 '+r.items.length+'행만 받았습니다.':''));
+    STATE.hoAll={dong:dong,list:list};
+    var sum=0;list.forEach(function(o){sum+=Number(o.expos)||0;});
+    var h='<tr><th>#</th><th>동명</th><th>호명</th><th>층</th><th>전유면적(㎡)</th><th>용도</th></tr>';
+    list.forEach(function(o,i){
+      h+='<tr'+(o.expos===''?' style="color:#dc2626"':'')+'><td>'+(i+1)+'</td><td>'+esc(o.dong||'-')+'</td><td>'+esc(o.hoNm)+'</td><td>'+esc(o.flr||'-')+'</td>'+
+         '<td class="num">'+(o.expos===''?'(전유 행 없음)':n1(o.expos))+'</td><td class="l">'+esc(o.purps||'-')+'</td></tr>';
+    });
+    h+='<tr><td colspan="4" style="text-align:right;font-weight:700">'+list.length+'호 전유 합계</td><td class="num hl">'+n1(sum.toFixed(4))+'</td><td></td></tr>';
+    document.getElementById('tblHoAll').innerHTML=h;
+    document.getElementById('hoAllWrap').style.display='';document.getElementById('hoAllToggle').style.display='';document.getElementById('hoAllToggle').textContent='표 접기 ▴';
+    document.getElementById('btnHoAllCopy').style.display='';
+    var warn=r.truncated?' ⚠ 전체 '+r.total+'행 중 '+r.items.length+'행만 받아 일부 호가 빠졌을 수 있습니다'+(STATE.proxyOld?' — 프록시가 구버전입니다. 문서/클라우드플레어_프록시_설정.md의 「재배포」 절차대로 새 코드를 올려주세요.':'.'):'';
+    st.className='status '+(warn||missing?'err':'ok');
+    st.textContent='✅ '+(dong||'동 구분 없음')+' · '+list.length+'호 · 전유 합계 '+n1(sum.toFixed(4))+'㎡ · 받은 행 '+r.items.length+'개'+(missing?' · 전유 행 없는 호 '+missing+'개(빨간 줄)':'')+warn;
+  }catch(e){console.error('전체 호',e);st.className='status err';st.textContent='전체 호 조회 실패: '+e.message;}
+  btn.disabled=false;
+}
+function toggleHoAll(){
+  var w=document.getElementById('hoAllWrap'),t=document.getElementById('hoAllToggle');
+  var open=w.style.display==='none';w.style.display=open?'':'none';t.textContent=open?'표 접기 ▴':'표 펼치기 ▾';
+}
+// 엑셀 복사: 머리글 + 호마다 한 줄 (동명 호명 층 전유면적)
+function copyHoAll(){
+  var a=STATE.hoAll;if(!a||!a.list.length){alert('먼저 「이 동 전체 호 불러오기」를 누르세요.');return;}
+  var lines=[['동명','호명','층','전유면적'].join('\t')];
+  a.list.forEach(function(o){lines.push([o.dong,o.hoNm,o.flr,o.expos].join('\t'));});
+  clipboardCopy(lines.join('\n'),document.getElementById('hoAllStatus'),'✅ '+a.list.length+'호 복사 완료 — 엑셀에서 Ctrl+V 하세요 (동명·호명·층·전유면적)');
 }
 
 function renderDong(){
