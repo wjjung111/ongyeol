@@ -303,6 +303,7 @@ const FLOORTYPE = [
   ["res_c1","주거용 · 공동주택 전유 149~215㎡ (120)",1.2,true],
   ["res_c2","주거용 · 공동주택 전유 215㎡↑ (140)",1.4,true],
   ["apt","주거용 · 아파트 (최고층수 조정만)",1,true],
+  ["res_att","주거용 부속 · 옥탑·계단실·기계실 (60)",0.6,true],
   ["shed","주택 간이부속건물 · 창고·화장실 (60)",0.6,true]];
 const EXTRA = [
   ["1","없음",1],["1.1","일부개축 1회 (110)",1.1],["1.2","일부개축 2회↑ (120)",1.2],
@@ -664,9 +665,11 @@ function mapUse(txt,area){
   return R(41,"매핑 실패 → 근생 95 임시 적용 (확인 필요)");
 }
 function mapFloorType(it,use,top){
-  const t=(it.etcPurps||it.mainPurpsCdNm||"")+"";
-  if(use===1) return "apt"; if(use===2) return "res";
-  if(/주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실/.test(t)) return "park";
+  const t=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ");
+  const roof = /옥탑/.test(it.flrGbCdNm||"")||/옥탑/.test(it.flrNoNm||"")||String(it.flrGbCd)==="30";
+  const att = roof || /주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/.test(t);
+  if(use===1||use===2) return att ? "res_att" : (use===1?"apt":"res");
+  if(att) return "park";
   const ug = String(it.flrGbCd)==="10" || /지하/.test(it.flrGbCdNm||""); const n=Number(it.flrNo||0);
   if(ug) return top<=5 ? (n<=1?"b1":"b2") : "none";
   if(n===1) return "shop1"; if(n===2) return "shop2"; return "none";
@@ -705,9 +708,10 @@ async function importByAddress(q){
     // 층별개요 → 행
     fl=apiItems(flrD);
     if(fl.length){
-      fl.sort((a,b)=>{ const ga=String(a.flrGbCd||"")==="10"?0:1, gb=String(b.flrGbCd||"")==="10"?0:1; if(ga!==gb) return ga-gb; const na=Number(a.flrNo||0), nb=Number(b.flrNo||0); return ga===0? nb-na : na-nb; });
+      const grp=x=>{ const g=String(x.flrGbCd||""); const nm=(x.flrGbCdNm||"")+(x.flrNoNm||""); return (g==="10"||/지하/.test(nm))?0 : (g==="30"||/옥탑/.test(nm))?2 : 1; };
+      fl.sort((a,b)=>{ const ga=grp(a), gb=grp(b); if(ga!==gb) return ga-gb; const na=Number(a.flrNo||0), nb=Number(b.flrNo||0); return ga===0? nb-na : na-nb; });
       const top=+$("topFloor").value||0;
-      rows=fl.map(it=>{ const area=+it.area||0; const txt=it.etcPurps||it.mainPurpsCdNm||""; const m=mapUse(txt,area);
+      rows=fl.map(it=>{ const area=+it.area||0; const txt=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" "); const m=mapUse(txt,area);
         const ft=mapFloorType(it,m.use,top); const flag=/확인|미상|임시/.test(m.why);
         notes.push(`${it.flrNoNm||""} ${txt} ${area}㎡ → 용도 ${m.use}번 (${m.why}) · 층 특성 ${FLOORTYPE.find(f=>f[0]===ft)[1]}`);
         return newRow({floor:(it.flrNoNm||"")+(/부속/.test(it.mainAtchGbCdNm||"")?"(부속)":""), use:m.use, area:area, ftype:ft, note: flag?m.why:""}); });
