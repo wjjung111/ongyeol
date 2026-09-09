@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 온결 감정평가 자동화 입장 화면 (허브)
+  Copyright (c) 2026 정우진 감정평가사 (Woojin Jung, Certified Appraiser / wjjung9334@gmail.com). All Rights Reserved. 모든 권리 보유.
+  무단 복제·수정·상업적 이용·재배포 금지. 상세: 저장소 LICENSE 파일 참조.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온결 — 감정평가 자동화</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: #e2e8f0; padding: 24px;
+  }
+  .wrap { width: 100%; max-width: 720px; text-align: center; }
+  h1 { font-size: 34px; letter-spacing: 6px; color: #f8fafc; margin-bottom: 8px; }
+  .sub { font-size: 14px; color: #94a3b8; margin-bottom: 40px; letter-spacing: 1px; }
+  .menu { display: flex; flex-direction: column; gap: 14px; }
+  a.card, div.card {
+    display: flex; align-items: center; gap: 16px; text-align: left; text-decoration: none;
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px;
+    transition: all .15s;
+  }
+  a.card:hover { border-color: #2563eb; background: #233046; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+  .icon { font-size: 30px; width: 48px; flex-shrink: 0; text-align: center; }
+  .name { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+  .desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+  .badge { margin-left: auto; flex-shrink: 0; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+  .badge.live { background: #14532d; color: #86efac; }
+  .badge.beta { background: #422006; color: #fbbf24; }
+  .badge.soon { background: #374151; color: #9ca3af; }
+  div.card.soon { opacity: .55; cursor: default; }
+  .desc a { color: #60a5fa; text-decoration: none; }
+  .desc a:hover { text-decoration: underline; }
+  .foot { margin-top: 40px; font-size: 12px; color: #64748b; }
+  @media (max-width: 480px) { h1 { font-size: 26px; letter-spacing: 3px; } a.card, div.card { padding: 16px; } .badge { display: none; } }
+</style>
+</head>
+<body>
+<script src="arap_access.js"></script>
+<div class="wrap">
+  <h1>온 결</h1>
+  <div class="sub">감정평가 자동화 도구 모음</div>
+  <div class="menu">
+    <a class="card" href="s3r86w8a.html">
+      <span class="icon">🏢</span>
+      <span>
+        <span class="name" style="display:block">ARM 집합건물</span>
+        <span class="desc">집합건물 감정평가서·청구서 한글(.hwpx) 자동 생성</span>
+      </span>
+      <span class="badge live">운영중</span>
+    </a>
+    <a class="card" href="입주권.html">
+      <span class="icon">🎫</span>
+      <span>
+        <span class="name" style="display:block">ARM 입주권</span>
+        <span class="desc">조합원 입주권(재개발·재건축) 감정평가서·청구서 한글(.hwpx) 자동 생성</span>
+      </span>
+      <span class="badge beta">베타</span>
+    </a>
+    <div class="card soon">
+      <span class="icon">🏞️</span>
+      <span>
+        <span class="name" style="display:block">ARM 토지건물</span>
+        <span class="desc">토지·건물 감정평가서 자동화 — 준비중 (<a href="토지조회.html">토지 조회 도구</a> 먼저 사용 가능)</span>
+      </span>
+      <span class="badge soon">준비중</span>
+    </div>
+    <a class="card" href="기준시가.html">
+      <span class="icon">🧮</span>
+      <span>
+        <span class="name" style="display:block">건물 기준시가</span>
+        <span class="desc">국세청 고시 건물 기준시가 계산 — 지번 조회로 건축물대장·공시지가 자동 채움, 상속·증여/양도 구분</span>
+      </span>
+      <span class="badge beta">베타</span>
+    </a>
+    <a class="card" href="arm_시점수정.html">
+      <span class="icon">📈</span>
+      <span>
+        <span class="name" style="display:block">시점수정 계산</span>
+        <span class="desc">집합건물(매매가격지수·자본수익률) · 토지(지가변동률) 시점수정치 단독 계산</span>
+      </span>
+      <span class="badge live">운영중</span>
+    </a>
+  </div>
+  <div class="foot">© 2026 정우진 감정평가사. All Rights Reserved.</div>
+</div>
+</body>
+</html>
