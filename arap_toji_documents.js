@@ -2,25 +2,59 @@
 (function(){
 'use strict';
 var $=function(id){return document.getElementById(id);},A=window.ArapCheonggu;
+// 요항표 토큰 = 요항표 탭 입력칸. 빈 칸은 채우지 않고 양식 표시를 그대로 남긴다(한글에서 직접 작성).
 function yohangMap(){
-  var l=LANDS[0]||{};
-  return {'소재지_동':l['소재지']||'','인근위치설명':cgVal('op_location'),
-    '요항_지세':l['지세']==='평지'?'평탄':'','토지_형상':l['형상']||'',
-    '요항_이용상황':l['이용상황']||'','요항_건물구조':[cgVal('bt_strct'),cgVal('bt_flrs')].filter(Boolean).join(' '),
-    '요항_이용상태':cgVal('bt_purps')};
+  return {'소재지_동':cgVal('y_dong'),'인근위치설명':cgVal('y_near'),'요항_교통':cgVal('y_traffic'),
+    '요항_지세':cgVal('y_jise'),'토지_형상':cgVal('y_shape'),'요항_이용상황':cgVal('y_use'),
+    '요항_도로1방위':cgVal('y_road1dir'),'요항_도로1노폭':cgVal('y_road1w'),
+    '요항_도로2방위':cgVal('y_road2dir'),'요항_도로2노폭':cgVal('y_road2w'),
+    '요항_건물구조':cgVal('y_struct'),'요항_외벽':cgVal('y_wall'),'요항_창호':cgVal('y_window'),
+    '요항_이용상태':cgVal('y_usestate')};
+}
+// {{토큰}}이 든 <hp:p> 문단을 값의 줄 수만큼 복제한다(줄배치 캐시 제거 → 한글이 다시 배치).
+// 집합건물 expandYohangPara와 같은 방식. 값이 비면 아무것도 하지 않고 양식 표시를 남긴다.
+function expandPara(xmlText,token,value,black){
+  if(!value)return xmlText;
+  var ti=xmlText.indexOf(token);if(ti<0)return xmlText;
+  var ps=xmlText.lastIndexOf('<hp:p ',ti),pe=xmlText.indexOf('</hp:p>',ti);
+  var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  if(ps<0||pe<0)return xmlText.split(token).join(esc(value));
+  pe+=7;
+  var tpl=xmlText.slice(ps,pe).replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/,'');
+  Object.keys(black||{}).forEach(function(r){tpl=tpl.split('charPrIDRef="'+r+'"').join('charPrIDRef="'+black[r]+'"');});
+  var clones=String(value).split('\n').map(function(line){return tpl.split(token).join(esc(line));}).join('');
+  return xmlText.slice(0,ps)+clones+xmlText.slice(pe);
 }
 async function buildYohang(){
   var b64=await fetchTplB64('템플릿/토건 요항표 템플릿.hwpx');
   var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer);
   var dec=new TextDecoder(),enc=new TextEncoder(),map=yohangMap();
-  var header=xml(dec.decode(entries.find(function(e){return e.name==='Contents/header.xml';}).data));
-  var red=new Set(Array.from(header.getElementsByTagNameNS('*','charPr')).filter(function(p){return (p.getAttribute('textColor')||'').toUpperCase()==='#FF0000';}).map(function(p){return p.getAttribute('id');}));
+  var headerXml=dec.decode(entries.find(function(e){return e.name==='Contents/header.xml';}).data),header=xml(headerXml);
+  var charPrs=Array.from(header.getElementsByTagNameNS('*','charPr'));
+  var red=new Set(charPrs.filter(function(p){return (p.getAttribute('textColor')||'').toUpperCase()==='#FF0000';}).map(function(p){return p.getAttribute('id');}));
+  // 채운 글자는 검정으로 — 빨강 글자모양과 색만 다른 쌍둥이 글자모양을 찾아 쓴다(글자모양 목록은 건드리지 않음)
+  var norm=function(p){return ser(p).replace(/ id="\d+"/,'').replace(/textColor="[^"]*"/,'');};
+  var black={};charPrs.forEach(function(p){
+    if(!red.has(p.getAttribute('id')))return;
+    var twin=charPrs.find(function(q){return q!==p&&(q.getAttribute('textColor')||'').toUpperCase()==='#000000'&&norm(q)===norm(p);});
+    if(twin)black[p.getAttribute('id')]=twin.getAttribute('id');
+  });
+  var toice=(typeof assembleToice==='function')?assembleToice():'';
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
     Array.from(d.getElementsByTagNameNS('*','run')).filter(function(r){return red.has(r.getAttribute('charPrIDRef'));}).forEach(function(r){
-      Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){t.textContent=t.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){return map[k]||full;});});
+      var filled=false;
+      Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){
+        t.textContent=t.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
+          if(!map[k])return full;                       // 안 채운 칸은 양식 표시 그대로
+          filled=true;return map[k];});
+      });
+      if(filled&&black[r.getAttribute('charPrIDRef')])r.setAttribute('charPrIDRef',black[r.getAttribute('charPrIDRef')]);
     });
-    e.data=enc.encode(ser(d));
+    var out=ser(d);
+    // 토지이용계획은 여러 줄 → 문단을 줄 수만큼 복제하고, 복제본 글자색도 검정으로
+    out=expandPara(out,'{{요항_용도지역}}',toice,black);
+    e.data=enc.encode(out);
   });
   // Rebuild previews so the original placeholder preview is not mistaken for output.
   entries=entries.filter(function(e){return !/^Preview\//.test(e.name);});
@@ -107,8 +141,11 @@ async function buildStatement(rows){
   if(shift)entries.filter(function(e){return /^xl\/drawings\/drawing\d+\.xml$/.test(e.name);}).forEach(function(e){var drawing=xml(dec.decode(e.data));Array.from(drawing.getElementsByTagNameNS('*','row')).forEach(function(n){if(+n.textContent>=base-1)n.textContent=String(+n.textContent+shift);});e.data=enc.encode(ser(drawing));});
   return A.createZipStored(entries);
 }
-async function run(button,action){button.disabled=true;$('doc_status').textContent='문서를 만드는 중…';try{await action();$('doc_status').textContent='파일을 받았습니다.';}catch(e){$('doc_status').textContent=e.message;console.error(e);}finally{button.disabled=false;}}
+async function run(button,action,statusId){var st=$(statusId||'doc_status');button.disabled=true;if(st)st.textContent='문서를 만드는 중…';
+  try{await action();if(st)st.textContent='파일을 받았습니다.';}catch(e){if(st)st.textContent=e.message;console.error(e);}finally{button.disabled=false;}}
 $('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=await buildStatement(statementRows());A.triggerDownload(bytes,'5. 명세표_'+(cgVal('ov_client')||'의뢰인')+'.xlsx');});};
-$('btnYohang').onclick=function(){return run(this,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'4. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');});};
+function downloadYohang(btn,statusId){return run(btn,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'4. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');},statusId);}
+$('btnYohang').onclick=function(){return downloadYohang(this);};
+if($('btnYohang2'))$('btnYohang2').onclick=function(){return downloadYohang(this,'y_status');};
 window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang};
 })();

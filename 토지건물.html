@@ -241,6 +241,7 @@
       <button id="tabbtn-gyeoljeong" onclick="showTab('gyeoljeong')">토지감정평가액 결정</button>
       <button id="tabbtn-bld" onclick="showTab('bld')">건물 평가</button>
       <button id="tabbtn-final" onclick="showTab('final')">토지건물 시산가액</button>
+      <button id="tabbtn-yohang" onclick="showTab('yohang')">요항표</button>
       <button id="tabbtn-cheonggu" onclick="showTab('cheonggu')">청구서</button>
     </div>
 
@@ -597,6 +598,55 @@
       <div class="card">
         <h2>검산 패널</h2>
         <div class="tw"><table id="tblCheck"></table></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ 요항표 (감정평가요항표 hwpx) — 양식의 빈칸을 여기서 채운다 ═══════════ -->
+    <div id="tab-yohang" class="tab">
+      <div class="cols5050">
+        <div class="card">
+          <h2>요항표 입력</h2>
+          <div class="note">아래 칸이 요항표 양식의 빈칸입니다. 채운 값이 그대로 한글파일에 들어갑니다. 비워 두면 그 자리는 양식 표시 그대로 남아 한글에서 직접 쓰시면 됩니다.</div>
+          <div class="row" style="margin:8px 0"><button class="btn gh sm" onclick="fillYohangFromData()">대상물건 값으로 채우기</button><span class="hint">빈 칸만 채웁니다 — 이미 쓴 내용은 그대로 둡니다</span></div>
+
+          <h3>Ⅰ. 입지조건</h3>
+          <div class="grid2">
+            <span class="fld"><label>소재지(동)</label><input type="text" id="y_dong" placeholder="여수동"></span>
+            <span class="fld"><label>인근 위치설명</label><input type="text" id="y_near" placeholder="성남여수초등학교 북서측"></span>
+            <span class="fld" style="grid-column:1/-1"><label>인근 대중교통</label><input type="text" id="y_traffic" placeholder="버스정류장, 지하철 ○○역 등"></span>
+          </div>
+
+          <h3>Ⅱ. 토지의 개황</h3>
+          <div class="grid2">
+            <span class="fld"><label>지세</label><input type="text" id="y_jise" placeholder="평탄"></span>
+            <span class="fld"><label>형상</label><input type="text" id="y_shape" placeholder="세장형"></span>
+            <span class="fld" style="grid-column:1/-1"><label>이용상황</label><input type="text" id="y_use" placeholder="주상용 건부지"></span>
+            <span class="fld"><label>접면도로① 방위</label><input type="text" id="y_road1dir" placeholder="북측"></span>
+            <span class="fld"><label>접면도로① 노폭(m)</label><input type="text" id="y_road1w" placeholder="6"></span>
+            <span class="fld"><label>접면도로② 방위</label><input type="text" id="y_road2dir" placeholder="동측"></span>
+            <span class="fld"><label>접면도로② 노폭(m)</label><input type="text" id="y_road2w" placeholder="4"></span>
+          </div>
+
+          <h3>Ⅲ. 건물의 개황</h3>
+          <div class="grid2">
+            <span class="fld" style="grid-column:1/-1"><label>건물 구조</label><input type="text" id="y_struct" placeholder="철근콘크리트구조 지상 4층"></span>
+            <span class="fld"><label>외벽</label><input type="text" id="y_wall" placeholder="몰탈위 페인팅 마감"></span>
+            <span class="fld"><label>창호</label><input type="text" id="y_window" placeholder="샷시"></span>
+            <span class="fld" style="grid-column:1/-1"><label>이용상태(공부상)</label><input type="text" id="y_usestate" placeholder="제2종근린생활시설 및 다가구주택"></span>
+          </div>
+
+          <div class="row" style="margin-top:12px"><button class="btn" id="btnYohang2">📄 요항표 받기 (.hwpx)</button><span class="hint" id="y_status" role="status"></span></div>
+        </div>
+
+        <div class="card">
+          <h2>토지이용계획 (요항표 4번 칸)</h2>
+          <div class="note">토지이음(eum.go.kr)에서 「지역·지구등 지정여부」 내용을 복사해 필지별로 붙여넣으세요. 머리문구·줄바꿈은 자동으로 정리되어 요항표에 들어갑니다.</div>
+          <div id="toiceBox"></div>
+          <div style="margin-top:10px">
+            <div class="hint" style="margin-bottom:4px">요항표에 들어갈 모습</div>
+            <div id="toicePreview" class="note" style="white-space:pre-wrap;min-height:60px">붙여넣으면 여기에 정리된 내용이 보입니다.</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1914,7 +1964,7 @@ function sd(){
 }
 
 // ================= 탭 =================
-var TAB_NAMES=['daesang','gongsi','georae','gyeoljeong','bld','final','cheonggu'];
+var TAB_NAMES=['daesang','gongsi','georae','gyeoljeong','bld','final','yohang','cheonggu'];
 function showTab(name){
   TAB_NAMES.forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
@@ -1923,6 +1973,7 @@ function showTab(name){
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();
+  if(name==='yohang'){fillYohangFromData();renderToice();}
   window.scrollTo(0,0);
 }
 function sub(i,btn){
@@ -1938,6 +1989,8 @@ var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime',
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
+// 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
+var Y_IDS=['y_dong','y_near','y_traffic','y_jise','y_shape','y_use','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
 
@@ -2004,6 +2057,66 @@ async function downloadCheonggu(){
     var bytes=await A.buildTokenHwpx(A.TPL_B64,map,A.BLUE2BLACK);
     A.triggerDownload(bytes,'1. 청구서_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');
   }catch(e){console.error('청구서 hwpx 생성 실패',e);alert('청구서 생성 실패: '+e.message);}
+}
+
+// ================= 요항표 탭 =================
+// 빈 칸만 대상물건 탭 값으로 채운다(평가사가 쓴 내용은 건드리지 않음).
+function fillYohangFromData(){
+  var L=LANDS[0]||{},set=function(id,v){var el=document.getElementById(id);if(el&&!el.value.trim()&&v)el.value=v;};
+  set('y_dong',L['소재지']);
+  set('y_near',cgVal('op_location'));
+  set('y_jise',L['지세']==='평지'?'평탄':L['지세']);
+  set('y_shape',L['형상']);
+  set('y_use',L['이용상황']);
+  set('y_struct',[cgVal('bt_strct'),cgVal('bt_flrs')?'지상 '+String(cgVal('bt_flrs')).split('/')[0]+'층':''].filter(Boolean).join(' '));
+  set('y_usestate',cgVal('bt_purps'));
+  // 접면도로 방위·노폭은 '광대한면'처럼 코드명만 있어 자동 유추가 어려움 — 도로교통 값을 힌트로만 보여준다
+  var road=document.getElementById('y_road1dir');
+  if(road&&!road.value.trim()&&L['도로교통'])road.placeholder=L['도로교통']+' (방위 직접 입력)';
+}
+// ── 토지이용계획(토이계) 복붙 정리 — 집합건물(s3r86w8a.html)과 같은 로직 ──
+// 토지이음 머리문구 제거 + 줄바꿈 이어붙이기. <추가기재>만 별도 줄로 남긴다.
+var TOICE={};
+function cleanToice(raw){
+  if(!raw)return '';
+  var s=String(raw).replace(/\r/g,''),extra='';
+  var e=s.indexOf('<추가기재>');
+  if(e>=0){extra=s.slice(e).replace(/\n+/g,' ').trim();s=s.slice(0,e);}
+  s=s.replace(/「국토의 계획 및 이용에 관한 법률」에 따른 지역[ㆍ·・]?지구등/g,'')
+     .replace(/다른 법령 등에 따른 지역[ㆍ·・]?지구등/g,'')
+     .replace(/「토지이용규제 기본법 시행령」/g,'')
+     .replace(/제9조\s*제4항\s*각\s*호에\s*해당되는\s*사항/g,'');
+  s=s.replace(/\n+/g,'').replace(/^[\t ]+/,'').replace(/[\t ]+$/,'');
+  return extra?(s+'\n'+extra):s;
+}
+// 필지가 2개 이상이면 "N) 동 지번" 머리를 붙여 필지별로 나눈다.
+function assembleToice(){
+  var list=LANDS.filter(function(L){return String(L['지번']||'').trim();});
+  if(!list.length)list=[LANDS[0]||{}];
+  var multi=list.length>1;
+  return list.map(function(L,i){
+    var body=cleanToice(TOICE[L['지번']]||'');
+    if(!body)return '';
+    return multi?((i+1)+') '+((L['소재지']||'')+' '+(L['지번']||'')).trim()+'\n'+body):body;
+  }).filter(Boolean).join('\n\n');
+}
+function toiceSet(jibun,val){TOICE[jibun]=val;saveForm();renderToicePreview();}
+function renderToice(){
+  var box=document.getElementById('toiceBox');if(!box)return;
+  var list=LANDS.filter(function(L){return String(L['지번']||'').trim();});
+  if(!list.length)list=[LANDS[0]||{}];
+  box.innerHTML=list.map(function(L,i){
+    var jb=L['지번']||'',head=(list.length>1?(i+1)+') ':'')+((L['소재지']||'')+' '+(jb||'(지번)')).trim();
+    return '<div style="margin-bottom:8px"><div class="hint" style="font-weight:600;color:#1a2744;margin-bottom:2px">'+eh(head)+'</div>'+
+      '<textarea class="box" style="width:100%;min-height:90px;resize:vertical;font-size:12px;line-height:1.5" placeholder="토지이음에서 복사한 지역·지구 내용 붙여넣기" '+
+      'oninput="toiceSet(\''+jsq(jb)+'\',this.value)">'+eh(TOICE[jb]||'')+'</textarea></div>';
+  }).join('');
+  renderToicePreview();
+}
+function renderToicePreview(){
+  var el=document.getElementById('toicePreview');if(!el)return;
+  var t=assembleToice();
+  el.textContent=t||'붙여넣으면 여기에 정리된 내용이 보입니다.';
 }
 
 // ================= 문서 생성 (표지·괄감 등) — 청구서와 같은 buildTokenHwpx 엔진, 템플릿은 런타임 fetch =================
@@ -2078,6 +2191,8 @@ function collect(){
   GEORAE_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.georae[id]=el.value;});
   GJ_IDS.forEach(function(id){o.gj[id]=document.getElementById(id).value;});
   FN_IDS.forEach(function(id){o.fn[id]=document.getElementById(id).value;});
+  o.yohang={};Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.yohang[id]=el.value;});
+  o.TOICE=TOICE;
   CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.cg[id]=el.value;});
   o.cgTravelManual=CG_TRAVEL_MANUAL;
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
@@ -2205,6 +2320,8 @@ function applyForm(o){
   if(o.georae)GEORAE_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.georae[id]!=null)el.value=o.georae[id];});
   if(o.gj)GJ_IDS.forEach(function(id){if(o.gj[id]!=null)document.getElementById(id).value=o.gj[id];});
   if(o.fn)FN_IDS.forEach(function(id){if(o.fn[id]!=null)document.getElementById(id).value=o.fn[id];});
+  if(o.yohang)Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.yohang[id]!=null)el.value=o.yohang[id];});
+  TOICE=o.TOICE||{};
   if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
   // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.
   CG_TRAVEL_MANUAL=typeof o.cgTravelManual==='boolean'?o.cgTravelManual:
@@ -2265,9 +2382,10 @@ function clearForm(){
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   CG_TRAVEL_MANUAL=false;
+  Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});TOICE={};
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
 }
-function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();}
+function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();renderToice();}
 
 function newCase(){
   clearForm();applyOvDefaults();
@@ -2446,6 +2564,7 @@ GONGSI_IDS.concat(GEORAE_IDS).forEach(function(id){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',saveForm);});
 CG_IDS.forEach(function(id){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){if(id==='cg_travel')CG_TRAVEL_MANUAL=hasV(el.value);renderCheonggu();saveForm();});});
+Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',saveForm);});
 document.getElementById('cg_travel').addEventListener('blur',function(){renderCheonggu();saveForm();});
 if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});}
 applyOvDefaults();
