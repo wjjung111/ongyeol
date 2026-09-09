@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),path=require('path');
+const context={window:{}};vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../arap_cheonggu.js'),'utf8'),context);
+const fee=context.window.ArapCheonggu.arapTravelFee;
+for(const address of ['경기도 성남시 중원구 여수동 457','경기도 성남중원구','경기도 성남시 분당구','경기도 성남시 수정구','경기 성남시 중원구'])assert.equal(fee(address),95600,address);
+assert.equal(fee('경기도 수원시 영통구'),105000);
+assert.equal(fee('경기도 고양시 일산동구'),99600);
+assert.equal(fee('서울특별시 중구'),40000);
+assert.equal(fee('여수동 457'),null);
+assert.equal(fee(''),null);
+console.log('Travel fee address matching passed');
