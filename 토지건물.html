@@ -385,7 +385,7 @@
               <span id="sisan_hint" style="font-size:11px;color:#626b78"></span>
             </div>
             <div class="tw"><table id="tblSisan"></table></div>
-            <div class="note">산출단가까지 자동 계산되고, <b>결정단가</b>는 위에서 고른 단위·방식으로 자동으로 채워집니다(기본 "자동·반올림" = 집합건물과 같은 규칙: 백만원대 단가는 천원 단위, 천만원대는 만원 단위). 결정단가 칸을 직접 고치면 그 값을 쓰고(<span style="color:#dc2626;font-weight:700">빨간 글씨</span>), 비우면 다시 자동. 같은 설정이 거래사례비교법 적용단가에도 적용됩니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
+            <div class="note">산출단가까지 자동 계산되고, <b>결정단가</b>는 위에서 고른 단위·방식으로 자동으로 채워집니다(기본 "자동·반올림" = 집합건물과 같은 규칙: 백만원대 단가는 천원 단위, 천만원대는 만원 단위). 결정단가 칸을 직접 고치면 그 값을 쓰고(<span style="color:#dc2626;font-weight:700">빨간 글씨</span>), 비우면 다시 자동. 거래사례비교법 적용단가는 그 탭의 드롭다운으로 따로 정합니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
           </div>
         </div>
 
@@ -506,7 +506,12 @@
         <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
       </div>
       <div class="card">
-        <h2>거래사례비교법에 의한 시산가액<span id="gaVsGongsi" style="margin-left:auto;font-weight:400;font-size:11.5px;color:#475569"></span></h2>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">거래사례비교법에 의한 시산가액<span id="gaVsGongsi" style="margin-left:8px;font-weight:400;font-size:11.5px;color:#475569"></span></h2>
+          <span style="font-size:12px;color:#626b78">적용단가</span>
+          <select class="box" id="ga_unit" style="flex:0 0 auto;width:auto" onchange="calcGeorae();saveForm();" title="자동 = 집합건물과 같은 규칙: 백만원대 단가는 천원, 천만원대는 만원 단위"><option value="auto">자동(단가 자릿수)</option><option value="1000">천원 단위</option><option value="10000">만원 단위</option><option value="100000">십만원 단위</option><option value="1000000">백만원 단위</option></select>
+          <select class="box" id="ga_mode" style="flex:0 0 auto;width:auto" onchange="calcGeorae();saveForm();"><option value="round">반올림</option><option value="floor">절사</option><option value="none">그대로</option></select>
+          <span id="ga_hint" style="font-size:11px;color:#626b78"></span>
+        </div>
         <div class="tw"><table id="tblGaSisan"></table></div>
       </div>
     </div>
@@ -516,20 +521,13 @@
       <div class="res"><span>토지감정평가액</span><span class="n" id="resGyeoljeong">-</span></div>
       <div class="card">
         <h2>합리성 검토 및 결정</h2>
-        <div class="cols5050">
-          <div class="tw"><table>
-            <tr><th>평가방법</th><th>시산가액(원)</th><th>비고</th></tr>
-            <tr><td>공시지가기준법</td><td id="gj_a">-</td><td class="calc-c" style="font-weight:700">주방식 (채택)</td></tr>
-            <tr><td>거래사례비교법</td><td id="gj_b">-</td><td class="calc-c">합리성 검토</td></tr>
-            <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_diff">-</td><td class="calc-c hint">|거래사례비교법 − 공시지가기준법| ÷ 큰 값</td></tr>
-            <tr><td colspan="2" style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
-          </table></div>
-          <div>
-            <div class="fld"><label>검토의견</label><input class="box" id="gj_review" value="두 시산가액이 유사하게 산정되어 공시지가기준법에 의한 시산가액의 합리성이 인정됨."></div>
-            <div class="fld"><label>결정의견</label><input class="box" id="gj_decide" value="수요성·환가성·공시지가와 인근지역의 현지조사 가격수준 등을 종합적으로 고려하여 결정."></div>
-            <div class="note">토지감정평가액은 <b>항상 공시지가기준법 시산가액</b>으로 결정되고, 거래사례비교법은 합리성 검토용입니다. 두 시산가액의 <b>차이(%)</b>로 "유사/차이"를 판단하세요.</div>
-          </div>
-        </div>
+        <div class="tw"><table>
+          <tr><th>평가방법</th><th>시산가액(원)</th></tr>
+          <tr><td>공시지가기준법</td><td id="gj_a">-</td></tr>
+          <tr><td>거래사례비교법</td><td id="gj_b">-</td></tr>
+          <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_diff">-</td></tr>
+          <tr><td style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
+        </table></div>
       </div>
     </div>
 
@@ -628,14 +626,15 @@ var num=function(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,'
 var won=function(n){return Math.round(n).toLocaleString('ko-KR');};
 // 결정단가(공시지가기준법)·적용단가(거래사례비교법) 자동값: 시산가액 카드의 단위·방식 드롭다운대로. '그대로'는 원 단위로 반올림만
 // 단위 '자동' = 집합건물 앱과 같은 규칙(유효숫자 3자리) — 백만원대 단가 → 천원 단위, 천만원대 → 만원 단위, 십만원대 → 백원 단위 …
-function sisanMode(){return (document.getElementById('sisan_mode')||{}).value||'round';}
-function sisanUnitFor(calc){var v=(document.getElementById('sisan_unit')||{}).value;if(v&&v!=='auto')return num(v)||10000;
+// pre = 'sisan'(공시지가기준법 결정단가) | 'ga'(거래사례비교법 적용단가) — 드롭다운 id는 pre_unit / pre_mode / pre_hint
+function sisanMode(pre){return (document.getElementById((pre||'sisan')+'_mode')||{}).value||'round';}
+function sisanUnitFor(calc,pre){var v=(document.getElementById((pre||'sisan')+'_unit')||{}).value;if(v&&v!=='auto')return num(v)||10000;
   if(!calc||calc<=0)return 1000;return Math.max(1,Math.pow(10,Math.floor(Math.log10(calc))-3));}
 var UNIT_KO={1:'원',10:'십원',100:'백원',1000:'천원',10000:'만원',100000:'십만원',1000000:'백만원',10000000:'천만원'};
 function roundUnit(v,unit,mode){if(!v)return 0;if(mode==='none')return Math.round(v);var q=v/unit+1e-9;return (mode==='floor'?Math.floor(q):Math.round(q))*unit;}
-function applyAuto(calc){return roundUnit(calc,sisanUnitFor(calc),sisanMode());}
-function sisanHint(calc){var el=document.getElementById('sisan_hint');if(!el)return;var m=sisanMode();
-  el.textContent=m==='none'?'※ 산출단가를 그대로 결정단가로':('※ '+(UNIT_KO[sisanUnitFor(calc)]||'')+' 단위에서 '+(m==='floor'?'절사':'반올림'));}
+function applyAuto(calc,pre){return roundUnit(calc,sisanUnitFor(calc,pre),sisanMode(pre));}
+function sisanHint(calc,pre){pre=pre||'sisan';var el=document.getElementById(pre+'_hint');if(!el)return;var m=sisanMode(pre);
+  el.textContent=m==='none'?'※ 산출단가를 그대로':('※ '+(UNIT_KO[sisanUnitFor(calc,pre)]||'')+' 단위에서 '+(m==='floor'?'절사':'반올림'));}
 // 결정단가 칸: 직접 고친 값(ov)이 있으면 그 값(자동값과 다르면 빨간 글씨), 없으면 자동값을 칸에 채운다
 function applyCell(ov,auto,setter){var isOv=hasV(ov)&&num(ov)!==auto;
   return '<td class="jud-c"><input value="'+esc(hasV(ov)?ov:(auto?won(auto):''))+'" placeholder="자동"'+(isOv?' style="color:#dc2626;font-weight:700"':'')+' title="'+(isOv?'직접 고친 값 (자동값 '+won(auto)+'). 비우면 자동':'자동값 — 직접 고칠 수 있음')+'" oninput="'+setter+'"></td>';}
@@ -1701,7 +1700,7 @@ function calcGeorae(){
   LANDS.forEach(function(L,i){
     var gfp=facProduct(landGaFactors(L));
     var calc=cal.landUnit*sj*st*ar*gfp;
-    var autoApply=applyAuto(calc),apply=hasV(L.gaApply)?num(L.gaApply):autoApply;
+    var autoApply=applyAuto(calc,'ga'),apply=hasV(L.gaApply)?num(L.gaApply):autoApply;
     var size=num(L['면적']),tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(i===0)firstCalc=calc;
     hs+='<tr><td>'+(i+1)+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td><td>'+sj.toFixed(2)+'</td><td>'+st.toFixed(5)+'</td>'
@@ -1714,6 +1713,7 @@ function calcGeorae(){
     hs+='<tr><td colspan="8" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
        +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblGaSisan',hs);
+  sisanHint(firstCalc,'ga');
   document.getElementById('ga_calc').textContent=firstCalc?won(firstCalc):'-';
   document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
   window.GEORAE_RESULT={total:sumTotal};
@@ -1862,8 +1862,8 @@ var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_k
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice','ov_reportNo'];
 var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
 var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
-var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion'];
-var GJ_IDS=['gj_review','gj_decide'];
+var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
+var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion'];
 function collect(){
   var o={base:{},ov:{},bt:{},bld:[],jb:{},gongsi:{},georae:{},gj:{},fn:{}};
