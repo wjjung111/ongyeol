@@ -1939,7 +1939,7 @@ var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
-var CG_LAST_TRAVEL=null;   // 직전에 자동 채운 여비값 — 사용자가 고쳤는지 판별용(applyCell과 같은 방식)
+var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
 
 // ================= 청구서 (한글 hwpx) — 엔진은 arap_cheonggu.js(집합건물 청구서와 동일 양식·계산) =================
 function cgVal(id){var el=document.getElementById(id);return el?el.value:'';}
@@ -1957,14 +1957,17 @@ function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
   return A.computeCheonggu(fee,cgVal('cg_downPayment'),cgVal('cg_special'),cgVal('cg_feeBasis'),
     cgEmptyNull('cg_travel'),cgEmptyNull('cg_survey'),cgEmptyNull('cg_doc'),cgEmptyNull('cg_etc'));
 }
+function cgTravelAuto(){
+  var A=window.ArapCheonggu;if(!A)return 40000;
+  var fee=A.arapTravelFee(cheongguAddr());
+  if(fee==null)fee=A.arapTravelFee(subjectSgg());
+  return fee==null?40000:fee;
+}
 function renderCheonggu(){
   var A=window.ArapCheonggu;
   // 여비·물건조사비·공부발급비 자동 채움(비어 있고 편집 중이 아닐 때)
   var tv=document.getElementById('cg_travel');
-  if(tv&&document.activeElement!==tv){   // 여비: 본건 소재지 자동값을 따라가되, 사용자가 다른 값으로 고쳤으면 그대로 둔다
-    var auto=40000;if(A){var f=A.arapTravelFee(cheongguAddr());if(f!=null)auto=f;}
-    if(!hasV(tv.value)||num(tv.value)===CG_LAST_TRAVEL)tv.value=String(auto);
-    CG_LAST_TRAVEL=auto;}
+  if(tv&&document.activeElement!==tv&&!CG_TRAVEL_MANUAL)tv.value=String(cgTravelAuto());
   var sv=document.getElementById('cg_survey');if(sv&&!hasV(sv.value)&&document.activeElement!==sv)sv.value='15000';
   var dv=document.getElementById('cg_doc');if(dv&&!hasV(dv.value)&&document.activeElement!==dv)dv.value='15000';
   var amtEl=document.getElementById('cg_amt');if(amtEl)amtEl.textContent=(document.getElementById('resFinal')||{}).textContent||'-';
@@ -2059,6 +2062,7 @@ function collect(){
   GJ_IDS.forEach(function(id){o.gj[id]=document.getElementById(id).value;});
   FN_IDS.forEach(function(id){o.fn[id]=document.getElementById(id).value;});
   CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.cg[id]=el.value;});
+  o.cgTravelManual=CG_TRAVEL_MANUAL;
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   return o;
 }
@@ -2185,6 +2189,9 @@ function applyForm(o){
   if(o.gj)GJ_IDS.forEach(function(id){if(o.gj[id]!=null)document.getElementById(id).value=o.gj[id];});
   if(o.fn)FN_IDS.forEach(function(id){if(o.fn[id]!=null)document.getElementById(id).value=o.fn[id];});
   if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
+  // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.
+  CG_TRAVEL_MANUAL=typeof o.cgTravelManual==='boolean'?o.cgTravelManual:
+    (hasV(cgVal('cg_travel'))&&num(cgVal('cg_travel'))!==40000&&num(cgVal('cg_travel'))!==cgTravelAuto());
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
   return true;
 }
@@ -2240,6 +2247,7 @@ function clearForm(){
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  CG_TRAVEL_MANUAL=false;
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
 }
 function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();}
@@ -2420,7 +2428,8 @@ function initMemoResize(){
 GONGSI_IDS.concat(GEORAE_IDS).forEach(function(id){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',saveForm);});
 CG_IDS.forEach(function(id){
-  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){renderCheonggu();saveForm();});});
+  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){if(id==='cg_travel')CG_TRAVEL_MANUAL=hasV(el.value);renderCheonggu();saveForm();});});
+document.getElementById('cg_travel').addEventListener('blur',function(){renderCheonggu();saveForm();});
 if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});}
 applyOvDefaults();
 // 저장된 건 목록 로드 + 현재 작업건(접수번호) 목록 편입

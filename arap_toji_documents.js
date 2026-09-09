@@ -2,14 +2,31 @@
 (function(){
 'use strict';
 var $=function(id){return document.getElementById(id);},A=window.ArapCheonggu;
-var fields=[['위치','지리적 위치'],['부근상황','부근상황'],['교통','교통상황'],['입지기타','입지 기타사항'],['지세형상','지세 및 형상'],['토지이용','토지 이용상황'],['도로','접면도로 상황'],['공법제한','토지이용계획·공법상 제한'],['제시외','제시목록 외 물건'],['토지차이','토지 공부와의 차이'],['토지기타','토지 기타사항'],['건물구조','건물 구조'],['외벽','외벽'],['창호','창호'],['건물이용','건물 이용상태'],['설비','위생·냉난방·기타설비'],['부합물','부합물·종물'],['건물차이','건물 공부와의 차이'],['건물기타','건물 기타사항']];
-function saved(){try{return JSON.parse($('doc_yohang').value||'{}');}catch(e){return {};}}
-function defaults(){
-  var per=function(keys){return LANDS.map(function(l,i){var s=keys.map(function(k){return l[k]||'';}).filter(Boolean).join(', ');return s?'기호 '+(i+1)+': '+s:'';}).filter(Boolean).join('\n');};
-  var loc=[cheongguAddr(),cgVal('op_location')].filter(Boolean).join(' / ');
-  return {위치:loc,지세형상:per(['지세','형상']),토지이용:per(['이용상황']),공법제한:per(['용도지역']),건물구조:[cgVal('bt_strct'),cgVal('bt_flrs')].filter(Boolean).join(' / '),건물이용:cgVal('bt_purps')};
+function yohangMap(){
+  var l=LANDS[0]||{};
+  return {'소재지_동':l['소재지']||'','인근위치설명':cgVal('op_location'),
+    '요항_지세':l['지세']==='평지'?'평탄':'','토지_형상':l['형상']||'',
+    '요항_이용상황':l['이용상황']||'','요항_건물구조':[cgVal('bt_strct'),cgVal('bt_flrs')].filter(Boolean).join(' '),
+    '요항_이용상태':cgVal('bt_purps')};
 }
-function yohangMap(){var base=defaults(),s=saved(),m={};fields.forEach(function(f){var v=Object.prototype.hasOwnProperty.call(s,f[0])?s[f[0]]:base[f[0]];m['요항_'+f[0]]=String(v||'').trim()||'[기입]';});return m;}
+async function buildYohang(){
+  var b64=await fetchTplB64('템플릿/토건 요항표 템플릿.hwpx');
+  var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer);
+  var dec=new TextDecoder(),enc=new TextEncoder(),map=yohangMap();
+  var header=xml(dec.decode(entries.find(function(e){return e.name==='Contents/header.xml';}).data));
+  var red=new Set(Array.from(header.getElementsByTagNameNS('*','charPr')).filter(function(p){return (p.getAttribute('textColor')||'').toUpperCase()==='#FF0000';}).map(function(p){return p.getAttribute('id');}));
+  entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
+    var d=xml(dec.decode(e.data));
+    Array.from(d.getElementsByTagNameNS('*','run')).filter(function(r){return red.has(r.getAttribute('charPrIDRef'));}).forEach(function(r){
+      Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){t.textContent=t.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){return map[k]||full;});});
+    });
+    e.data=enc.encode(ser(d));
+  });
+  // Rebuild previews so the original placeholder preview is not mistaken for output.
+  entries=entries.filter(function(e){return !/^Preview\//.test(e.name);});
+  var mi=entries.findIndex(function(e){return e.name==='mimetype';});if(mi>0)entries.unshift(entries.splice(mi,1)[0]);
+  return A.createZipStored(entries);
+}
 function statementRows(){
   calcGongsi();renderBldCalc();calcFinal();
   var gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{rows:[]};
@@ -51,8 +68,8 @@ async function buildStatement(rows){
   if(shift)entries.filter(function(e){return /^xl\/drawings\/drawing\d+\.xml$/.test(e.name);}).forEach(function(e){var drawing=xml(dec.decode(e.data));Array.from(drawing.getElementsByTagNameNS('*','row')).forEach(function(n){if(+n.textContent>=49)n.textContent=String(+n.textContent+shift);});e.data=enc.encode(ser(drawing));});
   return A.createZipStored(entries);
 }
-async function run(button,action){button.disabled=true;$('doc_status').textContent='문서를 만드는 중…';try{await action();$('doc_status').textContent='파일을 받았습니다. 작성 내용과 [기입] 표시를 확인하세요.';}catch(e){$('doc_status').textContent=e.message;console.error(e);}finally{button.disabled=false;}}
+async function run(button,action){button.disabled=true;$('doc_status').textContent='문서를 만드는 중…';try{await action();$('doc_status').textContent='파일을 받았습니다.';}catch(e){$('doc_status').textContent=e.message;console.error(e);}finally{button.disabled=false;}}
 $('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=await buildStatement(statementRows());A.triggerDownload(bytes,'5. 명세표_'+(cgVal('ov_client')||'의뢰인')+'.xlsx');});};
-$('btnYohang').onclick=function(){return run(this,async function(){var bytes=await A.buildTokenHwpx(await fetchTplB64('템플릿/토건 요항표 자동입력.hwpx'),yohangMap(),{});A.triggerDownload(bytes,'4. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');});};
-window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap};
+$('btnYohang').onclick=function(){return run(this,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'4. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');});};
+window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang};
 })();
