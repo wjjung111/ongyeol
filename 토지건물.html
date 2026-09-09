@@ -470,9 +470,9 @@
 
               <div class="tw" style="margin-top:8px"><table>
                 <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
-                <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="jud-c"><input id="eDecide" placeholder="예 1.61" oninput="calcGongsi()"></td><td>1</td></tr>
+                <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="calc-c"><input id="eDecide" placeholder="-" oninput="calcGongsi();saveForm();"></td><td>1</td></tr>
               </table></div>
-              <div class="note">산출 비교치는 <b>자동</b>, 최종 <b>결정 보정치</b>는 평가사가 정함(절사·조정). 결정치가 아래 시산가액 패널에 즉시 반영됩니다.<br>
+              <div class="note">산출 비교치는 <b>자동(셋째 자리에서 절사, 둘째 자리까지)</b>이고, <b>결정 보정치</b>에는 그 값이 그대로 채워집니다. 다른 값으로 고치면 <span style="color:#dc2626;font-weight:700">빨간 글씨</span>, 비우면 자동값으로. 결정치가 아래 시산가액 패널에 즉시 반영됩니다.<br>
                 <b>회색 칸(적용사례단가·개별요인·산출단가·비교치·공시지가·시점수정)은 자동 계산이지만 직접 고칠 수 있습니다.</b> 고친 값이 자동계산값과 다르면 <span style="color:#dc2626;font-weight:700">빨간 글씨</span>로 표시되고 뒤 칸(산출단가·비교치·시산가액)에 그대로 이어집니다. 칸을 비우거나 <b>↺ 원래대로 복원</b>을 누르면 자동계산값으로 돌아갑니다.</div>
             </div>
           </div>
@@ -734,12 +734,15 @@ function setTableHtml(id,html){
   var tbl=document.getElementById(id),ae=document.activeElement,pos=null;
   if(ae&&ae.tagName==='INPUT'&&tbl.contains(ae)){
     var td=ae.closest('td'),tr=td&&td.parentNode;
-    if(tr&&tr.rowIndex!=null)pos={r:tr.rowIndex,c:td.cellIndex,s:ae.selectionStart,e:ae.selectionEnd};
+    if(tr&&tr.rowIndex!=null)pos={r:tr.rowIndex,c:td.cellIndex,s:ae.selectionStart,e:ae.selectionEnd,v:ae.value};
   }
   tbl.innerHTML=html;
   if(pos){
     var row=tbl.rows[pos.r],cell=row&&row.cells[pos.c],inp=cell&&cell.querySelector('input');
-    if(inp){inp.focus();try{inp.setSelectionRange(pos.s,pos.e);}catch(e){}}
+    if(inp){inp.focus();
+      // 값이 다시 그리면서 바뀌었으면(콤마 자동 삽입 등) 커서를 끝으로, 그대로면 원래 자리로
+      var same=inp.value===pos.v,L=inp.value.length;
+      try{inp.setSelectionRange(same?pos.s:L,same?pos.e:L);}catch(e){}}
   }
 }
 function stdOf(i){var L=LANDS[i]||{};return STDS[Math.min(L.stdIdx||0,STDS.length-1)]||{};}
@@ -1553,7 +1556,7 @@ function etcFmt(k,v){
   if(!v)return '';
   if(k==='ind')return v.toFixed(3);
   if(k==='stdTime')return v.toFixed(5);
-  if(k==='ratio')return v.toFixed(4);
+  if(k==='ratio')return v.toFixed(2);   // 그 밖의 요인 비교치: 셋째 자리에서 절사한 값(둘째 자리까지)
   return won(v);
 }
 function etcStdIdx(){return Math.min(+(document.getElementById('etcStd').value||0),STDS.length-1);}
@@ -1625,16 +1628,20 @@ function calcGongsi(){
   var sp=num(S['공시지가']);AUTO.std=sp;sp=ov('std',sp);
   var saj2=num(document.getElementById('eSaj2').value)||1,ea2=num(document.getElementById('eArea2').value)||1,ind2=num(document.getElementById('eInd2').value)||1;
   AUTO.out2=sp*stf2*saj2*ea2*ind2;var o2=ov('out2',AUTO.out2);
-  AUTO.ratio=o2>0?o1/o2:0;var ratio=ov('ratio',AUTO.ratio);
+  AUTO.ratio=o2>0?Math.floor(o1/o2*100+1e-9)/100:0;var ratio=ov('ratio',AUTO.ratio);   // 셋째 자리에서 절사 (결정기록 2026-09-09)
   etcPaint(OV,AUTO);
   // 자동계산된 값 그대로면 "1.00443 — 서울특별시 중랑구 (26.01.31~26.04.14) (주거)"처럼 근거를 같이 보여줌
   var tm=etcTimeMeta(),tl=(et&&tm&&tm.factor===et.toFixed(5))?(' — '+timeMetaLabel(tm)):'';
   document.getElementById('fnTime').textContent=(et?et.toFixed(5):'-')+tl;
   document.getElementById('fnArea').textContent=ea.toFixed(2);
   // 화면의 결정치 입력값을 현재 표준지에 저장
-  var dv=document.getElementById('eDecide').value;
-  if(document.activeElement&&document.activeElement.id==='eDecide')S.etcDecide=dv;
-  else document.getElementById('eDecide').value=(S.etcDecide!=null?S.etcDecide:'');
+  // 결정 보정치: 기본은 산출 비교치(절사값)를 그대로 채우고, 사용자가 다른 값을 치면 그 값을 표준지별 S.etcDecide에 보관(빨간 글씨). 비우거나 자동값과 같으면 자동으로.
+  var dEl=document.getElementById('eDecide'),autoD=ratio?ratio.toFixed(2):'';
+  if(document.activeElement===dEl){var dv=dEl.value;S.etcDecide=(hasV(dv)&&num(dv)!==num(autoD))?dv:null;}
+  else dEl.value=hasV(S.etcDecide)?S.etcDecide:autoD;
+  var dDiff=hasV(S.etcDecide)&&num(S.etcDecide)!==num(autoD);
+  dEl.parentNode.classList.toggle('mis',dDiff);
+  dEl.title=dDiff?('직접 입력값 (자동: '+(autoD||'-')+') — 비우면 자동값으로 돌아갑니다'):'산출 비교치와 같음 — 직접 고칠 수 있습니다';
   var etcOf=function(j){var s=STDS[j]||{};var d=num(s.etcDecide);
     if(d)return d;
     return (j===sj)?ratio:0;};
@@ -1783,7 +1790,9 @@ function renderBldCalc(){
   document.getElementById('resBld').textContent=total?won(total)+' 원':'-';
   sd();calcFinal();
 }
-function bldSet(i,key,val){window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[i]=window.BLD_STATE[i]||{};window.BLD_STATE[i][key]=val;saveForm();renderBldCalc();}
+function bldSet(i,key,val){
+  if(key==='reCost'){var d=String(val).replace(/[^\d]/g,'');val=d?Number(d).toLocaleString('ko-KR'):'';}   // 재조달원가: 천원 단위 콤마 자동
+  window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[i]=window.BLD_STATE[i]||{};window.BLD_STATE[i][key]=val;saveForm();renderBldCalc();}
 
 // ================= 토지건물 시산가액(최종) =================
 function calcFinal(){
