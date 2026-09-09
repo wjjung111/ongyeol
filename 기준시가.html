@@ -191,6 +191,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
       <label class="f"><span>지붕재료 <small>(구조지수 100 미만일 때만 반영)</small></span>
         <select id="roof"><option value="1">슬래브·기와·징크·신소재 (100)</option><option value="0.8">패널·유리·슬레이트 (80)</option><option value="0.6">함석·천막·초가·썬라이트 (60)</option></select></label>
       <label class="f"><span>개별주택가격 <small>(주택 부분 있을 때, 원)</small></span><input type="number" id="housePrice" min="0" step="1000000"></label>
+      <label class="f"><span>주택 부속토지 면적 <small>(개별주택가격 산정 대지면적 ㎡, 비우면 연면적 비율 안분)</small></span><input type="number" id="housePlot" min="0" step="0.01"></label>
       <label class="f"><span>지능형건축물 인증</span>
         <select id="intel"><option value="0">없음</option><option value="1.1">3·4등급 (110)</option><option value="1.2">1·2등급 (120)</option></select></label>
     </div>
@@ -431,7 +432,10 @@ function calc(){
   $("bigLabel").textContent = ready? `건물 합계 ${areaAll.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡ · ${year}년 고시` : "";
   const landVal = (land>0 && +$("landArea").value>0) ? land*(+$("landArea").value) : null;
   const resArea = rows.filter(r=>FLOORTYPE.find(f=>f[0]===r.ftype)[3]).reduce((a,r)=>a+(+r.area||0),0);
-  const resShare = areaAll>0 ? resArea/areaAll : 0;
+  const hpArea=+$("housePlot").value, landA=+$("landArea").value;
+  const byPlot = hpArea>0 && landA>0 && hpArea<=landA;
+  const resShare = byPlot ? hpArea/landA : (areaAll>0 ? resArea/areaAll : 0);
+  const shareNote = byPlot ? "공시 산정 대지면적 기준" : "연면적 비율";
   const kv=[];
   if(ready){
     kv.push(["비주거(상가 등) 건물", won(isSJ?nonresSJ:nonresYD)]);
@@ -442,8 +446,8 @@ function calc(){
       kv.push(["sep"]);
       kv.push([`토지 ${$("landArea").value}㎡ × 공시지가`, won(landVal)]);
       if(resArea>0){
-        kv.push([`└ 비주거 부속토지 안분 (${((1-resShare)*100).toFixed(1)}%)`, won(landVal*(1-resShare)), "sub"]);
-        kv.push([`└ 주거 부속토지 안분 (${(resShare*100).toFixed(1)}%)`, won(landVal*resShare), "sub"]);
+        kv.push([`└ 비주거 부속토지 ${(landA*(1-resShare)).toFixed(2)}㎡ (${shareNote})`, won(landVal*(1-resShare)), "sub"]);
+        kv.push([`└ 주거 부속토지 ${(landA*resShare).toFixed(2)}㎡`, won(landVal*resShare), "sub"]);
       }
       kv.push(["sep"]);
       kv.push(["토지+건물 기준시가 합계", won(landVal+(isSJ?totSJ:totYD)), "tot"]);
@@ -505,7 +509,7 @@ function renderRef(){
 
 // ---------- 저장/프리셋 ----------
 function save(){ try{ localStorage.setItem("ongyeol-gijunsiga-v1", JSON.stringify({mode, rows, f:collectFields()})); }catch(e){} }
-function collectFields(){ const o={}; ["evalDate","noticeYear","siteName","structure","builtYear","remodelYear","topFloor","landPrice","landArea","roof","intel","housePrice","apprVal","similarVal","deposit","rentYear"].forEach(k=>o[k]=$(k).value); return o; }
+function collectFields(){ const o={}; ["evalDate","noticeYear","siteName","structure","builtYear","remodelYear","topFloor","landPrice","landArea","roof","intel","housePrice","housePlot","apprVal","similarVal","deposit","rentYear"].forEach(k=>o[k]=$(k).value); return o; }
 function applyFields(o){ Object.entries(o||{}).forEach(([k,v])=>{ if($(k)) $(k).value=v; }); }
 function load(){ try{ const s=JSON.parse(localStorage.getItem("ongyeol-gijunsiga-v1")||"null"); if(s){ mode=s.mode||"sj"; rows=s.rows||[]; applyFields(s.f); return true; } }catch(e){} return false; }
 const PRESETS = {
@@ -515,7 +519,7 @@ const PRESETS = {
      rows:[newRow({floor:"지하1층",use:41,area:296.06,ftype:"b1"}),newRow({floor:"1층",use:41,area:241.95,ftype:"shop1"}),newRow({floor:"1층 주차",use:41,area:28.05,ftype:"park"}),
            newRow({floor:"2층",use:40,area:127.99,ftype:"shop2"}),newRow({floor:"2층",use:41,area:143.63,ftype:"shop2"}),newRow({floor:"3층",use:40,area:244.48}),newRow({floor:"4층",use:2,area:207.34,ftype:"res"})]}
 };
-function loadPreset(n){ const p=PRESETS[n]; applyFields(p.f); ["housePrice","apprVal","similarVal","deposit","rentYear"].forEach(k=>$(k).value=""); rows=p.rows.map(r=>({...r})); renderRows(); renderRef(); }
+function loadPreset(n){ const p=PRESETS[n]; applyFields(p.f); ["housePrice","housePlot","apprVal","similarVal","deposit","rentYear"].forEach(k=>$(k).value=""); rows=p.rows.map(r=>({...r})); renderRows(); renderRef(); }
 
 // ---------- 이벤트 ----------
 document.querySelectorAll(".mode button").forEach(b=>b.addEventListener("click",()=>{
@@ -525,7 +529,7 @@ $("rowsBody").addEventListener("input",e=>{ const k=e.target.dataset.k, i=+e.tar
 $("rowsBody").addEventListener("click",e=>{ const d=e.target.dataset.del; if(d!==undefined){ rows.splice(+d,1); renderRows(); } });
 $("addRow").addEventListener("click",()=>{ rows.push(newRow()); renderRows(); });
 $("clearAll").addEventListener("click",()=>{ rows=[]; renderRows(); });
-["noticeYear","structure","builtYear","remodelYear","topFloor","landPrice","landArea","roof","intel","housePrice","apprVal","similarVal","deposit","rentYear","siteName"].forEach(k=>$(k).addEventListener("input",()=>{ if(k==="noticeYear"){renderRows();renderRef();} else calc(); }));
+["noticeYear","structure","builtYear","remodelYear","topFloor","landPrice","landArea","roof","intel","housePrice","housePlot","apprVal","similarVal","deposit","rentYear","siteName"].forEach(k=>$(k).addEventListener("input",()=>{ if(k==="noticeYear"){renderRows();renderRef();} else calc(); }));
 $("evalDate").addEventListener("input",()=>{ syncYear(); renderRows(); renderRef(); });
 $("printBtn").addEventListener("click",()=>window.print());
 $("copyBtn").addEventListener("click",async()=>{
@@ -721,7 +725,8 @@ async function importByAddress(q){
     const hroot=houseD&&(houseD.indvdHousingPrices||houseD.indvdHousingPricess); const hf=(hroot&&hroot.field)||[];
     const hc=pickYear(hf,evalYear);
     if(hc){ const k = (Number(hc.housePc)>=1e6) ? "housePc" : Object.keys(hc).find(k=>/pc$|price|prc|amount|가격/i.test(k)&&Number(hc[k])>=1e6);
-      if(k){ $("housePrice").value=hc[k]; notes.push(`개별주택가격 ${hc.stdrYear}년 ${fmt(+hc[k])}원 (${k})`); } else notes.push("개별주택가격 응답은 있으나 가격 필드 판별 실패 — 원본 데이터 확인"); }
+      if(k){ $("housePrice").value=hc[k]; notes.push(`개별주택가격 ${hc.stdrYear}년 ${fmt(+hc[k])}원 (${k})`); } else notes.push("개별주택가격 응답은 있으나 가격 필드 판별 실패 — 원본 데이터 확인");
+      if(+hc.calcPlotAr>0){ $("housePlot").value=hc.calcPlotAr; notes.push(`주택 산정 대지면적 ${hc.calcPlotAr}㎡ · 산정 건물면적 ${hc.buldCalcTotAr||"?"}㎡ (전체 연면적 ${hc.buldAllTotAr||"?"}㎡) → 토지 안분에 사용`); } }
     else if(!(houseD&&houseD.err)) notes.push("개별주택가격 없음 (주택 부분이 없거나 미공시)");
     renderRef(); calc();
     st.className="status ok"; st.textContent="✅ 불러옴: "+(s.addr||q)+" · 층 "+fl.length+"개 · '검토' 태그가 붙은 행과 용도지수를 확인하세요";
