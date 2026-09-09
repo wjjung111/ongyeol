@@ -531,13 +531,35 @@
 
     <!-- ═══════════ 건물 평가 ═══════════ -->
     <div id="tab-bld" class="tab">
+      <div class="cols5050" id="bld_layout">
+      <div class="card">
+        <h2>건물표준단가 선택 · 2025년</h2>
+        <div class="note">단독주택부터 판매용까지 381개 사례 중 용도·구조·급수를 선택하세요. 의견서의 건물신축단가표에 여러 사례를 추가할 수 있습니다.</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0">
+          <select class="box" id="bc_category" aria-label="단가 대분류" style="width:auto"><option value="">대분류 선택</option></select>
+          <select class="box" id="bc_usage" aria-label="단가 용도" style="width:auto"><option value="">용도 선택</option></select>
+        </div>
+        <select class="box" id="bc_case" aria-label="구조·급수별 단가 사례" style="width:100%;max-width:100%"><option value="">구조·급수별 사례 선택</option></select>
+        <p class="hint" id="bc_detail" style="overflow-wrap:anywhere"></p>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0">
+          <button class="btn" id="bc_add" type="button">의견서 단가표에 추가</button>
+          </div>
+        <div id="bc_status" class="hint" role="status"></div>
+        <h3>의견서에 포함할 단가표 <span class="hint" id="bc_count"></span></h3>
+        <div class="tw"><table><thead><tr><th>분류기호</th><th>용도</th><th>구조</th><th>급수</th><th>표준단가(원/㎡)</th><th>내용연수</th><th></th></tr></thead><tbody id="bc_selected"></tbody></table></div>
+        <div class="row" style="margin-top:10px"><button class="btn" type="button" id="bc_download">📄 의견서(산출근거) 다운로드</button></div>
+        <div class="hint">출처: <a href="https://member.kapanet.or.kr/standard/contents/ebook/objects/20260317/" target="_blank" rel="noopener">2025년도 적용 건축물 재조달원가 자료집</a>. 선택 내용은 사건에 저장됩니다. 의견서 다운로드에는 기존 토지 평가 계산도 필요합니다.</div>
+      </div>
+      <div>
       <div class="res"><span>건물가액</span><span class="n" id="resBld">-</span></div>
       <div class="card">
         <h2>재조달원가·감가수정</h2>
         <div class="row" style="margin-bottom:8px"><button class="btn gh sm" onclick="addBldRow({});renderBldCalc();">+ 층 추가</button><span class="hint">여기서 추가한 층은 대상물건 탭 건물 표에도 함께 반영됩니다.</span></div>
         <div class="tw"><table id="tblBldCalc"></table></div>
-        <div class="note">재조달원가(원/㎡)는 <a href="https://www.reb.or.kr" target="_blank" rel="noopener">한국부동산원 건물신축단가표</a>를 참고해 급수를 판단하여 입력하세요(자동 제공 안 함).
+        <div class="note">재조달원가(원/㎡)와 내용연수는 평가 판단에 따라 직접 입력하세요. 왼쪽에서 조회·선택한 사례는 의견서 참고표에만 반영됩니다.
           경과연수 = 기준시점 − 사용승인일(<b>대상물건 탭</b>) <b>자동</b>. 내용연수는 기본 50년, 필요시 수정. 층 삭제는 대상물건 탭에서 할 수 있습니다.</div>
+      </div>
+      </div>
       </div>
     </div>
 
@@ -562,7 +584,7 @@
           <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
           <details style="margin-bottom:10px"><summary>의견서 보완 입력</summary>
             <div class="fld" style="margin-top:8px"><label>건물신축단가표 출처·연도</label><input class="box" id="op_costSource" placeholder="예: 한국부동산원, 2025년"></div>
-            <div class="fld" style="margin-top:8px"><label>건물신축단가표 (엑셀에서 행별로 복사)</label><textarea class="box" id="op_costRows" rows="3" placeholder="분류기호 → 용도 → 구조 → 급수 → 표준단가 → 내용연수 → 내용연수 범위 순서"></textarea></div>
+            <div class="fld" style="margin-top:8px"><label>건물신축단가표 (건물평가 탭 선택 내용 · 직접 편집 가능)</label><textarea class="box" id="op_costRows" rows="3" placeholder="분류기호 → 용도 → 구조 → 급수 → 표준단가 → 내용연수 → 내용연수 범위 순서"></textarea></div>
             <div class="hint">보완 입력을 비우면 한글에 [기입]으로 표시됩니다. 비교의견과 결정의견은 화면의 입력 내용을 반영합니다.</div>
           </details>
           <div class="status" id="op_status" role="status"></div>
@@ -1896,7 +1918,7 @@ function showTab(name){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
     document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
   });
-  if(name==='bld')renderBldCalc();
+  if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();
   window.scrollTo(0,0);
@@ -2457,5 +2479,7 @@ renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채
 })();
 </script>
 <script src="arap_toji_opinion.js"></script>
+<script src="arap_building_cost_data.js"></script>
+<script src="arap_building_cost.js"></script>
 </body>
 </html>
