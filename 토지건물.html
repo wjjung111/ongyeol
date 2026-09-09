@@ -501,7 +501,7 @@
         <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
       </div>
       <div class="card">
-        <h2>거래사례비교법에 의한 시산가액</h2>
+        <h2>거래사례비교법에 의한 시산가액<span id="gaVsGongsi" style="margin-left:auto;font-weight:400;font-size:11.5px;color:#475569"></span></h2>
         <div class="tw"><table id="tblGaSisan"></table></div>
       </div>
     </div>
@@ -1698,7 +1698,22 @@ function calcGeorae(){
   document.getElementById('ga_calc').textContent=firstCalc?won(firstCalc):'-';
   document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
   window.GEORAE_RESULT={total:sumTotal};
+  gaVsGongsiNote(sumTotal);
   calcGyeoljeong();
+}
+// 거래사례비교법 시산가액 카드 제목 오른쪽: 공시지가기준법 적용단가·시산가액과 격차율(거래사례비교법 ÷ 공시지가기준법 − 1)
+function gaVsGongsiNote(gaTotal){
+  var el=document.getElementById('gaVsGongsi'),gs=window.GONGSI_RESULT||{};
+  if(!el)return;
+  if(!gs.total){el.innerHTML='';return;}
+  var unit=gs.applyUnit?won(gs.applyUnit)+' 원/㎡'+(LANDS.length>1?' 외':''):'-';
+  var h='공시지가기준법 : 적용단가 <b>'+unit+'</b> · 시산가액 <b>'+won(gs.total)+' 원</b>';
+  if(gaTotal){
+    var r=gaTotal/gs.total,pct=(r-1)*100;
+    var col=Math.abs(pct)>=10?'#b91c1c':'#1d4ed8';
+    h+=' <span style="color:#94a3b8">│</span> 격차율 <b style="color:'+col+'">'+(pct>=0?'+':'')+pct.toFixed(2)+'%</b> <span class="hint">(거래사례비교법 ÷ 공시지가기준법 = '+r.toFixed(4)+')</span>';
+  }
+  el.innerHTML=h;
 }
 
 // ================= 토지감정평가액 결정 =================
