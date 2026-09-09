@@ -192,6 +192,7 @@
 <body>
 <script src="arap_access.js"></script>
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
+<script src="arap_jibyun_data.js"></script><!-- 지가변동률+연도 누계(매일 06시 자동갱신). 있으면 통신 없이 계산, 없거나 파일 밖 달은 프록시 -->
 <div id="mode-bar">
   <a class="mb-home" href="index.html" title="온결 입장 화면으로">🏠 홈</a>
   <span class="mb-title">🏞️ Ongyeol v1.0 · EXACT 토지건물</span>
@@ -364,7 +365,7 @@
                 </tr></tbody>
               </table>
             </div>
-            <div class="note">미발표 월은 <b>마지막 발표월 변동률로 일할 추정</b>합니다(관례). 값은 언제든 직접 수정 가능.</div>
+            <div class="note">부동산원 지가변동률 조회 화면과 같은 규칙 — 그 해 1월 1일부터 포함되는 해는 <b>연도 누계</b>, 미발표 기간은 <b>마지막 발표월 변동률 × 경과일수/발표월 일수</b>. 값은 언제든 직접 수정 가능.</div>
           </div>
 
           <div class="card">
@@ -1013,27 +1014,45 @@ function jbPickRegion(regs,hint){
   regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p.length>=2&&hint.indexOf(p)>=0)score+=p.length;});if(score>bs){bs=score;bi=i;}});
   return bi;
 }
-function jbFactor(rates,g,e){
-  var ymS=g.y*100+g.mo,ymE=e.y*100+e.mo,factor=1,lastRate=null;
+// 월별 변동률(%) → 시점수정치. 부동산원 지가변동률 조회 화면과 같은 규칙(arm_시점수정.html jbFactor와 동일 — 수정 시 양쪽 함께):
+//  ① 첫 달 일할 ② 그 해 1월 1일부터 포함되는 해는 월별 곱 대신 연도 누계(cum) 한 덩어리 ③ 미공표 구간은 (1+마지막 공표월 r×경과일수/공표월 일수) 한 번
+function jbFactor(rates,g,e,cum){
+  var ymS=g.y*100+g.mo,ymE=e.y*100+e.mo,factor=1,lastRate=null,lastYm=null;
+  Object.keys(rates).map(Number).filter(function(k){return k<ymS;}).sort(function(x,y){return x-y;}).forEach(function(k){lastRate=rates[k];lastYm=k;});
   for(var ym=ymS;ym<=ymE;ym=ymAdd(ym,1)){
     var y=Math.floor(ym/100),mo=ym%100,D=daysIn(y,mo);
-    var published=(ym in rates),r=published?rates[ym]:lastRate;
-    if(r==null)throw new Error((Math.floor(ym/100))+'.'+(ym%100)+'월 변동률이 없습니다.');
-    if(published)lastRate=r;
+    if(!(ym in rates)){
+      if(lastRate==null)throw new Error(y+'.'+String(mo).padStart(2,'0')+'월 변동률이 없습니다.');
+      var LD=daysIn(Math.floor(lastYm/100),lastYm%100),d0=(ym===ymS)?g.d:1;
+      var days=Math.round((new Date(e.y,e.mo-1,e.d)-new Date(y,mo-1,d0))/86400000)+1;
+      factor*=1+(lastRate/100)*days/LD;break;
+    }
+    if(cum&&mo===1&&(ym>ymS||(ym===ymS&&g.d===1))){
+      var last=ym;
+      for(var k=ym;Math.floor(k/100)===y&&k<=ymE&&(k in rates);k=ymAdd(k,1)){var KD=daysIn(y,k%100);if(k===ymE&&e.d<KD)break;last=k;if(k===ymE)break;}
+      var c=cum[last];
+      if(last>ym&&c!=null){factor*=1+c/100;lastRate=rates[last];lastYm=last;ym=last;continue;}
+    }
+    var r=rates[ym];lastRate=r;lastYm=ym;
     var d1=(ym===ymS)?g.d:1,d2=(ym===ymE)?e.d:D,frac=(d2-d1+1)/D;
     factor*=(frac>=1)?(1+r/100):(1+(r/100)*frac);
   }
   return factor;
 }
 async function roneCumulative(reg,use,g,e,progressCb){
-  var rates={},ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;
+  var rates={},cum=null,ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;
+  var F=window.ARAP_JIBYUN_DATA,fr=F&&F.rates&&F.rates[reg]&&F.rates[reg][use];
+  if(fr){Object.keys(fr).forEach(function(k){rates[+k]=fr[k];});var fc=F.cum&&F.cum[reg]&&F.cum[reg][use];if(fc){cum={};Object.keys(fc).forEach(function(k){cum[+k]=fc[k];});}}
   for(var ym=ymS;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
+    if(ym in rates)continue;                      // 파일에 있는 달은 통신 없음
+    if(!jbState.tbl)jbState.tbl=await jbFindTable(ymE);
     if(progressCb)progressCb(ym);
     var rows=await jbMonthRows(jbState.tbl.id,ym);
+    if(!jbState.useF&&rows.length)jbDetect(rows);   // 파일로 준비된 경우 표 구조 판별이 아직 안 돼 있음
     var hit=rows.find(function(r){var d=jbSplit(r);return d.reg===reg&&d.use===use;});
     if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=='')rates[ym]=parseFloat(hit.DTA_VAL);
   }
-  return jbFactor(rates,g,e);
+  return jbFactor(rates,g,e,cum);
 }
 async function jbCompute(){
   var st=document.getElementById('jbStatus');
@@ -1057,14 +1076,19 @@ function jbPrepare(st,endYm){
   if(jbState.tbl&&jbState.regs&&jbState.regs.length)return Promise.resolve();
   if(jbPrepPromise)return jbPrepPromise;
   jbPrepPromise=(async function(){
-    if(st)st.textContent='지가변동률 통계표 찾는 중…';
-    jbState.tbl=await jbFindTable(endYm);
-    var rows=null,ym=endYm;
-    for(var back=0;back<=8;back++){ym=ymAdd(endYm,-back);if(st)st.textContent='최신 발표월 확인 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';rows=await jbMonthRows(jbState.tbl.id,ym);if(rows.length)break;}
-    if(!rows||!rows.length)throw new Error('최근 발표 자료를 찾지 못했습니다.');
-    jbState.latestYm=ym;jbDetect(rows);
-    var regs=[],uses=[];
-    rows.forEach(function(r){var d=jbSplit(r);if(d.reg&&regs.indexOf(d.reg)<0)regs.push(d.reg);if(d.use&&uses.indexOf(d.use)<0)uses.push(d.use);});
+    var regs=[],uses=[],F=window.ARAP_JIBYUN_DATA;
+    if(F&&F.rates&&F.regs&&F.regs.length){
+      // 매일 받아 둔 파일이 있으면 통신 없이 준비 (통계표·최신 발표월·지역·용도)
+      jbState.tbl=F.tbl;jbState.latestYm=+F.latestYm;regs=F.regs.slice();uses=(F.uses||[]).slice();
+    }else{
+      if(st)st.textContent='지가변동률 통계표 찾는 중…';
+      jbState.tbl=await jbFindTable(endYm);
+      var rows=null,ym=endYm;
+      for(var back=0;back<=8;back++){ym=ymAdd(endYm,-back);if(st)st.textContent='최신 발표월 확인 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';rows=await jbMonthRows(jbState.tbl.id,ym);if(rows.length)break;}
+      if(!rows||!rows.length)throw new Error('최근 발표 자료를 찾지 못했습니다.');
+      jbState.latestYm=ym;jbDetect(rows);
+      rows.forEach(function(r){var d=jbSplit(r);if(d.reg&&regs.indexOf(d.reg)<0)regs.push(d.reg);if(d.use&&uses.indexOf(d.use)<0)uses.push(d.use);});
+    }
     if(!regs.length||!uses.length)throw new Error('표 구조를 해석하지 못했습니다.');
     jbState.regs=regs;jbState.uses=uses;
     var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
