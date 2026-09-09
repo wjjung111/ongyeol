@@ -584,16 +584,13 @@
           <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
           <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 감정평가표(괄감)</button><span class="hint">감정평가액·면적·단가 자동</span></div>
           <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
-          <details style="margin-bottom:10px"><summary>의견서 보완 입력</summary>
-            <div class="fld" style="margin-top:8px"><label>건물신축단가표 출처·연도</label><input class="box" id="op_costSource" placeholder="예: 한국부동산원, 2025년"></div>
-            <div class="fld" style="margin-top:8px"><label>건물신축단가표 (건물평가 탭 선택 내용 · 직접 편집 가능)</label><textarea class="box" id="op_costRows" rows="3" placeholder="분류기호 → 용도 → 구조 → 급수 → 표준단가 → 내용연수 → 내용연수 범위 순서"></textarea></div>
-            <div class="hint">보완 입력을 비우면 한글에 [기입]으로 표시됩니다. 비교의견과 결정의견은 화면의 입력 내용을 반영합니다.</div>
-          </details>
+          <input type="hidden" id="op_costSource">
+          <textarea id="op_costRows" hidden></textarea>
           <div class="status" id="op_status" role="status"></div>
           <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
-          <div class="row"><button class="btn gh" id="btnYohang">📄 요항표 (.hwpx)</button><span class="hint">아래 조사 내용 편집 후 다운로드</span></div>
+          <div class="row"><button class="btn gh" id="btnYohang">📄 요항표 (.hwpx)</button><span class="hint">대상물건 정보 자동 · 추가 문구는 한글에서 편집</span></div>
           <input type="hidden" id="doc_yohang">
-          <details style="margin-top:10px"><summary>요항표 작성 내용</summary><div class="note">대상물건의 위치·형상·용도·구조를 가져옵니다. 현장조사 내용은 각 항목에 완성된 문장으로 작성하세요. 빈 항목은 한글에 [기입]으로 표시됩니다.</div><div id="yohang_fields" style="display:grid;gap:8px"></div></details>
+
           <div id="doc_status" class="status" role="status"></div>
         </div>
       </div>
@@ -1923,7 +1920,6 @@ function showTab(name){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
     document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
   });
-  if(name==='final'&&window.ArapTojiDocuments)ArapTojiDocuments.refresh();
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();

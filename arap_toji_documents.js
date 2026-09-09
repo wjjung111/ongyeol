@@ -10,12 +10,6 @@ function defaults(){
   return {위치:loc,지세형상:per(['지세','형상']),토지이용:per(['이용상황']),공법제한:per(['용도지역']),건물구조:[cgVal('bt_strct'),cgVal('bt_flrs')].filter(Boolean).join(' / '),건물이용:cgVal('bt_purps')};
 }
 function yohangMap(){var base=defaults(),s=saved(),m={};fields.forEach(function(f){var v=Object.prototype.hasOwnProperty.call(s,f[0])?s[f[0]]:base[f[0]];m['요항_'+f[0]]=String(v||'').trim()||'[기입]';});return m;}
-function refresh(){
-  var m=yohangMap(),host=$('yohang_fields');host.replaceChildren();
-  fields.forEach(function(f){var d=document.createElement('div');d.className='fld';var l=document.createElement('label'),t=document.createElement('textarea');l.textContent=f[1];t.className='box';t.rows=2;t.id='yh_'+f[0];l.htmlFor=t.id;t.placeholder='현장조사 내용 입력';t.value=m['요항_'+f[0]]==='[기입]'?'':m['요항_'+f[0]];
-    t.oninput=function(){var s=saved();s[f[0]]=t.value;$('doc_yohang').value=JSON.stringify(s);saveForm();};d.append(l,t);host.append(d);
-  });
-}
 function statementRows(){
   calcGongsi();renderBldCalc();calcFinal();
   var gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{rows:[]};
@@ -60,5 +54,5 @@ async function buildStatement(rows){
 async function run(button,action){button.disabled=true;$('doc_status').textContent='문서를 만드는 중…';try{await action();$('doc_status').textContent='파일을 받았습니다. 작성 내용과 [기입] 표시를 확인하세요.';}catch(e){$('doc_status').textContent=e.message;console.error(e);}finally{button.disabled=false;}}
 $('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=await buildStatement(statementRows());A.triggerDownload(bytes,'5. 명세표_'+(cgVal('ov_client')||'의뢰인')+'.xlsx');});};
 $('btnYohang').onclick=function(){return run(this,async function(){var bytes=await A.buildTokenHwpx(await fetchTplB64('템플릿/토건 요항표 자동입력.hwpx'),yohangMap(),{});A.triggerDownload(bytes,'4. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');});};
-window.ArapTojiDocuments={refresh:refresh,statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap};refresh();
+window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap};
 })();
