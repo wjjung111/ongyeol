@@ -378,9 +378,14 @@
 
           <!-- 시산가액: 왼쪽 계산 흐름의 마지막 칸(거래사례비교법 탭과 같은 자리) -->
           <div class="card" id="pinLand">
-            <h2>시산가액</h2>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">시산가액</h2>
+              <span style="font-size:12px;color:#626b78">결정단가</span>
+              <select class="box" id="sisan_unit" style="flex:0 0 auto;width:auto" onchange="calcGongsi();saveForm();" title="자동 = 집합건물과 같은 규칙: 백만원대 단가는 천원, 천만원대는 만원 단위"><option value="auto">자동(단가 자릿수)</option><option value="1000">천원 단위</option><option value="10000">만원 단위</option><option value="100000">십만원 단위</option><option value="1000000">백만원 단위</option></select>
+              <select class="box" id="sisan_mode" style="flex:0 0 auto;width:auto" onchange="calcGongsi();saveForm();"><option value="round">반올림</option><option value="floor">절사</option><option value="none">그대로</option></select>
+              <span id="sisan_hint" style="font-size:11px;color:#626b78"></span>
+            </div>
             <div class="tw"><table id="tblSisan"></table></div>
-            <div class="note">산출단가까지 자동 계산됩니다 → <b>결정단가</b>(반올림 자리)만 정하면 시산가액 자동. 비워두면 만원 단위 반올림값을 씁니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
+            <div class="note">산출단가까지 자동 계산되고, <b>결정단가</b>는 위에서 고른 단위·방식으로 자동으로 채워집니다(기본 "자동·반올림" = 집합건물과 같은 규칙: 백만원대 단가는 천원 단위, 천만원대는 만원 단위). 결정단가 칸을 직접 고치면 그 값을 쓰고(<span style="color:#dc2626;font-weight:700">빨간 글씨</span>), 비우면 다시 자동. 같은 설정이 거래사례비교법 적용단가에도 적용됩니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
           </div>
         </div>
 
@@ -621,6 +626,19 @@ function getOverride(){try{return localStorage.getItem(KEY_STORAGE)||'';}catch(e
 function getKey(){return getOverride()||DEFAULT_VKEY;}
 var num=function(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;};
 var won=function(n){return Math.round(n).toLocaleString('ko-KR');};
+// 결정단가(공시지가기준법)·적용단가(거래사례비교법) 자동값: 시산가액 카드의 단위·방식 드롭다운대로. '그대로'는 원 단위로 반올림만
+// 단위 '자동' = 집합건물 앱과 같은 규칙(유효숫자 3자리) — 백만원대 단가 → 천원 단위, 천만원대 → 만원 단위, 십만원대 → 백원 단위 …
+function sisanMode(){return (document.getElementById('sisan_mode')||{}).value||'round';}
+function sisanUnitFor(calc){var v=(document.getElementById('sisan_unit')||{}).value;if(v&&v!=='auto')return num(v)||10000;
+  if(!calc||calc<=0)return 1000;return Math.max(1,Math.pow(10,Math.floor(Math.log10(calc))-3));}
+var UNIT_KO={1:'원',10:'십원',100:'백원',1000:'천원',10000:'만원',100000:'십만원',1000000:'백만원',10000000:'천만원'};
+function roundUnit(v,unit,mode){if(!v)return 0;if(mode==='none')return Math.round(v);var q=v/unit+1e-9;return (mode==='floor'?Math.floor(q):Math.round(q))*unit;}
+function applyAuto(calc){return roundUnit(calc,sisanUnitFor(calc),sisanMode());}
+function sisanHint(calc){var el=document.getElementById('sisan_hint');if(!el)return;var m=sisanMode();
+  el.textContent=m==='none'?'※ 산출단가를 그대로 결정단가로':('※ '+(UNIT_KO[sisanUnitFor(calc)]||'')+' 단위에서 '+(m==='floor'?'절사':'반올림'));}
+// 결정단가 칸: 직접 고친 값(ov)이 있으면 그 값(자동값과 다르면 빨간 글씨), 없으면 자동값을 칸에 채운다
+function applyCell(ov,auto,setter){var isOv=hasV(ov)&&num(ov)!==auto;
+  return '<td class="jud-c"><input value="'+esc(hasV(ov)?ov:(auto?won(auto):''))+'" placeholder="자동"'+(isOv?' style="color:#dc2626;font-weight:700"':'')+' title="'+(isOv?'직접 고친 값 (자동값 '+won(auto)+'). 비우면 자동':'자동값 — 직접 고칠 수 있음')+'" oninput="'+setter+'"></td>';}
 function shortY(v){v=String(v||'').trim();return MAP_YONGDO[v]||v;}
 function dot(v){var m=String(v||'').match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})/);return m?(m[1]+'.'+('0'+m[2]).slice(-2)+'.'+('0'+m[3]).slice(-2)):String(v||'');}
 function mul(sel){var p=1;document.querySelectorAll(sel).forEach(function(i){p*=num(i.value)||1;});return Math.round(p*1000)/1000;}
@@ -1624,25 +1642,26 @@ function calcGongsi(){
   // ── 시산가액: 필지별 행 + 합계 ──
   var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>공시지가<br>(원/㎡)</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th>'
        +'<th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th><th>면적(㎡)</th><th>시산가액(원)</th></tr>';
-  var sumTotal=0,sumSize=0,firstApply=0;
+  var sumTotal=0,sumSize=0,firstApply=0,firstCalcG=0;
   LANDS.forEach(function(L,i){
     var j=Math.min(L.stdIdx||0,STDS.length-1),Sj=STDS[j]||{};
     var price=num(Sj['공시지가']),gfp=facProduct(landFactors(L)),etc=etcOf(j);
-    var calc=price*stf*1*gfp*etc;
-    var apply=num(L.apply)||(calc?Math.round(calc/10000)*10000:0);
+    var calc=price*stf*1*gfp*etc;if(i===0)firstCalcG=calc;
+    var autoApply=applyAuto(calc),apply=hasV(L.apply)?num(L.apply):autoApply;
     var size=num(L['면적']),tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(i===0)firstApply=apply;
     h+='<tr><td>'+(i+1)+'</td><td>'+String.fromCharCode(65+j)+'</td>'+
        '<td>'+(price?won(price):'-')+'</td><td>'+stf.toFixed(5)+'</td><td>1.000</td>'+
        '<td>'+gfp.toFixed(3)+'</td><td>'+(etc?etc.toFixed(2):'-')+'</td>'+
        '<td class="calc-c">'+(calc?won(calc):'-')+'</td>'+
-       '<td class="jud-c"><input value="'+esc(L.apply)+'" placeholder="반올림" oninput="LANDS['+i+'].apply=this.value;calcGongsi();saveForm();"></td>'+
+       applyCell(L.apply,autoApply,'LANDS['+i+'].apply=this.value;calcGongsi();saveForm();')+
        '<td>'+(size||'-')+'</td><td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
   if(LANDS.length>1)
     h+='<tr><td colspan="9" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
       +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblSisan',h);
+  sisanHint(firstCalcG);
   document.getElementById('resGongsi').textContent=sumTotal?won(sumTotal)+' 원':'-';
 
   window.GONGSI_RESULT={applyUnit:firstApply,total:sumTotal,size:sumSize};
@@ -1682,13 +1701,13 @@ function calcGeorae(){
   LANDS.forEach(function(L,i){
     var gfp=facProduct(landGaFactors(L));
     var calc=cal.landUnit*sj*st*ar*gfp;
-    var apply=num(L.gaApply)||(calc?Math.round(calc/10000)*10000:0);
+    var autoApply=applyAuto(calc),apply=hasV(L.gaApply)?num(L.gaApply):autoApply;
     var size=num(L['면적']),tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(i===0)firstCalc=calc;
     hs+='<tr><td>'+(i+1)+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td><td>'+sj.toFixed(2)+'</td><td>'+st.toFixed(5)+'</td>'
        +'<td>'+ar.toFixed(3)+'</td><td>'+gfp.toFixed(3)+'</td>'
        +'<td class="calc-c">'+(calc?won(calc):'-')+'</td>'
-       +'<td class="jud-c"><input value="'+esc(L.gaApply)+'" placeholder="반올림" oninput="LANDS['+i+'].gaApply=this.value;calcGeorae();saveForm();"></td>'
+       +applyCell(L.gaApply,autoApply,'LANDS['+i+'].gaApply=this.value;calcGeorae();saveForm();')
        +'<td>'+(size||'-')+'</td><td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
   if(LANDS.length>1)
@@ -1783,7 +1802,7 @@ function calcFinal(){
 // ================= 좌측 요약 사이드바 =================
 // 예시 회색글씨(placeholder): 본건 토지가 한 번 조회돼 실제 소재지가 들어오면 "예: 안양시 동안구 …" 같은 예시값은 전부 지운다.
 // '-'·'반올림'·'kais붙여넣기'·'⏳ 계산 중…'처럼 형식 안내인 것만 남긴다. 본건이 비면 원래 예시로 되돌린다.
-var KEEP_PH=['-','반올림','kais붙여넣기','⏳ 계산 중…'];
+var KEEP_PH=['-','반올림','자동','kais붙여넣기','⏳ 계산 중…'];
 function hideExamples(){
   var has=!!String((LANDS[0]||{})['소재지']||'').trim();
   document.querySelectorAll('input,textarea').forEach(function(el){
@@ -1828,7 +1847,7 @@ function sub(i,btn){
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice','ov_reportNo'];
 var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
-var GONGSI_IDS=['g_daegu','g_opinion','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
+var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion'];
 var GJ_IDS=['gj_review','gj_decide'];
 var FN_IDS=['fn_opinion'];
