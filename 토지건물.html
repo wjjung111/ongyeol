@@ -490,21 +490,14 @@
         <div class="tw" style="margin-top:7px"><table id="tblTradePick"></table></div>
       </div>
       <div class="card">
-        <h2>보정</h2>
-        <div class="tw"><table>
-          <tr><th>사례단가<br>(원/㎡)</th><th>사정보정</th><th>시점수정</th><th>지역요인</th><th>개별요인</th><th>산정단가<br>(원/㎡)</th></tr>
-          <tr><td id="ga_unit">-</td>
-              <td class="jud-c"><input id="ga_sajeong" value="1.00" oninput="calcGeorae()"></td>
-              <td class="jud-c"><input id="ga_time" placeholder="1.05378" oninput="calcGeorae()"></td>
-              <td class="jud-c"><input id="ga_area" value="1.000" oninput="calcGeorae()"></td>
-              <td class="calc-c" id="ga_indSum">1.000</td>
-              <td class="calc-c" id="ga_calc">-</td></tr>
-        </table></div>
-        <div class="fnote" id="gaTimeNote" style="margin-top:4px">시점수정 : <b id="gaTimeText">-</b> <button class="btn gh sm" style="margin-left:8px" onclick="autoGaTime(true)" title="채택한 거래사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 새로 조회">↻ 시점수정 자동</button></div>
-        <h3>개별요인 (필지별)</h3>
+        <h2>개별요인 (필지별)</h2>
         <div class="tw"><table id="tblGaFactors"></table></div>
         <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
       </div>
+      <!-- 사례 공통 보정치는 아래 시산가액 표 셀에서 직접 고친다(사정보정·지역요인 기본 1.000, 시점수정 자동). 숨은 입력이 저장·자동조회의 저장소 -->
+      <input type="hidden" id="ga_sajeong" value="1.000">
+      <input type="hidden" id="ga_time">
+      <input type="hidden" id="ga_area" value="1.000">
       <div class="card">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">거래사례비교법에 의한 시산가액<span id="gaVsGongsi" style="margin-left:8px;font-weight:400;font-size:11.5px;color:#475569"></span></h2>
           <span style="font-size:12px;color:#626b78">적용단가</span>
@@ -513,6 +506,7 @@
           <span id="ga_hint" style="font-size:11px;color:#626b78"></span>
         </div>
         <div class="tw"><table id="tblGaSisan"></table></div>
+        <div class="fnote" id="gaTimeNote" style="margin-top:6px">시점수정 : <b id="gaTimeText">-</b> <button class="btn gh sm" style="margin-left:8px" onclick="autoGaTime(true)" title="채택한 거래사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 새로 조회">↻ 시점수정 자동</button></div>
       </div>
     </div>
 
@@ -1681,12 +1675,10 @@ function calcGeorae(){
   if(!c){
     document.getElementById('tblGaFactors').innerHTML='<tr><th>안내</th></tr><tr><td>공시지가기준법 탭에서 거래사례를 먼저 입력·채택하세요.</td></tr>';
     document.getElementById('tblGaSisan').innerHTML='';
-    document.getElementById('ga_unit').textContent='-';document.getElementById('ga_calc').textContent='-';
-    document.getElementById('ga_indSum').textContent='-';
     document.getElementById('resGeorae').textContent='-';window.GEORAE_RESULT={total:0};calcGyeoljeong();return;}
   var cal=tradeCalc(c);
-  document.getElementById('ga_unit').textContent=cal.landUnit?won(cal.landUnit):'-';
-  var sj=num(document.getElementById('ga_sajeong').value)||1,st=num(document.getElementById('ga_time').value)||1,ar=num(document.getElementById('ga_area').value)||1;
+  var sajI=document.getElementById('ga_sajeong'),timeI=document.getElementById('ga_time'),areaI=document.getElementById('ga_area');
+  var sj=num(sajI.value)||1,st=num(timeI.value)||1,ar=num(areaI.value)||1;
   gaTimeNote();
 
   // 개별요인 — 필지별
@@ -1698,11 +1690,13 @@ function calcGeorae(){
       '<td class="calc-c">'+facProduct(f).toFixed(3)+'</td></tr>';
   });
   setTableHtml('tblGaFactors',hf);
-  document.getElementById('ga_indSum').textContent=facProduct(landGaFactors(LANDS[0]||{})).toFixed(3)+(LANDS.length>1?' 외':'');
 
-  // 시산가액 — 필지별 + 합계
+  // 시산가액 — 필지별 + 합계. 사정보정·시점수정·지역요인은 사례 공통값(숨은 입력)이며 표 셀에서 바로 고침(자동 채움, 필지 공통)
   var hs='<tr><th>일련<br>번호</th><th>사례단가<br>(원/㎡)</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th>'
         +'<th>산정단가<br>(원/㎡)</th><th>적용단가<br>(원/㎡)</th><th>면적(㎡)</th><th>시산가액(원)</th></tr>';
+  var facCell=function(rawVal,hiddenId,ph){
+    return '<td class="jud-c"><input value="'+esc(rawVal)+'" placeholder="'+ph+'" title="사례 공통 보정치 — 자동 채움, 직접 고칠 수 있음(모든 필지에 같이 적용)" oninput="document.getElementById(\''+hiddenId+'\').value=this.value;calcGeorae();saveForm();"></td>';};
+  var sajRaw=hasV(sajI.value)?sajI.value:'1.000',timeRaw=timeI.value,areaRaw=hasV(areaI.value)?areaI.value:'1.000';
   var sumTotal=0,sumSize=0,firstCalc=0;
   LANDS.forEach(function(L,i){
     var gfp=facProduct(landGaFactors(L));
@@ -1710,8 +1704,9 @@ function calcGeorae(){
     var autoApply=applyAuto(calc,'ga'),apply=hasV(L.gaApply)?num(L.gaApply):autoApply;
     var size=num(L['면적']),tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(i===0)firstCalc=calc;
-    hs+='<tr><td>'+(i+1)+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td><td>'+sj.toFixed(2)+'</td><td>'+st.toFixed(5)+'</td>'
-       +'<td>'+ar.toFixed(3)+'</td><td>'+gfp.toFixed(3)+'</td>'
+    hs+='<tr><td>'+(i+1)+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td>'
+       +facCell(sajRaw,'ga_sajeong','1.000')+facCell(timeRaw,'ga_time','자동')+facCell(areaRaw,'ga_area','1.000')
+       +'<td>'+gfp.toFixed(3)+'</td>'
        +'<td class="calc-c">'+(calc?won(calc):'-')+'</td>'
        +applyCell(L.gaApply,autoApply,'LANDS['+i+'].gaApply=this.value;calcGeorae();saveForm();')
        +'<td>'+(size||'-')+'</td><td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
@@ -1721,7 +1716,6 @@ function calcGeorae(){
        +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblGaSisan',hs);
   sisanHint(firstCalc,'ga');
-  document.getElementById('ga_calc').textContent=firstCalc?won(firstCalc):'-';
   document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
   window.GEORAE_RESULT={total:sumTotal};
   gaVsGongsiNote(sumTotal);
