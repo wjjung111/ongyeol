@@ -65,32 +65,46 @@ function chunks(v,n){return String(v||'').split('\n').flatMap(function(line){
 });}
 async function buildStatement(rows){
   var raw=await fetchTplB64('템플릿/토건 명세표 템플릿.xlsx'),entries=await A.parseZip(Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
-  var entry=entries.find(function(e){return /^xl\/worksheets\/sheet\d+\.xml$/.test(e.name);}),d=xml(dec.decode(entry.data)),sd=nodes(d,'sheetData')[0],original=nodes(sd,'row'),sample=original.find(function(r){return r.getAttribute('r')==='11';}),style={};nodes(sample,'c').forEach(function(c){style[c.getAttribute('r').replace(/\d/g,'')]=c.getAttribute('s');});
-  // B~K 열 순서. J(금액)는 값이 아니라 단가×사정면적 수식으로 넣는다(정답 양식과 동일).
+  var entry=entries.find(function(e){return /^xl\/worksheets\/sheet\d+\.xml$/.test(e.name);}),d=xml(dec.decode(entry.data)),sd=nodes(d,'sheetData')[0],original=nodes(sd,'row');
+  // 양식에서 첫 데이터행(플레이스홀더가 있는 행)과 합계행(SUM 수식이 있는 행)을 찾아 쓴다 — 행 번호를 코드에 고정하지 않는다.
+  var sample=original.find(function(row){return nodes(row,'t').some(function(t){return /\{\{명세_/.test(t.textContent);});});
+  var footer=original.find(function(row){return nodes(row,'f').some(function(f){return /^SUM\(/.test(f.textContent);});});
+  if(!sample||!footer)throw Error('명세표 양식에서 플레이스홀더 행 또는 합계행을 찾지 못했습니다.');
+  var style={};nodes(sample,'c').forEach(function(c){style[c.getAttribute('r').replace(/\d/g,'')]=c.getAttribute('s');});
+  var start=+sample.getAttribute('r'),base=+footer.getAttribute('r');
+  var rowAttrs=['ht','customHeight','spans','x14ac:dyDescent'].map(function(a){return [a,sample.getAttribute(a)];}).filter(function(p){return p[1]!=null;});
+  // B~K 열 순서. J(금액)는 값이 아니라 단가×사정면적 수식으로 넣는다(양식과 동일).
   var keys={B:'기호',C:'소재지',D:'지번',E:'지목용도',F:'지역구조',G:'공부면적',H:'사정면적',I:'단가',K:'비고'};
-  var wide={C:9,F:12,K:12},numeric={G:1,H:1,I:1},cols=['B','C','D','E','F','G','H','I','J','K'],r=11,total=0;
-  original.filter(function(row){return +row.getAttribute('r')>=10&&+row.getAttribute('r')<50;}).forEach(function(row){row.remove();});
-  var footer=original.find(function(row){return row.getAttribute('r')==='50';});
+  var wide={C:9,F:12,K:12},numeric={G:1,H:1,I:1},cols=['B','C','D','E','F','G','H','I','J','K'],r=start,total=0;
+  var newRow=function(n){var row=d.createElementNS(X,'row');row.setAttribute('r',n);rowAttrs.forEach(function(p){row.setAttribute(p[0],p[1]);});return row;};
+  original.filter(function(row){var n=+row.getAttribute('r');return n>=start&&n<base;}).forEach(function(row){row.remove();});
   rows.forEach(function(item){
-    var split={};cols.forEach(function(c){var k=keys[c];split[c]=!k?[]:numeric[c]?[item['명세_'+k]]:chunks(item['명세_'+k],wide[c]||8);});
+    var split={};cols.forEach(function(c){var k=keys[c];
+      if(!k){split[c]=[];return;}
+      if(numeric[c]){split[c]=[item['명세_'+k]];return;}
+      // 비고에 적은 재조달원가처럼 숫자만 있는 줄은 숫자로 넣어 양식의 천단위 서식을 그대로 받는다
+      split[c]=chunks(item['명세_'+k],wide[c]||8).map(function(line){return c==='K'&&/^[\d,]+$/.test(line)?Number(line.replace(/,/g,'')):line;});
+    });
     var height=Math.max(4,...cols.map(function(c){return split[c].length;}));
-    for(var j=0;j<height;j++){var row=d.createElementNS(X,'row');row.setAttribute('r',r);row.setAttribute('ht','21.45');row.setAttribute('customHeight','1');
+    for(var j=0;j<height;j++){var row=newRow(r);
       (function(rr,first){cols.forEach(function(c){
         row.append(c==='J'?cell(d,'J'+rr,style.J,null,first?'+I'+rr+'*H'+rr:null):cell(d,c+rr,style[c],split[c][j]));
       });})(r,j===0);
       sd.insertBefore(row,footer);r++;}
     total+=item['명세_평가액'];
   });
-  var end=Math.max(50,r+1),shift=end-50;
-  for(var blank=r;blank<end;blank++){var empty=d.createElementNS(X,'row');empty.setAttribute('r',blank);empty.setAttribute('ht','21.45');empty.setAttribute('customHeight','1');cols.forEach(function(c){empty.append(cell(d,c+blank,style[c],null));});sd.insertBefore(empty,footer);}
+  var end=Math.max(base,r+1),shift=end-base;
+  for(var blank=r;blank<end;blank++){var empty=newRow(blank);cols.forEach(function(c){empty.append(cell(d,c+blank,style[c],null));});sd.insertBefore(empty,footer);}
   // Keep the full body and move totals/print area for additional parcels and floors.
-  original.filter(function(row){return +row.getAttribute('r')>=50;}).forEach(function(row){var nr=+row.getAttribute('r')+shift;row.setAttribute('r',nr);nodes(row,'c').forEach(function(c){c.setAttribute('r',c.getAttribute('r').replace(/\d+$/,nr));});});
-  var old=nodes(footer,'c').find(function(c){return c.getAttribute('r')==='J'+end;});var sum=cell(d,'J'+end,old&&old.getAttribute('s'),total,'SUM(J11:J'+(end-1)+')');if(old)old.replaceWith(sum);else footer.append(sum);
-  var dim=nodes(d,'dimension')[0];if(dim)dim.setAttribute('ref','B3:K'+(end+5));
-  var setup=nodes(d,'pageSetup')[0];if(setup){setup.setAttribute('fitToWidth','1');setup.setAttribute('fitToHeight','0');}
+  original.filter(function(row){return +row.getAttribute('r')>=base;}).forEach(function(row){var nr=+row.getAttribute('r')+shift;row.setAttribute('r',nr);nodes(row,'c').forEach(function(c){c.setAttribute('r',c.getAttribute('r').replace(/\d+$/,nr));});});
+  var old=nodes(footer,'c').find(function(c){return c.getAttribute('r')==='J'+end;});var sum=cell(d,'J'+end,old&&old.getAttribute('s'),total,'SUM(J'+start+':J'+(end-1)+')');if(old)old.replaceWith(sum);else footer.append(sum);
+  var dim=nodes(d,'dimension')[0];if(dim&&/\d+$/.test(dim.getAttribute('ref')||''))dim.setAttribute('ref',dim.getAttribute('ref').replace(/\d+$/,function(n){return +n+shift;}));
+  // 인쇄 설정(배율·용지)은 양식 그대로 두고, 행이 늘어난 만큼 인쇄범위 끝만 밀어 준다.
   entry.data=enc.encode(ser(d));
-  var book=entries.find(function(e){return e.name==='xl/workbook.xml';}),bd=xml(dec.decode(book.data));nodes(bd,'definedName').forEach(function(n){if(n.getAttribute('name')==='_xlnm.Print_Area')n.textContent="'Sheet2'!$B$3:$K$"+(end+4);});var cp=nodes(bd,'calcPr')[0]||bd.documentElement.appendChild(bd.createElementNS(X,'calcPr'));cp.setAttribute('fullCalcOnLoad','1');book.data=enc.encode(ser(bd));
-  if(shift)entries.filter(function(e){return /^xl\/drawings\/drawing\d+\.xml$/.test(e.name);}).forEach(function(e){var drawing=xml(dec.decode(e.data));Array.from(drawing.getElementsByTagNameNS('*','row')).forEach(function(n){if(+n.textContent>=49)n.textContent=String(+n.textContent+shift);});e.data=enc.encode(ser(drawing));});
+  var book=entries.find(function(e){return e.name==='xl/workbook.xml';}),bd=xml(dec.decode(book.data));
+  nodes(bd,'definedName').forEach(function(n){if(n.getAttribute('name')==='_xlnm.Print_Area'&&shift)n.textContent=n.textContent.replace(/\d+$/,function(v){return +v+shift;});});
+  var cp=nodes(bd,'calcPr')[0]||bd.documentElement.appendChild(bd.createElementNS(X,'calcPr'));cp.setAttribute('fullCalcOnLoad','1');book.data=enc.encode(ser(bd));
+  if(shift)entries.filter(function(e){return /^xl\/drawings\/drawing\d+\.xml$/.test(e.name);}).forEach(function(e){var drawing=xml(dec.decode(e.data));Array.from(drawing.getElementsByTagNameNS('*','row')).forEach(function(n){if(+n.textContent>=base-1)n.textContent=String(+n.textContent+shift);});e.data=enc.encode(ser(drawing));});
   return A.createZipStored(entries);
 }
 async function run(button,action){button.disabled=true;$('doc_status').textContent='문서를 만드는 중…';try{await action();$('doc_status').textContent='파일을 받았습니다.';}catch(e){$('doc_status').textContent=e.message;console.error(e);}finally{button.disabled=false;}}
