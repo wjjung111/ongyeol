@@ -556,9 +556,9 @@
         </div>
         <div class="card">
           <h2>문서 생성</h2>
-          <div class="row" style="margin-bottom:7px"><button class="btn gh" disabled>📄 표지</button><span class="hint">양식 확보 후</span></div>
-          <div class="row" style="margin-bottom:7px"><button class="btn gh" disabled>📄 감정평가표(괄감)</button><span class="hint">템플릿 준비됨 · 엔진 연결 예정</span></div>
-          <div class="row" style="margin-bottom:7px"><button class="btn" disabled>📄 의견서(산출근거)</button><span class="hint">템플릿 준비됨 · 엔진 연결 예정</span></div>
+          <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
+          <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 감정평가표(괄감)</button><span class="hint">감정평가액·면적·단가 자동</span></div>
+          <div class="row" style="margin-bottom:7px"><button class="btn" disabled>📄 의견서(산출근거)</button><span class="hint">엔진 연결 예정(다음 단계)</span></div>
           <div class="row" style="margin-bottom:7px"><button class="btn gh" disabled>📄 명세표</button><span class="hint">엑셀 복사 방식 예정</span></div>
           <div class="row"><button class="btn gh" disabled>📄 요항표</button><span class="hint">양식 확보 후</span></div>
         </div>
@@ -1788,13 +1788,13 @@ function calcGyeoljeong(){
 // ================= 건물 원가법 =================
 function renderBldCalc(){
   var rows=bldRows(),tbl=document.getElementById('tblBldCalc');
-  if(!rows.length){tbl.innerHTML='<tr><th>안내</th></tr><tr><td>대상물건 탭에서 건축물대장을 불러오면 여기 층별 목록이 나타납니다.</td></tr>';window.BLD_RESULT={total:0};sd();return;}
+  if(!rows.length){tbl.innerHTML='<tr><th>안내</th></tr><tr><td>대상물건 탭에서 건축물대장을 불러오면 여기 층별 목록이 나타납니다.</td></tr>';window.BLD_RESULT={total:0,size:0};sd();return;}
   var useApr=parseYmd(document.getElementById('bt_useApr').value),gijun=parseYmd(document.getElementById('base_gijun').value);
   var yrs=(useApr&&gijun)?((gijun.y*10000+gijun.mo*100+gijun.d)-(useApr.y*10000+useApr.mo*100+useApr.d))/10000:null;
   var elapsed=yrs!=null?Math.floor(yrs):'';
   var multiDong=rows.some(function(r){return String(r['동']||'').trim();});
   var h='<tr>'+(multiDong?'<th>동</th>':'')+'<th>해당층</th><th>면적(㎡)</th><th>이용상황</th><th>구조</th><th>재조달원가<br>(원/㎡)</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가<br>(원/㎡)</th><th>금액(원)</th></tr>';
-  var total=0;
+  var total=0,areaSum=0;
   rows.forEach(function(r,i){
     var key='bld_re_'+i,lifeKey='bld_life_'+i;
     var saved=window.BLD_STATE&&window.BLD_STATE[i]||{};
@@ -1803,7 +1803,7 @@ function renderBldCalc(){
     var lf=num(life)||50,ec=(elapsed!==''?Math.min(elapsed,lf):0);
     var ratio=lf>0?Math.max(0,(lf-ec))/lf:0;
     var applyUnit=num(reCost)*ratio,amt=applyUnit*num(r['연면적']);
-    total+=amt;
+    total+=amt;areaSum+=num(r['연면적'])||0;
     h+='<tr>'+(multiDong?('<td>'+(r['동']||'')+'</td>'):'')+
        '<td>'+(r['층별']||'')+'</td><td>'+(r['연면적']||'')+'</td><td>'+(r['용도']||'')+'</td><td>'+(r['구조']||'')+'</td>'+
        '<td class="jud-c"><input id="'+key+'" value="'+reCost+'" placeholder="예 1,200,000" oninput="bldSet('+i+',\'reCost\',this.value)"></td>'+
@@ -1814,7 +1814,7 @@ function renderBldCalc(){
   });
   h+='<tr><td colspan="'+(multiDong?10:9)+'" style="text-align:right;font-weight:700">합계</td><td class="calc-c" style="font-size:13px">'+(total?won(total):'-')+'</td></tr>';
   setTableHtml('tblBldCalc',h);   // 재조달원가·내용연수 칸 입력 중 커서 유지
-  window.BLD_RESULT={total:total};
+  window.BLD_RESULT={total:total,size:areaSum};
   document.getElementById('resBld').textContent=total?won(total)+' 원':'-';
   sd();calcFinal();
 }
@@ -1967,6 +1967,47 @@ async function downloadCheonggu(){
     A.triggerDownload(bytes,'1. 청구서_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');
   }catch(e){console.error('청구서 hwpx 생성 실패',e);alert('청구서 생성 실패: '+e.message);}
 }
+
+// ================= 문서 생성 (표지·괄감 등) — 청구서와 같은 buildTokenHwpx 엔진, 템플릿은 런타임 fetch =================
+async function fetchTplB64(path){
+  var r=await fetch(encodeURI(path));
+  if(!r.ok)throw new Error('템플릿 로드 실패('+r.status+'): '+path);
+  var b=new Uint8Array(await r.arrayBuffer()),s='';
+  for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);
+  return btoa(s);
+}
+var docDot=function(s){return String(s||'').trim().replace(/\.$/,'');};                                   // 끝 점 제거(템플릿에 점 리터럴)
+var docArea=function(n){return (n||n===0)?Number(n).toLocaleString('ko-KR',{maximumFractionDigits:4}):'';}; // 면적(소수 유지)
+async function makeDoc(tplPath,map,fnameBase){
+  var A=window.ArapCheonggu;
+  if(!A){alert('문서 엔진(arap_cheonggu.js)이 로드되지 않았습니다. 새로고침 후 다시 시도하세요.');return;}
+  try{
+    var b64=await fetchTplB64(tplPath);
+    var bytes=await A.buildTokenHwpx(b64,map,{});
+    A.triggerDownload(bytes,fnameBase+'_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');
+  }catch(e){console.error('문서 생성 실패',e);alert('문서 생성 실패: '+e.message);}
+}
+// 괄감(감정평가표) 토큰맵 — 개요 필드 + 계산결과(GONGSI_RESULT·LAND_FINAL·BLD_RESULT)
+function gwalMap(){
+  var A=window.ArapCheonggu,gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{};
+  var land=window.LAND_FINAL||0,bld=br.total||0,total=land+bld;
+  return {
+    '의뢰인':cgVal('ov_client'),'소유자':cgVal('ov_owner'),
+    '평가목적':cgVal('ov_purpose')||'일반거래(시가참고)','제출처':cgVal('ov_submit')||'-',
+    '기준가치':cgVal('ov_value')||'시장가치','평가조건':cgVal('ov_cond')||'-',
+    '기준시점':docDot(cgVal('base_gijun')),'조사기간':docDot(cgVal('base_josa')),'작성일자':docDot(cgVal('ov_writeDay')||A.today()),
+    '기타참고사항':'-',
+    '감정평가액':won(total),'감정평가액한글':(total?A.numberToKoreanMoney(total)+'원':''),
+    '괄_토지_공부면적':docArea(gs.size),'괄_토지_사정면적':docArea(gs.size),
+    '괄_토지_단가':gs.applyUnit?won(gs.applyUnit):'-','괄_토지_금액':land?won(land):'-',
+    '괄_건물_공부면적':docArea(br.size),'괄_건물_사정면적':docArea(br.size),
+    '괄_건물_단가':'-','괄_건물_금액':bld?won(bld):'-'
+  };
+}
+function downloadGwal(){return makeDoc('템플릿/토건 괄호감정표 템플릿.hwpx',gwalMap(),'2. 감정평가표(괄감)');}
+// 표지 토큰맵 — 의뢰인·건명(본건 소재지)·접수번호
+function pyojiMap(){return {'의뢰인':cgVal('ov_client'),'건명':cheongguAddr(),'접수번호':cgVal('ov_caseNo')};}
+function downloadPyoji(){return makeDoc('템플릿/토건 표지 템플릿.hwpx',pyojiMap(),'1. 표지');}
 
 function collect(){
   var o={base:{},ov:{},bt:{},bld:[],jb:{},gongsi:{},georae:{},gj:{},fn:{},cg:{}};
