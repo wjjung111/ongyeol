@@ -80,7 +80,8 @@ function newCostMaps(){
   });
 }
 function opinionData(){
-  var gs=window.GONGSI_RESULT,ga=window.GEORAE_RESULT||{},br=window.BLD_RESULT||{rows:[],total:0,size:0};
+  var gs=window.GONGSI_RESULT,ga=window.GEORAE_RESULT||{};
+  var br=(typeof bldResult==='function'?bldResult():null)||window.BLD_RESULT||{rows:[],total:0,size:0};
   if(!gs||!gs.rows||!gs.rows.length||!gs.total)throw new Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
   var etc=gs.etc,choice=etcCase(),choiceName=ETC.type==='t'?'거래사례 #'+(ETC.idx+1):'평가사례 '+text(choice&&choice.no);
   var tm=etcTimeMeta(),selected=TRADES[GA.idx]||{},gt=(ga.rows||[])[0]||{};

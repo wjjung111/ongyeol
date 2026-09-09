@@ -2026,9 +2026,21 @@ async function makeDoc(tplPath,map,fnameBase){
   }catch(e){console.error('문서 생성 실패',e);alert('문서 생성 실패: '+e.message);}
 }
 // 괄감(감정평가표) 토큰맵 — 개요 필드 + 계산결과(GONGSI_RESULT·LAND_FINAL·BLD_RESULT)
+// 건물 원가법 결과 — 아직 계산 전(건물 탭을 한 번도 안 연 경우)이면 여기서 계산해서 돌려준다
+function bldResult(){
+  if(!window.BLD_RESULT&&typeof renderBldCalc==='function'){try{renderBldCalc();}catch(e){console.error('건물 계산 실패',e);}}
+  return window.BLD_RESULT||{total:0,size:0,rows:[]};
+}
+// 감정평가표 건물 단가 — 층별 적용단가가 모두 같으면 그 단가, 다르면 '-'(단가×면적=금액이 깨지지 않도록)
+function bldUnitPrice(br){
+  var us=(br.rows||[]).filter(function(r){return r.size>0&&r.apply>0;}).map(function(r){return Math.round(r.apply);});
+  if(!us.length)return 0;
+  return us.every(function(u){return u===us[0];})?us[0]:0;
+}
 function gwalMap(){
-  var A=window.ArapCheonggu,gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{};
+  var A=window.ArapCheonggu,gs=window.GONGSI_RESULT||{},br=bldResult();
   var land=window.LAND_FINAL||0,bld=br.total||0,total=land+bld;
+  var bldUnit=bldUnitPrice(br);
   return {
     '의뢰인':cgVal('ov_client'),'소유자':cgVal('ov_owner'),
     '평가목적':cgVal('ov_purpose')||'일반거래(시가참고)','제출처':cgVal('ov_submit')||'-',
@@ -2038,11 +2050,16 @@ function gwalMap(){
     '감정평가액':won(total),'감정평가액한글':(total?A.numberToKoreanMoney(total)+'원':''),
     '괄_토지_공부면적':docArea(gs.size),'괄_토지_사정면적':docArea(gs.size),
     '괄_토지_단가':gs.applyUnit?won(gs.applyUnit):'-','괄_토지_금액':land?won(land):'-',
-    '괄_건물_공부면적':docArea(br.size),'괄_건물_사정면적':docArea(br.size),
-    '괄_건물_단가':'-','괄_건물_금액':bld?won(bld):'-'
+    '괄_건물_공부면적':br.size?docArea(br.size):'-','괄_건물_사정면적':br.size?docArea(br.size):'-',
+    '괄_건물_단가':bldUnit?won(bldUnit):'-','괄_건물_금액':bld?won(bld):'-'
   };
 }
-function downloadGwal(){return makeDoc('템플릿/토건 괄호감정표 템플릿.hwpx',gwalMap(),'2. 감정평가표(괄감)');}
+function downloadGwal(){
+  var br=bldResult();
+  // 층별 면적은 있는데 금액이 0이면 재조달원가 미입력 — 건물가액이 빈칸으로 나가는 것을 먼저 알린다
+  if(br.size&&!br.total&&!confirm('건물 재조달원가가 입력되지 않아 건물가액이 빈칸으로 나갑니다.\n건물 탭에서 층별 재조달원가를 입력하세요.\n\n그래도 지금 받으시겠습니까?'))return;
+  return makeDoc('템플릿/토건 괄호감정표 템플릿.hwpx',gwalMap(),'2. 감정평가표(괄감)');
+}
 // 표지 토큰맵 — 의뢰인·건명(본건 소재지)·접수번호
 function pyojiMap(){return {'의뢰인':cgVal('ov_client'),'건명':cheongguAddr(),'접수번호':cgVal('ov_caseNo')};}
 function downloadPyoji(){return makeDoc('템플릿/토건 표지 템플릿.hwpx',pyojiMap(),'1. 표지');}
@@ -2448,6 +2465,7 @@ document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx �
   if(el)el.addEventListener('blur',function(){fmtDateField(el);updatePeriod();saveForm();sd();});});
 initMemo();
 initSplits();initMemoResize();
+renderBldCalc();   // 켤 때 건물 원가법도 함께 계산 — 건물 탭을 열지 않고 문서를 뽑아도 건물가액이 들어가도록
 calcGongsi();
 renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채움·미리보기)
 
