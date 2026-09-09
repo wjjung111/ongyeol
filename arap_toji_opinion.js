@@ -65,7 +65,9 @@ function buildingMaps(rows){
     if(!g){g={key:key,rows:[]};groups.push(g);}g.rows.push(r);});
   return groups.map(function(g){
     var unique=function(k){return Array.from(new Set(g.rows.map(function(r){return text(r.data[k]);}).filter(Boolean))).join(', ');};
-    var ad=address(cheongguAddr());return {'건물_번호':g.key,'건물_소재지':ad.loc,'건물_지번':ad.lot,
+    // 건물 소재지·지번은 토지 표와 같은 표기(동명 + 지번). 층별 행에 값이 있으면 그것을, 없으면 첫 필지 토지 값을 쓴다.
+    var land=LANDS[0]||{},first=(g.rows[0]&&g.rows[0].data)||{};
+    return {'건물_번호':g.key,'건물_소재지':text(first['소재지'])||text(land['소재지']),'건물_지번':text(first['지번'])||text(land['지번']),
       '건물_구조':unique('구조')||val('bt_strct'),'건물_층수':groups.length===1?val('bt_flrs'):unique('층별'),
       '건물_용도':unique('용도')||val('bt_purps'),'건물_면적':area(g.rows.reduce(function(s,r){return s+r.size;},0)),
       '건물_승인일':docDot(val('bt_useApr')),'건물_비고':''};
