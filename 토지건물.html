@@ -192,6 +192,8 @@
 <body>
 <script src="arap_access.js"></script>
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
+<script src="arap_cheonggu.js"></script><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
+
 <script src="arap_jibyun_data.js"></script><!-- 지가변동률+연도 누계(매일 06시 자동갱신). 있으면 통신 없이 계산, 없거나 파일 밖 달은 프록시 -->
 <div id="mode-bar">
   <a class="mb-home" href="index.html" title="온결 입장 화면으로">🏠 홈</a>
@@ -239,6 +241,7 @@
       <button id="tabbtn-gyeoljeong" onclick="showTab('gyeoljeong')">토지감정평가액 결정</button>
       <button id="tabbtn-bld" onclick="showTab('bld')">건물 평가</button>
       <button id="tabbtn-final" onclick="showTab('final')">토지건물 시산가액</button>
+      <button id="tabbtn-cheonggu" onclick="showTab('cheonggu')">청구서</button>
     </div>
 
     <!-- ═══════════ 대상물건 ═══════════ -->
@@ -555,12 +558,41 @@
           <h2>문서 생성</h2>
           <div class="row" style="margin-bottom:7px"><button class="btn" disabled>📄 산출근거 (.hwpx)</button><span class="hint">다음 단계</span></div>
           <div class="row" style="margin-bottom:7px"><button class="btn gh" disabled>📄 표지·감정평가표</button><span class="hint">양식 확보 후</span></div>
-          <div class="row"><button class="btn gh" disabled>📄 청구서</button><span class="hint">추후</span></div>
+          <div class="row"><button class="btn gh" onclick="showTab('cheonggu')">📄 청구서</button><span class="hint">청구서 탭에서 수수료 계산서 붙여넣고 한글파일 받기</span></div>
         </div>
       </div>
       <div class="card">
         <h2>검산 패널</h2>
         <div class="tw"><table id="tblCheck"></table></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ 청구서 (한글 hwpx) — 집합건물 청구서와 동일 양식·계산 ═══════════ -->
+    <div id="tab-cheonggu" class="tab">
+      <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
+      <div class="cols5050">
+        <div class="card">
+          <h2>수수료 계산서</h2>
+          <div class="note">감정평가액을 수수료 계산 사이트에 넣어 <b>‘계산서1’ 전체를 복사</b>한 뒤 아래에 붙여넣으세요. (하한·기준·상한 수수료/총액 줄이 포함돼야 인식됩니다) &nbsp;현재 감정평가액: <b id="cg_amt">-</b></div>
+          <textarea id="cg_feeText" rows="5" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 수수료 계산서(계산서1) 전체를 붙여넣으세요"></textarea>
+          <div class="grid2" style="margin-top:8px">
+            <span class="fld"><label>요율 기준</label>
+              <select id="cg_feeBasis"><option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select></span>
+            <span class="fld"><label>기납부 착수금</label><input type="text" id="cg_downPayment" placeholder="1,000,000"></span>
+            <span class="fld"><label>특별용역비</label><input type="text" id="cg_special" placeholder="0"></span>
+            <span class="fld"><label>여비</label><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></span>
+            <span class="fld"><label>물건조사비</label><input type="text" id="cg_survey" placeholder="15,000"></span>
+            <span class="fld"><label>공부발급비</label><input type="text" id="cg_doc" placeholder="15,000"></span>
+            <span class="fld"><label>기타실비</label><input type="text" id="cg_etc" placeholder="0"></span>
+          </div>
+          <div class="note" style="margin-top:8px">여비는 본건 소재지 기준으로 <b>자동 입력</b>되며 직접 고칠 수 있습니다. 물건조사비·공부발급비는 기본 15,000원, 특별용역비·기타실비는 평가사가 정합니다.</div>
+        </div>
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">청구 금액</h2>
+            <button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 청구서 (.hwpx) 받기</button></div>
+          <div class="tw"><table id="cg_preview"></table></div>
+          <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료를 <b>천원 미만 절사</b>. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부 착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.</div>
+        </div>
       </div>
     </div>
 
@@ -1845,7 +1877,7 @@ function sd(){
 }
 
 // ================= 탭 =================
-var TAB_NAMES=['daesang','gongsi','georae','gyeoljeong','bld','final'];
+var TAB_NAMES=['daesang','gongsi','georae','gyeoljeong','bld','final','cheonggu'];
 function showTab(name){
   TAB_NAMES.forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
@@ -1853,6 +1885,7 @@ function showTab(name){
   });
   if(name==='bld')renderBldCalc();
   if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
+  if(name==='cheonggu')renderCheonggu();
   window.scrollTo(0,0);
 }
 function sub(i,btn){
@@ -1868,8 +1901,73 @@ var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime',
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion'];
+var CG_IDS=['cg_feeText','cg_feeBasis','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
+var CG_LAST_TRAVEL=null;   // 직전에 자동 채운 여비값 — 사용자가 고쳤는지 판별용(applyCell과 같은 방식)
+
+// ================= 청구서 (한글 hwpx) — 엔진은 arap_cheonggu.js(집합건물 청구서와 동일 양식·계산) =================
+function cgVal(id){var el=document.getElementById(id);return el?el.value:'';}
+function cgEmptyNull(id){var v=cgVal(id);return String(v).trim()===''?null:v;}
+// 청구서 건명: 본건 소재지(+외 N필지) + 토지/토지 및 건물
+function cheongguAddr(){
+  var L0=LANDS[0]||{},a=(L0.fullAddr||((L0['소재지']||'')+' '+(L0['지번']||''))).trim();
+  var more=LANDS.length>1?(' 외 '+(LANDS.length-1)+'필지'):'';
+  var hasBld=/[1-9]/.test((document.getElementById('resBld')||{}).textContent||'');
+  return (a||'-')+more+(hasBld?' 토지 및 건물':' 토지');
+}
+// 수수료 계산서 인식 + 실비/착수금으로 청구금액 계산 (없으면 null)
+function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
+  var fee=A.parseFeeStatement(cgVal('cg_feeText'));if(!fee||!fee.하한수수료)return null;
+  return A.computeCheonggu(fee,cgVal('cg_downPayment'),cgVal('cg_special'),cgVal('cg_feeBasis'),
+    cgEmptyNull('cg_travel'),cgEmptyNull('cg_survey'),cgEmptyNull('cg_doc'),cgEmptyNull('cg_etc'));
+}
+function renderCheonggu(){
+  var A=window.ArapCheonggu;
+  // 여비·물건조사비·공부발급비 자동 채움(비어 있고 편집 중이 아닐 때)
+  var tv=document.getElementById('cg_travel');
+  if(tv&&document.activeElement!==tv){   // 여비: 본건 소재지 자동값을 따라가되, 사용자가 다른 값으로 고쳤으면 그대로 둔다
+    var auto=40000;if(A){var f=A.arapTravelFee(cheongguAddr());if(f!=null)auto=f;}
+    if(!hasV(tv.value)||num(tv.value)===CG_LAST_TRAVEL)tv.value=String(auto);
+    CG_LAST_TRAVEL=auto;}
+  var sv=document.getElementById('cg_survey');if(sv&&!hasV(sv.value)&&document.activeElement!==sv)sv.value='15000';
+  var dv=document.getElementById('cg_doc');if(dv&&!hasV(dv.value)&&document.activeElement!==dv)dv.value='15000';
+  var amtEl=document.getElementById('cg_amt');if(amtEl)amtEl.textContent=(document.getElementById('resFinal')||{}).textContent||'-';
+  var c=cgFee(),box=document.getElementById('cg_preview'),btn=document.getElementById('btnCheonggu'),res=document.getElementById('resCheonggu');
+  if(!c){if(box)box.innerHTML='<tr><td class="tt-c" style="padding:10px">수수료 계산서를 붙여넣으면 청구 금액이 계산됩니다.</td></tr>';if(btn)btn.disabled=true;if(res)res.textContent='-';return;}
+  if(btn)btn.disabled=false;
+  var fm=A?A.fmt:function(n){return won(n);};
+  var row=function(k,v,strong){return '<tr><td class="rowh" style="text-align:left">'+k+'</td><td class="calc-c"'+(strong?' style="font-size:13px"':'')+'>'+(v?fm(v)+' 원':'-')+'</td></tr>';};
+  if(box)box.innerHTML=
+    row('평가수수료',c.평가수수료)+row('여비',c.여비)+row('물건조사비',c.물건조사비)+row('공부발급비',c.공부발급비)
+    +row('기타실비',c.기타실비)+row('특별용역비',c.특별용역비)+row('실비 소계',c.소계)
+    +row('합계',c.합계)+row('부가가치세',c.부가세)+row('총계',c.총계,1)
+    +row('기납부 착수금',c.착수금)+row('정산청구액',c.정산청구액,1);
+  if(res)res.textContent=c.정산청구액?fm(c.정산청구액)+' 원':'-';
+}
+async function downloadCheonggu(){
+  var A=window.ArapCheonggu;
+  if(!A){alert('청구서 엔진(arap_cheonggu.js)이 로드되지 않았습니다. 새로고침 후 다시 시도하세요.');return;}
+  if(!hasV(cgVal('ov_client'))){alert('대상물건 탭에서 「의뢰인」을 먼저 입력하세요.');showTab('daesang');return;}
+  var c=cgFee();
+  if(!c){alert('수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(수수료 계산 사이트 → 계산서1 복사 → 붙여넣기)');return;}
+  var f0=function(n){return n?A.fmt(n):'-';},stripDot=function(s){return String(s||'').trim().replace(/\.$/,'');};
+  var map={
+    '의뢰인':cgVal('ov_client'),'총계한글':A.numberToKoreanMoney(c.총계)+'원','총계':A.fmt(c.총계),
+    '의뢰일':stripDot(cgVal('ov_orderDay')||cgVal('ov_writeDay')),'건명':cheongguAddr(),
+    '평가수수료':A.fmt(c.평가수수료),
+    '여비':f0(c.여비),'물건조사비':f0(c.물건조사비),'공부발급비':f0(c.공부발급비),'기타실비':f0(c.기타실비),
+    '특별용역비':f0(c.특별용역비),'실비소계':f0(c.소계),
+    '합계':A.fmt(c.합계),'부가가치세':A.fmt(c.부가세),
+    '기납부착수금':f0(c.착수금),'정산청구액':A.fmt(c.정산청구액),
+    '접수번호':cgVal('ov_caseNo'),'작성일자':stripDot(cgVal('ov_writeDay')||A.today()),
+  };
+  try{
+    var bytes=await A.buildTokenHwpx(A.TPL_B64,map,A.BLUE2BLACK);
+    A.triggerDownload(bytes,'1. 청구서_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');
+  }catch(e){console.error('청구서 hwpx 생성 실패',e);alert('청구서 생성 실패: '+e.message);}
+}
+
 function collect(){
-  var o={base:{},ov:{},bt:{},bld:[],jb:{},gongsi:{},georae:{},gj:{},fn:{}};
+  var o={base:{},ov:{},bt:{},bld:[],jb:{},gongsi:{},georae:{},gj:{},fn:{},cg:{}};
   o.base.gongsi=document.getElementById('base_gongsi').value;
   o.base.gijun=document.getElementById('base_gijun').value;
   o.base.josa=document.getElementById('base_josa').value;
@@ -1882,6 +1980,7 @@ function collect(){
   GEORAE_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.georae[id]=el.value;});
   GJ_IDS.forEach(function(id){o.gj[id]=document.getElementById(id).value;});
   FN_IDS.forEach(function(id){o.fn[id]=document.getElementById(id).value;});
+  CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.cg[id]=el.value;});
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   return o;
 }
@@ -2007,6 +2106,7 @@ function applyForm(o){
   if(o.georae)GEORAE_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.georae[id]!=null)el.value=o.georae[id];});
   if(o.gj)GJ_IDS.forEach(function(id){if(o.gj[id]!=null)document.getElementById(id).value=o.gj[id];});
   if(o.fn)FN_IDS.forEach(function(id){if(o.fn[id]!=null)document.getElementById(id).value=o.fn[id];});
+  if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
   return true;
 }
@@ -2061,7 +2161,7 @@ function clearForm(){
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
-  GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
 }
 function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();}
@@ -2241,6 +2341,8 @@ function initMemoResize(){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){saveForm();sd();renderCaseBar();});});
 GONGSI_IDS.concat(GEORAE_IDS).forEach(function(id){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',saveForm);});
+CG_IDS.forEach(function(id){
+  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){renderCheonggu();saveForm();});});
 if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});}
 applyOvDefaults();
 // 저장된 건 목록 로드 + 현재 작업건(접수번호) 목록 편입
@@ -2260,6 +2362,7 @@ document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx �
 initMemo();
 initSplits();initMemoResize();
 calcGongsi();
+renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채움·미리보기)
 
 // ================= 키보드 셀 이동 (↑/↓ 방향키 + Tab) =================
 // 텍스트 입력칸에서 ↑/↓ 로 위·아래 칸으로 포커스 이동(같은 열 우선). ←→·Tab은 기본 동작 유지.
