@@ -292,6 +292,7 @@
             <span class="hint">여러 필지면 조회를 반복하면 행이 쌓입니다. 모든 칸은 클릭해서 수정 가능. 면적 합계: <b id="landSum">0</b> ㎡</span>
             <span class="hint" id="landCopyMsg" style="margin-left:auto"></span>
           </div>
+          <div class="fld" style="margin-top:12px"><label for="op_location">인근 위치 설명</label><input class="box" id="op_location" placeholder="예: 달서초등학교 북동측"></div>
         </div>
 
         <div class="card">
@@ -560,7 +561,6 @@
           <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 감정평가표(괄감)</button><span class="hint">감정평가액·면적·단가 자동</span></div>
           <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
           <details style="margin-bottom:10px"><summary>의견서 보완 입력</summary>
-            <div class="fld" style="margin-top:8px"><label>인근 위치 설명</label><input class="box" id="op_location" placeholder="예: 달서초등학교 북동측"></div>
             <div class="fld" style="margin-top:8px"><label>건물신축단가표 출처·연도</label><input class="box" id="op_costSource" placeholder="예: 한국부동산원, 2025년"></div>
             <div class="fld" style="margin-top:8px"><label>건물신축단가표 (엑셀에서 행별로 복사)</label><textarea class="box" id="op_costRows" rows="3" placeholder="분류기호 → 용도 → 구조 → 급수 → 표준단가 → 내용연수 → 내용연수 범위 순서"></textarea></div>
             <div class="hint">보완 입력을 비우면 한글에 [기입]으로 표시됩니다. 비교의견과 결정의견은 화면의 입력 내용을 반영합니다.</div>
