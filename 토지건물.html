@@ -558,7 +558,14 @@
           <h2>문서 생성</h2>
           <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
           <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 감정평가표(괄감)</button><span class="hint">감정평가액·면적·단가 자동</span></div>
-          <div class="row" style="margin-bottom:7px"><button class="btn" disabled>📄 의견서(산출근거)</button><span class="hint">엔진 연결 예정(다음 단계)</span></div>
+          <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
+          <details style="margin-bottom:10px"><summary>의견서 보완 입력</summary>
+            <div class="fld" style="margin-top:8px"><label>인근 위치 설명</label><input class="box" id="op_location" placeholder="예: 달서초등학교 북동측"></div>
+            <div class="fld" style="margin-top:8px"><label>건물신축단가표 출처·연도</label><input class="box" id="op_costSource" placeholder="예: 한국부동산원, 2025년"></div>
+            <div class="fld" style="margin-top:8px"><label>건물신축단가표 (엑셀에서 행별로 복사)</label><textarea class="box" id="op_costRows" rows="3" placeholder="분류기호 → 용도 → 구조 → 급수 → 표준단가 → 내용연수 → 내용연수 범위 순서"></textarea></div>
+            <div class="hint">보완 입력을 비우면 한글에 [기입]으로 표시됩니다. 비교의견과 결정의견은 화면의 입력 내용을 반영합니다.</div>
+          </details>
+          <div class="status" id="op_status" role="status"></div>
           <div class="row" style="margin-bottom:7px"><button class="btn gh" disabled>📄 명세표</button><span class="hint">엑셀 복사 방식 예정</span></div>
           <div class="row"><button class="btn gh" disabled>📄 요항표</button><span class="hint">양식 확보 후</span></div>
         </div>
@@ -1676,7 +1683,7 @@ function calcGongsi(){
   // ── 시산가액: 필지별 행 + 합계 ──
   var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>공시지가<br>(원/㎡)</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th>'
        +'<th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th><th>면적(㎡)</th><th>시산가액(원)</th></tr>';
-  var sumTotal=0,sumSize=0,firstApply=0,firstCalcG=0;
+  var sumTotal=0,sumSize=0,firstApply=0,firstCalcG=0,docRows=[];
   LANDS.forEach(function(L,i){
     var j=Math.min(L.stdIdx||0,STDS.length-1),Sj=STDS[j]||{};
     var price=num(Sj['공시지가']),gfp=facProduct(landFactors(L)),etc=etcOf(j);
@@ -1684,6 +1691,7 @@ function calcGongsi(){
     var autoApply=applyAuto(calc),apply=hasV(L.apply)?num(L.apply):autoApply;
     var size=num(L['면적']),tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(i===0)firstApply=apply;
+    docRows.push({stdIdx:j,price:price,time:stf,area:1,factors:landFactors(L).slice(),individual:gfp,etc:etc,calculated:calc,apply:apply,size:size,total:tot});
     h+='<tr><td>'+(i+1)+'</td><td>'+String.fromCharCode(65+j)+'</td>'+
        '<td>'+(price?won(price):'-')+'</td><td>'+stf.toFixed(5)+'</td><td>1.000</td>'+
        '<td>'+gfp.toFixed(3)+'</td><td>'+(etc?etc.toFixed(2):'-')+'</td>'+
@@ -1698,7 +1706,8 @@ function calcGongsi(){
   sisanHint(firstCalcG);
   document.getElementById('resGongsi').textContent=sumTotal?won(sumTotal)+' 원':'-';
 
-  window.GONGSI_RESULT={applyUnit:firstApply,total:sumTotal,size:sumSize};
+  window.GONGSI_RESULT={applyUnit:firstApply,total:sumTotal,size:sumSize,rows:docRows,
+    etc:{stdIdx:sj,source:su,sajeong:saj1,time:et,area:ea,individual:ind,out1:o1,price:sp,stdTime:stf2,stdSajeong:saj2,stdArea:ea2,stdIndividual:ind2,out2:o2,ratio:ratio}};
   renderTradePick();
   calcGeorae();sd();
 }
@@ -1731,13 +1740,14 @@ function calcGeorae(){
   var facCell=function(rawVal,hiddenId,ph){
     return '<td class="jud-c"><input value="'+esc(rawVal)+'" placeholder="'+ph+'" title="사례 공통 보정치 — 자동 채움, 직접 고칠 수 있음(모든 필지에 같이 적용)" oninput="document.getElementById(\''+hiddenId+'\').value=this.value;calcGeorae();saveForm();"></td>';};
   var sajRaw=hasV(sajI.value)?sajI.value:'1.000',timeRaw=timeI.value,areaRaw=hasV(areaI.value)?areaI.value:'1.000';
-  var sumTotal=0,sumSize=0,firstCalc=0;
+  var sumTotal=0,sumSize=0,firstCalc=0,docRows=[];
   LANDS.forEach(function(L,i){
     var gfp=facProduct(landGaFactors(L));
     var calc=cal.landUnit*sj*st*ar*gfp;
     var autoApply=applyAuto(calc,'ga'),apply=hasV(L.gaApply)?num(L.gaApply):autoApply;
     var size=num(L['면적']),tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(i===0)firstCalc=calc;
+    docRows.push({source:cal.landUnit,sajeong:sj,time:st,area:ar,factors:landGaFactors(L).slice(),individual:gfp,calculated:calc,apply:apply,size:size,total:tot});
     hs+='<tr><td>'+(i+1)+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td>'
        +facCell(sajRaw,'ga_sajeong','1.000')+facCell(timeRaw,'ga_time','자동')+facCell(areaRaw,'ga_area','1.000')
        +'<td>'+gfp.toFixed(3)+'</td>'
@@ -1751,7 +1761,7 @@ function calcGeorae(){
   setTableHtml('tblGaSisan',hs);
   sisanHint(firstCalc,'ga');
   document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
-  window.GEORAE_RESULT={total:sumTotal};
+  window.GEORAE_RESULT={total:sumTotal,rows:docRows};
   gaVsGongsiNote(sumTotal);
   calcGyeoljeong();
 }
@@ -1788,13 +1798,13 @@ function calcGyeoljeong(){
 // ================= 건물 원가법 =================
 function renderBldCalc(){
   var rows=bldRows(),tbl=document.getElementById('tblBldCalc');
-  if(!rows.length){tbl.innerHTML='<tr><th>안내</th></tr><tr><td>대상물건 탭에서 건축물대장을 불러오면 여기 층별 목록이 나타납니다.</td></tr>';window.BLD_RESULT={total:0,size:0};sd();return;}
+  if(!rows.length){tbl.innerHTML='<tr><th>안내</th></tr><tr><td>대상물건 탭에서 건축물대장을 불러오면 여기 층별 목록이 나타납니다.</td></tr>';window.BLD_RESULT={total:0,size:0,rows:[]};sd();return;}
   var useApr=parseYmd(document.getElementById('bt_useApr').value),gijun=parseYmd(document.getElementById('base_gijun').value);
   var yrs=(useApr&&gijun)?((gijun.y*10000+gijun.mo*100+gijun.d)-(useApr.y*10000+useApr.mo*100+useApr.d))/10000:null;
   var elapsed=yrs!=null?Math.floor(yrs):'';
   var multiDong=rows.some(function(r){return String(r['동']||'').trim();});
   var h='<tr>'+(multiDong?'<th>동</th>':'')+'<th>해당층</th><th>면적(㎡)</th><th>이용상황</th><th>구조</th><th>재조달원가<br>(원/㎡)</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가<br>(원/㎡)</th><th>금액(원)</th></tr>';
-  var total=0,areaSum=0;
+  var total=0,areaSum=0,docRows=[];
   rows.forEach(function(r,i){
     var key='bld_re_'+i,lifeKey='bld_life_'+i;
     var saved=window.BLD_STATE&&window.BLD_STATE[i]||{};
@@ -1804,6 +1814,7 @@ function renderBldCalc(){
     var ratio=lf>0?Math.max(0,(lf-ec))/lf:0;
     var applyUnit=num(reCost)*ratio,amt=applyUnit*num(r['연면적']);
     total+=amt;areaSum+=num(r['연면적'])||0;
+    docRows.push({data:r,reCost:num(reCost),life:lf,elapsed:elapsed,remaining:Math.max(0,lf-ec),ratio:ratio,apply:applyUnit,size:num(r['연면적']),total:amt});
     h+='<tr>'+(multiDong?('<td>'+(r['동']||'')+'</td>'):'')+
        '<td>'+(r['층별']||'')+'</td><td>'+(r['연면적']||'')+'</td><td>'+(r['용도']||'')+'</td><td>'+(r['구조']||'')+'</td>'+
        '<td class="jud-c"><input id="'+key+'" value="'+reCost+'" placeholder="예 1,200,000" oninput="bldSet('+i+',\'reCost\',this.value)"></td>'+
@@ -1814,7 +1825,7 @@ function renderBldCalc(){
   });
   h+='<tr><td colspan="'+(multiDong?10:9)+'" style="text-align:right;font-weight:700">합계</td><td class="calc-c" style="font-size:13px">'+(total?won(total):'-')+'</td></tr>';
   setTableHtml('tblBldCalc',h);   // 재조달원가·내용연수 칸 입력 중 커서 유지
-  window.BLD_RESULT={total:total,size:areaSum};
+  window.BLD_RESULT={total:total,size:areaSum,rows:docRows};
   document.getElementById('resBld').textContent=total?won(total)+' 원':'-';
   sd();calcFinal();
 }
@@ -1902,7 +1913,7 @@ var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
 var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
-var FN_IDS=['fn_opinion'];
+var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_LAST_TRAVEL=null;   // 직전에 자동 채운 여비값 — 사용자가 고쳤는지 판별용(applyCell과 같은 방식)
 
@@ -2445,5 +2456,6 @@ renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채
   });
 })();
 </script>
+<script src="arap_toji_opinion.js"></script>
 </body>
 </html>

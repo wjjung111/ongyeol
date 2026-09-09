@@ -207,6 +207,6 @@ window.ArapCheonggu={
   parseFeeStatement:parseFeeStatement, computeCheonggu:computeCheonggu, arapTravelFee:arapTravelFee,
   buildTokenHwpx:buildTokenHwpx, TPL_B64:V2CHEONGGU_TPL_B64, BLUE2BLACK:V2CHEONGGU_BLUE2BLACK,
   numberToKoreanMoney:numberToKoreanMoney, fmt:fmt, triggerDownload:triggerDownload, today:today,
-  parseZip:parseZip
+  parseZip:parseZip, createZipStored:createZipStored
 };
 })();
