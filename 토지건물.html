@@ -488,15 +488,17 @@
     <!-- ═══════════ 거래사례비교법 ═══════════ -->
     <div id="tab-georae" class="tab">
       <div class="res"><span>거래사례비교법 시산가액</span><span class="n" id="resGeorae">-</span></div>
-      <div class="card">
-        <h2>비교 거래사례 채택</h2>
-        <div class="note">거래사례는 <b>공시지가기준법 탭에서 한 번만 입력</b>하고, 여기서는 그 중 하나를 골라 씁니다.</div>
-        <div class="tw" style="margin-top:7px"><table id="tblTradePick"></table></div>
-      </div>
-      <div class="card">
-        <h2>개별요인 (필지별)</h2>
-        <div class="tw"><table id="tblGaFactors"></table></div>
-        <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
+      <div class="cols5050" id="georae_layout">
+        <div class="card">
+          <h2>비교 거래사례 채택</h2>
+          <div class="note">거래사례는 <b>공시지가기준법 탭에서 한 번만 입력</b>하고, 여기서는 그 중 하나를 골라 씁니다.</div>
+          <div class="tw" style="margin-top:7px"><table id="tblTradePick"></table></div>
+        </div>
+        <div class="card">
+          <h2>개별요인 (필지별)</h2>
+          <div class="tw"><table id="tblGaFactors"></table></div>
+          <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
+        </div>
       </div>
       <!-- 사례 공통 보정치는 아래 시산가액 표 셀에서 직접 고친다(사정보정·지역요인 기본 1.000, 시점수정 자동). 숨은 입력이 저장·자동조회의 저장소 -->
       <input type="hidden" id="ga_sajeong" value="1.000">
@@ -588,8 +590,11 @@
             <div class="hint">보완 입력을 비우면 한글에 [기입]으로 표시됩니다. 비교의견과 결정의견은 화면의 입력 내용을 반영합니다.</div>
           </details>
           <div class="status" id="op_status" role="status"></div>
-          <div class="row" style="margin-bottom:7px"><button class="btn gh" disabled>📄 명세표</button><span class="hint">엑셀 복사 방식 예정</span></div>
-          <div class="row"><button class="btn gh" disabled>📄 요항표</button><span class="hint">양식 확보 후</span></div>
+          <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
+          <div class="row"><button class="btn gh" id="btnYohang">📄 요항표 (.hwpx)</button><span class="hint">아래 조사 내용 편집 후 다운로드</span></div>
+          <input type="hidden" id="doc_yohang">
+          <details style="margin-top:10px"><summary>요항표 작성 내용</summary><div class="note">대상물건의 위치·형상·용도·구조를 가져옵니다. 현장조사 내용은 각 항목에 완성된 문장으로 작성하세요. 빈 항목은 한글에 [기입]으로 표시됩니다.</div><div id="yohang_fields" style="display:grid;gap:8px"></div></details>
+          <div id="doc_status" class="status" role="status"></div>
         </div>
       </div>
       <div class="card">
@@ -1918,6 +1923,7 @@ function showTab(name){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
     document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
   });
+  if(name==='final'&&window.ArapTojiDocuments)ArapTojiDocuments.refresh();
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();
@@ -1935,7 +1941,7 @@ var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
 var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
-var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows'];
+var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_LAST_TRAVEL=null;   // 직전에 자동 채운 여비값 — 사용자가 고쳤는지 판별용(applyCell과 같은 방식)
 
@@ -2481,5 +2487,6 @@ renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채
 <script src="arap_toji_opinion.js"></script>
 <script src="arap_building_cost_data.js"></script>
 <script src="arap_building_cost.js"></script>
+<script src="arap_toji_documents.js"></script>
 </body>
 </html>

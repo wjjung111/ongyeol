@@ -1,0 +1,64 @@
+/* Supplied statement layout; typed cell mapping follows the condominium exporter. */
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);},A=window.ArapCheonggu;
+var fields=[['위치','지리적 위치'],['부근상황','부근상황'],['교통','교통상황'],['입지기타','입지 기타사항'],['지세형상','지세 및 형상'],['토지이용','토지 이용상황'],['도로','접면도로 상황'],['공법제한','토지이용계획·공법상 제한'],['제시외','제시목록 외 물건'],['토지차이','토지 공부와의 차이'],['토지기타','토지 기타사항'],['건물구조','건물 구조'],['외벽','외벽'],['창호','창호'],['건물이용','건물 이용상태'],['설비','위생·냉난방·기타설비'],['부합물','부합물·종물'],['건물차이','건물 공부와의 차이'],['건물기타','건물 기타사항']];
+function saved(){try{return JSON.parse($('doc_yohang').value||'{}');}catch(e){return {};}}
+function defaults(){
+  var per=function(keys){return LANDS.map(function(l,i){var s=keys.map(function(k){return l[k]||'';}).filter(Boolean).join(', ');return s?'기호 '+(i+1)+': '+s:'';}).filter(Boolean).join('\n');};
+  var loc=[cheongguAddr(),cgVal('op_location')].filter(Boolean).join(' / ');
+  return {위치:loc,지세형상:per(['지세','형상']),토지이용:per(['이용상황']),공법제한:per(['용도지역']),건물구조:[cgVal('bt_strct'),cgVal('bt_flrs')].filter(Boolean).join(' / '),건물이용:cgVal('bt_purps')};
+}
+function yohangMap(){var base=defaults(),s=saved(),m={};fields.forEach(function(f){var v=Object.prototype.hasOwnProperty.call(s,f[0])?s[f[0]]:base[f[0]];m['요항_'+f[0]]=String(v||'').trim()||'[기입]';});return m;}
+function refresh(){
+  var m=yohangMap(),host=$('yohang_fields');host.replaceChildren();
+  fields.forEach(function(f){var d=document.createElement('div');d.className='fld';var l=document.createElement('label'),t=document.createElement('textarea');l.textContent=f[1];t.className='box';t.rows=2;t.id='yh_'+f[0];l.htmlFor=t.id;t.placeholder='현장조사 내용 입력';t.value=m['요항_'+f[0]]==='[기입]'?'':m['요항_'+f[0]];
+    t.oninput=function(){var s=saved();s[f[0]]=t.value;$('doc_yohang').value=JSON.stringify(s);saveForm();};d.append(l,t);host.append(d);
+  });
+}
+function statementRows(){
+  calcGongsi();renderBldCalc();calcFinal();
+  var gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{rows:[]};
+  if(!gs.rows||!gs.total)throw Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
+  if(bldRows().some(function(r){return num(r['연면적'])>0;})&&br.rows.some(function(r){return r.size>0&&!r.reCost;}))throw Error('건물평가 탭에서 모든 층의 재조달원가를 입력해 주세요.');
+  var rows=LANDS.map(function(l,i){var g=gs.rows[i];return {'명세_기호':String(i+1),'명세_소재지':l['소재지']||'','명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),'명세_사정면적':num(l['면적']),'명세_평가액':g.total,'명세_비고':l['비고']||''};});
+  var land=LANDS[0]||{};
+  br.rows.filter(function(r){return r.size>0;}).forEach(function(r){var d=r.data;rows.push({'명세_기호':d['동']||'가','명세_소재지':d['소재지']||land['소재지']||'','명세_지번':d['지번']||land['지번']||'','명세_지목용도':[d['용도'],d['층별']].filter(Boolean).join('\n'),'명세_지역구조':d['구조']||cgVal('bt_strct'),'명세_공부면적':r.size,'명세_사정면적':r.size,'명세_평가액':r.total,'명세_비고':d['비고']||''});});
+  return rows;
+}
+var X='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+function xml(s){var d=new DOMParser().parseFromString(s,'application/xml');if(d.querySelector('parsererror'))throw Error('양식 XML 오류');return d;}
+function nodes(d,n){return Array.from(d.getElementsByTagNameNS(X,n));}
+function ser(d){return new XMLSerializer().serializeToString(d);}
+function cell(doc,ref,style,value,formula){var c=doc.createElementNS(X,'c');c.setAttribute('r',ref);if(style!=null)c.setAttribute('s',style);
+  if(formula){var f=doc.createElementNS(X,'f');f.textContent=formula;c.append(f);}
+  if(typeof value==='number'){var v=doc.createElementNS(X,'v');v.textContent=value;c.append(v);}
+  else if(value!=null&&value!==''){c.setAttribute('t','inlineStr');var is=doc.createElementNS(X,'is'),t=doc.createElementNS(X,'t');t.textContent=String(value);is.append(t);c.append(is);}return c;
+}
+function chunks(v,n){return String(v||'').split('\n').flatMap(function(line){return line.match(new RegExp('.{1,'+n+'}','gu'))||[''];});}
+async function buildStatement(rows){
+  var raw=await fetchTplB64('템플릿/토건 명세표 템플릿.xlsx'),entries=await A.parseZip(Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
+  var entry=entries.find(function(e){return /^xl\/worksheets\/sheet\d+\.xml$/.test(e.name);}),d=xml(dec.decode(entry.data)),sd=nodes(d,'sheetData')[0],original=nodes(sd,'row'),sample=original.find(function(r){return r.getAttribute('r')==='11';}),style={};nodes(sample,'c').forEach(function(c){style[c.getAttribute('r').replace(/\d/g,'')]=c.getAttribute('s');});
+  var keys=['기호','소재지','지번','지목용도','지역구조','공부면적','사정면적','평가액','비고'],cols=['B','C','D','E','F','G','H','I','J'],r=11,total=0;
+  original.filter(function(row){return +row.getAttribute('r')>=10&&+row.getAttribute('r')<50;}).forEach(function(row){row.remove();});
+  var footer=original.find(function(row){return row.getAttribute('r')==='50';});
+  rows.forEach(function(item){var split=keys.map(function(k,i){return i>=5&&i<=7?[item['명세_'+k]]:chunks(item['명세_'+k],i===4?12:i===1?9:8);}),height=Math.max(4,...split.map(function(v){return v.length;}));
+    for(var j=0;j<height;j++){var row=d.createElementNS(X,'row');row.setAttribute('r',r);row.setAttribute('ht','21.45');row.setAttribute('customHeight','1');cols.forEach(function(c,i){row.append(cell(d,c+r,style[c],split[i][j]));});sd.insertBefore(row,footer);r++;}total+=item['명세_평가액'];
+  });
+  var end=Math.max(50,r+1),shift=end-50;
+  for(var blank=r;blank<end;blank++){var empty=d.createElementNS(X,'row');empty.setAttribute('r',blank);empty.setAttribute('ht','21.45');empty.setAttribute('customHeight','1');cols.forEach(function(c){empty.append(cell(d,c+blank,style[c],null));});sd.insertBefore(empty,footer);}
+  // Keep the full body and move totals/print area for additional parcels and floors.
+  original.filter(function(row){return +row.getAttribute('r')>=50;}).forEach(function(row){var nr=+row.getAttribute('r')+shift;row.setAttribute('r',nr);nodes(row,'c').forEach(function(c){c.setAttribute('r',c.getAttribute('r').replace(/\d+$/,nr));});});
+  var old=nodes(footer,'c').find(function(c){return c.getAttribute('r')==='I'+end;});var sum=cell(d,'I'+end,old&&old.getAttribute('s'),total,'SUM(I11:I'+(end-1)+')');if(old)old.replaceWith(sum);else footer.append(sum);
+  var dim=nodes(d,'dimension')[0];if(dim)dim.setAttribute('ref','B3:J'+(end+5));
+  var setup=nodes(d,'pageSetup')[0];if(setup){setup.setAttribute('fitToWidth','1');setup.setAttribute('fitToHeight','0');}
+  entry.data=enc.encode(ser(d));
+  var book=entries.find(function(e){return e.name==='xl/workbook.xml';}),bd=xml(dec.decode(book.data));nodes(bd,'definedName').forEach(function(n){if(n.getAttribute('name')==='_xlnm.Print_Area')n.textContent="'Sheet2'!$B$3:$J$"+(end+4);});var cp=nodes(bd,'calcPr')[0]||bd.documentElement.appendChild(bd.createElementNS(X,'calcPr'));cp.setAttribute('fullCalcOnLoad','1');book.data=enc.encode(ser(bd));
+  if(shift)entries.filter(function(e){return /^xl\/drawings\/drawing\d+\.xml$/.test(e.name);}).forEach(function(e){var drawing=xml(dec.decode(e.data));Array.from(drawing.getElementsByTagNameNS('*','row')).forEach(function(n){if(+n.textContent>=49)n.textContent=String(+n.textContent+shift);});e.data=enc.encode(ser(drawing));});
+  return A.createZipStored(entries);
+}
+async function run(button,action){button.disabled=true;$('doc_status').textContent='문서를 만드는 중…';try{await action();$('doc_status').textContent='파일을 받았습니다. 작성 내용과 [기입] 표시를 확인하세요.';}catch(e){$('doc_status').textContent=e.message;console.error(e);}finally{button.disabled=false;}}
+$('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=await buildStatement(statementRows());A.triggerDownload(bytes,'5. 명세표_'+(cgVal('ov_client')||'의뢰인')+'.xlsx');});};
+$('btnYohang').onclick=function(){return run(this,async function(){var bytes=await A.buildTokenHwpx(await fetchTplB64('템플릿/토건 요항표 자동입력.hwpx'),yohangMap(),{});A.triggerDownload(bytes,'4. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');});};
+window.ArapTojiDocuments={refresh:refresh,statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap};refresh();
+})();
