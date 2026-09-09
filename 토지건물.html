@@ -710,6 +710,20 @@ function blankFactors(){return ['1.00','1.00','1.00','1.00','1.00','1.00'];}
 function landFactors(L){if(!L.gf||L.gf.length!==6)L.gf=blankFactors();return L.gf;}
 function landGaFactors(L){if(!L.gaf||L.gaf.length!==6)L.gaf=blankFactors();return L.gaf;}
 function facProduct(arr){var p=1;arr.forEach(function(v){p*=num(v)||1;});return Math.round(p*1000)/1000;}
+// 표를 다시 그릴 때, 그 표 안 입력칸에 커서가 있으면 같은 자리(행·열) 칸으로 커서와 선택 위치를 되돌린다.
+// 개별요인·적용단가처럼 글자 하나 칠 때마다 표 전체를 새로 그리는 곳에서 커서가 빠지던 문제 대응.
+function setTableHtml(id,html){
+  var tbl=document.getElementById(id),ae=document.activeElement,pos=null;
+  if(ae&&ae.tagName==='INPUT'&&tbl.contains(ae)){
+    var td=ae.closest('td'),tr=td&&td.parentNode;
+    if(tr&&tr.rowIndex!=null)pos={r:tr.rowIndex,c:td.cellIndex,s:ae.selectionStart,e:ae.selectionEnd};
+  }
+  tbl.innerHTML=html;
+  if(pos){
+    var row=tbl.rows[pos.r],cell=row&&row.cells[pos.c],inp=cell&&cell.querySelector('input');
+    if(inp){inp.focus();try{inp.setSelectionRange(pos.s,pos.e);}catch(e){}}
+  }
+}
 function stdOf(i){var L=LANDS[i]||{};return STDS[Math.min(L.stdIdx||0,STDS.length-1)]||{};}
 
 function renderLands(){
@@ -1570,7 +1584,7 @@ function renderGaebyeol(){
       f.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="LANDS['+i+'].gf['+k+']=this.value;calcGongsi();saveForm();"></td>';}).join('')+
       '<td class="calc-c">'+facProduct(f).toFixed(3)+'</td></tr>';
   });
-  document.getElementById('tblGaebyeol').innerHTML=h;
+  setTableHtml('tblGaebyeol',h);
 }
 function calcGongsi(){
   renderGaebyeol();
@@ -1628,7 +1642,7 @@ function calcGongsi(){
   if(LANDS.length>1)
     h+='<tr><td colspan="9" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
       +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
-  document.getElementById('tblSisan').innerHTML=h;
+  setTableHtml('tblSisan',h);
   document.getElementById('resGongsi').textContent=sumTotal?won(sumTotal)+' 원':'-';
 
   window.GONGSI_RESULT={applyUnit:firstApply,total:sumTotal,size:sumSize};
@@ -1658,7 +1672,7 @@ function calcGeorae(){
       f.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="LANDS['+i+'].gaf['+k+']=this.value;calcGeorae();saveForm();"></td>';}).join('')+
       '<td class="calc-c">'+facProduct(f).toFixed(3)+'</td></tr>';
   });
-  document.getElementById('tblGaFactors').innerHTML=hf;
+  setTableHtml('tblGaFactors',hf);
   document.getElementById('ga_indSum').textContent=facProduct(landGaFactors(LANDS[0]||{})).toFixed(3)+(LANDS.length>1?' 외':'');
 
   // 시산가액 — 필지별 + 합계
@@ -1680,7 +1694,7 @@ function calcGeorae(){
   if(LANDS.length>1)
     hs+='<tr><td colspan="8" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
        +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
-  document.getElementById('tblGaSisan').innerHTML=hs;
+  setTableHtml('tblGaSisan',hs);
   document.getElementById('ga_calc').textContent=firstCalc?won(firstCalc):'-';
   document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
   window.GEORAE_RESULT={total:sumTotal};
