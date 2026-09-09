@@ -506,7 +506,7 @@
         <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="ga_opinion" value="본건은 거래사례와 비교하여 …"></div>
       </div>
       <div class="card">
-        <h2>거래사례비교법에 의한 시산가액</h2>
+        <h2>거래사례비교법에 의한 시산가액<span id="gaVsGongsi" style="margin-left:auto;font-weight:400;font-size:11.5px;color:#475569"></span></h2>
         <div class="tw"><table id="tblGaSisan"></table></div>
       </div>
     </div>
@@ -518,16 +518,16 @@
         <h2>합리성 검토 및 결정</h2>
         <div class="cols5050">
           <div class="tw"><table>
-            <tr><th>평가방법</th><th>시산가액(원)</th><th>채택</th></tr>
-            <tr><td>공시지가기준법</td><td id="gj_a">-</td><td class="jud-c"><input type="radio" name="gjPick" id="gj_pickA" checked onchange="calcGyeoljeong()"></td></tr>
-            <tr><td>거래사례비교법</td><td id="gj_b">-</td><td class="jud-c"><input type="radio" name="gjPick" id="gj_pickB" onchange="calcGyeoljeong()"></td></tr>
-            <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_diff">-</td><td>-</td></tr>
+            <tr><th>평가방법</th><th>시산가액(원)</th><th>비고</th></tr>
+            <tr><td>공시지가기준법</td><td id="gj_a">-</td><td class="calc-c" style="font-weight:700">주방식 (채택)</td></tr>
+            <tr><td>거래사례비교법</td><td id="gj_b">-</td><td class="calc-c">합리성 검토</td></tr>
+            <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_diff">-</td><td class="calc-c hint">|거래사례비교법 − 공시지가기준법| ÷ 큰 값</td></tr>
             <tr><td colspan="2" style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
           </table></div>
           <div>
             <div class="fld"><label>검토의견</label><input class="box" id="gj_review" value="두 시산가액이 유사하게 산정되어 공시지가기준법에 의한 시산가액의 합리성이 인정됨."></div>
             <div class="fld"><label>결정의견</label><input class="box" id="gj_decide" value="수요성·환가성·공시지가와 인근지역의 현지조사 가격수준 등을 종합적으로 고려하여 결정."></div>
-            <div class="note">두 시산가액의 <b>차이(%)를 자동 표시</b>해 "유사/차이" 판단을 돕습니다.</div>
+            <div class="note">토지감정평가액은 <b>항상 공시지가기준법 시산가액</b>으로 결정되고, 거래사례비교법은 합리성 검토용입니다. 두 시산가액의 <b>차이(%)</b>로 "유사/차이"를 판단하세요.</div>
           </div>
         </div>
       </div>
@@ -1717,7 +1717,22 @@ function calcGeorae(){
   document.getElementById('ga_calc').textContent=firstCalc?won(firstCalc):'-';
   document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
   window.GEORAE_RESULT={total:sumTotal};
+  gaVsGongsiNote(sumTotal);
   calcGyeoljeong();
+}
+// 거래사례비교법 시산가액 카드 제목 오른쪽: 공시지가기준법 적용단가·시산가액과 격차율(거래사례비교법 ÷ 공시지가기준법 − 1)
+function gaVsGongsiNote(gaTotal){
+  var el=document.getElementById('gaVsGongsi'),gs=window.GONGSI_RESULT||{};
+  if(!el)return;
+  if(!gs.total){el.innerHTML='';return;}
+  var unit=gs.applyUnit?won(gs.applyUnit)+' 원/㎡'+(LANDS.length>1?' 외':''):'-';
+  var h='공시지가기준법 : 적용단가 <b>'+unit+'</b> · 시산가액 <b>'+won(gs.total)+' 원</b>';
+  if(gaTotal){
+    var r=gaTotal/gs.total,pct=(r-1)*100;
+    var col=Math.abs(pct)>=10?'#b91c1c':'#1d4ed8';
+    h+=' <span style="color:#94a3b8">│</span> 격차율 <b style="color:'+col+'">'+(pct>=0?'+':'')+pct.toFixed(2)+'%</b> <span class="hint">(거래사례비교법 ÷ 공시지가기준법 = '+r.toFixed(4)+')</span>';
+  }
+  el.innerHTML=h;
 }
 
 // ================= 토지감정평가액 결정 =================
@@ -1728,8 +1743,7 @@ function calcGyeoljeong(){
   document.getElementById('gj_b').textContent=b?won(b):'-';
   var diff=(a&&b)?(Math.abs(a-b)/Math.max(a,b)*100):0;
   document.getElementById('gj_diff').textContent=(a&&b)?diff.toFixed(1)+'%':'-';
-  var pickA=document.getElementById('gj_pickA').checked;
-  var chosen=pickA?a:b;
+  var chosen=a;   // 토지감정평가액은 항상 공시지가기준법(주방식). 거래사례비교법은 합리성 검토용 (결정기록 2026-09-09)
   document.getElementById('gj_final').textContent=chosen?won(chosen)+' 원':'-';
   document.getElementById('resGyeoljeong').textContent=chosen?won(chosen)+' 원':'-';
   window.LAND_FINAL=chosen;
@@ -1764,7 +1778,7 @@ function renderBldCalc(){
        '<td class="calc-c">'+(applyUnit?won(applyUnit):'-')+'</td><td class="calc-c">'+(amt?won(amt):'-')+'</td></tr>';
   });
   h+='<tr><td colspan="'+(multiDong?10:9)+'" style="text-align:right;font-weight:700">합계</td><td class="calc-c" style="font-size:13px">'+(total?won(total):'-')+'</td></tr>';
-  tbl.innerHTML=h;
+  setTableHtml('tblBldCalc',h);   // 재조달원가·내용연수 칸 입력 중 커서 유지
   window.BLD_RESULT={total:total};
   document.getElementById('resBld').textContent=total?won(total)+' 원':'-';
   sd();calcFinal();
@@ -1788,7 +1802,7 @@ function calcFinal(){
     ['토지 필지 수 / 면적 합계',LANDS.length+'필지',(gs.size?gs.size.toLocaleString('ko-KR',{maximumFractionDigits:4})+' ㎡':'-')],
     ['공시지가기준법 시산가액','Σ(적용단가 × 면적)',document.getElementById('resGongsi').textContent],
     ['거래사례비교법 시산가액','사례단가 × 사정보정 × 시점수정 × 지역요인 × 개별요인 × 면적',document.getElementById('resGeorae').textContent],
-    ['토지감정평가액','두 시산가액 중 채택','decided'],
+    ['토지감정평가액','공시지가기준법 시산가액 (거래사례비교법은 합리성 검토)','decided'],
     ['건물가액','Σ(면적 × 재조달원가 × 잔가율)',document.getElementById('resBld').textContent],
     ['감정평가액','토지 + 건물',total?won(total)+' 원':'-']
   ];
@@ -1865,7 +1879,6 @@ function collect(){
   GEORAE_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.georae[id]=el.value;});
   GJ_IDS.forEach(function(id){o.gj[id]=document.getElementById(id).value;});
   FN_IDS.forEach(function(id){o.fn[id]=document.getElementById(id).value;});
-  o.gj.pickA=document.getElementById('gj_pickA').checked;
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   return o;
 }
@@ -1989,8 +2002,7 @@ function applyForm(o){
   if(o.jb){['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value=(o.jb[k]||'');});}
   if(o.gongsi)GONGSI_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.gongsi[id]!=null)el.value=o.gongsi[id];});
   if(o.georae)GEORAE_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.georae[id]!=null)el.value=o.georae[id];});
-  if(o.gj){GJ_IDS.forEach(function(id){if(o.gj[id]!=null)document.getElementById(id).value=o.gj[id];});
-    document.getElementById('gj_pickA').checked=o.gj.pickA!==false;document.getElementById('gj_pickB').checked=o.gj.pickA===false;}
+  if(o.gj)GJ_IDS.forEach(function(id){if(o.gj[id]!=null)document.getElementById(id).value=o.gj[id];});
   if(o.fn)FN_IDS.forEach(function(id){if(o.fn[id]!=null)document.getElementById(id).value=o.fn[id];});
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
   return true;
@@ -2047,7 +2059,6 @@ function clearForm(){
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  var pa=document.getElementById('gj_pickA'),pb=document.getElementById('gj_pickB');if(pa)pa.checked=true;if(pb)pb.checked=false;
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
 }
 function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();}
