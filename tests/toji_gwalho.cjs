@@ -1,13 +1,11 @@
 // 괄감(감정평가표) 건물 칸 회귀 검증 — 새로고침 직후 건물 탭을 열지 않고 문서를 뽑아도 건물 면적·단가·금액이 채워져야 한다.
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_gwalho.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const fs=require('fs'),path=require('path'),assert=require('assert/strict'),http=require('http'),cp=require('child_process');
+const fs=require('fs'),path=require('path'),assert=require('assert/strict'),http=require('http');
 const root=path.resolve(__dirname,'..'),out=path.resolve(process.env.GWALHO_TEST_OUTPUT||path.join(root,'..','gwalho-test'));
 fs.mkdirSync(out,{recursive:true});
-const baseline=cp.execFileSync('git',['show','HEAD:토지건물.html'],{cwd:root,encoding:'utf8'});
 const server=http.createServer((req,res)=>{
   const name=decodeURIComponent(req.url.split('?')[0]);
-  if(name==='/baseline.html'){res.setHeader('Content-Type','text/html; charset=utf-8');return res.end(baseline);}
   const file=path.join(root,name);if(!file.startsWith(root)||!fs.existsSync(file)){res.statusCode=404;return res.end();}
   res.setHeader('Content-Type',file.endsWith('.html')?'text/html; charset=utf-8':file.endsWith('.js')?'text/javascript':'application/octet-stream');fs.createReadStream(file).pipe(res);
 });
@@ -56,10 +54,9 @@ async function gwalAfterReload(page,url){
     assert.notEqual(fixed['괄_건물_금액'],'-');
     assert.equal(fixed['괄_건물_금액'],calc.bld.toLocaleString('ko-KR'));
 
-    // 2) 고치기 전 화면(HEAD): 같은 상황에서 건물 칸이 비어 나온다 = 신고된 증상 재현
-    const oldPage=await context.newPage();
-    const before=await gwalAfterReload(oldPage,base+'/baseline.html');
-    assert.equal(before['괄_건물_금액'],'-');
+    // 2) 켤 때 건물 원가법이 계산돼 있어야 한다(= 예전 증상의 원인이 재발하지 않는지)
+    const booted=await page.evaluate(()=>window.BLD_RESULT&&window.BLD_RESULT.total);
+    assert.equal(booted,calc.bld);
 
     // 3) 실제 다운로드 + 토큰 전량 치환 확인
     await page.evaluate(()=>showTab('final'));   // '문서 생성' 칸은 토지건물 시산가액 탭에 있다
@@ -78,6 +75,6 @@ async function gwalAfterReload(page,url){
     assert(text.includes(calc.bld.toLocaleString('ko-KR')),'건물 금액');
     assert(text.includes((calc.land+calc.bld).toLocaleString('ko-KR')),'감정평가액 합계');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({status:'PASS',calc,fixed,before,output:out},null,2));
+    console.log(JSON.stringify({status:'PASS',calc,fixed,booted,output:out},null,2));
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
