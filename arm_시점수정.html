@@ -549,10 +549,23 @@ async function buildLandText(use,reg,tradeDate,baseDate,status){
   const need=yms.filter(ym=>!jbLoadRates()["m:"+ym]);
   if(need.length){status(`월별 변동률 수집 중… (${need.length}개월, 한꺼번에)`);await Promise.all(need.map(jbMonthRates));jbSaveRates();}
   const R=jbLoadRates();
-  yms.forEach(ym=>{const v=R[ym+"|"+reg+"|"+use];if(v!=null)rates[ym]=v;});
+  const src={};   // 달별로 어느 지역 값을 썼는지 {YYYYMM: 지역}
+  yms.forEach(ym=>{const v=R[ym+"|"+reg+"|"+use];if(v!=null){rates[ym]=v;src[ym]=reg;}});
+  // 신설 구(예: 2026.02 화성시 → 만세구·효행구·병점구·동탄구, 부천시 3구 부활)는 신설 전 달 값이 없다 → 상위 지역(화성시) 값으로 채운다
+  const fb=[];   // [{reg:상위지역, yms:[...]}]
+  for(let parent=reg;yms.some(ym=>rates[ym]==null)&&parent.includes(">");){
+    parent=parent.split(">").slice(0,-1).map(s=>s.trim()).join(" > ");
+    if(!jbState.regs.includes(parent))continue;
+    const got=[];yms.forEach(ym=>{if(rates[ym]==null){const v=R[ym+"|"+parent+"|"+use];if(v!=null){rates[ym]=v;src[ym]=parent;got.push(ym);}}});
+    if(got.length)fb.push({reg:parent,yms:got});
+  }
   if(ymS>jbState.latestYm&&rates[jbState.latestYm]==null)return{err:`${ymDisp(jbState.latestYm)}월 변동률이 없습니다.`};
-  const cum=(jbState.cum&&jbState.cum[reg]&&jbState.cum[reg][use])||null;
+  // 연도 누계는 그 해 1월~해당월이 전부 같은 지역 값일 때만 쓴다 (1월은 화성시, 2월부터 만세구처럼 섞이면 월별 곱)
+  let cum=null;
+  [...new Set(Object.values(src))].forEach(r=>{const c=jbState.cum&&jbState.cum[r]&&jbState.cum[r][use];if(!c)return;
+    Object.keys(c).forEach(k=>{const y=Math.floor(k/100);let ok=true;for(let m=y*100+1;m<=+k;m++)if(src[m]!==undefined&&src[m]!==r)ok=false;if(ok){cum=cum||{};cum[k]=c[k];}});});
   let f;try{f=jbFactor(rates,g,e,cum);}catch(err){return{err:err.message};}
+  fb.forEach(x=>{const a=x.yms[0],b=x.yms[x.yms.length-1];f.mlist.push(`※ ${ymDisp(a)}${a!==b?`~${ymDisp(b)}`:""}월은 ${jbRegLabel(reg)} 변동률이 공표되지 않아(행정구역 신설·개편 전) ${jbRegLabel(x.reg)} 변동률을 적용함`);});
   const adj=Math.round(f.factor*1e5)/1e5;
   const kd=d=>`${d.y}년 ${d.mo}월 ${d.d}일`;
   const lines=["토지",`지역 : ${jbRegLabel(reg)}`,`용도지역 : ${use}`,
