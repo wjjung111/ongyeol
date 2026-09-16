@@ -409,7 +409,7 @@
                 <button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
               <div class="pst" id="pTradeMsg"></div>
               <div class="tw"><table id="tblTrade"></table></div>
-              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다. <b>시점수정치</b> 행은 사례를 <b>선정</b>할 때 그 사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 조회해 채우고, 한 번 계산된 값은 저장돼 다른 사례로 옮겨도 계속 보입니다.</div>
+              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적 — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다. 선정 행은 둘로 나뉘어 <b>그밖의요인 선정</b>(「그 밖의 요인」 탭의 적용사례)과 <b>거래사례 선정</b>(「거래사례비교법」 탭의 채택 사례)을 각각 고릅니다 — 각 탭의 선택과 서로 연동됩니다. <b>시점수정치</b> 행은 <b>그밖의요인 선정</b>을 할 때 그 사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 조회해 채우고, 한 번 계산된 값은 저장돼 다른 사례로 옮겨도 계속 보입니다. 맨 아래 <b>비고</b> 행은 자유 메모(화면에만 남고 문서에는 나가지 않음)입니다.</div>
             </div>
 
             <!-- 평가사례 -->
@@ -491,7 +491,7 @@
       <div class="cols5050" id="georae_layout">
         <div class="card">
           <h2>비교 거래사례 채택</h2>
-          <div class="note">거래사례는 <b>공시지가기준법 탭에서 한 번만 입력</b>하고, 여기서는 그 중 하나를 골라 씁니다.</div>
+          <div class="note">거래사례는 <b>공시지가기준법 탭에서 한 번만 입력</b>하고, 여기서는 그 중 하나를 골라 씁니다. 거래사례 표의 <b>거래사례 선정</b> 행과 같은 선택이라 어느 쪽에서 골라도 함께 바뀝니다.</div>
           <div class="tw" style="margin-top:7px"><table id="tblTradePick"></table></div>
         </div>
         <div class="card">
@@ -1481,11 +1481,17 @@ function renderTrade(){
     TRADES.forEach(function(c,i){h+=tradeCell(c,i,r);});
     h+='</tr>';
   });
-  h+='<tr><th class="rowh">선정</th>'+TRADES.map(function(c,i){
+  h+='<tr><th class="rowh" title="그 밖의 요인 산정에 쓸 사례 — 「그 밖의 요인」 탭의 적용사례와 같은 선택입니다">그밖의요인<br>선정</th>'+TRADES.map(function(c,i){
     return '<td class="jud-c"><input type="radio" name="pickTrade" '+(ETC.type==='t'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'t\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';}).join('')+'</tr>';
+  // 거래사례비교법에 쓸 사례 — 거래사례비교법 탭의 '비교 거래사례 채택' 표와 같은 선택(서로 연동)
+  h+='<tr><th class="rowh" title="거래사례비교법에 쓸 사례 — 「거래사례비교법」 탭의 채택 표와 같은 선택입니다">거래사례<br>선정</th>'+TRADES.map(function(c,i){
+    return '<td class="jud-c"><input type="radio" name="pickTradeGa" '+(GA.idx===i?'checked':'')+' onchange="GA.idx='+i+';syncGeorae();autoGaTime();"></td>';}).join('')+'</tr>';
   // 시점수정치: 선정할 때 계산되고, 계산된 값은 사례별로 남아 다른 사례로 옮겨도 계속 보인다
   h+='<tr><th class="rowh" title="선정 시 사례 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준). 한 번 계산되면 저장돼 계속 보임">시점<br>수정치</th>'+TRADES.map(function(c,i){
     return '<td class="tt-c'+(ETC.type==='t'&&ETC.idx===i?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
+  // 비고: 사례별 자유 메모 (화면에서만 보이고 문서에는 나가지 않음)
+  h+='<tr><th class="rowh" title="사례에 대한 메모 — 자유롭게 적으세요. 화면에만 남고 문서에는 나가지 않습니다">비고</th>'+TRADES.map(function(c,i){
+    return '<td><input value="'+attr(c.note||'')+'" placeholder="자유 입력" oninput="tradeIn('+i+',\'note\',this.value)"></td>';}).join('')+'</tr>';
   document.getElementById('tblTrade').innerHTML=h;
   renderTradePick();
 }
@@ -1619,7 +1625,7 @@ function kaisPaste(e,i,kind){
     if(tradeHasData(cur)&&tradeKey(cur)===tradeKey(rec)){
       Object.keys(rec).forEach(function(f){if(!hasV(rec[f]))return;if(f==='landA'||f==='bldA'||!hasV(cur[f]))cur[f]=rec[f];});}
     else if(keep&&k>0&&tradeHasData(cur)){TRADES.push(rec);j=TRADES.length-1;}
-    else{TRADES[j]=rec;}
+    else{var pn=cur&&cur.note;TRADES[j]=rec;if(hasV(pn))rec.note=pn;}   // 그 열에 적어둔 비고는 붙여넣기로 지우지 않는다
     filled.push('#'+(j+1));
   });
   renderTrade();syncPick();calcGongsi();saveForm();
@@ -1700,7 +1706,10 @@ function etcPaint(OV,AUTO){
 
 // ================= 거래사례비교법 채택 =================
 var GA={idx:0};
-function syncGeorae(){renderTradePick();calcGeorae();}
+// 거래사례 표의 '거래사례 선정' 행 라디오를 GA.idx에 맞춘다 (표 전체를 다시 그리지 않고 체크만 옮김)
+function syncGaRow(){var tbl=document.getElementById('tblTrade');if(!tbl)return;
+  [].forEach.call(tbl.querySelectorAll('input[name="pickTradeGa"]'),function(r,i){r.checked=(GA.idx===i);});}
+function syncGeorae(){renderTradePick();syncGaRow();calcGeorae();}
 
 // ================= 공시지가기준법 계산 (필지별) =================
 // 표준지별 그밖의요인 결정치를 STDS[j].etcDecide에 보관 — 표준지가 1개면 지금과 동일하게 동작
