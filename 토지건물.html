@@ -269,9 +269,8 @@
           <span class="fld"><label>기준가치</label><input type="text" id="ov_value" placeholder="시장가치"></span>
           <span class="fld"><label>소유자</label><input type="text" id="ov_owner" placeholder="홍길동"></span>
           <span class="fld"><label>평가조건</label><input type="text" id="ov_cond" placeholder="-"></span>
-          <span class="fld"><label>공시기준일</label><input type="text" id="base_gongsi" data-date placeholder="2025.01.01"></span>
+          <span class="fld"><label>공시기준일</label><input type="text" id="base_gongsi" data-date value="2026.01.01" placeholder="2026.01.01"></span>
           <span class="fld"><label>탁상가격</label><input type="text" id="ov_deskPrice" placeholder="4,625,000,000"></span>
-          <span class="fld"><label>감정서번호</label><input type="text" id="ov_reportNo" placeholder="온결2026-0001"></span>
         </div>
         <div class="hint" style="margin-top:8px">공시기준일~기준시점은 <b>공시지가기준법</b>의 지가변동률 기간으로 자동 반영됩니다.</div>
       </div>
@@ -1983,7 +1982,7 @@ function sub(i,btn){
 
 // ================= 저장/복원 =================
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
-            'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice','ov_reportNo'];
+            'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice'];   // 감정서번호 칸은 2026-09-16 삭제(접수번호와 같은 값) — 옛 저장값은 무시
 var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
 var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
@@ -2338,7 +2337,8 @@ function restore(){
 }
 
 // 감정평가 개요 기본값 — 비어 있는 칸만 채운다(평가사가 자유 수정, 다른 값이면 그대로 유지)
-var OV_DEFAULTS={ov_purpose:'일반거래(시가참고)',ov_submit:'국세청 및 관할세무서',ov_kind:'상속(증여)',ov_value:'시장가치'};
+// base_gongsi(공시기준일)는 해가 바뀌면 이 값만 고치면 된다
+var OV_DEFAULTS={ov_purpose:'일반거래(시가참고)',ov_submit:'국세청 및 관할세무서',ov_kind:'상속(증여)',ov_value:'시장가치',base_gongsi:'2026.01.01'};
 function applyOvDefaults(){Object.keys(OV_DEFAULTS).forEach(function(id){
   var el=document.getElementById(id);if(el&&!el.value.trim())el.value=OV_DEFAULTS[id];});}
 // 날짜 칸 자동 인식 — 8자리 숫자(YYYYMMDD)면 YYYY.MM.DD로 바꿔줌 (그 외 형식은 그대로)
