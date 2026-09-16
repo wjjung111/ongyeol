@@ -44,6 +44,7 @@
   <div id="root-multi" style="display:none"></div>
   <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'ARM 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
   <script src="arap_index_data.js"></script>
+  <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
   // 조회는 관리자.html(비밀번호)에서만 가능. 샘플 건(SAMPLE-*)은 제외. 실패해도 앱 동작에 영향 없음.
@@ -1435,6 +1436,8 @@ function Step2({ov,setOv,propType,setPropType}){
             next[k]=String(result[k]).trim();
           }
         }
+        // 대지면적을 AI가 필지 합산으로 주면 24657.999999999996 같은 부동소수 찌꺼기가 붙음 → 소수 4자리로 정리
+        if(next.landAreaTotal){const n=parseFloat(String(next.landAreaTotal).replace(/,/g,""));if(!isNaN(n))next.landAreaTotal=String(Number(n.toFixed(4)));}
         // 접수 이미지 인식분 — autoFields에 표시를 남겨 ① 접수개요 탭에서 검토 유도 (사용자 수정·검토완료 시 해제)
         {const autoF={...(prev.autoFields||{})};
          for(const k of ["caseNo","client","requestDate","baseDate"]){
@@ -1477,6 +1480,13 @@ function Step2({ov,setOv,propType,setPropType}){
       setError("인식 실패: "+e.message);
     }finally{setLoading(false);}
   };
+  // 건축물대장(arap_bldrgst.js) 조회값 채우기 — 기본은 빈칸만(등기·접수 인식값 보존), '빈칸만 채우기'를 끄면 대장 값으로 덮어씀
+  const applyBldrgst=(f,o)=>setOv(prev=>{
+    const next={...prev};const empty=v=>!String(v==null?"":v).trim();
+    for(const k in f){const v=String(f[k]==null?"":f[k]).trim();if(!v)continue;if(o.onlyEmpty&&!empty(prev[k]))continue;next[k]=v;}
+    if(f.mainUseJeonyu&&(!prev.kind||prev.kind===emptyOv.kind))next.kind=f.mainUseJeonyu;
+    return next;
+  });
 
   return(<div>
     <div style={{...S.card,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -1494,7 +1504,7 @@ function Step2({ov,setOv,propType,setPropType}){
         <button style={{...S.btn,background:"#e2e8f0",color:"#555",fontSize:11,padding:"4px 8px"}} onClick={()=>setShowKey(!showKey)}>{showKey?"숨김":"보기"}</button>
         {apiKey?<span style={{fontSize:11,color:"#059669"}}>✅</span>:<span style={{fontSize:11,color:"#f59e0b"}}>⚠️ 필요</span>}
       </div>
-      <div style={{fontSize:12,color:"#666",marginBottom:8}}>등기, 전유부, 총괄표제부, 표제부, 토이계 등 PDF를 업로드하면 자동으로 데이터를 인식합니다.</div>
+      <div style={{fontSize:12,color:"#666",marginBottom:8}}>등기, 전유부, 총괄표제부, 표제부, 토이계 등 PDF를 업로드하면 자동으로 데이터를 인식합니다. 건축물대장은 PDF 없이 아래 「건축물대장 불러오기」로 채울 수 있습니다.</div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
         <label style={{...S.btn,background:C.acc,color:"#fff",cursor:"pointer"}}>
           + PDF 추가
@@ -1512,6 +1522,8 @@ function Step2({ov,setOv,propType,setPropType}){
       </div>}
       {error&&<div style={{marginTop:6,padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:4,color:"#dc2626",fontSize:12}}>{error}</div>}
     </div>
+    {/* 건축물대장 불러오기 — 주소 조회 → 동·호 선택 → 아래 칸 채움 (arap_bldrgst.js) */}
+    {window.ArapBldrgst&&<window.ArapBldrgst.Panel S={S} C={C} ov={ov} multi={false} onApply={applyBldrgst}/>}
 
     {/* 기존 입력 필드 */}
     <div style={S.card}><div style={S.h2}>대상물건 정보</div>
@@ -4611,6 +4623,8 @@ function Step2({ov,setOv,propType,setPropType}){
             next[k]=String(result[k]).trim();
           }
         }
+        // 대지면적 필지 합산의 부동소수 찌꺼기(24657.999999999996) 정리
+        if(next.landAreaTotal){const n=parseFloat(String(next.landAreaTotal).replace(/,/g,""));if(!isNaN(n))next.landAreaTotal=String(Number(n.toFixed(4)));}
         // 접수 이미지 인식분 — autoFields에 표시를 남겨 ① 접수개요 탭에서 검토 유도 (사용자 수정·검토완료 시 해제)
         {const autoF={...(prev.autoFields||{})};
          for(const k of ["caseNo","client","baseDate"]){
@@ -4669,6 +4683,21 @@ function Step2({ov,setOv,propType,setPropType}){
       setError("인식 실패: "+e.message);
     }finally{setLoading(false);}
   };
+  // 건축물대장(arap_bldrgst.js) 조회값 채우기 — 건물 칸은 ov에, 호는 units 표에(같은 동·호 행 → 빈 행 → 새 행 순). 기본은 빈칸만 채움
+  const applyBldrgst=(f,o)=>setOv(prev=>{
+    const empty=v=>!String(v==null?"":v).trim();
+    const put=(obj,src)=>{for(const k in src){const v=String(src[k]==null?"":src[k]).trim();if(!v)continue;if(o.onlyEmpty&&!empty(obj[k]))continue;obj[k]=v;}return obj;};
+    if(o.kind!=="unit")return put({...prev},f);
+    const units=[...(prev.units||[])];
+    let idx=units.findIndex(u=>u&&String(u.dong||"").trim()===f.dong&&String(u.ho||"").trim()===f.ho);
+    if(idx<0)idx=units.findIndex(u=>u&&empty(u.ho)&&empty(u.area));
+    if(idx<0){units.push({id:Date.now()+Math.random(),dong:"",floor:"",ho:"",area:"",commonArea:"",landArea:"",mainUseJeonyu:"",evalArea:""});idx=units.length-1;}
+    units[idx]=put({...units[idx]},f);
+    const next={...prev,units};
+    if(idx===0)for(const k of MIRROR_KEYS)next[k]=units[0][k]||"";
+    if(f.mainUseJeonyu&&(!prev.kind||prev.kind===emptyOv.kind))next.kind=f.mainUseJeonyu;
+    return next;
+  });
 
   return(<div>
     <div style={{...S.card,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -4686,7 +4715,7 @@ function Step2({ov,setOv,propType,setPropType}){
         <button style={{...S.btn,background:"#e2e8f0",color:"#555",fontSize:11,padding:"4px 8px"}} onClick={()=>setShowKey(!showKey)}>{showKey?"숨김":"보기"}</button>
         {apiKey?<span style={{fontSize:11,color:"#059669"}}>✅</span>:<span style={{fontSize:11,color:"#f59e0b"}}>⚠️ 필요</span>}
       </div>
-      <div style={{fontSize:12,color:"#666",marginBottom:8}}>등기, 전유부, 총괄표제부, 표제부, 토이계 등 PDF를 업로드하면 자동으로 데이터를 인식합니다.</div>
+      <div style={{fontSize:12,color:"#666",marginBottom:8}}>등기, 전유부, 총괄표제부, 표제부, 토이계 등 PDF를 업로드하면 자동으로 데이터를 인식합니다. 건축물대장은 PDF 없이 아래 「건축물대장 불러오기」로 채울 수 있습니다.</div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
         <label style={{...S.btn,background:C.acc,color:"#fff",cursor:"pointer"}}>
           + PDF 추가
@@ -4704,6 +4733,9 @@ function Step2({ov,setOv,propType,setPropType}){
       </div>}
       {error&&<div style={{marginTop:6,padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:4,color:"#dc2626",fontSize:12}}>{error}</div>}
     </div>
+
+    {/* 건축물대장 불러오기 — 주소 조회 → 동 선택(건물 칸) → 호 선택(상세물건정보 표에 추가) (arap_bldrgst.js) */}
+    {window.ArapBldrgst&&<window.ArapBldrgst.Panel S={S} C={C} ov={ov} multi={true} onApply={applyBldrgst}/>}
 
     {/* 대상물건정보 - 건물 단위 (단일) */}
     <div style={S.card}><div style={S.h2}>대상물건정보</div>
