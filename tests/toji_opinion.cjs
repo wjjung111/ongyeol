@@ -63,8 +63,8 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiOpinion);
     const simple=await fixture(page);
-    assert.equal(simple.gongsi,204000000);assert.equal(simple.georae,205400000);assert.equal(simple.bld,252000000);
-    await page.evaluate(()=>showTab('final'));
+    assert.equal(simple.gongsi,204000000);assert.equal(simple.georae,205000000);assert.equal(simple.bld,252000000);
+    await page.evaluate(()=>showTab('doc'));
     const downloadPromise=page.waitForEvent('download');await page.locator('#btnOpinion').click();const download=await downloadPromise;
     await download.saveAs(path.join(out,'simple.hwpx'));
     const one=await validate(page,fs.readFileSync(path.join(out,'simple.hwpx')),'simple');

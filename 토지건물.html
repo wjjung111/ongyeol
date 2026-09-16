@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
   Ongyeol — EXACT 토지건물 (개발중 v0.2)
-  6단계: 대상물건 / 공시지가기준법 / 거래사례비교법 / 토지감정평가액 결정 / 건물 평가 / 토지건물 시산가액
-  hwpx 산출근거 생성은 다음 단계.
+  8단계: 1 대상물건 개요 / 2 토지평가(2-1 공시지가기준법·2-2 거래사례비교법·2-3 토지평가액 결정) /
+         3 건물평가 / 4 토지건물 평가액 결정 / 5 위치도 / 6 요항표 / 7 감정평가서 다운로드 / 8 청구서 다운로드
   Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
 -->
 <html lang="ko">
@@ -35,6 +35,12 @@
   .tabs{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap;}
   .tabs button{background:#e2e8f0;color:#888;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:inherit;}
   .tabs button.active{background:#1a2744;color:#fff;}
+  /* 「2. 토지평가」 안의 세 단계 — 토지평가에 들어와 있을 때만 둘째 줄로 보인다 */
+  .tabs2{display:flex;gap:3px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px;padding-left:12px;}
+  .tabs2[hidden]{display:none;}
+  .tabs2 .arm{font-size:11px;font-weight:700;color:#94a3b8;margin-right:3px;}
+  .tabs2 button{background:#eef2f7;color:#64748b;border:1px solid #dbe2ea;padding:4px 11px;border-radius:14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .tabs2 button.active{background:#2563eb;border-color:#2563eb;color:#fff;}
   .tab{display:none;} .tab.active{display:block;}
 
   /* 위치도 탭 */
@@ -229,7 +235,7 @@
     <h3>탁상가격</h3><div class="v money" id="sd_desk">-</div>
     <div class="v sm" id="sd_deskDiff" style="color:#fbbf24;font-size:11px;word-break:keep-all"></div>
     <hr>
-    <button id="btnHwpx">📄 산출근거 받기</button>
+    <button id="btnHwpx">📄 감정평가서 다운로드</button>
   </div>
 
   <div>
@@ -250,18 +256,24 @@
     <div id="caseListPanel" class="caselist" hidden></div>
 
     <div class="tabs">
-      <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">대상물건</button>
-      <button id="tabbtn-gongsi" onclick="showTab('gongsi')">공시지가기준법</button>
-      <button id="tabbtn-georae" onclick="showTab('georae')">거래사례비교법</button>
-      <button id="tabbtn-jido" onclick="showTab('jido')">위치도</button>
-      <button id="tabbtn-gyeoljeong" onclick="showTab('gyeoljeong')">토지감정평가액 결정</button>
-      <button id="tabbtn-bld" onclick="showTab('bld')">건물 평가</button>
-      <button id="tabbtn-final" onclick="showTab('final')">토지건물 시산가액</button>
-      <button id="tabbtn-yohang" onclick="showTab('yohang')">요항표</button>
-      <button id="tabbtn-cheonggu" onclick="showTab('cheonggu')">청구서</button>
+      <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">1. 대상물건 개요</button>
+      <button id="tabbtn-land" onclick="showTab('land')">2. 토지평가</button>
+      <button id="tabbtn-bld" onclick="showTab('bld')">3. 건물평가</button>
+      <button id="tabbtn-final" onclick="showTab('final')">4. 토지건물 평가액 결정</button>
+      <button id="tabbtn-jido" onclick="showTab('jido')">5. 위치도</button>
+      <button id="tabbtn-yohang" onclick="showTab('yohang')">6. 요항표</button>
+      <button id="tabbtn-doc" onclick="showTab('doc')">7. 감정평가서 다운로드</button>
+      <button id="tabbtn-cheonggu" onclick="showTab('cheonggu')">8. 청구서 다운로드</button>
+    </div>
+    <!-- 「2. 토지평가」를 고르면 나오는 둘째 줄 -->
+    <div class="tabs2" id="landTabs" hidden>
+      <span class="arm">2. 토지평가 ▸</span>
+      <button id="tabbtn-gongsi" onclick="showTab('gongsi')">2-1. 공시지가기준법</button>
+      <button id="tabbtn-georae" onclick="showTab('georae')">2-2. 거래사례비교법</button>
+      <button id="tabbtn-gyeoljeong" onclick="showTab('gyeoljeong')">2-3. 토지평가액 결정</button>
     </div>
 
-    <!-- ═══════════ 대상물건 ═══════════ -->
+    <!-- ═══════════ 1. 대상물건 개요 ═══════════ -->
     <div id="tab-daesang" class="tab active">
      <div class="cols2">
 
@@ -343,7 +355,7 @@
      </div>
     </div>
 
-    <!-- ═══════════ 공시지가기준법 ═══════════ -->
+    <!-- ═══════════ 2-1. 공시지가기준법 ═══════════ -->
     <div id="tab-gongsi" class="tab">
       <div class="res"><span>공시지가기준법 시산가액</span><span class="n" id="resGongsi">-</span></div>
       <div class="lr">
@@ -501,7 +513,7 @@
 
     </div>
 
-    <!-- ═══════════ 거래사례비교법 ═══════════ -->
+    <!-- ═══════════ 2-2. 거래사례비교법 ═══════════ -->
     <div id="tab-georae" class="tab">
       <div class="res"><span>거래사례비교법 시산가액</span><span class="n" id="resGeorae">-</span></div>
       <div class="cols5050" id="georae_layout">
@@ -532,7 +544,7 @@
       </div>
     </div>
 
-    <!-- ═══════════ 위치도 (본건·표준지·사례를 지도에 표시) ═══════════ -->
+    <!-- ═══════════ 5. 위치도 (본건·표준지·사례를 지도에 표시) ═══════════ -->
     <div id="tab-jido" class="tab">
       <div class="card">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -561,7 +573,7 @@
       </div>
     </div>
 
-    <!-- ═══════════ 토지감정평가액 결정 ═══════════ -->
+    <!-- ═══════════ 2-3. 토지평가액 결정 ═══════════ -->
     <div id="tab-gyeoljeong" class="tab">
       <div class="res"><span>토지감정평가액</span><span class="n" id="resGyeoljeong">-</span></div>
       <div class="card">
@@ -576,7 +588,7 @@
       </div>
     </div>
 
-    <!-- ═══════════ 건물 평가 ═══════════ -->
+    <!-- ═══════════ 3. 건물평가 ═══════════ -->
     <div id="tab-bld" class="tab">
       <div class="cols5050" id="bld_layout">
       <div class="card">
@@ -610,7 +622,7 @@
       </div>
     </div>
 
-    <!-- ═══════════ 토지건물 시산가액 ═══════════ -->
+    <!-- ═══════════ 4. 토지건물 평가액 결정 ═══════════ -->
     <div id="tab-final" class="tab">
       <div class="res"><span>감정평가액</span><span class="n" id="resFinal">-</span></div>
       <div class="cols5050">
@@ -623,29 +635,16 @@
             <tr><td colspan="3" style="text-align:right;font-weight:700">합계</td><td class="calc-c" id="fn_total" style="font-size:14px">-</td></tr>
           </table></div>
           <div class="fld" style="margin-top:8px"><label>결정의견</label><input class="box" id="fn_opinion" value="본건은 수요성·환가성·공시지가와 인근지역의 현지조사 가격수준, 토지 및 건물의 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음."></div>
+          <div class="note">문서(표지·괄감·의견서·명세표·요항표)는 <b>7. 감정평가서 다운로드</b> 탭에서 받습니다.</div>
         </div>
         <div class="card">
-          <h2>문서 생성</h2>
-          <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
-          <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 감정평가표(괄감)</button><span class="hint">감정평가액·면적·단가 자동</span></div>
-          <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
-          <input type="hidden" id="op_costSource">
-          <textarea id="op_costRows" hidden></textarea>
-          <div class="status" id="op_status" role="status"></div>
-          <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
-          <div class="row"><button class="btn gh" id="btnYohang">📄 요항표 (.hwpx)</button><span class="hint">대상물건 정보 자동 · 추가 문구는 한글에서 편집</span></div>
-          <input type="hidden" id="doc_yohang">
-
-          <div id="doc_status" class="status" role="status"></div>
+          <h2>검산 패널</h2>
+          <div class="tw"><table id="tblCheck"></table></div>
         </div>
-      </div>
-      <div class="card">
-        <h2>검산 패널</h2>
-        <div class="tw"><table id="tblCheck"></table></div>
       </div>
     </div>
 
-    <!-- ═══════════ 요항표 (감정평가요항표 hwpx) — 양식의 빈칸을 여기서 채운다 ═══════════ -->
+    <!-- ═══════════ 6. 요항표 (감정평가요항표 hwpx) — 양식의 빈칸을 여기서 채운다 ═══════════ -->
     <div id="tab-yohang" class="tab">
       <div class="cols5050">
         <div class="card">
@@ -694,7 +693,27 @@
       </div>
     </div>
 
-    <!-- ═══════════ 청구서 (한글 hwpx) — 집합건물 청구서와 동일 양식·계산 ═══════════ -->
+    <!-- ═══════════ 7. 감정평가서 다운로드 (표지·괄감·의견서·명세표·요항표) ═══════════ -->
+    <div id="tab-doc" class="tab">
+      <div class="res"><span>감정평가액</span><span class="n" id="resFinalDoc">-</span></div>
+      <div class="card">
+        <h2>문서 생성</h2>
+        <div class="note">앞 탭에서 입력·계산한 값이 그대로 들어갑니다. 받은 한글파일은 한글에서 열어 확인하세요.</div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 감정평가표(괄감)</button><span class="hint">감정평가액·면적·단가 자동</span></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
+        <input type="hidden" id="op_costSource">
+        <textarea id="op_costRows" hidden></textarea>
+        <div class="status" id="op_status" role="status"></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
+        <div class="row"><button class="btn gh" id="btnYohang">📄 요항표 (.hwpx)</button><span class="hint">대상물건 정보 자동 · 추가 문구는 <b>6. 요항표</b> 탭에서 채웁니다</span></div>
+        <input type="hidden" id="doc_yohang">
+
+        <div id="doc_status" class="status" role="status"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════ 8. 청구서 다운로드 (한글 hwpx) — 집합건물 청구서와 동일 양식·계산 ═══════════ -->
     <div id="tab-cheonggu" class="tab">
       <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
       <div class="cols5050">
@@ -1909,7 +1928,7 @@ function gaVsGongsiNote(gaTotal){
   el.innerHTML=h;
 }
 
-// ================= 토지감정평가액 결정 =================
+// ================= 2-3. 토지평가액 결정 =================
 function calcGyeoljeong(){
   var a=(window.GONGSI_RESULT&&window.GONGSI_RESULT.total)||0;
   var b=(window.GEORAE_RESULT&&window.GEORAE_RESULT.total)||0;
@@ -1962,7 +1981,7 @@ function bldSet(i,key,val){
   if(key==='reCost'){var d=String(val).replace(/[^\d]/g,'');val=d?Number(d).toLocaleString('ko-KR'):'';}   // 재조달원가: 천원 단위 콤마 자동
   window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[i]=window.BLD_STATE[i]||{};window.BLD_STATE[i][key]=val;saveForm();renderBldCalc();}
 
-// ================= 토지건물 시산가액(최종) =================
+// ================= 4. 토지건물 평가액 결정(최종) =================
 function calcFinal(){
   var land=window.LAND_FINAL||0,bld=(window.BLD_RESULT&&window.BLD_RESULT.total)||0;
   var total=land+bld;
@@ -1973,7 +1992,9 @@ function calcFinal(){
   document.getElementById('fn_bldSize').textContent=document.getElementById('bldSum').textContent;
   document.getElementById('fn_bldAmt').textContent=bld?won(bld):'-';
   document.getElementById('fn_total').textContent=total?won(total)+' 원':'-';
-  document.getElementById('resFinal').textContent=total?won(total)+' 원':'-';
+  var fv=total?won(total)+' 원':'-';
+  document.getElementById('resFinal').textContent=fv;
+  document.getElementById('resFinalDoc').textContent=fv;   // 감정평가서 다운로드 탭 머리띠도 같은 값
 
   var checks=[
     ['토지 필지 수 / 면적 합계',LANDS.length+'필지',(gs.size?gs.size.toLocaleString('ko-KR',{maximumFractionDigits:4})+' ㎡':'-')],
@@ -2025,12 +2046,19 @@ function sd(){
 }
 
 // ================= 탭 =================
-var TAB_NAMES=['daesang','gongsi','georae','jido','gyeoljeong','bld','final','yohang','cheonggu'];
+var TAB_NAMES=['daesang','gongsi','georae','jido','gyeoljeong','bld','final','yohang','doc','cheonggu'];
+var LAND_TABS=['gongsi','georae','gyeoljeong'];   // 「2. 토지평가」 안의 세 단계
+var LAND_LAST='gongsi';                            // 「2. 토지평가」를 누르면 마지막으로 보던 단계로
 function showTab(name){
+  if(name==='land')name=LAND_LAST;                 // 묶음 버튼 → 세 단계 중 마지막으로 본 화면
+  var inLand=LAND_TABS.indexOf(name)>=0;
+  if(inLand)LAND_LAST=name;
   TAB_NAMES.forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
-    document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
+    var b=document.getElementById('tabbtn-'+n);if(b)b.classList.toggle('active',n===name);
   });
+  document.getElementById('tabbtn-land').classList.toggle('active',inLand);
+  document.getElementById('landTabs').hidden=!inLand;
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();
@@ -2642,7 +2670,7 @@ renderCaseBar();
 ensureTrade3();   // 거래사례: 실입력이 하나도 없으면 빈 열 3개로 시작
 updatePeriod();sumBld();renderTrade();renderAppr();syncPick();
 document.getElementById('btnAddBld').onclick=function(){addBldRow({});saveForm();};
-document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx 생성은 다음 단계에서 연결됩니다.');};
+document.getElementById('btnHwpx').onclick=function(){showTab('doc');};   // 사이드바 버튼 → 「7. 감정평가서 다운로드」 탭으로
 // 탁상가격: 숫자만 쳐도 천단위 콤마 (집합건물 개요 탭의 탁상가격 칸과 같은 동작) — 값은 왼쪽 요약바에도 바로 반영
 (function(){var el=document.getElementById('ov_deskPrice');
   el.addEventListener('input',function(){
