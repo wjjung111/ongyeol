@@ -2449,7 +2449,7 @@ async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis){
   if(!map){alert("수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(핑크 박스 상단 ① 수수료 계산 사이트 → 계산서1 복사 → ② 붙여넣기)");return;}
   try{
     const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);
-    triggerDownload(bytes,`1. 청구서_${ov.client||"의뢰인"}.hwpx`);
+    triggerDownload(bytes,`6. 청구서_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('청구서 hwpx 생성 실패',e);alert("청구서 생성 실패: "+e.message);}
 }
 
