@@ -59,7 +59,7 @@ async function gwalAfterReload(page,url){
     assert.equal(booted,calc.bld);
 
     // 3) 실제 다운로드 + 토큰 전량 치환 확인
-    await page.evaluate(()=>showTab('final'));   // '문서 생성' 칸은 토지건물 시산가액 탭에 있다
+    await page.evaluate(()=>showTab('doc'));   // '문서 생성' 칸은 「7. 감정평가서 다운로드」 탭에 있다
     const dl=page.waitForEvent('download');await page.locator('button[onclick="downloadGwal()"]').click();
     const file=path.join(out,'gwalho.hwpx');await (await dl).saveAs(file);
     const text=await page.evaluate(async bytes=>{
