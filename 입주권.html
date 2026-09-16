@@ -1118,7 +1118,8 @@ function buildGeonmyeong(ov){
   const dong=ov.dong?` 제${ov.dong}동`:"";
   return `${ov.jibun||""} ${ov.buildingName||""}${dong} 제${ov.floor||""}층 제${ov.ho||""}호`.replace(/\s+/g," ").trim();
 }
-function hwpxEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+// 날것 탭은 공백으로 — hwpx <hp:t> 안에 들어가면 한글이 뒤 글자를 먹는다
+function hwpxEsc(s){return String(s==null?"":s).replace(/[\t\v\f]/g," ").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function triggerDownload(bytes,fname){
   const blob=new Blob([bytes],{type:"application/octet-stream"});const url=URL.createObjectURL(blob);
   const a=document.createElement("a");a.href=url;a.download=fname;

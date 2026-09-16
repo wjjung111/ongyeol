@@ -70,7 +70,8 @@ function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee
 }
 
 /* === hwpxEsc (s3r86w8a.html L2394-2394) === */
-function hwpxEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+// 날것 탭은 공백으로 — hwpx <hp:t> 안에 들어가면 한글이 뒤 글자를 먹는다
+function hwpxEsc(s){return String(s==null?"":s).replace(/[\t\v\f]/g," ").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
 /* === triggerDownload (s3r86w8a.html L2422-2427) === */
 function triggerDownload(bytes,fname){
