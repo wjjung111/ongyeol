@@ -741,7 +741,8 @@ function sisanMode(pre){return (document.getElementById((pre||'sisan')+'_mode')|
 function sisanUnitFor(calc,pre){var v=(document.getElementById((pre||'sisan')+'_unit')||{}).value;if(v&&v!=='auto')return num(v)||10000;
   if(!calc||calc<=0)return 1000;return Math.max(1,Math.pow(10,Math.floor(Math.log10(calc))-3));}
 var UNIT_KO={1:'원',10:'십원',100:'백원',1000:'천원',10000:'만원',100000:'십만원',1000000:'백만원',10000000:'천만원'};
-function roundUnit(v,unit,mode){if(!v)return 0;if(mode==='none')return Math.round(v);var q=v/unit+1e-9;return (mode==='floor'?Math.floor(q):Math.round(q))*unit;}
+// "천원 단위에서 반올림" = 천원 자리에서 반올림 → 결과는 만원 단위 (집합건물 applyR와 같은 규칙: 단위×10로 나눠 처리)
+function roundUnit(v,unit,mode){if(!v)return 0;if(mode==='none')return Math.round(v);var d=unit*10,q=v/d+1e-9;return (mode==='floor'?Math.floor(q):Math.round(q))*d;}
 function applyAuto(calc,pre){return roundUnit(calc,sisanUnitFor(calc,pre),sisanMode(pre));}
 function sisanHint(calc,pre){pre=pre||'sisan';var el=document.getElementById(pre+'_hint');if(!el)return;var m=sisanMode(pre);
   el.textContent=m==='none'?'※ 산출단가를 그대로':('※ '+(UNIT_KO[sisanUnitFor(calc,pre)]||'')+' 단위에서 '+(m==='floor'?'절사':'반올림'));}
