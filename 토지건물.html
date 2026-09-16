@@ -213,6 +213,8 @@
     <h3>건물가액</h3><div class="v money" id="sd_bldAmt">-</div>
     <hr>
     <h3>감정평가액</h3><div class="v money" id="sd_total" style="font-size:16px">-</div>
+    <h3>탁상가격</h3><div class="v money" id="sd_desk">-</div>
+    <div class="v sm" id="sd_deskDiff" style="color:#fbbf24;font-size:11px;word-break:keep-all"></div>
     <hr>
     <button id="btnHwpx">📄 산출근거 받기</button>
   </div>
@@ -1969,6 +1971,12 @@ function sd(){
   document.getElementById('sd_bldAmt').textContent=(window.BLD_RESULT&&window.BLD_RESULT.total)?won(window.BLD_RESULT.total):'-';
   var total=(window.LAND_FINAL||0)+((window.BLD_RESULT&&window.BLD_RESULT.total)||0);
   document.getElementById('sd_total').textContent=total?won(total):'-';
+  // 탁상가격 + 감정평가액과의 차이(집합건물 결정 탭의 '참고) 탁상가 … 차이 …%'와 같은 계산)
+  var desk=num(document.getElementById('ov_deskPrice').value);
+  document.getElementById('sd_desk').textContent=desk?won(desk):'-';
+  var dd=total-desk,sign=dd>=0?'+':'−',pct=Math.abs(total/desk-1)*100;
+  document.getElementById('sd_deskDiff').textContent=(desk&&total)?
+    ('차이 '+sign+won(Math.abs(dd))+'원 ('+sign+pct.toFixed(2)+'%)'):'';
 }
 
 // ================= 탭 =================
@@ -2589,6 +2597,12 @@ ensureTrade3();   // 거래사례: 실입력이 하나도 없으면 빈 열 3개
 updatePeriod();sumBld();renderTrade();renderAppr();syncPick();
 document.getElementById('btnAddBld').onclick=function(){addBldRow({});saveForm();};
 document.getElementById('btnHwpx').onclick=function(){alert('산출근거 hwpx 생성은 다음 단계에서 연결됩니다.');};
+// 탁상가격: 숫자만 쳐도 천단위 콤마 (집합건물 개요 탭의 탁상가격 칸과 같은 동작) — 값은 왼쪽 요약바에도 바로 반영
+(function(){var el=document.getElementById('ov_deskPrice');
+  el.addEventListener('input',function(){
+    var d=el.value.replace(/[^\d]/g,''),v=d?Number(d).toLocaleString('ko-KR'):'';
+    if(el.value!==v)el.value=v;
+    sd();});})();
 // 날짜 칸: 8자리(YYYYMMDD)만 입력해도 YYYY.MM.DD로 자동 인식
 ['base_gijun','base_josa','base_gongsi','ov_writeDay'].forEach(function(id){
   var el=document.getElementById(id);
