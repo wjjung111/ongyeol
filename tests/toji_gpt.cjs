@@ -1,9 +1,12 @@
 // Run with PLAYWRIGHT_MODULE pointing to playwright; uses an isolated local browser profile.
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const fs=require('fs'),path=require('path'),assert=require('assert/strict'),http=require('http');
+const fs=require('fs'),path=require('path'),assert=require('assert/strict'),http=require('http'),cp=require('child_process');
 const root=path.resolve(__dirname,'..'),out=path.resolve(process.env.GPT_TEST_OUTPUT||path.join(root,'..','gpt-test'));
 fs.mkdirSync(out,{recursive:true});
+// Pin the source snapshot so concurrent changes to the original UI do not redefine the regression baseline.
+const baseline=cp.execFileSync('git',['show','dc6de4ded3ce1f614b2a5c9ebea451e6d1316fcb:토지건물.html'],{cwd:root,encoding:'utf8'});
 const server=http.createServer((req,res)=>{
+  if(req.url==='/baseline.html'){res.setHeader('Content-Type','text/html; charset=utf-8');return res.end(baseline);}
   const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]));
   if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.statusCode=404;return res.end();}
   res.setHeader('Content-Type',/\.html$/i.test(file)?'text/html; charset=utf-8':file.endsWith('.js')?'text/javascript':'application/octet-stream');
@@ -56,7 +59,7 @@ async function download(page,selector,label){
     const u=route.request().url();if(u===base+'/arap_access.js')return route.fulfill({body:'',contentType:'text/javascript'});
     return u.startsWith(base)?route.continue():route.abort();
   });
-  const original=await context.newPage();await original.goto(base+'/토지건물.html');
+  const original=await context.newPage();await original.goto(base+'/baseline.html');
   await fixture(original,true);await original.evaluate(()=>{doSave();setMemos([{text:'원본 메모 보존',time:'test'}]);});
   const before=await originalStorage(original);
   const page=await context.newPage();await page.goto(base+'/토지건물_GPT.HTML');
