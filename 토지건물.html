@@ -606,7 +606,7 @@
         <div id="bc_status" class="hint" role="status"></div>
         <h3>의견서에 포함할 단가표 <span class="hint" id="bc_count"></span></h3>
         <div class="tw"><table><thead><tr><th>분류기호</th><th>용도</th><th>구조</th><th>급수</th><th>표준단가(원/㎡)</th><th>내용연수</th><th></th></tr></thead><tbody id="bc_selected"></tbody></table></div>
-        <div class="row" style="margin-top:10px"><button class="btn" type="button" id="bc_download">📄 의견서(산출근거) 다운로드</button></div>
+        <div class="row" style="margin-top:10px"><button class="btn" type="button" id="bc_download">📄 3. 의견서(산출근거) 다운로드</button></div>
         <div class="hint">출처: <a href="https://member.kapanet.or.kr/standard/contents/ebook/objects/20260317/" target="_blank" rel="noopener">2025년도 적용 건축물 재조달원가 자료집</a>. 선택 내용은 사건에 저장됩니다. 의견서 다운로드에는 기존 토지 평가 계산도 필요합니다.</div>
       </div>
       <div>
@@ -678,7 +678,7 @@
             <span class="fld" style="grid-column:1/-1"><label>이용상태(공부상)</label><input type="text" id="y_usestate" placeholder="제2종근린생활시설 및 다가구주택"></span>
           </div>
 
-          <div class="row" style="margin-top:12px"><button class="btn" id="btnYohang2">📄 요항표 받기 (.hwpx)</button><span class="hint" id="y_status" role="status"></span></div>
+          <div class="row" style="margin-top:12px"><button class="btn" id="btnYohang2">📄 5. 요항표 받기 (.hwpx)</button><span class="hint" id="y_status" role="status"></span></div>
         </div>
 
         <div class="card">
@@ -698,15 +698,16 @@
       <div class="res"><span>감정평가액</span><span class="n" id="resFinalDoc">-</span></div>
       <div class="card">
         <h2>문서 생성</h2>
-        <div class="note">앞 탭에서 입력·계산한 값이 그대로 들어갑니다. 받은 한글파일은 한글에서 열어 확인하세요.</div>
-        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
-        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 감정평가표(괄감)</button><span class="hint">감정평가액·면적·단가 자동</span></div>
-        <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
+        <div class="note">앞 탭에서 입력·계산한 값이 그대로 들어갑니다. 받은 한글파일은 한글에서 열어 확인하세요.<br>
+          파일 이름에 <b>번호가 붙어</b> 폴더에서 감정평가서 순서대로 정렬됩니다 — <b>1</b> 표지 · <b>2</b> 괄호감정표 · <b>3</b> 의견서 · <b>4</b> 명세표 · <b>5</b> 요항표, 청구서는 맨 뒤 <b>99</b>번(「8. 청구서 다운로드」 탭).</div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 1. 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 2. 괄호감정표</button><span class="hint">감정평가액·면적·단가 자동</span></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 3. 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
         <input type="hidden" id="op_costSource">
         <textarea id="op_costRows" hidden></textarea>
         <div class="status" id="op_status" role="status"></div>
-        <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
-        <div class="row"><button class="btn gh" id="btnYohang">📄 요항표 (.hwpx)</button><span class="hint">대상물건 정보 자동 · 추가 문구는 <b>6. 요항표</b> 탭에서 채웁니다</span></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 4. 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
+        <div class="row"><button class="btn gh" id="btnYohang">📄 5. 요항표 (.hwpx)</button><span class="hint">대상물건 정보 자동 · 추가 문구는 <b>6. 요항표</b> 탭에서 채웁니다</span></div>
         <input type="hidden" id="doc_yohang">
 
         <div id="doc_status" class="status" role="status"></div>
@@ -735,7 +736,7 @@
         </div>
         <div class="card">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">청구 금액</h2>
-            <button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 청구서 (.hwpx) 받기</button></div>
+            <button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
           <div class="tw"><table id="cg_preview"></table></div>
           <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료를 <b>천원 미만 절사</b>. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부 착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.</div>
         </div>
@@ -2145,7 +2146,7 @@ async function downloadCheonggu(){
   };
   try{
     var bytes=await A.buildTokenHwpx(A.TPL_B64,map,A.BLUE2BLACK);
-    A.triggerDownload(bytes,'1. 청구서_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');
+    A.triggerDownload(bytes,'99. 청구서_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');
   }catch(e){console.error('청구서 hwpx 생성 실패',e);alert('청구서 생성 실패: '+e.message);}
 }
 
@@ -2263,7 +2264,7 @@ function downloadGwal(){
   var br=bldResult();
   // 층별 면적은 있는데 금액이 0이면 재조달원가 미입력 — 건물가액이 빈칸으로 나가는 것을 먼저 알린다
   if(br.size&&!br.total&&!confirm('건물 재조달원가가 입력되지 않아 건물가액이 빈칸으로 나갑니다.\n건물 탭에서 층별 재조달원가를 입력하세요.\n\n그래도 지금 받으시겠습니까?'))return;
-  return makeDoc('템플릿/토건 괄호감정표 템플릿.hwpx',gwalMap(),'2. 감정평가표(괄감)');
+  return makeDoc('템플릿/토건 괄호감정표 템플릿.hwpx',gwalMap(),'2. 괄호감정표');
 }
 // 표지 토큰맵 — 의뢰인·건명(본건 소재지)·접수번호
 function pyojiMap(){return {'의뢰인':cgVal('ov_client'),'건명':cheongguAddr(),'접수번호':cgVal('ov_caseNo')};}

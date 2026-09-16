@@ -143,8 +143,8 @@ async function buildStatement(rows){
 }
 async function run(button,action,statusId){var st=$(statusId||'doc_status');button.disabled=true;if(st)st.textContent='문서를 만드는 중…';
   try{await action();if(st)st.textContent='파일을 받았습니다.';}catch(e){if(st)st.textContent=e.message;console.error(e);}finally{button.disabled=false;}}
-$('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=await buildStatement(statementRows());A.triggerDownload(bytes,'5. 명세표_'+(cgVal('ov_client')||'의뢰인')+'.xlsx');});};
-function downloadYohang(btn,statusId){return run(btn,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'4. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');},statusId);}
+$('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=await buildStatement(statementRows());A.triggerDownload(bytes,'4. 명세표_'+(cgVal('ov_client')||'의뢰인')+'.xlsx');});};
+function downloadYohang(btn,statusId){return run(btn,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'5. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');},statusId);}
 $('btnYohang').onclick=function(){return downloadYohang(this);};
 if($('btnYohang2'))$('btnYohang2').onclick=function(){return downloadYohang(this,'y_status');};
 window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang};
