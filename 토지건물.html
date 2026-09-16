@@ -2079,14 +2079,16 @@ function fillYohangFromData(){
 var TOICE={};
 function cleanToice(raw){
   if(!raw)return '';
+  // 토지이음의 탭은 공백 한 칸으로 — 날것 탭이 hwpx <hp:t>에 들어가면 한글이 뒤 글자를 먹는다
+  var flat=function(t){return t.replace(/[\t\v\f]+/g,' ').replace(/ {2,}/g,' ').replace(/^ +/,'').replace(/ +$/,'');};
   var s=String(raw).replace(/\r/g,''),extra='';
   var e=s.indexOf('<추가기재>');
-  if(e>=0){extra=s.slice(e).replace(/\n+/g,' ').trim();s=s.slice(0,e);}
+  if(e>=0){extra=flat(s.slice(e).replace(/\n+/g,' '));s=s.slice(0,e);}
   s=s.replace(/「국토의 계획 및 이용에 관한 법률」에 따른 지역[ㆍ·・]?지구등/g,'')
      .replace(/다른 법령 등에 따른 지역[ㆍ·・]?지구등/g,'')
      .replace(/「토지이용규제 기본법 시행령」/g,'')
      .replace(/제9조\s*제4항\s*각\s*호에\s*해당되는\s*사항/g,'');
-  s=s.replace(/\n+/g,'').replace(/^[\t ]+/,'').replace(/[\t ]+$/,'');
+  s=flat(s.replace(/\n+/g,''));
   return extra?(s+'\n'+extra):s;
 }
 // 필지가 2개 이상이면 "N) 동 지번" 머리를 붙여 필지별로 나눈다.

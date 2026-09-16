@@ -2414,7 +2414,8 @@ async function downloadPyojiXlsx(ov,feeText,downPayment,specialFee,feeBasis){
 }
 
 // ══ 괄호감정표 HWPX 템플릿 치환 (명세표 xlsx와 동일 패턴: parseZip→토큰치환→createZipStored) ══
-function hwpxEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+// 날것 탭은 공백으로 — hwpx <hp:t> 안에 들어가면 한글이 그 런을 잘못 읽어 뒤 글자를 먹는다 (줄바꿈 \n은 호출부가 문단으로 처리하므로 건드리지 않음)
+function hwpxEsc(s){return String(s==null?"":s).replace(/[\t\v\f]/g," ").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 async function buildHwpx(b64,tokenMap,post){  // post: 토큰치환 뒤 section0 XML을 한 번 더 손볼 함수(선택)
   const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -2542,11 +2543,8 @@ function v2DecisionNote(xml,map){
   const tblStart=xml.indexOf("<hp:tbl",h);if(tblStart<0)return xml;
   const tblEndIdx=xml.indexOf("</hp:tbl>",tblStart);if(tblEndIdx<0)return xml;
   if(xml.slice(tblStart,tblEndIdx).indexOf("{{감정평가액}}")<0)return xml;   // 결정표가 맞는지 확인
-  let at=xml.indexOf("</hp:p>",tblEndIdx);if(at<0)return xml;               // 표를 감싼 문단 끝
+  let at=xml.indexOf("</hp:p>",tblEndIdx);if(at<0)return xml;               // 표를 감싼 문단 끝 — 빈 줄 없이 표 바로 아래
   at+="</hp:p>".length;
-  if(/^<hp:p\b[^>]*><hp:run\b[^>]*\/>/.test(xml.slice(at))){                // 표 아래 빈 문단이 있으면 그 뒤(한 줄 띄고)에
-    const e=xml.indexOf("</hp:p>",at);if(e>=0)at=e+"</hp:p>".length;
-  }
   const p='<hp:p id="2147483648" paraPrIDRef="54" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
          +'<hp:run charPrIDRef="28"><hp:t>{{감정평가액주석}}</hp:t></hp:run></hp:p>';
   return xml.slice(0,at)+p+xml.slice(at);
@@ -2994,15 +2992,18 @@ function fixPlaceholders(xml,data){
 // 두 머리문구("다른 법령…지역ㆍ지구등", "「토지이용규제 기본법 시행령」 제9조 제4항…") 제거 + 줄바꿈 이어붙이기. <추가기재>만 별도 줄 유지.
 const cleanToice=(raw)=>{
   if(!raw)return"";
+  // 토지이음이 머리문구와 내용 사이에 넣는 탭은 공백 한 칸으로.
+  // 날것 탭이 hwpx <hp:t> 안에 들어가면 한글이 그 런을 잘못 읽어 뒤 글자를 먹는다(예: '가로구역별 최고높이…' → '고높이…').
+  const flat=t=>t.replace(/[\t\v\f]+/g," ").replace(/ {2,}/g," ").replace(/^ +/,"").replace(/ +$/,"");
   let s=String(raw).replace(/\r/g,"");
   let extra="";
   const eIdx=s.indexOf("<추가기재>");
-  if(eIdx>=0){extra=s.slice(eIdx).replace(/\n+/g," ").trim();s=s.slice(0,eIdx);}
+  if(eIdx>=0){extra=flat(s.slice(eIdx).replace(/\n+/g," "));s=s.slice(0,eIdx);}
   s=s.replace(/「국토의 계획 및 이용에 관한 법률」에 따른 지역[ㆍ·・]?지구등/g,"")
      .replace(/다른 법령 등에 따른 지역[ㆍ·・]?지구등/g,"")
      .replace(/「토지이용규제 기본법 시행령」/g,"")
      .replace(/제9조\s*제4항\s*각\s*호에\s*해당되는\s*사항/g,"");
-  s=s.replace(/\n+/g,"").replace(/^[\t ]+/,"").replace(/[\t ]+$/,"");
+  s=flat(s.replace(/\n+/g,""));
   return extra?(s+"\n"+extra):s;
 };
 const _toiceDong=(ov)=>{const m=(ov.jibun||"").match(/([가-힣]+[동읍면리가])\s*\d/);return m?m[1]:"";};
