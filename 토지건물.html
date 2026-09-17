@@ -62,12 +62,7 @@
   .lgd{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;}
   .mapchk{font-size:12px;color:#475569;font-weight:600;cursor:pointer;user-select:none;}
   .mapchk input{vertical-align:-2px;margin-right:3px;cursor:pointer;}
-  /* 핀 = 색 원 + 그 옆 이름표. 지도 위에서 글자가 묻히지 않게 흰 테두리를 둘렀다 */
-  .mkr{position:relative;width:0;height:0;}
-  .mkr .dot{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);}
-  .mkr.pick .dot{width:22px;height:22px;left:-11px;top:-11px;border-width:4px;}
-  .mkr .lab{position:absolute;left:11px;top:-10px;white-space:nowrap;font-size:11.5px;font-weight:700;color:#0f172a;background:rgba(255,255,255,.88);border-radius:3px;padding:1px 5px;box-shadow:0 1px 3px rgba(0,0,0,.25);}
-  .mkr.pick .lab{left:14px;background:#0f172a;color:#fff;}
+  /* 핀 모양(.mkr)은 arap_map.js가 넣는다 — 거래사례 지도 페이지와 같게 유지하려고 */
   #mapMiss{margin-top:6px;font-size:12px;color:#b45309;}
   #mapMiss b{color:#92400e;}
 
@@ -241,6 +236,7 @@
 <script src="arap_access.js"></script>
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
 <script src="arap_cheonggu.js"></script><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
+<script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 거래사례 지도 페이지와 같은 코드 -->
 
 <script src="arap_jibyun_data.js"></script><!-- 지가변동률+연도 누계(매일 06시 자동갱신). 있으면 통신 없이 계산, 없거나 파일 밖 달은 프록시 -->
 <div id="mode-bar">
@@ -2809,85 +2805,19 @@ renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채
 })();
 
 // ================= 위치도 (본건·비교표준지·사례를 지도에 표시) =================
-// 각 탭 소재지 칸의 주소 → 브이월드 주소검색으로 위·경도 → Leaflet 지도에 핀.
-// 좌표는 항목 객체의 _xy 에 넣어 두므로 collect()/applyForm()으로 건과 함께 저장·복원된다.
-// 바탕지도·지적선·용도지역 모두 브이월드. 브이월드 타일이 막히면(키에 이 주소 미등록 등) OSM으로 자동 대체.
-var MAP=null,MAP_LAYER={},MAP_MARKERS=[],MAP_LOADING=null,MAP_TILE_FAIL=0;
-var GEO_CACHE={};                 // 질의문자열 → {x,y,addr,q} | null(못 찾음)
-var STD_TAG='ABCDEFGHIJ';
-
-function mapStatus(msg,err){var el=document.getElementById('mapStatus');if(!el)return;
-  el.className='status'+(err?' err':'');el.textContent=msg;}
-
-// Leaflet은 위치도 탭을 처음 열 때만 내려받는다(페이지 첫 로딩을 늦추지 않으려고)
-function loadLeaflet(){
-  if(window.L&&window.L.map)return Promise.resolve();
-  if(MAP_LOADING)return MAP_LOADING;
-  MAP_LOADING=new Promise(function(res,rej){
-    var css=document.createElement('link');css.rel='stylesheet';
-    css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(css);
-    var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    s.onload=function(){res();};
-    s.onerror=function(){MAP_LOADING=null;rej(new Error('지도 라이브러리를 내려받지 못했습니다 — 인터넷 연결을 확인해 주세요.'));};
-    document.head.appendChild(s);
+// 지도 엔진은 공용 arap_map.js(window.ArapMap) — 거래사례 지도 페이지와 같은 코드를 쓴다.
+// 여기서는 "무엇을 찍을지"(mapItems)와 저장만 맡는다. 좌표는 각 항목의 _xy 에 들어가고
+// collect()가 LANDS/STDS/TRADES/APPRS를 통째로 저장하므로 건과 함께 저장·복원된다.
+var MAPV=null,STD_TAG='ABCDEFGHIJ';
+function mapView(){
+  if(!MAPV)MAPV=ArapMap.create({
+    box:'mapBox',status:'mapStatus',miss:'mapMiss',
+    baseSel:'mapBaseSel',cadastre:'mapCadastre',zoning:'mapZoning',
+    key:getKey,onSave:saveForm,
+    emptyMsg:'소재지가 입력된 항목이 없습니다. 대상물건·공시지가기준법 탭에서 주소를 먼저 넣어 주세요.'
   });
-  return MAP_LOADING;
+  return MAPV;
 }
-
-// ── 타일 ──
-function vworldTile(kind){
-  return L.tileLayer('https://api.vworld.kr/req/wmts/1.0.0/'+getKey()+'/'+kind+'/{z}/{y}/{x}.'+(kind==='Satellite'?'jpeg':'png'),
-    {minZoom:6,maxZoom:19,attribution:'&copy; 국토교통부 브이월드'});
-}
-function osmTile(){
-  return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {minZoom:6,maxZoom:19,attribution:'&copy; OpenStreetMap'});
-}
-function vworldWms(layer,opacity){
-  return L.tileLayer.wms('https://api.vworld.kr/req/wms?',
-    {layers:layer,styles:layer,format:'image/png',transparent:true,version:'1.3.0',
-     key:getKey(),domain:location.origin,maxZoom:19,opacity:opacity});
-}
-// 브이월드 타일이 여러 장 연달아 실패하면 바탕지도를 OSM으로 바꾼다(핀은 그대로 보이게)
-function onTileError(){
-  if(++MAP_TILE_FAIL!==8)return;
-  var sel=document.getElementById('mapBaseSel');
-  if(!sel||sel.value==='osm')return;
-  sel.value='osm';mapSetBase();
-  mapStatus('브이월드 바탕지도를 불러오지 못해 OSM 지도로 바꿨습니다(핀 위치는 그대로). 지적선도 안 보이면 브이월드 키에 이 주소가 등록돼 있는지 확인이 필요합니다.',true);
-}
-function mapSetBase(){
-  if(!MAP)return;
-  var v=(document.getElementById('mapBaseSel')||{}).value||'Base';
-  if(MAP_LAYER.base)MAP.removeLayer(MAP_LAYER.base);
-  MAP_TILE_FAIL=0;
-  MAP_LAYER.base=(v==='osm')?osmTile():vworldTile(v);
-  MAP_LAYER.base.on('tileerror',onTileError);
-  MAP_LAYER.base.addTo(MAP);MAP_LAYER.base.bringToBack();
-}
-// 도면(WMS)이 여러 장 연달아 실패하면 조용히 안 보이기만 하므로 한 번 알려 준다
-var MAP_WMS_WARNED=false;
-function onWmsError(name){
-  return function(){
-    if(MAP_WMS_WARNED)return;
-    if((this._arapFail=(this._arapFail||0)+1)<6)return;
-    MAP_WMS_WARNED=true;
-    mapStatus(name+' 도면을 불러오지 못했습니다 — 브이월드 키에 이 주소와 2D지도(WMS) 사용이 등록돼 있는지 확인이 필요합니다. 핀 위치는 그대로입니다.',true);
-  };
-}
-function mapToggleOverlay(){
-  if(!MAP)return;
-  [['mapCadastre','cad','lp_pa_cbnd_bubun',0.9,'지적선'],['mapZoning','zon','lt_c_uq111',0.35,'용도지역']].forEach(function(t){
-    var on=!!(document.getElementById(t[0])||{}).checked;
-    if(on&&!MAP_LAYER[t[1]]){
-      MAP_LAYER[t[1]]=vworldWms(t[2],t[3]);
-      MAP_LAYER[t[1]].on('tileerror',onWmsError(t[4]));
-      MAP_LAYER[t[1]].addTo(MAP);
-    }
-    else if(!on&&MAP_LAYER[t[1]]){MAP.removeLayer(MAP_LAYER[t[1]]);MAP_LAYER[t[1]]=null;}
-  });
-}
-
 // ── 지도에 찍을 항목 모으기 ──
 function mapItems(){
   var region=subjectSgg(),out=[];
@@ -2909,110 +2839,10 @@ function mapItems(){
   });
   return out;
 }
-// "자양동 617-33"처럼 시·군·구가 없는 사례 주소는 본건 시군구를 앞에 붙인다 — 다른 지역 같은 동 이름에 잘못 찍히는 걸 막으려고
-function mapQuery(loc,region){
-  var s=String(loc||'').trim().replace(/\s+/g,' ');
-  if(!s||!region)return s;
-  var sido=region.split(' ')[0];
-  if(sido&&s.indexOf(sido)===0)return s;             // 이미 시·도로 시작
-  if(/(시|군|구)$/.test(s.split(' ')[0]))return s;    // 이미 시군구로 시작
-  return region+' '+s;
-}
-// 주소 → 좌표. 배경 조회라 수동 붙여넣기(tryManual)는 쓰지 않는다 — 사용자에게 창을 띄우지 않기 위해
-function geocode(q){
-  if(!q)return Promise.resolve(null);
-  if(GEO_CACHE[q]!==undefined)return Promise.resolve(GEO_CACHE[q]);
-  var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=5&page=1&query='+
-    encodeURIComponent(q)+'&type=address&category=parcel&format=json&errorformat=json&key='+getKey();
-  return tryFetch(url).catch(function(){return tryJsonp(url);}).then(function(d){
-    var items=(d&&d.response&&d.response.result&&d.response.result.items)||[],it=items[0],p=it&&it.point;
-    var v=(p&&p.x&&p.y&&isFinite(parseFloat(p.x))&&isFinite(parseFloat(p.y)))?
-      {x:parseFloat(p.x),y:parseFloat(p.y),addr:(it.address&&(it.address.parcel||it.address.road))||it.title||q,q:q}:null;
-    GEO_CACHE[q]=v;return v;
-  }).catch(function(e){console.error('지오코딩 실패',q,e);GEO_CACHE[q]=null;return null;});
-}
-
-// ── 거리 ──
-function mapSubjectLL(){var L0=LANDS[0]||{};return (L0._xy&&isFinite(L0._xy.x))?L0._xy:null;}
-function mapDist(a,b){   // 두 지점 사이 직선거리(m) — 하버사인
-  var R=6371000,rad=Math.PI/180,dy=(b.y-a.y)*rad,dx=(b.x-a.x)*rad,y1=a.y*rad,y2=b.y*rad;
-  var h=Math.sin(dy/2)*Math.sin(dy/2)+Math.cos(y1)*Math.cos(y2)*Math.sin(dx/2)*Math.sin(dx/2);
-  return Math.round(2*R*Math.asin(Math.min(1,Math.sqrt(h))));
-}
-function mapPopup(it){
-  var s='<b>'+attr(it.label)+'</b> <span style="color:#626b78">'+attr(it.kind)+'</span><br>'+attr(it.xy.addr||it.loc);
-  var base=mapSubjectLL();
-  if(base&&it.kind!=='본건'){var d=mapDist(base,it.xy);
-    s+='<br><span style="color:#475569">본건에서 직선 '+(d>=1000?(d/1000).toFixed(2)+'km':d+'m')+'</span>';}
-  if(it.xy.manual)s+='<br><span style="color:#b45309">직접 옮긴 위치</span>';
-  return s;
-}
-
-// ── 그리기 ──
-function mapDraw(items){
-  MAP_MARKERS.forEach(function(m){MAP.removeLayer(m);});MAP_MARKERS=[];
-  var pts=[];
-  items.forEach(function(it){
-    if(!it.xy)return;
-    var ll=[it.xy.y,it.xy.x];pts.push(ll);
-    var icon=L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
-      html:'<div class="mkr'+(it.pick?' pick':'')+'"><div class="dot" style="background:'+it.color+'"></div>'+
-           '<div class="lab">'+attr(it.label)+'</div></div>'});
-    var m=L.marker(ll,{icon:icon,draggable:true,title:it.label+' — '+it.loc,zIndexOffset:it.pick?1000:0}).addTo(MAP);
-    m.bindPopup(mapPopup(it));
-    m.on('dragend',function(){
-      var p=m.getLatLng();
-      it.xy=it.o._xy={x:p.lng,y:p.lat,addr:it.xy.addr,q:it.xy.q,manual:true};
-      m.setPopupContent(mapPopup(it));saveForm();
-      mapStatus('📍 '+it.label+' 위치를 직접 옮겼습니다(저장됨). “주소 다시 찾기”를 누르면 되돌아갑니다.');
-    });
-    MAP_MARKERS.push(m);
-  });
-  if(pts.length===1)MAP.setView(pts[0],17);
-  else if(pts.length>1)MAP.fitBounds(L.latLngBounds(pts),{padding:[45,45],maxZoom:17});
-}
-
-function mapOpen(){
-  loadLeaflet().then(function(){
-    if(!MAP){
-      MAP=L.map('mapBox').setView([37.5665,126.9780],16);
-      mapSetBase();mapToggleOverlay();
-      L.control.scale({imperial:false}).addTo(MAP);
-    }
-    MAP.invalidateSize();   // 숨어 있던 탭에서 열리므로 지도 크기를 다시 잡아준다
-    return mapRefresh(false);
-  }).catch(function(e){mapStatus(e.message,true);});
-}
-// force=true면 저장해 둔 좌표(직접 옮긴 핀 포함)를 버리고 주소를 다시 조회한다
-function mapRefresh(force){
-  if(!window.L||!MAP)return Promise.resolve();
-  var items=mapItems();
-  if(!items.length){
-    mapDraw([]);document.getElementById('mapMiss').innerHTML='';
-    mapStatus('소재지가 입력된 항목이 없습니다. 대상물건·공시지가기준법 탭에서 주소를 먼저 넣어 주세요.');
-    return Promise.resolve();
-  }
-  mapStatus('주소 조회 중… (0/'+items.length+')');
-  var done=0,miss=[];
-  return Promise.all(items.map(function(it){
-    var q=mapQuery(it.loc,it.region),cached=it.o._xy;
-    var usable=cached&&isFinite(cached.x)&&isFinite(cached.y);
-    if(!force&&usable&&cached.q===q){it.xy=cached;done++;return Promise.resolve();}
-    return geocode(q).then(function(v){
-      done++;mapStatus('주소 조회 중… ('+done+'/'+items.length+')');
-      if(v){it.xy=it.o._xy=v;return;}
-      if(usable){it.xy=cached;miss.push(it.label+'(주소 재조회 실패 — 이전 위치 유지)');return;}
-      miss.push(it.label+' “'+it.loc+'”');
-    });
-  })).then(function(){
-    mapDraw(items);saveForm();
-    var ok=items.filter(function(i){return i.xy;}).length;
-    mapStatus('✅ '+ok+'곳 표시'+(miss.length?(' · '+miss.length+'곳 실패'):'')+
-      (force?' (주소로 다시 찾음)':''));
-    document.getElementById('mapMiss').innerHTML=miss.length?
-      ('⚠️ 위치를 못 찾은 항목: <b>'+miss.map(attr).join('</b> / <b>')+'</b> — 소재지 칸의 지번을 확인하거나, 지도에서 비슷한 핀을 끌어다 놓아 주세요.'):'';
-  });
-}
+function mapOpen(){return mapView().open(mapItems());}
+function mapRefresh(force){return mapView().open(mapItems(),force);}   // force=true면 저장된 좌표를 버리고 주소로 다시 찾는다
+function mapSetBase(){mapView().setBase();}
+function mapToggleOverlay(){mapView().toggleOverlay();}
 </script>
 <script src="arap_toji_opinion.js"></script>
 <script src="arap_building_cost_data.js"></script>

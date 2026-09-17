@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 거래사례 위치도 (독립 페이지)
+  토지 거래사례(국토부 실거래가·KAIS)와 집합건물 거래사례(카이스)를 붙여넣어 지도에 찍는다.
+  ARM 앱과 별개로 도는 도구 — 감정평가서·청구서 생성과는 무관하고, 저장도 이 페이지 전용 키를 쓴다.
+
+  잠금 없음(사용자 요청, 2026-09-17). 주소가 알려지지 않게 비공개 허브(74w85izf.html)에서만 링크한다.
+  지도 엔진 = arap_map.js, 붙여넣기 파서 = arap_kais.js (둘 다 공용).
+  Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>거래사례 위치도 — Ongyeol</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  input:focus,textarea:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
+
+  #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
+  #mode-bar .mb-title{color:#e2e8f0;font-weight:700;font-size:13px;margin-right:6px;}
+  #mode-bar a.mb-home{cursor:pointer;border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
+  #mode-bar a.mb-home:hover{border-color:#2563eb;color:#fff;}
+  #mode-bar .mb-tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
+
+  .wrap{padding:10px 12px 40px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:11px 13px;margin-bottom:9px;}
+  h2{font-size:14px;font-weight:700;color:#1a2744;border-bottom:2px solid #1a2744;padding-bottom:4px;margin-bottom:8px;}
+  .note{background:#f8fafc;border-left:3px solid #2563eb;padding:6px 9px;font-size:11.5px;color:#475569;border-radius:0 4px 4px 0;}
+  .status{margin:6px 0 0;color:#555;min-height:14px;font-size:11.5px;}
+  .status.err{color:#dc2626;font-weight:600;}
+  .pst{font-size:11.5px;min-height:14px;margin-top:5px;color:#555;}
+  .pst.ok{color:#166534;font-weight:600;} .pst.err{color:#dc2626;font-weight:600;}
+
+  .tabs{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap;}
+  .tabs button{background:#e2e8f0;color:#888;padding:5px 14px;border-radius:16px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;font-family:inherit;}
+  .tabs button.active{background:#1a2744;color:#fff;}
+  .tab{display:none;} .tab.active{display:block;}
+
+  .btn{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:5px;padding:5px 11px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
+  .btn:hover{border-color:#2563eb;color:#2563eb;}
+  .btn.pri{background:#2563eb;border-color:#2563eb;color:#fff;}
+  .btn.dng{background:#fef2f2;border-color:#fecaca;color:#dc2626;}
+  .box{border:1px solid #cbd5e1;border-radius:4px;padding:5px 8px;font-size:12.5px;font-family:inherit;color:#1a2744;background:#fff;}
+
+  .pastebox{background:#f1f5f9;border:1px dashed #94a3b8;border-radius:6px;padding:9px 11px;margin-bottom:8px;}
+  .pastebox textarea{width:100%;height:46px;border:1px solid #cbd5e1;border-radius:4px;padding:6px 8px;font-size:12px;font-family:inherit;resize:vertical;}
+
+  .tw{overflow-x:auto;}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th,td{border:1px solid #e2e5ea;padding:3px 5px;text-align:center;white-space:nowrap;}
+  th{background:#f0f2f5;font-weight:700;font-size:11.5px;color:#334155;}
+  td input{width:100%;min-width:52px;border:none;background:transparent;font-size:12px;font-family:inherit;text-align:center;color:#1a2744;padding:2px;}
+  td.num input{text-align:right;}
+  td.wide input{min-width:215px;text-align:left;}
+  tr.off{opacity:.42;}
+  .del{color:#dc2626;cursor:pointer;font-weight:700;}
+  .empty{padding:18px;text-align:center;color:#94a3b8;font-size:12.5px;}
+
+  .mapchk{font-size:12px;color:#475569;font-weight:600;cursor:pointer;user-select:none;}
+  .mapchk input{vertical-align:-2px;margin-right:3px;cursor:pointer;}
+  #mapBox{height:660px;border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5;}
+  #mapMiss{margin-top:6px;font-size:12px;color:#b45309;}
+  #mapMiss b{color:#92400e;}
+  .lgd-row{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 6px;font-size:12px;font-weight:600;align-items:center;}
+</style>
+</head>
+<body>
+
+<div id="mode-bar">
+  <a class="mb-home" href="index.html">🏠 홈</a>
+  <span class="mb-title">🗺️ Ongyeol · 거래사례 위치도</span>
+  <span class="mb-tag">토지 · 집합건물</span>
+</div>
+
+<div class="wrap">
+
+  <!-- ── 본건 (거리 기준점) ── -->
+  <div class="card">
+    <h2>본건 <span style="font-weight:400;font-size:11.5px;color:#626b78">— 안 넣어도 됩니다. 넣으면 사례마다 본건에서의 직선거리가 함께 나옵니다.</span></h2>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input class="box" id="baseLoc" style="flex:1 1 320px" placeholder="예) 서울특별시 광진구 자양동 600-1" oninput="saveAll()" onchange="redraw(false)">
+      <button class="btn pri" onclick="redraw(false)">지도에 표시</button>
+    </div>
+    <div class="note" style="margin-top:7px">본건을 넣으면 <b>시·군·구가 없는 사례 주소</b>(예 “자양동 617-33”)를 본건과 같은 시군구에서 먼저 찾습니다 — 다른 지역 같은 동 이름에 잘못 찍히는 걸 막아 줍니다.</div>
+  </div>
+
+  <!-- ── 사례 입력 ── -->
+  <div class="card">
+    <div class="tabs">
+      <button id="tabbtn-land" class="active" onclick="showTab('land')">토지 거래사례</button>
+      <button id="tabbtn-jip" onclick="showTab('jip')">집합건물 거래사례</button>
+    </div>
+
+    <!-- 토지 -->
+    <div id="tab-land" class="tab active">
+      <div class="pastebox">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">📋 국토부 실거래가·KAIS 엑셀에서 <b>머리글째</b> 복사 → 여기에 Ctrl+V</div>
+        <textarea id="pasteLand" placeholder="여기에 Ctrl+V — 붙이는 즉시 아래 표에 쌓이고 지도에 찍힙니다" onpaste="pasteLand(event)" onkeydown="if(event.key==='Enter')event.preventDefault()"></textarea>
+        <div class="pst" id="msgLand">토지 행과 건물 행을 한꺼번에 붙여도 됩니다 — 같은 소재지·거래일·금액이면 한 사례로 합칩니다.</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:700" id="cntLand">0건</span>
+        <button class="btn" onclick="addRow('land')">+ 빈 행</button>
+        <button class="btn dng" style="margin-left:auto" onclick="clearRows('land')">🗑 전체 지우기</button>
+      </div>
+      <div class="tw"><table id="tblLand"></table></div>
+    </div>
+
+    <!-- 집합건물 -->
+    <div id="tab-jip" class="tab">
+      <div class="pastebox">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">📋 카이스에서 <b>머리글째</b> 복사 → 여기에 Ctrl+V</div>
+        <textarea id="pasteJip" placeholder="여기에 Ctrl+V — 붙이는 즉시 아래 표에 쌓이고 지도에 찍힙니다" onpaste="pasteJip(event)" onkeydown="if(event.key==='Enter')event.preventDefault()"></textarea>
+        <div class="pst" id="msgJip">기타주소에서 동·층·호를 자동으로 뽑고, 단가는 물건금액 ÷ 전용면적으로 채웁니다.</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:700" id="cntJip">0건</span>
+        <button class="btn" onclick="addRow('jip')">+ 빈 행</button>
+        <button class="btn dng" style="margin-left:auto" onclick="clearRows('jip')">🗑 전체 지우기</button>
+      </div>
+      <div class="tw"><table id="tblJip"></table></div>
+    </div>
+  </div>
+
+  <!-- ── 지도 ── -->
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <h2 style="margin-right:auto;border:none;padding:0">위치도</h2>
+      <label class="mapchk"><input type="checkbox" id="mapCadastre" checked onchange="MAPV.toggleOverlay()"> 지적선</label>
+      <label class="mapchk"><input type="checkbox" id="mapZoning" onchange="MAPV.toggleOverlay()"> 용도지역</label>
+      <select class="box" id="mapBaseSel" onchange="MAPV.setBase()">
+        <option value="Base">일반지도</option>
+        <option value="Satellite">위성사진</option>
+        <option value="Hybrid">위성+지명</option>
+        <option value="osm">OSM(대체)</option>
+      </select>
+      <button class="btn" onclick="redraw(true)" title="표의 소재지로 주소를 다시 조회합니다(직접 옮긴 핀도 초기화)">↻ 주소 다시 찾기</button>
+    </div>
+    <div class="lgd-row">
+      <span><i class="arap-lgd" style="background:#dc2626"></i>본건</span>
+      <span><i class="arap-lgd" style="background:#16a34a"></i>토지 거래사례</span>
+      <span><i class="arap-lgd" style="background:#7c3aed"></i>집합건물 거래사례</span>
+      <span style="color:#626b78;font-weight:400">핀을 <b>끌어다 놓으면</b> 위치를 고칠 수 있고 저장됩니다. 표의 <b>표시</b> 체크를 끄면 지도에서 빠집니다.</span>
+    </div>
+    <div id="mapBox"></div>
+    <div class="status" id="mapStatus">사례를 붙여넣으면 지도에 찍힙니다.</div>
+    <div id="mapMiss"></div>
+  </div>
+
+</div>
+
+<script src="arap_map.js"></script>
+<script src="arap_kais.js"></script>
+<script>
+'use strict';
+
+var VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';   // 브이월드 키 — 다른 화면과 같은 값
+var STORE='arap-map-cases-v1';
+var DATA={base:'',land:[],jip:[]};
+
+function num(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;}
+function won(n){return n?Math.round(n).toLocaleString('ko-KR'):'';}
+function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function hasV(v){return String(v==null?'':v).trim()!=='';}
+
+// ── 저장 (이 페이지 전용 키 — ARM 앱 저장과 섞이지 않는다) ──
+var saveTimer=null;
+function saveAll(){clearTimeout(saveTimer);saveTimer=setTimeout(doSave,300);}
+function doSave(){
+  DATA.base=(document.getElementById('baseLoc')||{}).value||'';
+  try{localStorage.setItem(STORE,JSON.stringify(DATA));}catch(e){console.error('save',e);}
+}
+function restore(){
+  try{
+    var o=JSON.parse(localStorage.getItem(STORE)||'null');
+    if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];
+      if(o._xy)DATA._xy=o._xy;}   // 본건 좌표도 되살린다(안 그러면 열 때마다 다시 조회)
+  }catch(e){console.error('restore',e);}
+  document.getElementById('baseLoc').value=DATA.base;
+}
+
+// ── 탭 ──
+function showTab(name){
+  ['land','jip'].forEach(function(n){
+    document.getElementById('tab-'+n).classList.toggle('active',n===name);
+    document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
+  });
+  if(MAPV)MAPV.leaflet()&&MAPV.leaflet().invalidateSize();
+}
+
+// ── 표 ──
+// [머리, 키, 정렬클래스, 돈?] — 'num'은 오른쪽 정렬, 'wide'는 넓게·왼쪽.
+// 돈=1인 칸만 천단위 쉼표를 찍는다. 면적은 소수점이 있어 쉼표를 찍으면 반올림돼 버리므로 그대로 둔다.
+var LAND_COLS=[['소재지','loc','wide'],['용도지역','use',''],['지목','jimok',''],
+  ['토지면적(㎡)','landA','num'],['건물면적(㎡)','bldA','num'],['사용승인일','appr',''],
+  ['거래금액(원)','total','num',1],['거래일자','date',''],['비고','memo','wide']];
+var JIP_COLS=[['소재지','location','wide'],['지번','jibun',''],['건물명','aptName','wide'],
+  ['동','dong',''],['층','floor',''],['호','ho',''],['전용면적(㎡)','exclusiveArea','num'],
+  ['거래금액(원)','price','num',1],['단가(원/㎡)','unitPrice','num',1],['거래일자','tradeDate',''],['비고','memo','wide']];
+
+function colsOf(kind){return kind==='land'?LAND_COLS:JIP_COLS;}
+function rowsOf(kind){return kind==='land'?DATA.land:DATA.jip;}
+
+function render(kind){
+  var cols=colsOf(kind),rows=rowsOf(kind),tbl=document.getElementById(kind==='land'?'tblLand':'tblJip');
+  document.getElementById(kind==='land'?'cntLand':'cntJip').textContent=rows.length+'건';
+  if(!rows.length){
+    tbl.innerHTML='<tr><td class="empty">아직 사례가 없습니다 — 위 칸에 붙여넣거나 「+ 빈 행」을 누르세요.</td></tr>';
+    return;
+  }
+  var h='<tr><th style="width:34px">표시</th><th style="width:34px">#</th>'+
+    cols.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th style="width:28px"></th></tr>';
+  rows.forEach(function(r,i){
+    h+='<tr class="'+(r.show===false?'off':'')+'">';
+    h+='<td><input type="checkbox" style="width:auto" '+(r.show===false?'':'checked')+' onchange="toggleShow(\''+kind+'\','+i+',this.checked)"></td>';
+    h+='<td style="font-weight:700;color:#475569">'+(i+1)+'</td>';
+    cols.forEach(function(c){
+      var v=r[c[1]];
+      var shown=(c[3]&&v!=null&&v!=='')?won(num(v)):(v==null?'':v);
+      h+='<td class="'+c[2]+'"><input value="'+esc(shown)+'" oninput="editCell(\''+kind+'\','+i+',\''+c[1]+'\',this.value)"'+
+         ' onchange="cellDone(\''+kind+'\',\''+c[1]+'\')"></td>';
+    });
+    h+='<td><span class="del" title="이 사례 삭제" onclick="delRow(\''+kind+'\','+i+')">✕</span></td></tr>';
+  });
+  tbl.innerHTML=h;
+}
+function renderAll(){render('land');render('jip');}
+
+// 글자를 칠 때는 저장만 한다. 지도를 다시 찍는 건 칸을 벗어날 때(cellDone) —
+// 한 글자마다 주소 조회가 나가면 "자양동 6", "자양동 61" 같은 토막 주소로 헛조회가 쌓인다.
+function editCell(kind,i,key,val){
+  var r=rowsOf(kind)[i];if(!r)return;
+  r[key]=val;saveAll();
+}
+function isLocKey(kind,key){return kind==='land'?key==='loc':(key==='location'||key==='jibun');}
+function cellDone(kind,key){if(isLocKey(kind,key))redraw(false);}
+function toggleShow(kind,i,on){var r=rowsOf(kind)[i];if(!r)return;r.show=!!on;saveAll();render(kind);redraw(false);}
+function delRow(kind,i){rowsOf(kind).splice(i,1);saveAll();render(kind);redraw(false);}
+function addRow(kind){rowsOf(kind).push({show:true});saveAll();render(kind);}
+function clearRows(kind){
+  var rows=rowsOf(kind);
+  if(!rows.length)return;
+  if(!confirm((kind==='land'?'토지':'집합건물')+' 거래사례 '+rows.length+'건을 모두 지울까요?'))return;
+  rows.length=0;saveAll();render(kind);redraw(false);
+}
+
+// ── 붙여넣기 ──
+function pasteLand(e){
+  var text=(e.clipboardData||window.clipboardData).getData('text');
+  e.preventDefault();if(e.target)e.target.value='';
+  var msg=document.getElementById('msgLand'),res=ArapKais.parseLand(text,'토지');
+  if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
+  res.out.forEach(function(c){c.show=true;DATA.land.push(c);});
+  saveAll();render('land');redraw(false);
+  msg.className='pst ok';
+  msg.textContent='✅ '+res.out.length+'건 추가'+(res.merged?' (토지+건물 일괄 '+res.merged+'건은 한 사례로 합침)':'')+' — 지도에 찍는 중…';
+}
+function pasteJip(e){
+  var text=(e.clipboardData||window.clipboardData).getData('text');
+  e.preventDefault();if(e.target)e.target.value='';
+  var msg=document.getElementById('msgJip'),res=ArapKais.parseJip(text);
+  if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
+  res.out.forEach(function(c){c.show=true;DATA.jip.push(c);});
+  saveAll();render('jip');redraw(false);
+  msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 추가 — 지도에 찍는 중…';
+}
+
+// ── 지도 ──
+var MAPV=ArapMap.create({
+  box:'mapBox',status:'mapStatus',miss:'mapMiss',
+  baseSel:'mapBaseSel',cadastre:'mapCadastre',zoning:'mapZoning',
+  key:function(){return VKEY;},onSave:saveAll,
+  emptyMsg:'표에 소재지가 있는 사례가 없습니다 — 위 칸에 붙여넣어 주세요.'
+});
+
+function jipLoc(r){return ((r.location||'')+' '+(r.jibun||'')).trim();}
+// 지도 핀 옆에 함께 보여줄 한 줄 요약(팝업)
+function landInfo(r){
+  var p=[];
+  if(hasV(r.date))p.push(r.date);
+  if(num(r.total))p.push(won(num(r.total))+'원');
+  if(num(r.landA))p.push('토지 '+r.landA+'㎡');
+  return p.join(' · ');
+}
+function jipInfo(r){
+  var p=[];
+  if(hasV(r.tradeDate))p.push(r.tradeDate);
+  if(num(r.price))p.push(won(num(r.price))+'원');
+  if(num(r.unitPrice))p.push('@'+won(num(r.unitPrice)));
+  if(hasV(r.ho))p.push(r.ho+'호');
+  return p.join(' · ');
+}
+function mapItems(){
+  var baseLoc=String((document.getElementById('baseLoc')||{}).value||'').trim();
+  var region=ArapMap.sggOfAddr(baseLoc),out=[];
+  if(baseLoc)out.push({o:DATA,kind:'본건',label:'본건',color:'#dc2626',loc:baseLoc,region:'',pick:true});
+  DATA.land.forEach(function(r,i){
+    if(r.show===false||!hasV(r.loc))return;
+    out.push({o:r,kind:'토지 거래사례',label:'토지 #'+(i+1),color:'#16a34a',loc:r.loc,region:region,info:landInfo(r)});
+  });
+  DATA.jip.forEach(function(r,i){
+    var loc=jipLoc(r);
+    if(r.show===false||!loc)return;
+    out.push({o:r,kind:'집합건물 거래사례',label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,region:region,info:jipInfo(r)});
+  });
+  return out;
+}
+// force=true면 저장해 둔 좌표(직접 옮긴 핀 포함)를 버리고 주소로 다시 찾는다
+var drawTimer=null;
+function redraw(force){
+  clearTimeout(drawTimer);
+  drawTimer=setTimeout(function(){MAPV.open(mapItems(),force);},force?0:250);
+}
+
+// ── 시작 ──
+restore();renderAll();redraw(false);
+window.addEventListener('pagehide',function(){if(saveTimer)doSave();});
+window.addEventListener('beforeunload',function(){if(saveTimer)doSave();});
+</script>
+</body>
+</html>
