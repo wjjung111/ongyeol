@@ -26,6 +26,7 @@ function factors(prefix,values){
 function landMap(L,i){
   var m={'토지_번호':i+1,'필지_번호':i+1,'공시개별_번호':i+1};
   ['소재지','지번','지목','용도지역','이용상황','형상','지세','비고'].forEach(function(k){m['토지_'+k]=text(L[k]);});
+  if(!m['토지_비고'].trim())m['토지_비고']='-';   // 비고는 비워두지 않고 '-'
   m['토지_면적']=area(L['면적']);m['토지_공시지가']=hasV(L['공시지가'])?money(num(L['공시지가'])):'';
   // V-World의 도로교통은 하나의 코드명. 임의로 두 의미로 쪼개지 않는다(템플릿 도로교통 칸도 {{토지_도로}} 한 줄).
   m['토지_도로']=text(L['도로교통']);return m;
@@ -56,14 +57,25 @@ function tradeMap(c,n){
   var keys={건물단가:'bldUnit',건물금액:'bldAmt',토지금액:'landAmt',토지단가:'landUnit'};
   Object.keys(keys).forEach(function(k){m[prefix+k]=active?money(cal[keys[k]]):'';});return m;
 }
+// 평가사례 소재지 칸은 늘 '동명' 줄 + '본번-부번' 줄 두 줄로 나눈다.
+// 지번 표기가 제각각이어도(붙여쓰기 '자양동634-19', 전각 숫자, 여러 모양의 붙임표, '번지', '산')
+// 뒷부분이 반드시 아랫줄로 가도록 address()보다 넓게 잡고, 그래도 못 찾으면 마지막 낱말을 내린다.
+function splitJibun(s){
+  var t=text(s).replace(/\s+/g,' ').trim();
+  var m=t.match(/^(.*?)\s*((?:산\s*)?[0-9０-９]+(?:\s*[-‐‑‒–—―−ー－~][0-9０-９]+)?\s*(?:번지)?)$/);
+  if(m)return {loc:m[1].trim(),lot:m[2].replace(/\s+/g,'')};
+  var i=t.lastIndexOf(' ');
+  return i>0?{loc:t.slice(0,i),lot:t.slice(i+1)}:{loc:t,lot:''};
+}
 function appraisalMap(a){
-  var ad=address(a.loc);return {'평사1_기호':text(a.no),'평사1_소재지':ad.loc,'평사1_지번':ad.lot,
+  var ad=splitJibun(a.loc);return {'평사1_기호':text(a.no),'평사1_소재지':ad.loc,'평사1_지번':ad.lot,
     '평사1_지목':text(a.jimok),'평사1_용도지역':text(a.use),'평사1_이용상황':text(a.cond),
     '평사1_단가':hasV(a.unit)?money(num(a.unit)):'','평사1_목적':text(a.purp),'평사1_시점':docDot(a.base)};
 }
 function floorMap(r){
   var d=r.data;return {'층1_번호':text(d['동'])||'가','층1_해당층':text(d['층별']),'층1_면적':area(r.size),
-    '층1_이용상황':text(d['용도']),'층1_구조':text(d['구조']),'층1_구조2':'','층1_재조달':money(r.reCost),
+    // 구조는 한 줄만 쓴다 — 빈 둘째 줄({{층N_구조2}})은 지우는 손이 가서 템플릿에서 뺐다.
+    '층1_이용상황':text(d['용도']),'층1_구조':text(d['구조']),'층1_재조달':money(r.reCost),
     '층1_내용연수':text(r.life),'층1_경과연수':text(r.elapsed),'층1_잔가율':r.remaining+'/'+r.life,
     '층1_적용단가':money(r.apply),'층1_금액':money(r.total)};
 }
@@ -78,7 +90,7 @@ function buildingMaps(rows){
     return {'건물_번호':g.key,'건물_소재지':text(first['소재지'])||text(land['소재지']),'건물_지번':text(first['지번'])||text(land['지번']),
       '건물_구조':unique('구조')||val('bt_strct'),'건물_층수':groups.length===1?val('bt_flrs'):unique('층별'),
       '건물_용도':unique('용도')||val('bt_purps'),'건물_면적':area(g.rows.reduce(function(s,r){return s+r.size;},0)),
-      '건물_승인일':docDot(val('bt_useApr')),'건물_비고':''};
+      '건물_승인일':docDot(val('bt_useApr')),'건물_비고':'-'};   // 비고는 비워두지 않고 '-'
   });
 }
 function newCostMaps(){
@@ -139,6 +151,21 @@ function scope(el,map,state){
       var key='__op'+(state.seq++);state.map[key]=text(map[k]);return '{{'+key+'}}';
     });
   });
+}
+// 표 오른쪽 끝의 빈 열을 지운다(거래사례가 3건이 안 되는 마지막 표 — 5건이면 #4·#5만 남기고 빈 열 삭제).
+function dropCols(tbl,keep){
+  var cols=Number(tbl.getAttribute('colCnt'));if(!(keep<cols))return;
+  var lost=0;
+  children(tbl,'tr').forEach(function(tr,ri){
+    children(tr,'tc').forEach(function(tc){
+      if(Number(children(tc,'cellAddr')[0].getAttribute('colAddr'))<keep)return;
+      if(!ri)lost+=Number(children(tc,'cellSz')[0].getAttribute('width'));
+      tc.remove();
+    });
+  });
+  tbl.setAttribute('colCnt',String(keep));
+  var sz=children(tbl,'sz')[0];
+  if(sz&&lost)sz.setAttribute('width',String(Number(sz.getAttribute('width'))-lost));
 }
 function resizeRows(tbl,start,count,blockSize,maps,state){
   var rows=children(tbl,'tr'),oldHeight=Number(children(tbl,'sz')[0].getAttribute('height'));
@@ -206,13 +233,16 @@ function opinionXml(xml,data){
     }
     var target=host;
     for(var g=0;g<groups;g++){
-      var table=descendants(target,'tbl')[0],map={};
+      var table=descendants(target,'tbl')[0],map={},used=0;
       table.setAttribute('id',String(1900000000+state.seq++));
       for(var c=0;c<3;c++){
-        var item=data.trades[g*3+c];Object.assign(map,tradeMap(item&&item.data,c+1));
+        var item=data.trades[g*3+c];if(item)used=c+1;
+        Object.assign(map,tradeMap(item&&item.data,c+1));
         var t=descendants(children(children(table,'tr')[0],'tc')[c+1],'t')[0];t.textContent=item?'거래사례#'+(item.index+1):'';
       }
-      scope(table,map,state);clearLines(target);target=target.nextSibling;
+      scope(table,map,state);
+      if(used)dropCols(table,used+1);   // 사례가 없는 뒤쪽 열은 빈칸으로 두지 않고 지운다
+      clearLines(target);target=target.nextSibling;
     }
   });
   // 원본의 고정 샘플 문구 중 이미 앱에서 입력받는 항목을 연결한다. 법령·방법론 본문은 유지.
