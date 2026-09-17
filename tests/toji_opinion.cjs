@@ -97,7 +97,7 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     // 평가사례 소재지는 늘 '동명' 줄 + '본번-부번' 줄 두 줄. 붙여쓰기·'번지'·전각 붙임표도 나뉜다.
     const split=await page.evaluate(async()=>{
       ETC={type:'t',idx:0};
-      APPRS=[{no:'a',loc:'자양동 634-19',unit:'1000000'},{no:'b',loc:'자양동609-5',unit:'1000000'},
+      APPRS=[{no:'a',loc:'자양동 634- 19',unit:'1000000'},{no:'b',loc:'자양동609-5',unit:'1000000'},
              {no:'c',loc:'자양동 660-2번지',unit:'1000000'},{no:'d',loc:'서울특별시 광진구 자양동 산 12',unit:'1000000'}];
       calcGongsi();
       const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
@@ -115,6 +115,28 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
       });
     });
     assert.deepEqual(split,[['자양동','634-19'],['자양동','609-5'],['자양동','660-2번지'],['서울특별시 광진구 자양동','산12']]);
+    // 거래사례 계산칸에 평가사가 '-'를 직접 넣으면 문서에도 '-'로 나온다(0이 아니라).
+    const dashes=await page.evaluate(async()=>{
+      TRADES=[{loc:'자양동 613-24',use:'2종일주',jimok:'대',landA:'91.2',bldA:'91.9',total:'950000000',date:'2026.03.31',
+               struct:'-',reCost:'-',life:'-',rest:'-',bldUnit:'-',bldAmt:'-'},
+              // 재조달원가를 새로 넣으면 '-'가 남아 있어도 건물 적용단가·건물금액이 다시 자동계산돼야 한다
+              {loc:'자양동 617-20',use:'2종일주',jimok:'대',landA:'92.3',bldA:'139.76',total:'900000000',
+               date:'2025.09.20',appr:'1989.08.17',struct:'연와조',reCost:'800000',life:'40',bldUnit:'-',bldAmt:'-'}];
+      ETC={type:'t',idx:0};GA={idx:0};calcGongsi();
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const entries=await ArapCheonggu.parseZip(bytes.buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
+      const doc=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data),'application/xml');
+      const tbl=Array.from(doc.getElementsByTagNameNS(HP,'tbl')).find(t=>t.textContent.includes('거래사례#1')&&t.textContent.includes('잔존연수'));
+      const out={};
+      Array.from(tbl.children).filter(n=>n.localName==='tr').forEach(tr=>{
+        const cells=Array.from(tr.children).filter(n=>n.localName==='tc');
+        if(cells.length>1)out[cells[0].textContent.trim()]=cells[1].textContent.trim();
+      });
+      return out;
+    });
+    for(const k of ['주구조','재조달원가(원/㎡)','내용연수','잔존연수','건물금액(원)'])
+      assert.equal(dashes[k],'-',k+'는 0이 아니라 -여야 합니다: '+dashes[k]);
+    assert.equal(dashes['총 거래금액(원)'],'950,000,000');
     // 선택 항목 미입력과 알 수 없는 토큰도 확인한다.
     await page.evaluate(()=>{document.getElementById('op_location').value='';document.getElementById('op_costRows').value='';APPRS=[];document.getElementById('bldBody').innerHTML='';renderBldCalc();});
     const blank=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));
