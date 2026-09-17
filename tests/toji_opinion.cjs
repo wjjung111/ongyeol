@@ -69,6 +69,7 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     await download.saveAs(path.join(out,'simple.hwpx'));
     const one=await validate(page,fs.readFileSync(path.join(out,'simple.hwpx')),'simple');
     assert.equal(one.first,'mimetype');assert(one.text.includes('456,000,000'));assert(one.text.includes('공시 의견 & 특수문자 <검증>'));assert(one.text.includes('Codex 결정의견: 화면에서 입력한 문구.'));
+    assert(one.text.includes('본건은 검증동 소재 검증초등학교 북측 인근에'));   // 개요 산문은 지번·'토지 및 건물' 없이 동까지
     assert(!one.text.includes('신사동'));assert(!one.text.includes('한국부동산원, 2025년'));assert(one.text.includes('검증분류'));assert(!one.text.includes('[기입]'));
     const oldPage=await context.newPage();await oldPage.goto(base+'/baseline.html',{waitUntil:'domcontentloaded'});const oldSimple=await fixture(oldPage);assert.deepEqual(simple,oldSimple);
     const multi=await fixture(page,true),oldMulti=await fixture(oldPage,true);assert.deepEqual(multi,oldMulti);
@@ -77,6 +78,15 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     for(const marker of ['두번째동','다른표준동','거래사례#4','거래동 33-1','평가동','43-1','7층','3,333,000','3,555,000'])assert(many.text.includes(marker),marker);
     assert.equal(many.sizes.filter(s=>s[0]===17&&s[1]===4).length,4);
     assert(many.sizes.some(s=>s[0]===8&&s[1]===6));assert(many.sizes.some(s=>s[0]===6&&s[1]===7));
+    // 거래사례 4번째부터의 이어지는 표는 새 페이지에서 시작한다(pageBreak="1").
+    const breaks=await page.evaluate(async bytes=>{
+      const entries=await ArapCheonggu.parseZip(Uint8Array.from(bytes).buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
+      const xml=new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data);
+      const doc=new DOMParser().parseFromString(xml,'application/xml');
+      return Array.from(doc.getElementsByTagNameNS(HP,'p')).filter(p=>p.getElementsByTagNameNS(HP,'tbl').length&&p.textContent.includes('거래사례#4'))
+        .map(p=>p.getAttribute('pageBreak'));
+    },multiBytes);
+    assert.equal(breaks.length,2);assert(breaks.every(v=>v==='1'),'거래사례#4 표는 새 페이지에서 시작해야 합니다: '+breaks);
     // 수동 수정값과 평가사례 채택을 문서에 반영한다.
     await page.evaluate(()=>{ETC={type:'a',idx:3};STDS[0].etcOvr={src:'2345678',std:'1234567',stdTime:'1.07',out1:'7654321',out2:'3456789',ind:'1.123',ratio:'2.22'};document.getElementById('eSaj2').value='1.1';document.getElementById('eArea2').value='1.2';calcGongsi();});
     const over=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));

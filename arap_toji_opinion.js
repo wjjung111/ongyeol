@@ -12,6 +12,14 @@ function address(s){
   var m=text(s).trim().match(/^(.*?)\s+(산\s*\d+(?:-\d+)?|\d+(?:-\d+)?)(?:번지)?$/);
   return m?{loc:m[1],lot:m[2]}:{loc:text(s),lot:''};
 }
+// 개요 산문 "본건은 ○○시 ○○구 ○○동 소재 …" — 지번·'토지 및 건물'·'외 N필지'는 빼고 동(읍·면)까지만.
+// 요항표 소재지(동)와 같은 값을 쓰도록 본건 토지의 '소재지' 칸을 먼저 본다.
+function dongAddr(){
+  var L0=LANDS[0]||{};
+  var s=text(L0['소재지']).trim()||text(L0.fullAddr).trim()||
+    text(cheongguAddr()).replace(/\s*외\s*\d+\s*필지/,'').replace(/\s*토지(\s*및\s*건물)?\s*$/,'');
+  return address(s).loc;
+}
 function factors(prefix,values){
   var m={};['가로','접근','환경','획지','행정','기타'].forEach(function(k,i){m[prefix+'_'+k]=fixed(num(values[i]),2);});return m;
 }
@@ -19,8 +27,8 @@ function landMap(L,i){
   var m={'토지_번호':i+1,'필지_번호':i+1,'공시개별_번호':i+1};
   ['소재지','지번','지목','용도지역','이용상황','형상','지세','비고'].forEach(function(k){m['토지_'+k]=text(L[k]);});
   m['토지_면적']=area(L['면적']);m['토지_공시지가']=hasV(L['공시지가'])?money(num(L['공시지가'])):'';
-  // V-World의 도로교통은 하나의 코드명. 임의로 두 의미로 쪼개지 않는다.
-  m['토지_도로']=text(L['도로교통']);m['토지_교통']='';return m;
+  // V-World의 도로교통은 하나의 코드명. 임의로 두 의미로 쪼개지 않는다(템플릿 도로교통 칸도 {{토지_도로}} 한 줄).
+  m['토지_도로']=text(L['도로교통']);return m;
 }
 function standardMap(S,i){
   var m={'표준지_기호':String.fromCharCode(65+i)};
@@ -89,7 +97,7 @@ function opinionData(){
   var tm=etcTimeMeta(),selected=TRADES[GA.idx]||{},gt=(ga.rows||[])[0]||{};
   var date=docDot(val('base_gongsi'));
   var m={
-    '소재지_동':address(cheongguAddr()).loc,'인근위치설명':val('op_location')||'[인근 위치 기입]',
+    '소재지_동':dongAddr(),'인근위치설명':val('op_location')||'[인근 위치 기입]',
     '평가구분':val('ov_kind'),'평가목적':val('ov_purpose'),'기준시점':docDot(val('base_gijun')),'조사기간':docDot(val('base_josa')),
     '공시기준일':date,'공시지가_연도':date.slice(0,4),
     '공시시점_설명':[val('jb_region'),'('+date+'~'+docDot(val('base_gijun'))+')',val('jb_use')].filter(Boolean).join(' '),
@@ -193,7 +201,8 @@ function opinionXml(xml,data){
     for(var g=0;g<groups;g++){
       var target=g?host.cloneNode(true):host;
       // 모든 복사본은 값 치환 전 원본을 사용한다(아래에서 일괄 scope).
-      if(g){last.parentNode.insertBefore(target,last.nextSibling);last=target;}
+      // 이어지는 표(거래사례#4~)는 앞 표 아래에 끼어 페이지 경계에서 잘리지 않도록 새 페이지에서 시작한다.
+      if(g){target.setAttribute('pageBreak','1');last.parentNode.insertBefore(target,last.nextSibling);last=target;}
     }
     var target=host;
     for(var g=0;g<groups;g++){
