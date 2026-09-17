@@ -25,6 +25,30 @@ function expandPara(xmlText,token,value,black){
   var clones=String(value).split('\n').map(function(line){return tpl.split(token).join(esc(line));}).join('');
   return xmlText.slice(0,ps)+clones+xmlText.slice(pe);
 }
+// 원본 양식은 보존하고 입지조건의 고정 문구 두 곳만 출력 시 바꾼다.
+// 비어 있으면 원래 문단 유지. 여러 줄은 같은 서식의 문단으로 나눠 한글에서도 줄바꿈을 보존한다.
+function fillLocationNarrative(doc){
+  var paragraphs=Array.from(doc.documentElement.children).filter(function(p){return p.localName==='p';});
+  var start=paragraphs.findIndex(function(p){return p.textContent.indexOf('{{소재지_동}}')>=0;});
+  if(start<0)return;
+  var inEtc=false;
+  paragraphs.slice(start+1).some(function(p){
+    var plain=p.textContent.trim();
+    if(/^Ⅱ/.test(plain))return true;
+    if(/^4\.\s*기타사항/.test(plain))inEtc=true;
+    var id=plain==='본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.'?'y_surroundings':
+      inEtc&&plain==='해당사항 없음.'?'y_locationEtc':null;
+    var value=id?cgVal(id):'';
+    if(!value.trim())return false;
+    value.split(/\r?\n/).forEach(function(line){
+      var clone=p.cloneNode(true),ts=Array.from(clone.getElementsByTagNameNS('*','t'));
+      ts.forEach(function(t,i){t.textContent=i===0?line:'';});
+      Array.from(clone.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+      p.parentNode.insertBefore(clone,p);
+    });
+    p.remove();return false;
+  });
+}
 async function buildYohang(){
   var b64=await fetchTplB64('템플릿/토건 요항표 템플릿.hwpx');
   var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer);
@@ -42,6 +66,7 @@ async function buildYohang(){
   var toice=(typeof assembleToice==='function')?assembleToice():'';
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
+    fillLocationNarrative(d);
     Array.from(d.getElementsByTagNameNS('*','run')).filter(function(r){return red.has(r.getAttribute('charPrIDRef'));}).forEach(function(r){
       var filled=false;
       Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){
