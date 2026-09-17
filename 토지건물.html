@@ -114,6 +114,9 @@
   td.kp-c{padding:2px 3px;background:#fafbfc;}
   .kp{display:block;width:100%;height:22px;border:1px dashed #94a3b8;border-radius:3px;font-size:11px;font-family:inherit;padding:2px 4px;resize:none;overflow:hidden;white-space:nowrap;text-align:center;line-height:16px;color:#2563eb;background:#fff;}
   .kp::placeholder{color:#2563eb;opacity:.9;}
+  /* 평가사례 표의 kapa hub 칸 — '선정' 열만큼만 차지하게 좁힌다(붙여넣기 전용이라 넓을 필요가 없음) */
+  td.kp-c.kp-narrow{width:38px;min-width:0;}
+  td.kp-c.kp-narrow .kp{min-width:0;box-sizing:border-box;padding:2px 1px;}
   .calc-c.ovr input{color:#2563eb;}
   /* 그 밖의 요인 표 — 자동 칸을 직접 고쳐 자동계산값과 달라지면 빨간 글씨 */
   .calc-c.mis{background:#fef2f2;}
@@ -449,7 +452,7 @@
                 <div class="pst" id="pApprMsg"></div>
               </div>
               <div class="tw"><table id="tblAppr"></table></div>
-              <div class="note">행마다 있는 <b>kapa hub</b> 칸에 붙여넣으면 필요한 항목(소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적)만 골라 그 행에 채웁니다. 여러 건을 한꺼번에 붙이면 아래 행으로 이어지고(모자라면 행 추가), 모든 칸은 직접 수정할 수 있습니다. ✕는 3행까지는 비우기, 4행부터는 삭제입니다.</div>
+              <div class="note">행마다 있는 <b>kapa hub</b> 칸에 붙여넣으면 필요한 항목(소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적)만 골라 그 행에 채웁니다. 여러 건을 한꺼번에 붙이면 아래 행으로 이어지고(모자라면 행 추가), 모든 칸은 직접 수정할 수 있습니다. ✕는 3행까지는 비우기, 4행부터는 삭제입니다. 맨 끝 <b>비고</b> 칸은 자유 메모로 화면에만 남고 문서에는 나가지 않습니다(붙여넣기를 해도 지워지지 않음).</div>
             </div>
 
             <!-- 그 밖의 요인 -->
@@ -1600,14 +1603,15 @@ function undoTrade(){
 
 // ================= 평가사례 (가로 표) =================
 var APPRS=[];
-var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지목','jimok'],['이용<br>상황','cond'],['사례단가<br>(원/㎡)','unit'],['기준시점','base'],['평가<br>목적','purp']];
+var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지목','jimok'],['이용<br>상황','cond'],['사례단가<br>(원/㎡)','unit'],['기준시점','base'],['평가<br>목적','purp'],['비고','memo']];
+// 비고는 화면 메모 전용 — 값이 있어도 '사례가 입력됐다'고 보지 않고, 의견서 문서에도 나가지 않는다.
 function apprHasData(a){return a&&['loc','use','jimok','cond','unit','base','purp'].some(function(k){return String(a[k]||'').trim()!=='';});}
 function renderAppr(){
   while(APPRS.length<3)APPRS.push({});   // 기본 화면은 항상 빈 3행(거래사례와 같은 규격)
-  var h='<tr><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px">kapa hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
+  var h='<tr><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
     h+='<tr><td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';
-    h+='<td class="kp-c" style="min-width:90px"><textarea class="kp" rows="1" placeholder="kapa hub" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
+    h+='<td class="kp-c kp-narrow"><textarea class="kp" rows="1" cols="3" placeholder="" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
     APPR_COLS.forEach(function(c){h+='<td><input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();saveForm();"></td>';});
     h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
@@ -1627,7 +1631,9 @@ function apprPaste(e,i){
   e.preventDefault();if(e.target)e.target.value='';
   var msg=document.getElementById('pApprMsg'),res=parseApprText(text);
   if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
-  res.out.forEach(function(a,k){var j=i+k;while(APPRS.length<=j)APPRS.push({});a.no='abcdefghij'[j]||String(j+1);APPRS[j]=a;});
+  res.out.forEach(function(a,k){var j=i+k;while(APPRS.length<=j)APPRS.push({});
+    a.no='abcdefghij'[j]||String(j+1);a.memo=(APPRS[j]||{}).memo||'';   // 직접 적어 둔 비고는 붙여넣기로 지우지 않는다
+    APPRS[j]=a;});
   renderAppr();syncPick();calcGongsi();saveForm();
   msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 반영(행 '+(i+1)+(res.out.length>1?'~'+(i+res.out.length):'')+') — 소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적 자동';
 }
