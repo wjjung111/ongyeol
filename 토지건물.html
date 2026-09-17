@@ -2823,18 +2823,18 @@ function mapItems(){
   var region=subjectSgg(),out=[];
   LANDS.forEach(function(L,i){
     var loc=String(L.fullAddr||'').trim()||((L['소재지']||'')+' '+(L['지번']||'')).trim();
-    if(loc)out.push({o:L,kind:'본건',label:LANDS.length>1?('본건 '+(i+1)):'본건',color:'#dc2626',loc:loc,region:region,pick:true});
+    if(loc)out.push({o:L,kind:'본건',label:LANDS.length>1?('본건 '+(i+1)):'본건',color:'#dc2626',loc:loc,region:region,pick:true,poly:true});
   });
   STDS.forEach(function(S,i){
     var loc=((S['소재지']||'')+' '+(S['지번']||'')).trim();
-    if(loc)out.push({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region});
+    if(loc)out.push({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region,poly:true});
   });
   TRADES.forEach(function(c,i){
-    if(hasV(c.loc))out.push({o:c,kind:'거래사례',label:'거래 #'+(i+1),color:'#16a34a',loc:c.loc,region:region,
+    if(hasV(c.loc))out.push({o:c,kind:'거래사례',label:'거래 #'+(i+1),color:'#16a34a',loc:c.loc,region:region,poly:true,
       pick:(ETC.type==='t'&&ETC.idx===i)||GA.idx===i});
   });
   APPRS.forEach(function(a,i){
-    if(hasV(a.loc))out.push({o:a,kind:'평가사례',label:'평가 '+(a.no||(i+1)),color:'#ea580c',loc:a.loc,region:region,
+    if(hasV(a.loc))out.push({o:a,kind:'평가사례',label:'평가 '+(a.no||(i+1)),color:'#ea580c',loc:a.loc,region:region,poly:true,
       pick:ETC.type==='a'&&ETC.idx===i});
   });
   return out;
