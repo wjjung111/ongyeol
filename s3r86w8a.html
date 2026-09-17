@@ -45,6 +45,48 @@
   <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'ARM 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
   <script src="arap_index_data.js"></script>
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
+  <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
+  <style>
+    /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
+    .arapmapstatus{font-size:11.5px;color:#555;min-height:14px;margin-top:6px;}
+    .arapmapstatus.err{color:#dc2626;font-weight:700;}
+  </style>
+  <script>
+  // ── 집합건물 위치도 (본건만) ──
+  // React 밖의 얇은 어댑터. 지도 엔진(arap_map.js)은 DOM id로 붙으므로 여기서 만들고, React는 자리만 그린다.
+  // 좌표(_xy)는 **주소별로 이 페이지 전용 키**에 담는다 — 건 저장(ov) 형식을 건드리지 않으려고.
+  (function(){
+    'use strict';
+    var KEY='arap-jiphap-map-v1', VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';
+    var store={},views={};
+    try{store=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){store={};}
+    function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){console.error('위치도 저장',e);}}
+    function vkey(){try{return localStorage.getItem('exact-vworld-key')||VKEY;}catch(e){return VKEY;}}
+    // "서울특별시 강동구 고덕동 693 외 1필지" → "서울특별시 강동구 고덕동 693" (뒤쪽은 주소검색이 못 읽는다)
+    function clean(a){return String(a||'').replace(/외\s*\d+\s*필지.*$/,'').replace(/\s+/g,' ').trim();}
+    window.ArapJiphapMap={
+      show:function(sfx,addr){
+        sfx=sfx||'';
+        if(!window.ArapMap||!document.getElementById('mapBox'+sfx))return null;
+        var v=views[sfx];
+        if(!v)v=views[sfx]=ArapMap.create({
+          box:'mapBox'+sfx,status:'mapStatus'+sfx,miss:'mapMiss'+sfx,statusClass:'arapmapstatus',
+          baseSel:'mapBaseSel'+sfx,cadastre:'mapCadastre'+sfx,zoning:'mapZoning'+sfx,
+          key:vkey,onSave:save,
+          emptyMsg:'② 대상물건개요의 「지번주소」를 먼저 넣어 주세요.'
+        });
+        var loc=clean(addr),items=[];
+        if(loc){
+          if(!store[loc])store[loc]={};
+          items.push({o:store[loc],kind:'본건',label:'본건',color:'#dc2626',loc:loc,region:'',pick:true,poly:true});
+        }
+        v.open(items);
+        return v;
+      },
+      view:function(sfx){return views[sfx||''];}
+    };
+  })();
+  </script>
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
   // 조회는 관리자.html(비밀번호)에서만 가능. 샘플 건(SAMPLE-*)은 제외. 실패해도 앱 동작에 영향 없음.
@@ -3424,7 +3466,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   // 수수료 계산서 입력값들 — ov에 저장해 저장건과 함께 복원(붙여넣은 내용이 사라지지 않게)
   const feeText=ov.feeText||"";
   const setFeeText=v=>setOv(p=>({...p,feeText:v}));
-  const downPayment=ov.downPaymentInput??"300,000";
+  const downPayment=ov.downPaymentInput??"0";   // 기납부착수금 기본값 0 (2026-09-17 사용자 요청) — 대표샘플은 접수글 실값 100만을 그대로 둔다
   const setDownPayment=v=>setOv(p=>({...p,downPaymentInput:v}));
   const specialFee=ov.specialFeeInput??"0";
   const setSpecialFee=v=>setOv(p=>({...p,specialFeeInput:v}));
@@ -3699,6 +3741,42 @@ function SyncPanel(){
 }
 
 // ── Main ──
+// ⑤ 위치도 — 본건 한 곳만 지도에 찍는다(대지 필지 테두리 + 화살표 이름표). 엔진은 공용 arap_map.js,
+// 실제 생성은 React 밖 어댑터(ArapJiphapMap)가 맡고 여기서는 자리와 조작 버튼만 그린다.
+function StepMap({ov,sfx,active}){
+  useEffect(()=>{
+    if(!active)return;
+    const t=setTimeout(()=>{if(window.ArapJiphapMap)ArapJiphapMap.show(sfx,ov.jibun||"");},60);
+    return ()=>clearTimeout(t);
+  },[active,sfx,ov.jibun]);
+  const view=()=>(window.ArapJiphapMap&&ArapJiphapMap.view(sfx))||null;
+  const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
+  const onBase=()=>{const v=view();if(v)v.setBase();};
+  const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
+  return (<div style={S.card}>
+    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
+      <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건</div>
+      <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} defaultChecked onChange={onOv}/> 지적선</label>
+      <label style={chk}><input type="checkbox" id={"mapZoning"+sfx} onChange={onOv}/> 용도지역</label>
+      <select id={"mapBaseSel"+sfx} style={S.sel2} onChange={onBase}>
+        <option value="Base">일반지도</option>
+        <option value="Satellite">위성사진</option>
+        <option value="Hybrid">위성+지명</option>
+        <option value="osm">OSM(대체)</option>
+      </select>
+      <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155"}}
+        title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
+        onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
+    </div>
+    <div style={{fontSize:11.5,color:"#475569",background:"#f8fafc",borderLeft:`3px solid ${C.pri}`,padding:"6px 9px",borderRadius:"0 4px 4px 0",marginBottom:7}}>
+      ② 대상물건개요의 <b>지번주소</b>를 그대로 씁니다(뒤의 “외 N필지”는 떼고 조회). 대지 필지를 테두리로 그리고 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직입니다(두 번 누르면 원위치).
+    </div>
+    <div id={"mapBox"+sfx} style={{height:620,border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
+    <div id={"mapStatus"+sfx} className="arapmapstatus"/>
+    <div id={"mapMiss"+sfx} style={{fontSize:12,color:"#b45309",marginTop:4}}/>
+  </div>);
+}
+
 function App(){
   const [step,setStep]=useState(0);
   const [ov,setOv]=useState({...emptyOv});
@@ -3896,7 +3974,7 @@ function App(){
     if(currentId===id)newCase();
   };
 
-  const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출"];
+  const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출","⑤ 위치도"];
   const selCnt=cases.filter(c=>c.isSelected).length;
 
   if(!loaded)return <div style={{padding:40,textAlign:"center",color:"#888"}}>데이터 불러오는 중...</div>;
@@ -3952,9 +4030,10 @@ function App(){
     <div style={{display:step===1?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} saved={!!(currentId&&saveStatus==="✅")}/></div>
+    <div style={{display:step===4?"block":"none"}}><StepMap ov={ov} sfx="" active={step===4}/></div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
       {step>0?<button style={{...S.btn,background:"#e2e8f0",color:"#555"}} onClick={()=>setStep(step-1)}>← 이전</button>:<div/>}
-      {step<3?<button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
+      {step<4?<button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
     </div>
     </div>{/* 중앙 메인 끝 */}
     <RightMemo caseId={currentId||ov.caseNo} collapsed={rightCollapsed} setCollapsed={setRightCollapsed}/>
@@ -6497,6 +6576,42 @@ function SyncPanel(){
 }
 
 // ── Main ──
+// ⑤ 위치도 — 본건 한 곳만 지도에 찍는다(대지 필지 테두리 + 화살표 이름표). 엔진은 공용 arap_map.js,
+// 실제 생성은 React 밖 어댑터(ArapJiphapMap)가 맡고 여기서는 자리와 조작 버튼만 그린다.
+function StepMap({ov,sfx,active}){
+  useEffect(()=>{
+    if(!active)return;
+    const t=setTimeout(()=>{if(window.ArapJiphapMap)ArapJiphapMap.show(sfx,ov.jibun||"");},60);
+    return ()=>clearTimeout(t);
+  },[active,sfx,ov.jibun]);
+  const view=()=>(window.ArapJiphapMap&&ArapJiphapMap.view(sfx))||null;
+  const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
+  const onBase=()=>{const v=view();if(v)v.setBase();};
+  const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
+  return (<div style={S.card}>
+    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
+      <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건</div>
+      <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} defaultChecked onChange={onOv}/> 지적선</label>
+      <label style={chk}><input type="checkbox" id={"mapZoning"+sfx} onChange={onOv}/> 용도지역</label>
+      <select id={"mapBaseSel"+sfx} style={S.sel2} onChange={onBase}>
+        <option value="Base">일반지도</option>
+        <option value="Satellite">위성사진</option>
+        <option value="Hybrid">위성+지명</option>
+        <option value="osm">OSM(대체)</option>
+      </select>
+      <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155"}}
+        title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
+        onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
+    </div>
+    <div style={{fontSize:11.5,color:"#475569",background:"#f8fafc",borderLeft:`3px solid ${C.pri}`,padding:"6px 9px",borderRadius:"0 4px 4px 0",marginBottom:7}}>
+      ② 대상물건개요의 <b>지번주소</b>를 그대로 씁니다(뒤의 “외 N필지”는 떼고 조회). 대지 필지를 테두리로 그리고 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직입니다(두 번 누르면 원위치).
+    </div>
+    <div id={"mapBox"+sfx} style={{height:620,border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
+    <div id={"mapStatus"+sfx} className="arapmapstatus"/>
+    <div id={"mapMiss"+sfx} style={{fontSize:12,color:"#b45309",marginTop:4}}/>
+  </div>);
+}
+
 function App(){
   const [step,setStep]=useState(0);
   const [ov,setOv]=useState({...emptyOv});
@@ -6666,7 +6781,7 @@ function App(){
     if(currentId===id)newCase();
   };
 
-  const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출"];
+  const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출","⑤ 위치도"];
   const selCnt=cases.filter(c=>c.isSelected).length;
 
   if(!loaded)return <div style={{padding:40,textAlign:"center",color:"#888"}}>데이터 불러오는 중...</div>;
@@ -6722,9 +6837,10 @@ function App(){
     <div style={{display:step===1?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} tplFromUser={tplFromUser} saved={!!(currentId&&saveStatus==="✅")}/></div>
+    <div style={{display:step===4?"block":"none"}}><StepMap ov={ov} sfx="M" active={step===4}/></div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
       {step>0?<button style={{...S.btn,background:"#e2e8f0",color:"#555"}} onClick={()=>setStep(step-1)}>← 이전</button>:<div/>}
-      {step<3?<button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
+      {step<4?<button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
     </div>
     </div>{/* 중앙 메인 끝 */}
     <RightMemo caseId={currentId||ov.caseNo} collapsed={rightCollapsed} setCollapsed={setRightCollapsed}/>
