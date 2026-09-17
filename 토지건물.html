@@ -50,6 +50,10 @@
   .y-location input,.y-location textarea{box-sizing:border-box;border:1px solid #dce2e9;border-radius:4px;background:#fff;color:#1e293b;font:inherit;padding:6px 8px;}
   .y-location .y-inline{display:inline-block;width:19em;max-width:100%;margin:3px 2px;vertical-align:baseline;}
   .y-location .y-dong{width:12em;}
+  .y-land .y-terrain{width:9em;}
+  .y-land .y-shape{width:8em;}
+  .y-land .y-direction{width:6em;}
+  .y-land .y-width{width:4em;}
   .y-location textarea{display:block;width:100%;min-height:64px;resize:vertical;line-height:1.7;}
   .y-location input::placeholder,.y-location textarea::placeholder{color:#a0a7b2;opacity:1;}
   .y-location input:focus,.y-location textarea:focus{outline:2px solid #2563eb;outline-offset:1px;}
@@ -679,14 +683,13 @@
           </div>
 
           <h3>Ⅱ. 토지의 개황</h3>
-          <div class="grid2">
-            <span class="fld"><label>지세</label><input type="text" id="y_jise" placeholder="평탄"></span>
-            <span class="fld"><label>형상</label><input type="text" id="y_shape" placeholder="세장형"></span>
-            <span class="fld" style="grid-column:1/-1"><label>이용상황</label><input type="text" id="y_use" placeholder="주상용 건부지"></span>
-            <span class="fld"><label>접면도로① 방위</label><input type="text" id="y_road1dir" placeholder="북측"></span>
-            <span class="fld"><label>접면도로① 노폭(m)</label><input type="text" id="y_road1w" placeholder="6"></span>
-            <span class="fld"><label>접면도로② 방위</label><input type="text" id="y_road2dir" placeholder="동측"></span>
-            <span class="fld"><label>접면도로② 노폭(m)</label><input type="text" id="y_road2w" placeholder="4"></span>
+          <div class="y-location y-land">
+            <h4>1. 지세 및 형상</h4>
+            <p>인접토지 및 인접도로 대비 <input type="text" id="y_jise" class="y-inline y-terrain" aria-label="지세" placeholder="등고평탄한"> <input type="text" id="y_shape" class="y-inline y-shape" aria-label="형상" placeholder="정방형">의 토지임.</p>
+            <h4>2. 이용상황</h4>
+            <p><input type="text" id="y_use" class="y-inline" aria-label="이용상황" placeholder="주상용 건부지">로 이용중임.</p>
+            <h4>3. 접면도로 상황</h4>
+            <p>본건 <input type="text" id="y_road1dir" class="y-inline y-direction" aria-label="접면도로① 방위" placeholder="남서측">으로 노폭 약 <input type="text" id="y_road1w" class="y-inline y-width" aria-label="접면도로① 노폭(m)" placeholder="0">m, <input type="text" id="y_road2dir" class="y-inline y-direction" aria-label="접면도로② 방위" placeholder="북측">으로 노폭 약 <input type="text" id="y_road2w" class="y-inline y-width" aria-label="접면도로② 노폭(m)" placeholder="0">m 내외의 아스팔트 포장도로와 각각 접하고 있음.</p>
           </div>
 
           <h3>Ⅲ. 건물의 개황</h3>
@@ -2173,19 +2176,18 @@ async function downloadCheonggu(){
 }
 
 // ================= 요항표 탭 =================
+// 기존 지세 값(평탄 등)은 문장 속 형용사 형태로 표시한다.
+function yohangTerrain(v){return v&&!/한$/.test(v)?v+'한':v;}
 // 빈 칸만 대상물건 탭 값으로 채운다(평가사가 쓴 내용은 건드리지 않음).
 function fillYohangFromData(){
   var L=LANDS[0]||{},set=function(id,v){var el=document.getElementById(id);if(el&&!el.value.trim()&&v)el.value=v;};
   set('y_dong',L['소재지']);
   set('y_near',cgVal('op_location'));
-  set('y_jise',L['지세']==='평지'?'평탄':L['지세']);
+  set('y_jise',yohangTerrain(L['지세']==='평지'?'평탄':L['지세']));
   set('y_shape',L['형상']);
   set('y_use',L['이용상황']);
   set('y_struct',[cgVal('bt_strct'),cgVal('bt_flrs')?'지상 '+String(cgVal('bt_flrs')).split('/')[0]+'층':''].filter(Boolean).join(' '));
   set('y_usestate',cgVal('bt_purps'));
-  // 접면도로 방위·노폭은 '광대한면'처럼 코드명만 있어 자동 유추가 어려움 — 도로교통 값을 힌트로만 보여준다
-  var road=document.getElementById('y_road1dir');
-  if(road&&!road.value.trim()&&L['도로교통'])road.placeholder=L['도로교통']+' (방위 직접 입력)';
 }
 // ── 토지이용계획(토이계) 복붙 정리 — 집합건물(s3r86w8a.html)과 같은 로직 ──
 // 토지이음 머리문구 제거 + 줄바꿈 이어붙이기. <추가기재>만 별도 줄로 남긴다.
@@ -2436,6 +2438,7 @@ function applyForm(o){
   if(o.gj)GJ_IDS.forEach(function(id){if(o.gj[id]!=null)document.getElementById(id).value=o.gj[id];});
   if(o.fn)FN_IDS.forEach(function(id){if(o.fn[id]!=null)document.getElementById(id).value=o.fn[id];});
   Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value=o.yohang&&o.yohang[id]!=null?o.yohang[id]:'';});
+  document.getElementById('y_jise').value=yohangTerrain(cgVal('y_jise'));
   TOICE=o.TOICE||{};
   if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
   // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.

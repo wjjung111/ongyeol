@@ -35,7 +35,7 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
       showTab('yohang');
     });
     const auto=await page.evaluate(()=>Object.fromEntries(Y_IDS.map(id=>[id,document.getElementById(id).value])));
-    assert.equal(auto.y_dong,'여수동');assert.equal(auto.y_jise,'평탄');assert.equal(auto.y_shape,'세장형');
+    assert.equal(auto.y_dong,'여수동');assert.equal(auto.y_jise,'평탄한');assert.equal(auto.y_shape,'세장형');
     assert.equal(auto.y_struct,'철근콘크리트구조 지상 4층');assert.equal(auto.y_near,'성남여수초등학교 북서측');
     // 기본 문구는 실제 값이 아니라 placeholder이며, 빈칸 출력은 원본 양식을 보존한다.
     const defaultSurroundings='본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.';
@@ -43,7 +43,7 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     assert.equal(await page.locator('#y_locationEtc').getAttribute('placeholder'),'해당사항 없음.');
     assert.equal(await page.locator('#y_locationEtc_hint').count(),0);
     assert.equal(await page.locator('#y_surroundings').getAttribute('placeholder'),defaultSurroundings.slice(0,-1));
-    assert.deepEqual(await page.locator('.y-location h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
+    assert.deepEqual(await page.locator('.y-location:not(.y-land) h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
     async function outputParagraphs(){return page.evaluate(async()=>{
       const bytes=await ArapTojiDocuments.buildYohang();
       const entries=await ArapCheonggu.parseZip(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
@@ -51,7 +51,11 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
       if(d.querySelector('parsererror'))throw Error('XML 오류');
       return Array.from(d.documentElement.children).filter(p=>p.localName==='p').map(p=>p.textContent);
     });}
+    const landPlaceholders=await page.evaluate(()=>['y_jise','y_shape','y_road1dir','y_road1w','y_road2dir','y_road2w'].map(id=>document.getElementById(id).placeholder));
+    assert.deepEqual(landPlaceholders,['등고평탄한','정방형','남서측','0','북측','0']);
+    assert.deepEqual(await page.locator('.y-land h4').allTextContents(),['1. 지세 및 형상','2. 이용상황','3. 접면도로 상황']);
     const defaults=await outputParagraphs();
+    assert(defaults.some(t=>t.includes('대비 평탄한 세장형의 토지임.')),'기존 자동채움 지세와 문장 출력 일치');
     assert(defaults.includes(defaultSurroundings));
     const emptyEtcCount=defaults.filter(t=>t==='해당사항 없음.').length;
     await page.locator('#y_surroundings').fill('   ');
@@ -77,7 +81,8 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     await page.evaluate(raw=>{
       const set=(id,v)=>{const el=document.getElementById(id);el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));};
       set('y_traffic','성남여수동행정복지센터 버스정류장');set('y_use','주상용 건부지');
-      set('y_road1dir','북측');set('y_road1w','6');set('y_road2dir','동측');set('y_road2w','4');
+      set('y_jise','등고평탄한');set('y_shape','정방형');
+      set('y_road1dir','남서측');set('y_road1w','0');set('y_road2dir','북측');set('y_road2w','0');
       set('y_wall','몰탈위 페인팅 마감');set('y_window','샷시');
       const ta=document.querySelector('#toiceBox textarea');ta.value=raw;ta.dispatchEvent(new Event('input',{bubbles:true}));
     },RAW);
@@ -95,9 +100,11 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     assert.equal(await page.locator('#y_surroundings').inputValue(),surroundings);
     assert.equal(await page.locator('#y_locationEtc').inputValue(),locationEtc);
     // 새 필드가 없는 과거 사건으로 전환할 때 직전 사건의 문장이 섞이면 안 된다.
-    await page.evaluate(()=>{const old=collect();delete old.yohang.y_surroundings;delete old.yohang.y_locationEtc;applyForm(old);});
+    await page.evaluate(()=>{const old=collect();delete old.yohang.y_surroundings;delete old.yohang.y_locationEtc;old.yohang.y_jise='평탄';applyForm(old);});
     assert.equal(await page.locator('#y_surroundings').inputValue(),'');
     assert.equal(await page.locator('#y_locationEtc').inputValue(),'');
+    assert.equal(await page.locator('#y_jise').inputValue(),'평탄한');
+    await page.locator('#y_jise').fill('등고평탄한');
     await page.locator('#y_surroundings').fill(surroundings);
     await page.locator('#y_locationEtc').fill(locationEtc);
     // 다운로드
@@ -117,11 +124,14 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
       return {text,redRuns,left:[...new Set(left)]};
     },Array.from(fs.readFileSync(file)));
     console.log('남은 토큰',res.left,'| 빨강런',res.redRuns);
-    for(const m of ['여수동','성남여수초등학교 북서측','성남여수동행정복지센터 버스정류장','평탄','세장형','주상용 건부지','북측','동측','철근콘크리트구조 지상 4층','몰탈위 페인팅 마감','샷시','제1종일반주거지역','가축사육제한구역','<추가기재>'])
+    for(const m of ['여수동','성남여수초등학교 북서측','성남여수동행정복지센터 버스정류장','등고평탄한','정방형','주상용 건부지','남서측','북측','철근콘크리트구조 지상 4층','몰탈위 페인팅 마감','샷시','제1종일반주거지역','가축사육제한구역','<추가기재>'])
       assert(res.text.includes(m),'문서에 없음: '+m);
     assert.deepEqual(res.left,['{{사용자_메모}}'],'사용자 입력 토큰만 문자 그대로 보존');
     for(const line of [...surroundings.split('\n'),...locationEtc.split('\n')])assert(res.text.includes(line));
     assert.equal(res.redRuns,0,'빨강 글자 남음');
+    assert(res.text.includes('대비 등고평탄한 정방형의 토지임.'));
+    assert(!res.text.includes('등고평탄한한'));
+    assert(res.text.includes('본건 남서측으로 노폭 약 0m, 북측으로 노폭 약 0m 내외의 아스팔트 포장도로와 각각 접하고 있음.'));
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({status:'PASS',auto},null,1));
   }finally{await browser.close();server.close();}
