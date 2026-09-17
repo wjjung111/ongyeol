@@ -705,7 +705,7 @@
 
         <div class="card">
           <h2>토지이용계획 (요항표 4번 칸)</h2>
-          <div class="note">토지이음(eum.go.kr)에서 「지역·지구등 지정여부」 내용을 복사해 필지별로 붙여넣으세요. 머리문구·줄바꿈은 자동으로 정리되어 요항표에 들어갑니다.</div>
+          <div class="note"><a href="https://www.eum.go.kr/web/am/amMain.jsp" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">토지이음(eum.go.kr)</a>에서 「지역·지구등 지정여부」 내용을 복사해 필지별로 붙여넣으세요. 머리문구·줄바꿈은 자동으로 정리되어 요항표에 들어갑니다.</div>
           <div id="toiceBox"></div>
           <div style="margin-top:10px">
             <div class="hint" style="margin-bottom:4px">요항표에 들어갈 모습</div>
@@ -748,13 +748,16 @@
             <span class="fld"><label>요율 기준</label>
               <select id="cg_feeBasis"><option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select></span>
             <span class="fld"><label>기납부 착수금</label><input type="text" id="cg_downPayment" placeholder="1,000,000"></span>
+            <span class="fld"><label>특별용역비 방식</label>
+              <select id="cg_specialMode" title="상한-하한·기준-하한은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
+                <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option></select></span>
             <span class="fld"><label>특별용역비</label><input type="text" id="cg_special" placeholder="0"></span>
             <span class="fld"><label>여비</label><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></span>
             <span class="fld"><label>물건조사비</label><input type="text" id="cg_survey" placeholder="15,000"></span>
             <span class="fld"><label>공부발급비</label><input type="text" id="cg_doc" placeholder="15,000"></span>
             <span class="fld"><label>기타실비</label><input type="text" id="cg_etc" placeholder="0"></span>
           </div>
-          <div class="note" style="margin-top:8px">여비는 본건 소재지 기준으로 <b>자동 입력</b>되며 직접 고칠 수 있습니다. 물건조사비·공부발급비는 기본 15,000원, 특별용역비·기타실비는 평가사가 정합니다.</div>
+          <div class="note" style="margin-top:8px">여비는 본건 소재지 기준으로 <b>자동 입력</b>되며 직접 고칠 수 있습니다. 물건조사비·공부발급비는 기본 15,000원, 기타실비는 평가사가 정합니다. <b>특별용역비</b>는 방식을 <b>상한-하한</b>·<b>기준-하한</b>으로 고르면 붙여넣은 계산서의 수수료 차액이 자동으로 채워지고(집합건물 청구서와 같은 로직), 채워진 값은 그대로 고칠 수 있습니다.</div>
         </div>
         <div class="card">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">청구 금액</h2>
@@ -1512,23 +1515,27 @@ function attr(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,
 // 경과연수: 사용승인일 → 거래일자 만(滿) 연수
 function elapsedYears(a,b){var p=parseYmd(a),q=parseYmd(b);if(!p||!q)return null;
   var y=q.y-p.y;if(q.mo<p.mo||(q.mo===p.mo&&q.d<p.d))y--;return y<0?0:y;}
+// 자동계산 칸에 '-'처럼 숫자가 없는 글자가 들어 있으면 '값 없음' 표시로 보고 직접 입력값으로 치지 않는다.
+// (그래야 재조달원가를 새로 넣었을 때 건물 적용단가·건물금액이 다시 자동계산된다)
+function manualNum(v){return hasV(v)&&/[0-9]/.test(String(v));}
 function tradeCalc(c){
   var life=num(c.life),el=elapsedYears(c.appr,c.date);
   var restAuto=(life>0&&el!=null)?Math.max(life-el,0):null;
-  var rest=hasV(c.rest)?num(c.rest):(restAuto==null?0:restAuto);
-  var bu=hasV(c.bldUnit)?num(c.bldUnit):(life>0?Math.round(num(c.reCost)*rest/life):0);
-  var ba=hasV(c.bldAmt)?num(c.bldAmt):bu*num(c.bldA);
-  var la=hasV(c.landAmt)?num(c.landAmt):num(c.total)-ba;
-  var lu=hasV(c.landUnit)?num(c.landUnit):(num(c.landA)>0?la/num(c.landA):0);
+  var rest=manualNum(c.rest)?num(c.rest):(restAuto==null?0:restAuto);
+  var bu=manualNum(c.bldUnit)?num(c.bldUnit):(life>0?Math.round(num(c.reCost)*rest/life):0);
+  var ba=manualNum(c.bldAmt)?num(c.bldAmt):bu*num(c.bldA);
+  var la=manualNum(c.landAmt)?num(c.landAmt):num(c.total)-ba;
+  var lu=manualNum(c.landUnit)?num(c.landUnit):(num(c.landA)>0?la/num(c.landA):0);
   return {elapsed:el,restAuto:restAuto,rest:rest,bldUnit:bu,bldAmt:ba,landAmt:la,landUnit:lu};
 }
+// 계산할 재료가 없거나 결과가 0이면 0 대신 '-'로 보여준다(문서에도 같은 표기로 나간다)
 function fmtAuto(k,cal){
-  if(k==='rest')return cal.restAuto==null?'':String(cal.restAuto);
-  if(k==='landUnit')return cal.landUnit?cal.landUnit.toLocaleString('ko-KR',{maximumFractionDigits:2}):'0';
-  return won(cal[k]);
+  if(k==='rest')return cal.restAuto==null?'-':String(cal.restAuto);
+  if(k==='landUnit')return cal.landUnit?cal.landUnit.toLocaleString('ko-KR',{maximumFractionDigits:2}):'-';
+  return cal[k]?won(cal[k]):'-';
 }
 function tradeTitle(k,c,cal){
-  if(hasV(c[k]))return '직접 입력값 — 비우면 자동계산으로 돌아갑니다';
+  if(manualNum(c[k]))return '직접 입력값 — 비우면 자동계산으로 돌아갑니다';
   if(k==='rest')return cal.elapsed==null?'자동: 내용연수 − 경과연수 (사용승인일·거래일자를 채우면 계산)':'자동: 내용연수 '+num(c.life)+' − 경과연수 '+cal.elapsed+' = '+cal.restAuto+' (직접 고칠 수 있음)';
   if(k==='bldUnit')return '자동: 재조달원가 × 잔존연수 ÷ 내용연수 (직접 고칠 수 있음)';
   if(k==='bldAmt')return '자동: 건물 적용단가 × 건물면적 (직접 고칠 수 있음)';
@@ -1537,7 +1544,7 @@ function tradeTitle(k,c,cal){
 }
 function tradeCell(c,i,r){
   var k=r[1],t=r[2];
-  if(t==='auto'){var cal=tradeCalc(c),ov=hasV(c[k]);
+  if(t==='auto'){var cal=tradeCalc(c),ov=manualNum(c[k]);
     return '<td class="calc-c'+(ov?' ovr':'')+'"><input data-i="'+i+'" data-k="'+k+'" value="'+(ov?attr(c[k]):fmtAuto(k,cal))+'" title="'+attr(tradeTitle(k,c,cal))+'" oninput="tradeIn('+i+',\''+k+'\',this.value)" onblur="refreshTradeCol('+i+')"></td>';}
   return '<td class="'+(t==='jud'?'jud-c':'')+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(c[k]||'')+'" oninput="tradeIn('+i+',\''+k+'\',this.value)"></td>';
 }
@@ -1550,7 +1557,7 @@ function refreshTradeCol(i){
   var c=TRADES[i];if(!c)return;var cal=tradeCalc(c),tbl=document.getElementById('tblTrade');
   TRADE_AUTO_KEYS.forEach(function(k){
     var inp=tbl.querySelector('input[data-i="'+i+'"][data-k="'+k+'"]');if(!inp)return;
-    var ov=hasV(c[k]);inp.parentNode.classList.toggle('ovr',ov);inp.title=tradeTitle(k,c,cal);
+    var ov=manualNum(c[k]);inp.parentNode.classList.toggle('ovr',ov);inp.title=tradeTitle(k,c,cal);
     if(inp===document.activeElement)return;
     inp.value=ov?c[k]:fmtAuto(k,cal);
   });
@@ -2108,7 +2115,7 @@ var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결�
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
 var Y_IDS=['y_dong','y_near','y_surroundings','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate'];
-var CG_IDS=['cg_feeText','cg_feeBasis','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
+var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
 
 // ================= 청구서 (한글 hwpx) — 엔진은 arap_cheonggu.js(집합건물 청구서와 동일 양식·계산) =================
@@ -2127,6 +2134,15 @@ function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
   return A.computeCheonggu(fee,cgVal('cg_downPayment'),cgVal('cg_special'),cgVal('cg_feeBasis'),
     cgEmptyNull('cg_travel'),cgEmptyNull('cg_survey'),cgEmptyNull('cg_doc'),cgEmptyNull('cg_etc'));
 }
+// 특별용역비 방식 — 집합건물 청구서와 같은 로직. '상한-하한'·'기준-하한'이면 계산서의 수수료 차액을 칸에 채운다.
+// 채워 넣는 방식이라 평가사가 그대로 고칠 수 있고, 방식이나 계산서가 바뀔 때만 다시 채운다.
+function cgSpecialAuto(){
+  var A=window.ArapCheonggu,mode=cgVal('cg_specialMode')||'직접입력';
+  if(!A||mode==='직접입력')return null;
+  var f=A.parseFeeStatement(cgVal('cg_feeText'));if(!f||!f.하한수수료)return null;
+  var hi=mode==='상한-하한'?f.상한수수료:f.기준수수료;
+  return hi?String(hi-f.하한수수료):null;
+}
 function cgTravelAuto(){
   var A=window.ArapCheonggu;if(!A)return 40000;
   var fee=A.arapTravelFee(cheongguAddr());
@@ -2138,6 +2154,8 @@ function renderCheonggu(){
   // 여비·물건조사비·공부발급비 자동 채움(비어 있고 편집 중이 아닐 때)
   var tv=document.getElementById('cg_travel');
   if(tv&&document.activeElement!==tv&&!CG_TRAVEL_MANUAL)tv.value=String(cgTravelAuto());
+  var sp=document.getElementById('cg_special'),spAuto=cgSpecialAuto();
+  if(sp&&spAuto!=null&&document.activeElement!==sp&&sp.dataset.autoKey!==spAuto){sp.value=won(Number(spAuto));sp.dataset.autoKey=spAuto;}
   var sv=document.getElementById('cg_survey');if(sv&&!hasV(sv.value)&&document.activeElement!==sv)sv.value='15000';
   var dv=document.getElementById('cg_doc');if(dv&&!hasV(dv.value)&&document.activeElement!==dv)dv.value='15000';
   var amtEl=document.getElementById('cg_amt');if(amtEl)amtEl.textContent=(document.getElementById('resFinal')||{}).textContent||'-';

@@ -7,6 +7,8 @@ var text=function(v){return v==null?'':String(v);};
 var money=function(v){return v==null?'':won(v);};
 var fixed=function(v,n){return v==null?'':Number(v).toFixed(n);};
 var area=function(v){return v==null?'':docArea(num(v));};
+// 숫자칸에 '-'처럼 숫자가 없는 글자를 직접 적어 넣었으면 0으로 바꾸지 않고 화면에 보이는 그대로 내보낸다.
+var mark=function(v){var s=text(v).trim();return s&&!/[0-9]/.test(s)?s:null;};
 var val=function(id){return cgVal(id);};
 function address(s){
   var m=text(s).trim().match(/^(.*?)\s+(산\s*\d+(?:-\d+)?|\d+(?:-\d+)?)(?:번지)?$/);
@@ -27,14 +29,16 @@ function landMap(L,i){
   var m={'토지_번호':i+1,'필지_번호':i+1,'공시개별_번호':i+1};
   ['소재지','지번','지목','용도지역','이용상황','형상','지세','비고'].forEach(function(k){m['토지_'+k]=text(L[k]);});
   if(!m['토지_비고'].trim())m['토지_비고']='-';   // 비고는 비워두지 않고 '-'
-  m['토지_면적']=area(L['면적']);m['토지_공시지가']=hasV(L['공시지가'])?money(num(L['공시지가'])):'';
+  m['토지_면적']=mark(L['면적'])||area(L['면적']);
+  m['토지_공시지가']=mark(L['공시지가'])||(hasV(L['공시지가'])?money(num(L['공시지가'])):'');
   // V-World의 도로교통은 하나의 코드명. 임의로 두 의미로 쪼개지 않는다(템플릿 도로교통 칸도 {{토지_도로}} 한 줄).
   m['토지_도로']=text(L['도로교통']);return m;
 }
 function standardMap(S,i){
   var m={'표준지_기호':String.fromCharCode(65+i)};
   ['소재지','지번','지목','용도지역','형상','이용상황','도로교통','지세'].forEach(function(k){m['표준지_'+k]=text(S[k]);});
-  m['표준지_면적']=area(S['면적']);m['표준지_공시지가']=money(num(S['공시지가']));return m;
+  m['표준지_면적']=mark(S['면적'])||area(S['면적']);
+  m['표준지_공시지가']=mark(S['공시지가'])||money(num(S['공시지가']));return m;
 }
 function parcelMap(L,i,gs,ga){
   var g=gs.rows[i],a=(ga.rows||[])[i]||{};
@@ -49,20 +53,24 @@ function tradeMap(c,n){
   c=c||{};var m={},cal=tradeCalc(c),prefix='거래'+n+'_';
   var fields={소재지:'loc',용도지역:'use',지목:'jimok',승인일:'appr',주구조:'struct',내용연수:'life',거래일:'date'};
   Object.keys(fields).forEach(function(k){m[prefix+k]=text(c[fields[k]]);});
-  ['토지면적','건물면적'].forEach(function(k,i){var v=c[i?'bldA':'landA'];m[prefix+k]=hasV(v)?area(v):'';});
-  m[prefix+'재조달']=hasV(c.reCost)?money(num(c.reCost)):'';
-  m[prefix+'총액']=hasV(c.total)?money(num(c.total)):'';
-  m[prefix+'잔존연수']=hasV(c.rest)||cal.restAuto!=null?text(cal.rest):'';
+  ['토지면적','건물면적'].forEach(function(k,i){var v=c[i?'bldA':'landA'];m[prefix+k]=mark(v)||(hasV(v)?area(v):'');});
+  m[prefix+'재조달']=mark(c.reCost)||(hasV(c.reCost)?money(num(c.reCost)):'');
+  m[prefix+'총액']=mark(c.total)||(hasV(c.total)?money(num(c.total)):'');
   var active=['loc','total','landA','landUnit'].some(function(k){return hasV(c[k]);});
+  // 자동계산 칸은 화면과 같은 규칙 — 계산할 재료가 없거나 결과가 0이면 0이 아니라 '-'로 적는다.
+  m[prefix+'잔존연수']=active?((manualNum(c.rest)||cal.restAuto!=null)?text(cal.rest):'-'):'';
   var keys={건물단가:'bldUnit',건물금액:'bldAmt',토지금액:'landAmt',토지단가:'landUnit'};
-  Object.keys(keys).forEach(function(k){m[prefix+k]=active?money(cal[keys[k]]):'';});return m;
+  Object.keys(keys).forEach(function(k){m[prefix+k]=active?(cal[keys[k]]?money(cal[keys[k]]):'-'):'';});return m;
 }
 // 평가사례 소재지 칸은 늘 '동명' 줄 + '본번-부번' 줄 두 줄로 나눈다.
 // 지번 표기가 제각각이어도(붙여쓰기 '자양동634-19', 전각 숫자, 여러 모양의 붙임표, '번지', '산')
 // 뒷부분이 반드시 아랫줄로 가도록 address()보다 넓게 잡고, 그래도 못 찾으면 마지막 낱말을 내린다.
 function splitJibun(s){
-  var t=text(s).replace(/\s+/g,' ').trim();
-  var m=t.match(/^(.*?)\s*((?:산\s*)?[0-9０-９]+(?:\s*[-‐‑‒–—―−ー－~][0-9０-９]+)?\s*(?:번지)?)$/);
+  // 먼저 '본번 - 부번'의 붙임표 앞뒤 공백을 없애고 모양이 다른 붙임표도 ASCII '-'로 맞춘다.
+  // (KAPA HUB에서 붙여넣은 값이 '자양동 634- 19'처럼 오면 '634-'에서 잘려 두 줄이 어긋났다)
+  var t=text(s).replace(/\s+/g,' ').trim()
+    .replace(/([0-9０-９])\s*[-‐‑‒–—―−ー－~]\s*([0-9０-９])/g,'$1-$2');
+  var m=t.match(/^(.*?)\s*((?:산\s*)?[0-9０-９]+(?:-[0-9０-９]+)?\s*(?:번지)?)$/);
   if(m)return {loc:m[1].trim(),lot:m[2].replace(/\s+/g,'')};
   var i=t.lastIndexOf(' ');
   return i>0?{loc:t.slice(0,i),lot:t.slice(i+1)}:{loc:t,lot:''};
@@ -70,7 +78,7 @@ function splitJibun(s){
 function appraisalMap(a){
   var ad=splitJibun(a.loc);return {'평사1_기호':text(a.no),'평사1_소재지':ad.loc,'평사1_지번':ad.lot,
     '평사1_지목':text(a.jimok),'평사1_용도지역':text(a.use),'평사1_이용상황':text(a.cond),
-    '평사1_단가':hasV(a.unit)?money(num(a.unit)):'','평사1_목적':text(a.purp),'평사1_시점':docDot(a.base)};
+    '평사1_단가':mark(a.unit)||(hasV(a.unit)?money(num(a.unit)):''),'평사1_목적':text(a.purp),'평사1_시점':docDot(a.base)};
 }
 function floorMap(r){
   var d=r.data;return {'층1_번호':text(d['동'])||'가','층1_해당층':text(d['층별']),'층1_면적':area(r.size),
