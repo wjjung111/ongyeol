@@ -1060,6 +1060,37 @@ function FactorInput({value,onChange}){
   return(<input type="text" style={{...S.inp,width:55,textAlign:"center"}} value={txt} onChange={handleChange} onBlur={handleBlur} onFocus={handleFocus}/>);
 }
 
+// 평가사례: 마지막으로 직접 입력한 가격/단가를 기준으로 면적 변경 시 재계산.
+function updatePrecPricing(prec,key,value){
+  const next={...prec,[key]:value};
+  if(!["exclusiveArea","appraiseAmount","unitPrice"].includes(key))return next;
+  const positive=v=>Number.isFinite(Number(v))&&Number(v)>0;
+  if(key==="appraiseAmount")next.priceBasis="amount";
+  else if(key==="unitPrice")next.priceBasis="unit";
+  else if(!next.priceBasis)next.priceBasis=positive(prec.appraiseAmount)?"amount":positive(prec.unitPrice)?"unit":"amount";
+  const area=Number(next.exclusiveArea);
+  if(next.priceBasis==="unit"){
+    next.appraiseAmount=positive(area)&&positive(next.unitPrice)?Math.round(area*Number(next.unitPrice)):"";
+  }else{
+    next.unitPrice=positive(area)&&positive(next.appraiseAmount)?Math.round(Number(next.appraiseAmount)/area):"";
+  }
+  return next;
+}
+// 입력 중 소수점/끝자리 0을 보존하고, 표시 단위만 변환한다 (가격: 천원, 저장: 원).
+function PrecNumberInput({label,value,onChange,scale=1}){
+  const [draft,setDraft]=useState("");
+  const [editing,setEditing]=useState(false);
+  const numeric=value!==""&&value!=null&&Number.isFinite(Number(value))?Number(value)/scale:null;
+  const display=numeric==null?"":numeric.toLocaleString("ko-KR",{maximumFractionDigits:10});
+  return(<input aria-label={label} inputMode="decimal" style={{...S.inp,width:"100%",minWidth:80,textAlign:"right"}}
+    value={editing?draft:display}
+    onFocus={()=>{setDraft(display);setEditing(true);}}
+    onChange={e=>{const raw=e.target.value.replace(/,/g,"");if(!/^\d*(\.\d*)?$/.test(raw))return;
+      const number=Number(raw)*scale;if(raw!==""&&raw!=="."&&!Number.isFinite(number))return;
+      setDraft(raw);onChange(raw===""||raw==="."?"":scale===1000?Math.round(number):number);}}
+    onBlur={()=>setEditing(false)}/>);
+}
+
 function DragRow({children,index,onDrop,style}){
   const [hov,setHov]=useState(false);
   return(<tr style={style} draggable onDragStart={e=>e.dataTransfer.setData("text/plain",index)}
@@ -1708,7 +1739,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   const delC=id=>{setCases(p=>reIdx(p.filter(c=>c.id!==id),false));};
   const updC=(id,key,val)=>{setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));};
   const delP=id=>{setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
-  const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?{...x,[key]:val}:x));};
+  const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?updatePrecPricing(x,key,val):x));};
   const dropC=(f,t)=>{if(f===t)return;setCases(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,false);});};
   const dropP=(f,t)=>{if(f===t)return;setPrecs(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,true);});};
   // 거래사례/평가전례 표 방향키 이동 — 체크박스 제외 텍스트 입력칸 기준으로 좌우(캐럿이 끝/시작일 때)·상하(같은 열) 이동
@@ -1878,6 +1909,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
         </div>}
       </div>}
     </div>
+    <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>가격·면적 입력 → 단가 자동계산 / 면적·단가 입력 → 가격 자동계산. 면적 수정 시 마지막으로 입력한 가격 또는 단가를 기준으로 계산합니다.</div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
       <table style={S.tbl}><thead><tr>
         <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={S.th}>기호</th>
@@ -1886,7 +1918,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
         <PSortTh label="건물명" sortKey="buildingName"/>
         <PSortTh label="전유면적" sortKey="exclusiveArea"/>
         <PSortTh label="사례가격(천원)" sortKey="appraiseAmount"/>
-        <PSortTh label="단가" sortKey="unitPrice"/>
+        <PSortTh label="단가(원/㎡)" sortKey="unitPrice"/>
         <PSortTh label="기준시점" sortKey="baseDate"/>
         <PSortTh label="목적" sortKey="purpose"/>
         <th style={{...S.th,width:24}}></th>
@@ -1897,8 +1929,9 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           <td style={S.tdL}><input style={{...S.inp,width:"100%",textAlign:"left"}} value={`${p.location} ${p.jibun}`} onChange={e=>{const v=e.target.value;const parts=v.split(" ");const loc=parts.slice(0,-1).join(" ")||v;const jib=parts.length>1?parts[parts.length-1]:"";updP(p.id,"location",loc);updP(p.id,"jibun",jib);}}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center"}} value={`${p.dong||""}/${p.floor||""}/${p.ho||""}`} onChange={e=>{const pts=e.target.value.split("/");updP(p.id,"dong",pts[0]||"");updP(p.id,"floor",pts[1]||"");updP(p.id,"ho",pts[2]||"");}}/></td>
           <td style={S.tdL}><input style={{...S.inp,width:"100%",textAlign:"left"}} value={p.buildingName||""} onChange={e=>updP(p.id,"buildingName",e.target.value)}/></td>
-          <td style={S.tdR}>{fmtDec(p.exclusiveArea,2)}</td>
-          <td style={S.tdR}>{fmt(Math.round((p.appraiseAmount||0)/1000))}</td><td style={S.tdR}>{fmt(p.unitPrice)}</td>
+          <td style={S.tdR}><PrecNumberInput label="평가사례 전유면적(㎡)" value={p.exclusiveArea} onChange={v=>updP(p.id,"exclusiveArea",v)}/></td>
+          <td style={S.tdR}><PrecNumberInput label="평가사례 사례가격(천원)" value={p.appraiseAmount} scale={1000} onChange={v=>updP(p.id,"appraiseAmount",v)}/></td>
+          <td style={S.tdR}><PrecNumberInput label="평가사례 단가(원/㎡)" value={p.unitPrice} onChange={v=>updP(p.id,"unitPrice",v)}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center"}} value={p.baseDate||""} onChange={e=>updP(p.id,"baseDate",autoDateFmt(e.target.value))}/>{dateAfterWarn(p.baseDate,ov)?<span title={dateAfterWarn(p.baseDate,ov)} style={{marginLeft:2,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center"}} value={p.purpose||""} onChange={e=>updP(p.id,"purpose",e.target.value)}/></td>
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delP(p.id)}>✕</span></td>
@@ -4213,6 +4246,38 @@ function FactorInput({value,onChange}){
   return(<input type="text" style={{...S.inp,width:55,textAlign:"center"}} value={txt} onChange={handleChange} onBlur={handleBlur} onFocus={handleFocus}/>);
 }
 
+// 평가사례: 마지막으로 직접 입력한 가격/단가를 기준으로 면적 변경 시 재계산.
+const dateAfterWarn=(dateStr,ov)=>{const dn=s=>{const m=String(s||"").match(/(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);return m?(+m[1])*10000+(+m[2])*100+(+m[3]):null;};const t=dn(dateStr);if(t==null)return"";const wd=dn(ov&&ov.writeDate),bd=dn(ov&&ov.baseDate);if(wd!=null&&t>wd)return"작성일자 이후";if(bd!=null&&t>bd)return"기준시점 이후";return"";};
+function updatePrecPricing(prec,key,value){
+  const next={...prec,[key]:value};
+  if(!["exclusiveArea","appraiseAmount","unitPrice"].includes(key))return next;
+  const positive=v=>Number.isFinite(Number(v))&&Number(v)>0;
+  if(key==="appraiseAmount")next.priceBasis="amount";
+  else if(key==="unitPrice")next.priceBasis="unit";
+  else if(!next.priceBasis)next.priceBasis=positive(prec.appraiseAmount)?"amount":positive(prec.unitPrice)?"unit":"amount";
+  const area=Number(next.exclusiveArea);
+  if(next.priceBasis==="unit"){
+    next.appraiseAmount=positive(area)&&positive(next.unitPrice)?Math.round(area*Number(next.unitPrice)):"";
+  }else{
+    next.unitPrice=positive(area)&&positive(next.appraiseAmount)?Math.round(Number(next.appraiseAmount)/area):"";
+  }
+  return next;
+}
+// 입력 중 소수점/끝자리 0을 보존하고, 표시 단위만 변환한다 (가격: 천원, 저장: 원).
+function PrecNumberInput({label,value,onChange,scale=1}){
+  const [draft,setDraft]=useState("");
+  const [editing,setEditing]=useState(false);
+  const numeric=value!==""&&value!=null&&Number.isFinite(Number(value))?Number(value)/scale:null;
+  const display=numeric==null?"":numeric.toLocaleString("ko-KR",{maximumFractionDigits:10});
+  return(<input aria-label={label} inputMode="decimal" style={{...S.inp,width:"100%",minWidth:80,textAlign:"right"}}
+    value={editing?draft:display}
+    onFocus={()=>{setDraft(display);setEditing(true);}}
+    onChange={e=>{const raw=e.target.value.replace(/,/g,"");if(!/^\d*(\.\d*)?$/.test(raw))return;
+      const number=Number(raw)*scale;if(raw!==""&&raw!=="."&&!Number.isFinite(number))return;
+      setDraft(raw);onChange(raw===""||raw==="."?"":scale===1000?Math.round(number):number);}}
+    onBlur={()=>setEditing(false)}/>);
+}
+
 function DragRow({children,index,onDrop,style}){
   const [hov,setHov]=useState(false);
   return(<tr style={style} draggable onDragStart={e=>e.dataTransfer.setData("text/plain",index)}
@@ -4967,7 +5032,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   const delC=id=>{setCases(p=>reIdx(p.filter(c=>c.id!==id),false));};
   const updC=(id,key,val)=>{setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));};
   const delP=id=>{setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
-  const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?{...x,[key]:val}:x));};
+  const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?updatePrecPricing(x,key,val):x));};
   const dropC=(f,t)=>{if(f===t)return;setCases(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,false);});};
   const dropP=(f,t)=>{if(f===t)return;setPrecs(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,true);});};
   // 거래사례/평가전례 표 방향키 이동 — 체크박스 제외 텍스트 입력칸 기준으로 좌우(캐럿이 끝/시작일 때)·상하(같은 열) 이동
@@ -5172,6 +5237,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
         </div>}
       </div>}
     </div>
+    <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>가격·면적 입력 → 단가 자동계산 / 면적·단가 입력 → 가격 자동계산. 면적 수정 시 마지막으로 입력한 가격 또는 단가를 기준으로 계산합니다.</div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
       <table style={S.tbl}><thead><tr>
         <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={S.th}>기호</th>
@@ -5180,7 +5246,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
         <PSortTh label="건물명" sortKey="buildingName"/>
         <PSortTh label="전유면적" sortKey="exclusiveArea"/>
         <PSortTh label="사례가격(천원)" sortKey="appraiseAmount"/>
-        <PSortTh label="단가" sortKey="unitPrice"/>
+        <PSortTh label="단가(원/㎡)" sortKey="unitPrice"/>
         <PSortTh label="기준시점" sortKey="baseDate"/>
         <PSortTh label="목적" sortKey="purpose"/>
         <th style={{...S.th,width:24}}></th>
@@ -5191,8 +5257,9 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
           <td style={S.tdL}><input style={{...S.inp,width:"100%",textAlign:"left"}} value={`${p.location} ${p.jibun}`} onChange={e=>{const v=e.target.value;const parts=v.split(" ");const loc=parts.slice(0,-1).join(" ")||v;const jib=parts.length>1?parts[parts.length-1]:"";updP(p.id,"location",loc);updP(p.id,"jibun",jib);}}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center"}} value={`${p.dong||""}/${p.floor||""}/${p.ho||""}`} onChange={e=>{const pts=e.target.value.split("/");updP(p.id,"dong",pts[0]||"");updP(p.id,"floor",pts[1]||"");updP(p.id,"ho",pts[2]||"");}}/></td>
           <td style={S.tdL}><input style={{...S.inp,width:"100%",textAlign:"left"}} value={p.buildingName||""} onChange={e=>updP(p.id,"buildingName",e.target.value)}/></td>
-          <td style={S.tdR}>{fmtDec(p.exclusiveArea,2)}</td>
-          <td style={S.tdR}>{fmt(Math.round((p.appraiseAmount||0)/1000))}</td><td style={S.tdR}>{fmt(p.unitPrice)}</td>
+          <td style={S.tdR}><PrecNumberInput label="평가사례 전유면적(㎡)" value={p.exclusiveArea} onChange={v=>updP(p.id,"exclusiveArea",v)}/></td>
+          <td style={S.tdR}><PrecNumberInput label="평가사례 사례가격(천원)" value={p.appraiseAmount} scale={1000} onChange={v=>updP(p.id,"appraiseAmount",v)}/></td>
+          <td style={S.tdR}><PrecNumberInput label="평가사례 단가(원/㎡)" value={p.unitPrice} onChange={v=>updP(p.id,"unitPrice",v)}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center"}} value={p.baseDate||""} onChange={e=>updP(p.id,"baseDate",autoDateFmt(e.target.value))}/>{dateAfterWarn(p.baseDate,ov)?<span title={dateAfterWarn(p.baseDate,ov)} style={{marginLeft:2,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center"}} value={p.purpose||""} onChange={e=>updP(p.id,"purpose",e.target.value)}/></td>
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delP(p.id)}>✕</span></td>
