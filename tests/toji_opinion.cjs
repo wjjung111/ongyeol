@@ -76,7 +76,10 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     const multiBytes=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));
     fs.writeFileSync(path.join(out,'multi.hwpx'),Buffer.from(multiBytes));const many=await validate(page,multiBytes,'multi');
     for(const marker of ['두번째동','다른표준동','거래사례#4','거래동 33-1','평가동','43-1','7층','3,333,000','3,555,000'])assert(many.text.includes(marker),marker);
-    assert.equal(many.sizes.filter(s=>s[0]===17&&s[1]===4).length,4);
+    // 거래사례 표는 3열 양식이고, 마지막 표는 실제 사례 수만큼만 남긴다(4건 → 3열 표 2개 + 1열만 남은 표 2개).
+    assert.equal(many.sizes.filter(s=>s[0]===17&&s[1]===4).length,2);
+    assert.equal(many.sizes.filter(s=>s[0]===17&&s[1]===2).length,2);
+    assert(!many.text.includes('거래사례#5'));
     assert(many.sizes.some(s=>s[0]===8&&s[1]===6));assert(many.sizes.some(s=>s[0]===6&&s[1]===7));
     // 거래사례 4번째부터의 이어지는 표는 새 페이지에서 시작한다(pageBreak="1").
     const breaks=await page.evaluate(async bytes=>{
@@ -91,6 +94,27 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     await page.evaluate(()=>{ETC={type:'a',idx:3};STDS[0].etcOvr={src:'2345678',std:'1234567',stdTime:'1.07',out1:'7654321',out2:'3456789',ind:'1.123',ratio:'2.22'};document.getElementById('eSaj2').value='1.1';document.getElementById('eArea2').value='1.2';calcGongsi();});
     const over=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));
     const ov=await validate(page,over,'override');for(const marker of ['2,345,678','1,234,567','7,654,321','3,456,789','1.123','2.22','1.100','1.200','평가사례 d'])assert(ov.text.includes(marker),marker);
+    // 평가사례 소재지는 늘 '동명' 줄 + '본번-부번' 줄 두 줄. 붙여쓰기·'번지'·전각 붙임표도 나뉜다.
+    const split=await page.evaluate(async()=>{
+      ETC={type:'t',idx:0};
+      APPRS=[{no:'a',loc:'자양동 634-19',unit:'1000000'},{no:'b',loc:'자양동609-5',unit:'1000000'},
+             {no:'c',loc:'자양동 660-2번지',unit:'1000000'},{no:'d',loc:'서울특별시 광진구 자양동 산 12',unit:'1000000'}];
+      calcGongsi();
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const entries=await ArapCheonggu.parseZip(bytes.buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
+      const xml=new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data);
+      const doc=new DOMParser().parseFromString(xml,'application/xml');
+      const tbl=Array.from(doc.getElementsByTagNameNS(HP,'tbl')).find(t=>{
+        const head=Array.from(t.children).find(n=>n.localName==='tr');
+        return head&&head.textContent.includes('기호')&&head.textContent.includes('평가목적')&&head.textContent.includes('토지단가');
+      });
+      return Array.from(tbl.children).filter(n=>n.localName==='tr').slice(1).map(tr=>{
+        const cell=Array.from(tr.children).filter(n=>n.localName==='tc')
+          .find(tc=>Array.from(tc.children).find(n=>n.localName==='cellAddr').getAttribute('colAddr')==='1');
+        return Array.from(cell.getElementsByTagNameNS(HP,'p')).map(p=>p.textContent);
+      });
+    });
+    assert.deepEqual(split,[['자양동','634-19'],['자양동','609-5'],['자양동','660-2번지'],['서울특별시 광진구 자양동','산12']]);
     // 선택 항목 미입력과 알 수 없는 토큰도 확인한다.
     await page.evaluate(()=>{document.getElementById('op_location').value='';document.getElementById('op_costRows').value='';APPRS=[];document.getElementById('bldBody').innerHTML='';renderBldCalc();});
     const blank=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));
