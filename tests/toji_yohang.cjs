@@ -16,7 +16,7 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
 건축법 제2조제1항제11호나목에 따른 도로에 접함`;
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
-  const browser=await chromium.launch({headless:true});
+  const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});
   try{
     const ctx=await browser.newContext({acceptDownloads:true}),page=await ctx.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
@@ -37,6 +37,40 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     const auto=await page.evaluate(()=>Object.fromEntries(Y_IDS.map(id=>[id,document.getElementById(id).value])));
     assert.equal(auto.y_dong,'여수동');assert.equal(auto.y_jise,'평탄');assert.equal(auto.y_shape,'세장형');
     assert.equal(auto.y_struct,'철근콘크리트구조 지상 4층');assert.equal(auto.y_near,'성남여수초등학교 북서측');
+    // 기본 문구는 실제 값이 아니라 placeholder이며, 빈칸 출력은 원본 양식을 보존한다.
+    const defaultSurroundings='본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.';
+    assert.equal(await page.locator('#y_surroundings').inputValue(),'');
+    assert.equal(await page.locator('#y_surroundings').getAttribute('placeholder'),defaultSurroundings);
+    assert.deepEqual(await page.locator('.y-location h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
+    async function outputParagraphs(){return page.evaluate(async()=>{
+      const bytes=await ArapTojiDocuments.buildYohang();
+      const entries=await ArapCheonggu.parseZip(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+      const d=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>e.name==='Contents/section0.xml').data),'application/xml');
+      if(d.querySelector('parsererror'))throw Error('XML 오류');
+      return Array.from(d.documentElement.children).filter(p=>p.localName==='p').map(p=>p.textContent);
+    });}
+    const defaults=await outputParagraphs();
+    assert(defaults.includes(defaultSurroundings));
+    const emptyEtcCount=defaults.filter(t=>t==='해당사항 없음.').length;
+    await page.locator('#y_surroundings').fill('   ');
+    await page.locator('#y_locationEtc').fill('  ');
+    assert.deepEqual(await outputParagraphs(),defaults,'공백만 입력하면 양식 문구 유지');
+    const surroundings='주위는 단독주택 및 상가가 혼재함.\n<현장 확인> & {{사용자_메모}}';
+    const locationEtc='진입 시 사전 연락 필요.\n추가 확인사항 있음.';
+    await page.locator('#y_surroundings').fill(surroundings);
+    await page.locator('#y_locationEtc').fill(locationEtc);
+    const custom=await outputParagraphs();
+    for(const line of [...surroundings.split('\n'),...locationEtc.split('\n')])assert(custom.includes(line),'입력 줄 보존: '+line);
+    assert(!custom.includes(defaultSurroundings));
+    assert.equal(custom.filter(t=>t==='해당사항 없음.').length,emptyEtcCount-1,'다른 절의 기타사항은 보존');
+    await page.setViewportSize({width:1800,height:1800});
+    await page.locator('#y_surroundings').fill('');
+    await page.locator('#y_locationEtc').fill('');
+    await page.locator('#y_locationEtc').blur();
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.locator('#tab-yohang > .cols5050 > .card').first().screenshot({path:path.join(out,'입지조건-화면.png')});
+    await page.locator('#y_surroundings').fill(surroundings);
+    await page.locator('#y_locationEtc').fill(locationEtc);
     // 나머지 칸 직접 입력 + 토이계 붙여넣기
     await page.evaluate(raw=>{
       const set=(id,v)=>{const el=document.getElementById(id);el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));};
@@ -56,6 +90,14 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     await page.waitForFunction(()=>window.ArapTojiDocuments);
     const kept=await page.evaluate(()=>{showTab('yohang');return {t:document.getElementById('y_traffic').value,toice:(document.querySelector('#toiceBox textarea')||{}).value||''};});
     assert.equal(kept.t,'성남여수동행정복지센터 버스정류장');assert(/제1종일반주거지역/.test(kept.toice));
+    assert.equal(await page.locator('#y_surroundings').inputValue(),surroundings);
+    assert.equal(await page.locator('#y_locationEtc').inputValue(),locationEtc);
+    // 새 필드가 없는 과거 사건으로 전환할 때 직전 사건의 문장이 섞이면 안 된다.
+    await page.evaluate(()=>{const old=collect();delete old.yohang.y_surroundings;delete old.yohang.y_locationEtc;applyForm(old);});
+    assert.equal(await page.locator('#y_surroundings').inputValue(),'');
+    assert.equal(await page.locator('#y_locationEtc').inputValue(),'');
+    await page.locator('#y_surroundings').fill(surroundings);
+    await page.locator('#y_locationEtc').fill(locationEtc);
     // 다운로드
     const dl=page.waitForEvent('download');await page.locator('#btnYohang2').click();
     const file=path.join(out,'요항표.hwpx');await (await dl).saveAs(file);
@@ -75,7 +117,8 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     console.log('남은 토큰',res.left,'| 빨강런',res.redRuns);
     for(const m of ['여수동','성남여수초등학교 북서측','성남여수동행정복지센터 버스정류장','평탄','세장형','주상용 건부지','북측','동측','철근콘크리트구조 지상 4층','몰탈위 페인팅 마감','샷시','제1종일반주거지역','가축사육제한구역','<추가기재>'])
       assert(res.text.includes(m),'문서에 없음: '+m);
-    assert.equal(res.left.length,0,'미치환 토큰 '+res.left);
+    assert.deepEqual(res.left,['{{사용자_메모}}'],'사용자 입력 토큰만 문자 그대로 보존');
+    for(const line of [...surroundings.split('\n'),...locationEtc.split('\n')])assert(res.text.includes(line));
     assert.equal(res.redRuns,0,'빨강 글자 남음');
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({status:'PASS',auto},null,1));
