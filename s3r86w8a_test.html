@@ -3098,7 +3098,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   // 수수료 계산서 입력값들 — ov에 저장해 저장건과 함께 복원(붙여넣은 내용이 사라지지 않게)
   const feeText=ov.feeText||"";
   const setFeeText=v=>setOv(p=>({...p,feeText:v}));
-  const downPayment=ov.downPaymentInput??"300,000";
+  const downPayment=ov.downPaymentInput??"0";   // 기납부착수금 기본값 0 (2026-09-17 사용자 요청) — 대표샘플은 접수글 실값 100만을 그대로 둔다
   const setDownPayment=v=>setOv(p=>({...p,downPaymentInput:v}));
   const specialFee=ov.specialFeeInput??"0";
   const setSpecialFee=v=>setOv(p=>({...p,specialFeeInput:v}));
