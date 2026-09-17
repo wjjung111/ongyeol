@@ -237,7 +237,10 @@ function create(opt){
   var DIRS=[[0.78,-0.63],[-0.78,-0.63],[0.78,0.63],[-0.78,0.63],[0,-1],[0,1],[1,0],[-1,0]];
   // 이름표를 필지 **바깥**에 놓는다. 확대하면 필지가 화면에서 커지므로 그만큼 더 밀어낸다 —
   // 고정 거리로 두면 확대했을 때 이름표가 필지 안에 파묻혀 화살표가 뜻을 잃는다.
-  function labelOffset(n,poly){
+  // 평가사가 직접 끌어다 놓은 이름표는 그 자리를 그대로 지킨다(자동 배치보다 우선).
+  function labelOffset(it,n,poly){
+    var man=it.xy&&it.xy.labOff;
+    if(man&&isFinite(man[0])&&isFinite(man[1]))return [man[0],man[1]];
     var d=DIRS[n%DIRS.length],away=46;
     if(poly&&map){
       var pb=poly.getBounds();
@@ -270,29 +273,89 @@ function create(opt){
       html:'<div class="mkr'+(it.pick?' pick':'')+'"><div class="dot" style="background:'+it.color+'"></div>'+
            '<div class="lab">'+esc(it.label)+'</div></div>'});
   }
+  var LAB_TIP='끌어서 이름표만 옮깁니다(필지와 화살촉은 그대로). 두 번 누르면 제자리로.';
   function parcelIcon(it,n,poly){
-    var o=labelOffset(n,poly),dx=o[0],dy=o[1];
+    var o=labelOffset(it,n,poly),dx=o[0],dy=o[1];
     return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
       html:'<div class="mkr par'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color)+
-           '<div class="lab" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>'});
+           '<div class="lab" title="'+esc(LAB_TIP)+'" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>'});
   }
-  // 확대·축소하면 필지의 화면 크기가 달라지므로 이름표를 다시 밀어낸다
-  var labeled=[];   // [{marker, item, n, poly}]
+  // 확대·축소하면 필지의 화면 크기가 달라지므로 이름표를 다시 밀어낸다(직접 옮긴 것은 그대로)
+  var labeled=[];   // [{marker, it, n, poly}]
   function relabel(){
-    labeled.forEach(function(r){r.marker.setIcon(parcelIcon(r.it,r.n,r.poly));});
+    labeled.forEach(function(r){r.marker.setIcon(parcelIcon(r.it,r.n,r.poly));bindLabelDrag(r);});
   }
 
-  // 핀을 직접 옮기면 그 자리 필지를 새로 집어 테두리를 다시 그린다
+  // ── 이름표 끌기 ──
+  // 마커는 필지 중심에 못 박아 두고(=화살촉 고정), 끌면 이름표의 **화면 픽셀 오프셋**만 바꾼다.
+  // 그래서 이름표와 화살표 꼬리만 따라 움직이고 필지·화살촉은 제자리에 있는다.
+  // 옮긴 자리는 `_xy.labOff`에 저장돼 새로고침해도 유지된다. 다른 필지 위에 놓아도 그 필지를 고르지 않는다.
+  function evPt(e){
+    var t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;
+    return (t&&isFinite(t.clientX))?{x:t.clientX,y:t.clientY}:null;
+  }
+  function bindLabelDrag(r){
+    var root=r.marker.getElement();if(!root)return;
+    var wrap=root.querySelector('.mkr'),box=root.querySelector('.lab');
+    if(!wrap||!box)return;
+    var start=null,base=[0,0],moved=false;
+    function paint(dx,dy){
+      box.style.left=dx+'px';box.style.top=dy+'px';
+      var svg=wrap.querySelector('svg.ldr');
+      if(svg)svg.outerHTML=leader(dx,dy,r.it.color);
+    }
+    function onMove(e){
+      var p=evPt(e);if(!p||!start)return;
+      moved=true;
+      paint(Math.round(base[0]+p.x-start.x),Math.round(base[1]+p.y-start.y));
+      e.preventDefault();
+    }
+    function onUp(){
+      document.removeEventListener('mousemove',onMove,true);
+      document.removeEventListener('mouseup',onUp,true);
+      document.removeEventListener('touchmove',onMove,{capture:true});
+      document.removeEventListener('touchend',onUp,true);
+      if(map.dragging)map.dragging.enable();
+      if(moved){
+        r.it.xy.labOff=[parseInt(box.style.left,10)||0,parseInt(box.style.top,10)||0];
+        onSave();
+        status('🏷️ '+r.it.label+' 이름표를 옮겼습니다(저장됨). 필지와 화살촉은 그대로입니다.');
+      }else if(start){
+        r.marker.openPopup();   // 끌지 않고 그냥 눌렀으면 종전처럼 설명을 띄운다
+      }
+      start=null;
+    }
+    function onDown(e){
+      var p=evPt(e);if(!p)return;
+      start=p;moved=false;
+      base=labelOffset(r.it,r.n,r.poly);
+      if(map.dragging)map.dragging.disable();
+      document.addEventListener('mousemove',onMove,true);
+      document.addEventListener('mouseup',onUp,true);
+      document.addEventListener('touchmove',onMove,{passive:false,capture:true});
+      document.addEventListener('touchend',onUp,true);
+      e.preventDefault();e.stopPropagation();
+    }
+    box.style.cursor='move';
+    box.addEventListener('mousedown',onDown);
+    box.addEventListener('touchstart',onDown,{passive:false});
+    // 클릭이 지도까지 올라가면 Leaflet이 방금 연 설명창을 바로 닫아 버린다
+    box.addEventListener('click',function(e){e.stopPropagation();});
+    // 두 번 누르면 자동 배치로 되돌린다(지도 확대가 같이 걸리지 않게 막는다)
+    box.addEventListener('dblclick',function(e){
+      e.preventDefault();e.stopPropagation();
+      r.marker.closePopup();   // 두 번 누르면 첫 클릭으로 열린 설명이 남으므로 닫아 준다
+      if(r.it.xy)delete r.it.xy.labOff;
+      onSave();r.marker.setIcon(parcelIcon(r.it,r.n,r.poly));bindLabelDrag(r);
+      status('🏷️ '+r.it.label+' 이름표를 제자리로 되돌렸습니다.');
+    });
+  }
+
+  // 점 핀(집합건물)을 직접 옮기면 그 자리로 위치를 고친다
   function moved(it,p){
     it.xy=it.o._xy={x:p.lng,y:p.lat,addr:it.xy.addr,q:it.xy.q,manual:true};
     onSave();
     status('📍 '+it.label+' 위치를 직접 옮겼습니다(저장됨). 「주소 다시 찾기」를 누르면 되돌아갑니다.');
-    if(!it.poly)return;
-    parcel({x:p.lng,y:p.lat},getKey()).then(function(g){
-      it.xy.geomTried=true;
-      if(g&&geomFits(g))it.xy.geom=g;
-      onSave();draw(true);
-    });
   }
 
   // keepView=true면 화면 위치를 그대로 두고 다시 그리기만 한다(핀을 옮긴 직후 등)
@@ -307,6 +370,7 @@ function create(opt){
       if(it.xy.geom){
         var poly=L.geoJSON(it.xy.geom,{style:{color:it.color,weight:it.pick?4:3,opacity:1,
           fillColor:it.color,fillOpacity:it.pick?0.16:0.10}}).addTo(map);
+        poly.bindPopup(popup(it));   // 필지를 눌러도 설명이 뜬다(이름표를 멀리 치워 뒀을 때)
         shapes.push(poly);
         var pb=poly.getBounds();
         if(pb.isValid()){
@@ -319,11 +383,14 @@ function create(opt){
         icon=dotIcon(it);
       }
       pts.push(ll);
-      var m=L.marker(ll,{icon:icon,draggable:true,title:it.label+' — '+it.loc,zIndexOffset:it.pick?1000:0}).addTo(map);
+      // 필지형 마커는 필지 중심에 못 박는다(화살촉 고정) — 이름표만 따로 끌 수 있게 한다.
+      // 점 핀(집합건물)은 종전대로 마커째 끌어서 위치를 고친다.
+      var m=L.marker(ll,{icon:icon,draggable:!myPoly,title:myPoly?'':(it.label+' — '+it.loc),
+        zIndexOffset:it.pick?1000:0}).addTo(map);
       m.bindPopup(popup(it));
-      m.on('dragend',function(){moved(it,m.getLatLng());});
+      if(!myPoly)m.on('dragend',function(){moved(it,m.getLatLng());});
       markers.push(m);
-      if(myPoly)labeled.push({marker:m,it:it,n:myN,poly:myPoly});
+      if(myPoly){var rec={marker:m,it:it,n:myN,poly:myPoly};labeled.push(rec);bindLabelDrag(rec);}
     });
     if(keepView)return;
     pts.forEach(function(p){bnd=bnd?bnd.extend(p):L.latLngBounds(p,p);});
