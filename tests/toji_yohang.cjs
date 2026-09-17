@@ -40,7 +40,9 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     // 기본 문구는 실제 값이 아니라 placeholder이며, 빈칸 출력은 원본 양식을 보존한다.
     const defaultSurroundings='본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.';
     assert.equal(await page.locator('#y_surroundings').inputValue(),'');
-    assert.equal(await page.locator('#y_surroundings').getAttribute('placeholder'),defaultSurroundings);
+    assert.equal(await page.locator('#y_locationEtc').getAttribute('placeholder'),'해당사항 없음.');
+    assert.equal(await page.locator('#y_locationEtc_hint').count(),0);
+    assert.equal(await page.locator('#y_surroundings').getAttribute('placeholder'),defaultSurroundings.slice(0,-1));
     assert.deepEqual(await page.locator('.y-location h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
     async function outputParagraphs(){return page.evaluate(async()=>{
       const bytes=await ArapTojiDocuments.buildYohang();
