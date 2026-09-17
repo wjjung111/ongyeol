@@ -3,9 +3,10 @@
 'use strict';
 var $=function(id){return document.getElementById(id);},A=window.ArapCheonggu;
 // 요항표 토큰 = 요항표 탭 입력칸. 빈 칸은 채우지 않고 양식 표시를 그대로 남긴다(한글에서 직접 작성).
+// 양식에는 {{요항_지세}} 뒤에 '한'이 있으므로 완성형 입력의 끝 '한'은 중복하지 않는다.
 function yohangMap(){
   return {'소재지_동':cgVal('y_dong'),'인근위치설명':cgVal('y_near'),'요항_교통':cgVal('y_traffic'),
-    '요항_지세':cgVal('y_jise'),'토지_형상':cgVal('y_shape'),'요항_이용상황':cgVal('y_use'),
+    '요항_지세':cgVal('y_jise').replace(/한$/,''),'토지_형상':cgVal('y_shape'),'요항_이용상황':cgVal('y_use'),
     '요항_도로1방위':cgVal('y_road1dir'),'요항_도로1노폭':cgVal('y_road1w'),
     '요항_도로2방위':cgVal('y_road2dir'),'요항_도로2노폭':cgVal('y_road2w'),
     '요항_건물구조':cgVal('y_struct'),'요항_외벽':cgVal('y_wall'),'요항_창호':cgVal('y_window'),
