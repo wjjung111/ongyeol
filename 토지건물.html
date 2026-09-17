@@ -2045,7 +2045,8 @@ function hideExamples(){
   var has=!!String((LANDS[0]||{})['소재지']||'').trim();
   document.querySelectorAll('input,textarea').forEach(function(el){
     if(el.dataset.ph==null){if(!el.placeholder)return;el.dataset.ph=el.placeholder;}
-    var o=el.dataset.ph,keep=KEEP_PH.indexOf(o)>=0||/…|Ctrl\+V/.test(o);
+    // 요항표의 문장형 입력 안내는 실제 소재지가 있어도 계속 표시한다.
+    var o=el.dataset.ph,keep=!!el.closest('.y-location')||KEEP_PH.indexOf(o)>=0||/…|Ctrl\+V/.test(o);
     var want=(has&&!keep)?'':o;
     if(el.placeholder!==want&&KEEP_PH.indexOf(el.placeholder)<0)el.placeholder=want;
   });
@@ -2185,7 +2186,11 @@ function fillYohangFromData(){
   set('y_near',cgVal('op_location'));
   set('y_jise',yohangTerrain(L['지세']==='평지'?'평탄':L['지세']));
   set('y_shape',L['형상']);
-  set('y_use',L['이용상황']);
+  // 건축물대장 주용도 우선. 종전 토지 자동값(단독 등)은 바꾸되 직접 쓴 문구는 유지한다.
+  var use=document.getElementById('y_use'),mainUse=cgVal('bt_purps').trim();
+  if(use&&mainUse&&(!use.value.trim()||use.value===String(L['이용상황']||'')||use.value===use.dataset.autoUse)){
+    use.value=mainUse;use.dataset.autoUse=mainUse;
+  }else set('y_use',L['이용상황']);
   set('y_struct',[cgVal('bt_strct'),cgVal('bt_flrs')?'지상 '+String(cgVal('bt_flrs')).split('/')[0]+'층':''].filter(Boolean).join(' '));
   set('y_usestate',cgVal('bt_purps'));
 }
@@ -2439,6 +2444,7 @@ function applyForm(o){
   if(o.fn)FN_IDS.forEach(function(id){if(o.fn[id]!=null)document.getElementById(id).value=o.fn[id];});
   Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value=o.yohang&&o.yohang[id]!=null?o.yohang[id]:'';});
   document.getElementById('y_jise').value=yohangTerrain(cgVal('y_jise'));
+  delete document.getElementById('y_use').dataset.autoUse;
   TOICE=o.TOICE||{};
   if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
   // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.
@@ -2501,7 +2507,7 @@ function clearForm(){
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   CG_TRAVEL_MANUAL=false;
-  Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});TOICE={};
+  Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;}});TOICE={};
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
 }
 function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();renderToice();}
