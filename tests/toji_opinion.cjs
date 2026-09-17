@@ -137,6 +137,25 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     for(const k of ['주구조','재조달원가(원/㎡)','내용연수','잔존연수','건물금액(원)'])
       assert.equal(dashes[k],'-',k+'는 0이 아니라 -여야 합니다: '+dashes[k]);
     assert.equal(dashes['총 거래금액(원)'],'950,000,000');
+    // 개별요인 비교항목 표는 화면에서 고른 지대의 항목으로 바뀐다(템플릿 원본은 상업지대).
+    const daegu=await page.evaluate(async()=>{
+      document.getElementById('g_daegu').value='주택지대';calcGongsi();
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const entries=await ArapCheonggu.parseZip(bytes.buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
+      const xml=new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data);
+      const doc=new DOMParser().parseFromString(xml,'application/xml');
+      if(doc.querySelector('parsererror'))throw Error('지대 표 XML 깨짐');
+      const tbls=Array.from(doc.getElementsByTagNameNS(HP,'tbl')).filter(t=>{
+        const r=Array.from(t.children).find(n=>n.localName==='tr');
+        return r&&r.textContent.replace(/\s/g,'')==='조건항목세항목';});
+      return {title:(xml.match(/개별요인 비교항목\(([^)]*)\)/)||[])[1],
+              sizes:tbls.map(t=>[Number(t.getAttribute('rowCnt')),Number(t.getAttribute('colCnt'))]),
+              text:doc.documentElement.textContent};
+    });
+    assert.equal(daegu.title,'주택지대');
+    assert.deepEqual(daegu.sizes,[[12,3],[6,3]]);   // 머리글 + 앞표 11행 / 뒤표 5행
+    for(const m of ['기상조건','공해발생의 정도','공공 및 편익시설의 배치상태'])assert(daegu.text.includes(m),m);
+    assert(!daegu.text.includes('고객의 유동성'),'상업지대 항목이 남아 있으면 안 됩니다');
     // 선택 항목 미입력과 알 수 없는 토큰도 확인한다.
     await page.evaluate(()=>{document.getElementById('op_location').value='';document.getElementById('op_costRows').value='';APPRS=[];document.getElementById('bldBody').innerHTML='';renderBldCalc();});
     const blank=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));

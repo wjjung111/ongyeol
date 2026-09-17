@@ -117,7 +117,7 @@ function opinionData(){
   var tm=etcTimeMeta(),selected=TRADES[GA.idx]||{},gt=(ga.rows||[])[0]||{};
   var date=docDot(val('base_gongsi'));
   var m={
-    '소재지_동':dongAddr(),'인근위치설명':val('op_location')||'[인근 위치 기입]',
+    '소재지_동':dongAddr(),'인근위치설명':val('op_location')||'[인근 위치 기입]','지대':val('g_daegu'),
     '평가구분':val('ov_kind'),'평가목적':val('ov_purpose'),'기준시점':docDot(val('base_gijun')),'조사기간':docDot(val('base_josa')),
     '공시기준일':date,'공시지가_연도':date.slice(0,4),
     '공시시점_설명':[val('jb_region'),'('+date+'~'+docDot(val('base_gijun'))+')',val('jb_use')].filter(Boolean).join(' '),
@@ -159,6 +159,124 @@ function scope(el,map,state){
       var key='__op'+(state.seq++);state.map[key]=text(map[k]);return '{{'+key+'}}';
     });
   });
+}
+// ── 지대별 개별요인 비교항목 (감정평가 실무 표준 항목표) ───────────────────────────
+// [앞 표에 넣을 조건 3개 묶음, 뒤 표에 넣을 조건 묶음] — 각 조건은 [조건명, [[항목, 세항목], …]]
+var FACTOR_ITEMS={
+  '상업지대':[[
+    ['가로조건',[['가로의 폭, 구조 등의 상태','폭,포장, 보도, 계통 및 연속성']]],
+    ['접근조건',[['상업지역중심 및 교통시설과의 편의성','상업지역중심과의 접근성, 인근교통시설과의 거리 및 편의성']]],
+    ['환경조건',[['고객의 유동성과의 적합성','고객의 유동성과의 적합성'],
+                 ['인근환경','인근토지의 이용상황, 인근토지의 이용상황과의 적합성'],
+                 ['자연환경','지반, 지질 등']]]
+  ],[
+    ['획지조건',[['면적, 접면, 너비, 깊이, 형상 등','면적, 접면너비, 깊이, 부정형지, 삼각지, 자루형 획지 등'],
+                 ['방위, 고저 등','방위, 고저, 경사지'],
+                 ['접면도로 상태','각지, 2면획지, 3면획지']]],
+    ['행정적조건',[['행정상의 규제정도','용도지역, 지구, 구역 등, 용적제한, 고도제한, 기타규제(입체이용제한 등)']]],
+    ['기타조건',[['기타','장래의 동향, 기타']]]
+  ]],
+  '주택지대':[[
+    ['가로조건',[['가로의 폭, 구조 등의 상태','폭, 포장, 보도, 계통 및 연속성']]],
+    ['접근조건',[['도심과의 거리 및 교통시설의 상태','인근 대중교통시설과의 거리 및 편의성'],
+                 ['상가의 배치상태','인근 상가와의 거리 및 편의성'],
+                 ['공공 및 편익시설의 배치상태','유치원, 초등학교, 공원, 병원, 관공서 등']]],
+    ['환경조건',[['기상조건','일조, 습도, 온도, 통풍 등'],
+                 ['자연환경','조망, 경관, 지반, 지질 등'],
+                 ['인근환경','인근토지의 이용상황, 인근토지의 이용상황과의 적합성'],
+                 ['공급 및 처리시설의 상태','상수도, 하수도, 도시가스 등'],
+                 ['위험 및 혐오시설 등','변전소, 가스탱크, 오수처리장 등의 유무, 특별고압선 등과의 거리'],
+                 ['재해발생의 위험성','홍수, 사태, 절벽붕괴 등'],
+                 ['공해발생의 정도','소음, 진동, 대기오염 등']]]
+  ],[
+    ['획지조건',[['면적, 접면너비, 깊이, 형상 등','면적, 접면너비, 깊이, 부정형지, 삼각지, 자루형 획지 등'],
+                 ['방위, 고저 등','방위, 고저, 경사지'],
+                 ['접면도로 상태','각지, 2면획지, 3면획지']]],
+    ['행정적조건',[['행정상의 규제정도','용도지역, 지구, 구역 등, 용적제한, 고도제한, 기타규제(입체이용제한 등)']]],
+    ['기타조건',[['기타','장래의 동향, 기타']]]
+  ]],
+  '공업지대':[[
+    ['가로조건',[['가로의 폭, 구조 등의 상태','폭, 포장, 보도, 계통 및 연속성']]],
+    ['접근조건',[['판매 및 원료구입시장과의 위치관계','제품판매시장 및 원료구입시장과의 거리 및 접근성'],
+                 ['노동력 확보의 난이','인근 인구수준, 노동력 확보의 용이성'],
+                 ['관련 산업과의 관계','관련 산업 및 관련 시설과의 거리']]],
+    ['환경조건',[['공급 및 처리시설의 상태','동력자원, 공업용수, 공장배수'],
+                 ['자연환경','지반, 지질 등']]]
+  ],[
+    ['획지조건',[['면적, 형상 등','면적, 형상, 고저']]],
+    ['행정적조건',[['행정상의 조장 및 규제정도','조장의 정도, 규제의 정도']]],
+    ['기타조건',[['기타','장래의 동향, 기타']]]
+  ]],
+  '농경지대':[[
+    ['접근조건',[['교통의 편부','취락과의 접근성, 농로의 상태']]],
+    ['자연조건',[['일조 등','일조, 건습, 온도, 통풍, 강우량'],
+                 ['토양, 토질','토양, 토질의 양부'],
+                 ['관개, 배수','관개의 양부, 배수의 양부'],
+                 ['재해의 위험성','수해, 기타 재해의 위험성']]]
+  ],[
+    ['획지조건',[['면적, 경사 등','면적, 경사도, 경사의 방향'],
+                 ['경작의 편부','형상에 의한 장애정도, 기계화 가능성']]],
+    ['행정적조건',[['행정상의 조장 및 규제정도','보조금, 융자금 등 조장의 정도, 규제의 정도']]],
+    ['기타조건',[['기타','장래의 동향, 기타']]]
+  ]],
+  '임야지대':[[
+    ['접근조건',[['교통의 편부','인근 역·취락과의 접근성'],
+                 ['반출의 난이','반출 도로의 상태, 운반거리']]],
+    ['자연조건',[['일조 등','일조, 기온, 우량, 안개 등'],
+                 ['토양, 토질','토양, 토질의 양부']]]
+  ],[
+    ['획지조건',[['면적','면적'],
+                 ['경사 등','고저, 경사도, 경사의 방향']]],
+    ['행정적조건',[['행정상의 조장 및 규제정도','조장의 정도, 규제의 정도']]],
+    ['기타조건',[['기타','장래의 동향, 기타']]]
+  ]]
+};
+// '가로조건' → ['가로','조건'] 두 줄(원본 표와 같은 모양). '조건'으로 끝나지 않으면 한 줄.
+function condLines(name){
+  return /조건$/.test(name)&&name.length>2?[name.slice(0,-2),'조건']:[name];
+}
+// 셀 안의 문단을 lines 개수만큼 다시 만든다(첫 문단 서식을 그대로 복제).
+function setCell(tc,lines){
+  var ps=descendants(tc,'p'),first=ps[0];if(!first)return;
+  var host=first.parentNode;
+  var made=lines.map(function(t){
+    var p=first.cloneNode(true);clearLines(p);
+    var ts=descendants(p,'t');if(!ts.length)return null;
+    ts[0].textContent=t;ts.slice(1).forEach(function(x){x.textContent='';});
+    return p;
+  }).filter(Boolean);
+  ps.forEach(function(p){p.remove();});
+  made.forEach(function(p){host.appendChild(p);});
+}
+// 개별요인 비교항목 표를 고른 지대의 항목으로 다시 짠다(머리글 행은 그대로).
+function fillFactorTable(tbl,groups){
+  var rows=children(tbl,'tr'),head=rows[0],body=rows.slice(1);
+  var protoA=body.find(function(r){return children(r,'tc').length===3;});
+  var protoB=body.find(function(r){return children(r,'tc').length===2;})||protoA;
+  if(!protoA)return;
+  var unit=Number(children(children(protoA,'tc')[1],'cellSz')[0].getAttribute('height'))||3401;
+  var made=[];
+  groups.forEach(function(g){
+    var cond=g[0],items=g[1];
+    items.forEach(function(it,i){
+      var row=(i?protoB:protoA).cloneNode(true),cells=children(row,'tc');
+      var off=cells.length===3?1:0;
+      if(off){setCell(cells[0],condLines(cond));
+        children(cells[0],'cellSpan')[0].setAttribute('rowSpan',String(items.length));
+        children(cells[0],'cellSz')[0].setAttribute('height',String(unit*items.length));}
+      setCell(cells[off],[it[0]]);setCell(cells[off+1],[it[1]]);
+      cells.slice(off).forEach(function(c){children(c,'cellSz')[0].setAttribute('height',String(unit));});
+      made.push(row);
+    });
+  });
+  body.forEach(function(r){r.remove();});
+  made.forEach(function(r){tbl.appendChild(r);});
+  children(tbl,'tr').forEach(function(r,i){children(r,'tc').forEach(function(c){
+    children(c,'cellAddr')[0].setAttribute('rowAddr',String(i));});});
+  tbl.setAttribute('rowCnt',String(made.length+1));
+  var headH=Number(children(children(head,'tc')[0],'cellSz')[0].getAttribute('height'))||unit;
+  children(tbl,'sz')[0].setAttribute('height',String(headH+unit*made.length));
+  clearLines(tbl);
 }
 // 표 오른쪽 끝의 빈 열을 지운다(거래사례가 3건이 안 되는 마지막 표 — 5건이면 #4·#5만 남기고 빈 열 삭제).
 function dropCols(tbl,keep){
@@ -253,6 +371,11 @@ function opinionXml(xml,data){
       clearLines(target);target=target.nextSibling;
     }
   });
+  // 개별요인 비교항목 표 — 화면에서 고른 지대의 항목으로 바꾼다(템플릿 원본은 상업지대).
+  var daegu=text(data.global['지대'])||'상업지대',items=FACTOR_ITEMS[daegu]||FACTOR_ITEMS['상업지대'];
+  tables.filter(function(t){var r=children(t,'tr')[0];return r&&r.textContent.replace(/\s/g,'')==='조건항목세항목';})
+    .forEach(function(t,i){if(items[i])fillFactorTable(t,items[i]);});
+  replacePlain(doc,'개별요인 비교항목(상업지대)','개별요인 비교항목('+daegu+')');
   // 원본의 고정 샘플 문구 중 이미 앱에서 입력받는 항목을 연결한다. 법령·방법론 본문은 유지.
   replacePlain(doc,'귀 제시일인',val('ov_gijunBasis')||'귀 제시일인');
   replacePlain(doc,'일반거래(시가참고)',val('ov_purpose'));

@@ -338,7 +338,11 @@
             <span class="hint">여러 필지면 조회를 반복하면 행이 쌓입니다. 모든 칸은 클릭해서 수정 가능. 면적 합계: <b id="landSum">0</b> ㎡</span>
             <span class="hint" id="landCopyMsg" style="margin-left:auto"></span>
           </div>
-          <div class="fld" style="margin-top:12px"><label for="op_location">인근 위치 설명</label><input class="box" id="op_location" placeholder="예: 달서초등학교 북동측"></div>
+          <div class="fld" style="margin-top:12px"><label for="op_location">인근 위치 설명</label>
+            <span style="display:flex;align-items:center;gap:6px;flex:1">
+              <input class="box" id="op_location" style="max-width:320px" placeholder="예: 달서초등학교 북동측">
+              <span class="hint" style="white-space:nowrap">인근에 위치하는</span>
+            </span></div>
         </div>
 
         <div class="card">
