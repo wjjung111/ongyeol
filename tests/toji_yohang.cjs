@@ -33,16 +33,34 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
       document.getElementById('op_location').value='성남여수초등학교 북서측';
       document.getElementById('ov_client').value='검증 의뢰인';
       showTab('yohang');
+      sd(); // 실제 토지 조회·계산 후 사이드바 갱신은 hideExamples도 호출한다.
     });
     const auto=await page.evaluate(()=>Object.fromEntries(Y_IDS.map(id=>[id,document.getElementById(id).value])));
     assert.equal(auto.y_dong,'여수동');assert.equal(auto.y_jise,'평탄한');assert.equal(auto.y_shape,'세장형');
     assert.equal(auto.y_struct,'철근콘크리트구조 지상 4층');assert.equal(auto.y_near,'성남여수초등학교 북서측');
+    assert.equal(auto.y_use,'제2종근린생활시설 및 다가구주택','건물 주용도 자동 입력');
+    await page.evaluate(()=>{
+      document.getElementById('bt_purps').value='제1종근린생활시설';
+      document.getElementById('y_use').value=LANDS[0]['이용상황'];
+      fillYohangFromData();
+    });
+    assert.equal(await page.locator('#y_use').inputValue(),'제1종근린생활시설','종전 토지 자동값 교체');
+    await page.locator('#y_use').fill('현황상 사무실');
+    await page.evaluate(()=>fillYohangFromData());
+    assert.equal(await page.locator('#y_use').inputValue(),'현황상 사무실','직접 입력 보존');
+    await page.locator('#y_use').fill('');
+    await page.evaluate(()=>fillYohangFromData());
+    assert.equal(await page.locator('#y_use').inputValue(),'제1종근린생활시설');
     // 기본 문구는 실제 값이 아니라 placeholder이며, 빈칸 출력은 원본 양식을 보존한다.
     const defaultSurroundings='본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.';
     assert.equal(await page.locator('#y_surroundings').inputValue(),'');
     assert.equal(await page.locator('#y_locationEtc').getAttribute('placeholder'),'해당사항 없음.');
     assert.equal(await page.locator('#y_locationEtc_hint').count(),0);
     assert.equal(await page.locator('#y_surroundings').getAttribute('placeholder'),defaultSurroundings.slice(0,-1));
+    await page.locator('#y_surroundings').focus();
+    assert(await page.locator('#y_surroundings').evaluate(el=>el.matches(':placeholder-shown')),'포커스 상태에서도 기본 문장 표시');
+    assert.equal(await page.locator('#y_surroundings').evaluate(el=>getComputedStyle(el,'::placeholder').color),'rgb(160, 167, 178)');
+    assert.equal(await page.locator('#landQuery').getAttribute('placeholder'),'','다른 화면의 예시 숨김 동작은 유지');
     assert.deepEqual(await page.locator('.y-location:not(.y-land) h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
     async function outputParagraphs(){return page.evaluate(async()=>{
       const bytes=await ArapTojiDocuments.buildYohang();
@@ -57,6 +75,7 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     const defaults=await outputParagraphs();
     assert(defaults.some(t=>t.includes('대비 평탄한 세장형의 토지임.')),'기존 자동채움 지세와 문장 출력 일치');
     assert(defaults.includes(defaultSurroundings));
+    assert(defaults.some(t=>t.includes('제1종근린생활시설로 이용중임.')),'건물 주용도의 요항표 출력');
     const emptyEtcCount=defaults.filter(t=>t==='해당사항 없음.').length;
     await page.locator('#y_surroundings').fill('   ');
     await page.locator('#y_locationEtc').fill('  ');
@@ -97,6 +116,10 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     await page.waitForFunction(()=>window.ArapTojiDocuments);
     const kept=await page.evaluate(()=>{showTab('yohang');return {t:document.getElementById('y_traffic').value,toice:(document.querySelector('#toiceBox textarea')||{}).value||''};});
     assert.equal(kept.t,'성남여수동행정복지센터 버스정류장');assert(/제1종일반주거지역/.test(kept.toice));
+    await page.evaluate(()=>sd());
+    assert.equal(await page.locator('#y_surroundings').getAttribute('placeholder'),defaultSurroundings.slice(0,-1),'저장 후 재진입해도 안내 유지');
+    assert.equal(await page.locator('#y_locationEtc').getAttribute('placeholder'),'해당사항 없음.');
+    assert.deepEqual(await page.evaluate(()=>['y_jise','y_shape','y_road1dir','y_road1w','y_road2dir','y_road2w'].map(id=>document.getElementById(id).placeholder)),landPlaceholders);
     assert.equal(await page.locator('#y_surroundings').inputValue(),surroundings);
     assert.equal(await page.locator('#y_locationEtc').inputValue(),locationEtc);
     // 새 필드가 없는 과거 사건으로 전환할 때 직전 사건의 문장이 섞이면 안 된다.
