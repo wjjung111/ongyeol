@@ -36,15 +36,22 @@
 var LEAFLET_JS='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 var LEAFLET_CSS='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 var SEARCH_BASE='https://api.vworld.kr/req/search';
+var DATA_BASE='https://api.vworld.kr/req/data';
 var loading=null;
 
-// 핀 모양 — 색 원 + 그 옆 이름표. 지도 위에서 글자가 묻히지 않게 흰 바탕을 깐다.
+// 핀 모양 — 필지 도형이 있으면 테두리 + 화살표 이름표, 없으면 색 원 + 이름표.
+// 지도 위에서 글자가 묻히지 않게 흰 바탕을 깐다.
 var CSS=[
 '.mkr{position:relative;width:0;height:0;}',
 '.mkr .dot{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);}',
 '.mkr.pick .dot{width:22px;height:22px;left:-11px;top:-11px;border-width:4px;}',
-'.mkr .lab{position:absolute;left:11px;top:-10px;white-space:nowrap;font-size:11.5px;font-weight:700;color:#0f172a;background:rgba(255,255,255,.88);border-radius:3px;padding:1px 5px;box-shadow:0 1px 3px rgba(0,0,0,.25);}',
+'.mkr .lab{position:absolute;left:11px;top:-10px;white-space:nowrap;font-size:11.5px;font-weight:700;color:#0f172a;background:rgba(255,255,255,.9);border-radius:3px;padding:1px 5px;box-shadow:0 1px 3px rgba(0,0,0,.25);}',
 '.mkr.pick .lab{left:14px;background:#0f172a;color:#fff;}',
+// 필지형: 이름표를 옆으로 빼고 화살표로 필지를 가리킨다(줌과 무관한 고정 픽셀 위치)
+'.mkr.par .ldr{position:absolute;overflow:visible;pointer-events:none;z-index:1;}',
+// z-index로 이름표를 화살표 위에 올린다 — 안 그러면 선이 글자를 가로지른다
+'.mkr.par .lab{transform:translate(-50%,-50%);border:1.5px solid currentColor;background:#fff;padding:2px 7px;font-size:12px;z-index:2;}',
+'.mkr.par.pick .lab{background:#0f172a;color:#fff;border-color:#0f172a;}',
 '.arap-lgd{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;}'
 ].join('\n');
 
@@ -112,11 +119,34 @@ function geocode(q,key){
   return fetch(url).then(function(r){return r.json();}).catch(function(){return jsonp(url);}).then(function(d){
     var items=(d&&d.response&&d.response.result&&d.response.result.items)||[],it=items[0],p=it&&it.point;
     var x=p&&parseFloat(p.x),y=p&&parseFloat(p.y);
+    // 주소검색 결과의 id가 곧 PNU — 필지 도형을 지번으로 정확히 집을 때 쓴다
     var v=(isFinite(x)&&isFinite(y))?
-      {x:x,y:y,addr:(it.address&&(it.address.parcel||it.address.road))||it.title||q,q:q}:null;
+      {x:x,y:y,addr:(it.address&&(it.address.parcel||it.address.road))||it.title||q,q:q,pnu:it.id||''}:null;
     GEO[q]=v;return v;
   }).catch(function(e){console.error('지오코딩 실패',q,e);GEO[q]=null;return null;});
 }
+
+// ── 필지 경계(연속지적도) ──
+// 브이월드 데이터API(2.0)로 LP_PA_CBND_BUBUN 한 필지의 GeoJSON 도형을 받는다.
+// PNU를 알면 지번으로 정확히 집고(attrFilter), 모르면(핀을 직접 옮긴 경우) 그 점이 속한 필지를 집는다(geomFilter).
+var PARCEL={};   // pnu 또는 좌표 → geometry | null(못 받음)
+function parcel(q,key){
+  var id=q.pnu||('@'+Number(q.x).toFixed(6)+','+Number(q.y).toFixed(6));
+  if(PARCEL[id]!==undefined)return Promise.resolve(PARCEL[id]);
+  var url=DATA_BASE+'?service=data&request=GetFeature&data=LP_PA_CBND_BUBUN&version=2.0'+
+    '&key='+key+'&domain='+encodeURIComponent(location.origin)+
+    '&format=json&errorformat=json&size=1&page=1&geometry=true&attribute=false&crs=EPSG:4326'+
+    (q.pnu?('&attrFilter=pnu:=:'+encodeURIComponent(q.pnu))
+          :('&geomFilter='+encodeURIComponent('POINT('+q.x+' '+q.y+')')));
+  return fetch(url).then(function(r){return r.json();}).catch(function(){return jsonp(url);}).then(function(d){
+    var fc=d&&d.response&&d.response.result&&d.response.result.featureCollection;
+    var f=fc&&fc.features&&fc.features[0],g=f&&f.geometry;
+    var ok=g&&g.coordinates&&(g.type==='Polygon'||g.type==='MultiPolygon')?g:null;
+    PARCEL[id]=ok;return ok;
+  }).catch(function(e){console.error('필지 도형 실패',id,e);PARCEL[id]=null;return null;});
+}
+// 저장소(localStorage)에 넣기엔 너무 큰 도형은 버린다 — 화면에는 그려도 저장은 안 한다
+function geomFits(g){try{return JSON.stringify(g).length<=8000;}catch(e){return false;}}
 // 두 지점 사이 직선거리(m) — 하버사인
 function dist(a,b){
   var R=6371000,rad=Math.PI/180,dy=(b.y-a.y)*rad,dx=(b.x-a.x)*rad,y1=a.y*rad,y2=b.y*rad;
@@ -130,7 +160,7 @@ function create(opt){
   opt=opt||{};
   var getKey=opt.key||function(){return '';};
   var onSave=opt.onSave||function(){};
-  var map=null,layers={},markers=[],tileFail=0,wmsWarned=false,items=[];
+  var map=null,layers={},markers=[],shapes=[],tileFail=0,wmsWarned=false,items=[];
 
   function status(msg,err){
     var e=el(opt.status);if(!e)return;
@@ -203,27 +233,102 @@ function create(opt){
     if(it.xy.manual)s+='<br><span style="color:#b45309">직접 옮긴 위치</span>';
     return s;
   }
-  function draw(){
+  // 이름표를 빼낼 방향(단위벡터). 가까운 필지끼리 이름표가 겹치지 않게 차례로 돌려 쓴다.
+  var DIRS=[[0.78,-0.63],[-0.78,-0.63],[0.78,0.63],[-0.78,0.63],[0,-1],[0,1],[1,0],[-1,0]];
+  // 이름표를 필지 **바깥**에 놓는다. 확대하면 필지가 화면에서 커지므로 그만큼 더 밀어낸다 —
+  // 고정 거리로 두면 확대했을 때 이름표가 필지 안에 파묻혀 화살표가 뜻을 잃는다.
+  function labelOffset(n,poly){
+    var d=DIRS[n%DIRS.length],away=46;
+    if(poly&&map){
+      var pb=poly.getBounds();
+      if(pb.isValid()){
+        var nw=map.latLngToLayerPoint(pb.getNorthWest()),se=map.latLngToLayerPoint(pb.getSouthEast());
+        var hw=Math.abs(se.x-nw.x)/2,hh=Math.abs(se.y-nw.y)/2;
+        var tx=Math.abs(d[0])>0.01?hw/Math.abs(d[0]):Infinity;
+        var ty=Math.abs(d[1])>0.01?hh/Math.abs(d[1]):Infinity;
+        away=Math.min(tx,ty)+30;           // 필지 테두리에서 30px 떨어뜨린다
+      }
+    }
+    away=Math.max(44,Math.min(away,150));  // 너무 붙지도, 화면 밖으로 날아가지도 않게
+    return [Math.round(d[0]*away),Math.round(d[1]*away)];
+  }
+  // 이름표 → 필지로 향하는 화살표. 아이콘 원점(필지 중심)이 SVG 한가운데에 오게 놓는다.
+  function leader(dx,dy,color){
+    var W=420,H=420,cx=W/2,cy=H/2;
+    var len=Math.sqrt(dx*dx+dy*dy)||1,ux=-dx/len,uy=-dy/len;   // 이름표 → 필지 방향
+    var tx=cx+ux*2,ty=cy+uy*2;                                  // 화살촉 끝(필지 쪽)
+    var bx=tx-ux*11,by=ty-uy*11;                                // 화살촉 밑변 중심
+    var px=-uy*5,py=ux*5;
+    return '<svg class="ldr" width="'+W+'" height="'+H+'" style="left:'+(-cx)+'px;top:'+(-cy)+'px">'+
+      '<line x1="'+(cx+dx)+'" y1="'+(cy+dy)+'" x2="'+bx+'" y2="'+by+'" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/>'+
+      '<line x1="'+(cx+dx)+'" y1="'+(cy+dy)+'" x2="'+bx+'" y2="'+by+'" stroke="'+color+'" stroke-width="2" stroke-linecap="round"/>'+
+      '<polygon points="'+[tx+','+ty,(bx+px)+','+(by+py),(bx-px)+','+(by-py)].join(' ')+
+      '" fill="'+color+'" stroke="#fff" stroke-width="1"/></svg>';
+  }
+  function dotIcon(it){
+    return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
+      html:'<div class="mkr'+(it.pick?' pick':'')+'"><div class="dot" style="background:'+it.color+'"></div>'+
+           '<div class="lab">'+esc(it.label)+'</div></div>'});
+  }
+  function parcelIcon(it,n,poly){
+    var o=labelOffset(n,poly),dx=o[0],dy=o[1];
+    return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
+      html:'<div class="mkr par'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color)+
+           '<div class="lab" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>'});
+  }
+  // 확대·축소하면 필지의 화면 크기가 달라지므로 이름표를 다시 밀어낸다
+  var labeled=[];   // [{marker, item, n, poly}]
+  function relabel(){
+    labeled.forEach(function(r){r.marker.setIcon(parcelIcon(r.it,r.n,r.poly));});
+  }
+
+  // 핀을 직접 옮기면 그 자리 필지를 새로 집어 테두리를 다시 그린다
+  function moved(it,p){
+    it.xy=it.o._xy={x:p.lng,y:p.lat,addr:it.xy.addr,q:it.xy.q,manual:true};
+    onSave();
+    status('📍 '+it.label+' 위치를 직접 옮겼습니다(저장됨). 「주소 다시 찾기」를 누르면 되돌아갑니다.');
+    if(!it.poly)return;
+    parcel({x:p.lng,y:p.lat},getKey()).then(function(g){
+      it.xy.geomTried=true;
+      if(g&&geomFits(g))it.xy.geom=g;
+      onSave();draw(true);
+    });
+  }
+
+  // keepView=true면 화면 위치를 그대로 두고 다시 그리기만 한다(핀을 옮긴 직후 등)
+  function draw(keepView){
     markers.forEach(function(m){map.removeLayer(m);});markers=[];
-    var pts=[];
+    shapes.forEach(function(s){map.removeLayer(s);});shapes=[];
+    labeled=[];
+    var pts=[],bnd=null,n=0;
     items.forEach(function(it){
       if(!it.xy)return;
-      var ll=[it.xy.y,it.xy.x];pts.push(ll);
-      var icon=L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
-        html:'<div class="mkr'+(it.pick?' pick':'')+'"><div class="dot" style="background:'+it.color+'"></div>'+
-             '<div class="lab">'+esc(it.label)+'</div></div>'});
+      var ll=[it.xy.y,it.xy.x],icon,myPoly=null,myN=0;
+      if(it.xy.geom){
+        var poly=L.geoJSON(it.xy.geom,{style:{color:it.color,weight:it.pick?4:3,opacity:1,
+          fillColor:it.color,fillOpacity:it.pick?0.16:0.10}}).addTo(map);
+        shapes.push(poly);
+        var pb=poly.getBounds();
+        if(pb.isValid()){
+          ll=[pb.getCenter().lat,pb.getCenter().lng];
+          bnd=bnd?bnd.extend(pb):L.latLngBounds(pb.getSouthWest(),pb.getNorthEast());
+        }
+        myPoly=poly;myN=n++;
+        icon=parcelIcon(it,myN,myPoly);
+      }else{
+        icon=dotIcon(it);
+      }
+      pts.push(ll);
       var m=L.marker(ll,{icon:icon,draggable:true,title:it.label+' — '+it.loc,zIndexOffset:it.pick?1000:0}).addTo(map);
       m.bindPopup(popup(it));
-      m.on('dragend',function(){
-        var p=m.getLatLng();
-        it.xy=it.o._xy={x:p.lng,y:p.lat,addr:it.xy.addr,q:it.xy.q,manual:true};
-        m.setPopupContent(popup(it));onSave();
-        status('📍 '+it.label+' 위치를 직접 옮겼습니다(저장됨). 「주소 다시 찾기」를 누르면 되돌아갑니다.');
-      });
+      m.on('dragend',function(){moved(it,m.getLatLng());});
       markers.push(m);
+      if(myPoly)labeled.push({marker:m,it:it,n:myN,poly:myPoly});
     });
-    if(pts.length===1)map.setView(pts[0],17);
-    else if(pts.length>1)map.fitBounds(L.latLngBounds(pts),{padding:[45,45],maxZoom:17});
+    if(keepView)return;
+    pts.forEach(function(p){bnd=bnd?bnd.extend(p):L.latLngBounds(p,p);});
+    if(pts.length===1&&!shapes.length)map.setView(pts[0],17);
+    else if(bnd&&bnd.isValid())map.fitBounds(bnd,{padding:[55,55],maxZoom:18});
   }
 
   // force=true면 저장해 둔 좌표(직접 옮긴 핀 포함)를 버리고 주소를 다시 조회한다
@@ -241,6 +346,7 @@ function create(opt){
     return Promise.all(items.map(function(it){
       var q=query(it.loc,it.region),cached=it.o._xy;
       var usable=cached&&isFinite(cached.x)&&isFinite(cached.y);
+      if(force&&cached){delete cached.geom;delete cached.geomTried;}   // 다시 찾기면 필지 도형도 새로
       if(!force&&usable&&cached.q===q){it.xy=cached;done++;return Promise.resolve();}
       return geocode(q,key).then(function(v){
         done++;status('주소 조회 중… ('+done+'/'+items.length+')');
@@ -249,9 +355,27 @@ function create(opt){
         miss.push(it.label+' “'+it.loc+'”');
       });
     })).then(function(){
+      // 필지 경계 — poly를 요청한 항목(토지)만. 한 번 시도한 것은 다시 부르지 않는다.
+      var need=items.filter(function(it){return it.poly&&it.xy&&!it.xy.geom&&!it.xy.geomTried;});
+      if(!need.length)return;
+      var pn=0;
+      status('필지 경계 불러오는 중… (0/'+need.length+')');
+      return Promise.all(need.map(function(it){
+        var q=(it.xy.pnu&&!it.xy.manual)?{pnu:it.xy.pnu}:{x:it.xy.x,y:it.xy.y};
+        return parcel(q,key).then(function(g){
+          pn++;status('필지 경계 불러오는 중… ('+pn+'/'+need.length+')');
+          it.xy.geomTried=true;
+          if(g&&geomFits(g))it.xy.geom=g;
+        });
+      }));
+    }).then(function(){
       draw();onSave();
       var ok=items.filter(function(i){return i.xy;}).length;
-      status('✅ '+ok+'곳 표시'+(miss.length?(' · '+miss.length+'곳 실패'):'')+(force?' (주소로 다시 찾음)':''));
+      var want=items.filter(function(i){return i.poly&&i.xy;}).length;
+      var got=items.filter(function(i){return i.xy&&i.xy.geom;}).length;
+      // 필지 경계를 한 건도 못 받으면 조용히 점만 찍히므로 이유를 알려 준다(키에 데이터API 권한이 없는 경우)
+      var pmsg=want?(got?(' · 필지 경계 '+got+'/'+want):' · 필지 경계를 못 받아 점으로 표시합니다(브이월드 키에 데이터API 권한 확인 필요)'):'';
+      status('✅ '+ok+'곳 표시'+(miss.length?(' · '+miss.length+'곳 실패'):'')+pmsg+(force?' (주소로 다시 찾음)':''),want&&!got);
       if(missEl)missEl.innerHTML=miss.length?
         ('⚠️ 위치를 못 찾은 항목: <b>'+miss.map(esc).join('</b> / <b>')+'</b> — 소재지 칸의 지번을 확인하거나, 지도에서 비슷한 핀을 끌어다 놓아 주세요.'):'';
     });
@@ -265,6 +389,7 @@ function create(opt){
         map=L.map(opt.box).setView(opt.center||[37.5665,126.9780],opt.zoom||16);
         setBase();toggleOverlay();
         L.control.scale({imperial:false}).addTo(map);
+        map.on('zoomend',relabel);   // 확대·축소에 맞춰 이름표를 필지 바깥으로 다시 민다
       }
       map.invalidateSize();
       return refresh(list===undefined?items:list,force);
