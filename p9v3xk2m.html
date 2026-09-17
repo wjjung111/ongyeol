@@ -64,6 +64,21 @@
   #mapMiss{margin-top:6px;font-size:12px;color:#b45309;}
   #mapMiss b{color:#92400e;}
   .lgd-row{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 6px;font-size:12px;font-weight:600;align-items:center;}
+
+  /* 지도 위 사례 목록 — 체크한 것만 지도에 뜬다 */
+  .pickpanel{border:1px solid #e2e5ea;border-radius:6px;background:#f8fafc;padding:7px 9px;margin-bottom:8px;}
+  .pickhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;font-size:12px;font-weight:700;}
+  .btn.sm{padding:3px 9px;font-size:11.5px;}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #cbd5e1;border-radius:14px;padding:2px 3px 2px 7px;font-size:12px;}
+  .chip.off{opacity:.45;background:#f1f5f9;}
+  .chip label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:700;}
+  .chip .loc{font-weight:400;color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .chip .x{cursor:pointer;color:#dc2626;font-weight:700;padding:0 6px;border-radius:50%;}
+  .chip .x:hover{background:#fee2e2;}
+  .chip input{cursor:pointer;margin:0;}
+  .dotc{display:inline-block;width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+  .chips .none{color:#94a3b8;font-size:12px;padding:2px 0;}
 </style>
 </head>
 <body>
@@ -80,8 +95,8 @@
   <div class="card">
     <h2>본건 <span style="font-weight:400;font-size:11.5px;color:#626b78">— 안 넣어도 됩니다. 넣으면 사례마다 본건에서의 직선거리가 함께 나옵니다.</span></h2>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input class="box" id="baseLoc" style="flex:1 1 320px" placeholder="예) 서울특별시 광진구 자양동 600-1" oninput="saveAll()" onchange="redraw(false)">
-      <button class="btn pri" onclick="redraw(false)">지도에 표시</button>
+      <input class="box" id="baseLoc" style="flex:1 1 320px" placeholder="예) 서울특별시 광진구 자양동 600-1" oninput="saveAll()" onchange="renderPick();redraw(false)">
+      <button class="btn pri" onclick="renderPick();redraw(false)">지도에 표시</button>
     </div>
     <div class="note" style="margin-top:7px">본건을 넣으면 <b>시·군·구가 없는 사례 주소</b>(예 “자양동 617-33”)를 본건과 같은 시군구에서 먼저 찾습니다 — 다른 지역 같은 동 이름에 잘못 찍히는 걸 막아 줍니다.</div>
   </div>
@@ -144,6 +159,18 @@
       <span><i class="arap-lgd" style="background:#7c3aed"></i>집합건물 거래사례</span>
       <span style="color:#626b78;font-weight:400">토지는 <b>필지 테두리</b>로, 집합건물은 점으로 표시합니다(집건 필지는 단지 전체라 너무 커짐). <b>이름표를 끌면 이름표만</b> 움직입니다 — 화살촉과 필지는 제자리(두 번 누르면 원위치). 집합건물 점은 끌면 그 자리로 위치가 고쳐집니다. 표의 <b>표시</b> 체크를 끄면 지도에서 빠집니다.</span>
     </div>
+    <!-- 지도 바로 위 — 체크한 것만 지도에 뜨고, ✕로 그 사례를 지운다(표와 같은 데이터) -->
+    <div class="pickpanel">
+      <div class="pickhead">
+        <span>지도에 보일 사례</span>
+        <span id="pickCount" style="font-weight:400;color:#64748b"></span>
+        <span id="pickMsg" style="font-weight:600;color:#166534"></span>
+        <button class="btn sm" onclick="showAllPins(true)">모두 켜기</button>
+        <button class="btn sm" onclick="showAllPins(false)">모두 끄기</button>
+        <button class="btn sm" id="btnUndo" style="display:none" onclick="undoLast()">↩ 되돌리기</button>
+      </div>
+      <div class="chips" id="pickChips"></div>
+    </div>
     <div id="mapBox"></div>
     <div class="status" id="mapStatus">사례를 붙여넣으면 지도에 찍힙니다.</div>
     <div id="mapMiss"></div>
@@ -175,7 +202,7 @@ function doSave(){
 function restore(){
   try{
     var o=JSON.parse(localStorage.getItem(STORE)||'null');
-    if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];
+    if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];DATA.baseShow=o.baseShow!==false;
       if(o._xy)DATA._xy=o._xy;}   // 본건 좌표도 되살린다(안 그러면 열 때마다 다시 조회)
   }catch(e){console.error('restore',e);}
   document.getElementById('baseLoc').value=DATA.base;
@@ -235,15 +262,85 @@ function editCell(kind,i,key,val){
   r[key]=val;saveAll();
 }
 function isLocKey(kind,key){return kind==='land'?key==='loc':(key==='location'||key==='jibun');}
-function cellDone(kind,key){if(isLocKey(kind,key))redraw(false);}
-function toggleShow(kind,i,on){var r=rowsOf(kind)[i];if(!r)return;r.show=!!on;saveAll();render(kind);redraw(false);}
-function delRow(kind,i){rowsOf(kind).splice(i,1);saveAll();render(kind);redraw(false);}
+function cellDone(kind,key){if(isLocKey(kind,key)){renderPick();redraw(false);}}
+function toggleShow(kind,i,on){var r=rowsOf(kind)[i];if(!r)return;r.show=!!on;saveAll();refresh();}
 function addRow(kind){rowsOf(kind).push({show:true});saveAll();render(kind);}
+
+// ── 지우기 / 되돌리기 ──
+// 지우기 전 목록을 통째로 담아 둔다(한 건 삭제·전체 지우기 모두 같은 방식) — 되돌리기 한 번이면 원래대로.
+var UNDO=[];
+function pushUndo(what){
+  try{UNDO.push({what:what,land:JSON.parse(JSON.stringify(DATA.land)),jip:JSON.parse(JSON.stringify(DATA.jip))});}
+  catch(e){console.error('undo',e);return;}
+  if(UNDO.length>20)UNDO.shift();
+}
+function undoLast(){
+  var u=UNDO.pop();if(!u)return;
+  DATA.land=u.land;DATA.jip=u.jip;
+  saveAll();refresh();
+  setMapNote('↩ '+u.what+' 되돌렸습니다.');
+}
+function delRow(kind,i){
+  var r=rowsOf(kind)[i];if(!r)return;
+  pushUndo((kind==='land'?'토지':'집건')+' 사례 '+(i+1)+'번 삭제를');
+  rowsOf(kind).splice(i,1);saveAll();refresh();
+  setMapNote('🗑 '+(kind==='land'?'토지':'집건')+' #'+(i+1)+' 삭제 — 「↩ 되돌리기」로 살릴 수 있습니다.');
+}
 function clearRows(kind){
   var rows=rowsOf(kind);
   if(!rows.length)return;
-  if(!confirm((kind==='land'?'토지':'집합건물')+' 거래사례 '+rows.length+'건을 모두 지울까요?'))return;
-  rows.length=0;saveAll();render(kind);redraw(false);
+  if(!confirm((kind==='land'?'토지':'집합건물')+' 거래사례 '+rows.length+'건을 모두 지울까요?\n(「↩ 되돌리기」로 살릴 수 있습니다)'))return;
+  pushUndo((kind==='land'?'토지':'집합건물')+' 사례 '+rows.length+'건 전체 삭제를');
+  rows.length=0;saveAll();refresh();
+}
+// 표·칩목록·지도를 한꺼번에 맞춘다
+function refresh(){renderAll();renderPick();redraw(false);}
+function setMapNote(msg){var el=document.getElementById('pickMsg');if(el)el.textContent=msg;}
+
+// ── 지도 위 사례 목록(칩) ──
+function pickRows(){
+  var out=[],baseLoc=String((document.getElementById('baseLoc')||{}).value||'').trim();
+  if(baseLoc)out.push({kind:'base',i:-1,label:'본건',color:'#dc2626',loc:baseLoc,show:DATA.baseShow!==false});
+  DATA.land.forEach(function(r,i){
+    if(hasV(r.loc))out.push({kind:'land',i:i,label:'토지 #'+(i+1),color:'#16a34a',loc:r.loc,show:r.show!==false});
+  });
+  DATA.jip.forEach(function(r,i){
+    var loc=jipLoc(r);
+    if(loc)out.push({kind:'jip',i:i,label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,show:r.show!==false});
+  });
+  return out;
+}
+// 칩에는 시·군·구를 떼고 동·지번만 보여 준다(폭이 좁아 앞부분만 보이면 못 알아본다)
+function shortLoc(loc){
+  var t=String(loc||'').trim(),sgg=ArapMap.sggOfAddr(t);
+  return (sgg&&t.indexOf(sgg)===0)?(t.slice(sgg.length).trim()||t):t;
+}
+function renderPick(){
+  var rows=pickRows(),box=document.getElementById('pickChips');
+  var on=rows.filter(function(r){return r.show;}).length;
+  document.getElementById('pickCount').textContent=rows.length?('— '+rows.length+'건 중 '+on+'건 표시'):'';
+  document.getElementById('btnUndo').style.display=UNDO.length?'':'none';
+  if(!rows.length){box.innerHTML='<span class="none">소재지가 있는 사례가 없습니다 — 위 칸에 붙여넣어 주세요.</span>';return;}
+  box.innerHTML=rows.map(function(r,k){
+    var id='pk'+k;
+    return '<span class="chip'+(r.show?'':' off')+'">'+
+      '<input type="checkbox" id="'+id+'" '+(r.show?'checked':'')+
+        ' onchange="pickToggle(\''+r.kind+'\','+r.i+',this.checked)">'+
+      '<label for="'+id+'"><i class="dotc" style="background:'+r.color+'"></i>'+esc(r.label)+
+        '<span class="loc">'+esc(shortLoc(r.loc))+'</span></label>'+
+      (r.kind==='base'?'':'<span class="x" title="이 사례를 지웁니다" onclick="delRow(\''+r.kind+'\','+r.i+')">✕</span>')+
+      '</span>';
+  }).join('');
+}
+function pickToggle(kind,i,on){
+  if(kind==='base'){DATA.baseShow=!!on;saveAll();refresh();return;}
+  toggleShow(kind,i,on);
+}
+function showAllPins(on){
+  DATA.baseShow=!!on;
+  DATA.land.forEach(function(r){r.show=!!on;});
+  DATA.jip.forEach(function(r){r.show=!!on;});
+  saveAll();refresh();
 }
 
 // ── 붙여넣기 ──
@@ -253,7 +350,7 @@ function pasteLand(e){
   var msg=document.getElementById('msgLand'),res=ArapKais.parseLand(text,'토지');
   if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
   res.out.forEach(function(c){c.show=true;DATA.land.push(c);});
-  saveAll();render('land');redraw(false);
+  saveAll();refresh();
   msg.className='pst ok';
   msg.textContent='✅ '+res.out.length+'건 추가'+(res.merged?' (토지+건물 일괄 '+res.merged+'건은 한 사례로 합침)':'')+' — 지도에 찍는 중…';
 }
@@ -263,7 +360,7 @@ function pasteJip(e){
   var msg=document.getElementById('msgJip'),res=ArapKais.parseJip(text);
   if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
   res.out.forEach(function(c){c.show=true;DATA.jip.push(c);});
-  saveAll();render('jip');redraw(false);
+  saveAll();refresh();
   msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 추가 — 지도에 찍는 중…';
 }
 
@@ -295,7 +392,7 @@ function jipInfo(r){
 function mapItems(){
   var baseLoc=String((document.getElementById('baseLoc')||{}).value||'').trim();
   var region=ArapMap.sggOfAddr(baseLoc),out=[];
-  if(baseLoc)out.push({o:DATA,kind:'본건',label:'본건',color:'#dc2626',loc:baseLoc,region:'',pick:true,poly:true});
+  if(baseLoc&&DATA.baseShow!==false)out.push({o:DATA,kind:'본건',label:'본건',color:'#dc2626',loc:baseLoc,region:'',pick:true,poly:true});
   DATA.land.forEach(function(r,i){
     if(r.show===false||!hasV(r.loc))return;
     out.push({o:r,kind:'토지 거래사례',label:'토지 #'+(i+1),color:'#16a34a',loc:r.loc,region:region,info:landInfo(r),poly:true});
@@ -315,7 +412,7 @@ function redraw(force){
 }
 
 // ── 시작 ──
-restore();renderAll();redraw(false);
+restore();refresh();
 window.addEventListener('pagehide',function(){if(saveTimer)doSave();});
 window.addEventListener('beforeunload',function(){if(saveTimer)doSave();});
 </script>
