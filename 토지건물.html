@@ -141,6 +141,17 @@
   .undo:hover{text-decoration:underline;}
   /* 고정 계산값(수정 불가) — 직접 고칠 수 있는 회색 칸(calc-c)보다 한 단계 진하게 */
   .calc-c.fixed{background:#d6deea;color:#0f2547;}
+  /* 청구서 과목/금액 표 — 집합건물 청구서와 같은 구성(색은 토지건물 톤 유지) */
+  #cg_table{max-width:560px;font-size:13px;}
+  #cg_table th{padding:7px;font-size:12px;}
+  #cg_table td.cg-g{width:56px;font-weight:700;color:#1a2744;background:#f0f2f5;}
+  #cg_table td.cg-n{text-align:left;padding:5px 12px;color:#333;}
+  #cg_table td.cg-s{text-align:center;font-weight:700;color:#1a2744;letter-spacing:2px;}
+  #cg_table td.cg-v{text-align:right;padding:5px 10px;background:#f7f9fc;color:#0f2547;}
+  #cg_table td.cg-v.big{font-weight:700;font-size:13px;}
+  #cg_table td.cg-in{padding:3px 6px;}
+  #cg_table td.cg-in input{text-align:right;padding:2px 4px;}
+  .cg-undo{cursor:pointer;color:#2563eb;margin-left:4px;font-weight:700;}
   td.tt-c{font-size:11px;color:#475569;background:#f8fafc;line-height:1.35;}
   td.tt-c.sel{font-weight:700;color:#0f2547;background:#eef2f7;}
   td.tt-c.busy{color:#2563eb;animation:ttBlink 1s ease-in-out infinite;}
@@ -743,35 +754,42 @@
     <!-- ═══════════ 8. 청구서 다운로드 (한글 hwpx) — 집합건물 청구서와 동일 양식·계산 ═══════════ -->
     <div id="tab-cheonggu" class="tab">
       <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
-      <div class="cols5050">
-        <div class="card">
-          <h2>수수료 계산서</h2>
-          <div class="note">① <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a>에서 예상평가액(현재 감정평가액: <b id="cg_amt">-</b>) 입력 → 계산 → <b>계산서1 복사 버튼</b> 클릭 → ② 아래에 붙여넣기 <span style="color:#94a3b8">(하한·기준·상한 수수료/총액 줄 포함)</span></div>
-          <textarea id="cg_feeText" rows="5" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 수수료 계산서(계산서1) 전체를 붙여넣으세요"></textarea>
-          <div class="grid2" style="margin-top:8px">
-            <span class="fld"><label>요율 기준</label>
-              <select id="cg_feeBasis"><option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select></span>
-            <span class="fld"><label>기납부 착수금</label><input type="text" id="cg_downPayment" placeholder="1,000,000"></span>
-            <span class="fld"><label>특별용역비 방식</label>
-              <select id="cg_specialMode" title="상한-하한·기준-하한은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
-                <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option></select></span>
-            <span class="fld"><label>특별용역비</label><input type="text" id="cg_special" placeholder="0"></span>
-            <span class="fld"><label>여비</label><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></span>
-            <span class="fld"><label>물건조사비</label><input type="text" id="cg_survey" placeholder="15,000"></span>
-            <span class="fld"><label>공부발급비</label><input type="text" id="cg_doc" placeholder="15,000"></span>
-            <span class="fld"><label>기타실비</label><input type="text" id="cg_etc" placeholder="0"></span>
-          </div>
-          <div class="note" style="margin-top:8px">여비는 본건 소재지 기준으로 <b>자동 입력</b>되며 직접 고칠 수 있습니다. 물건조사비·공부발급비는 기본 15,000원, 기타실비는 평가사가 정합니다. <b>특별용역비</b>는 방식을 <b>상한-하한</b>·<b>기준-하한</b>으로 고르면 붙여넣은 계산서의 수수료 차액이 자동으로 채워지고(집합건물 청구서와 같은 로직), 채워진 값은 그대로 고칠 수 있습니다.</div>
+      <div class="card">
+        <h2>표지 · 청구서 · 회보서</h2>
+        <div class="note">① <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a>에서 예상평가액(현재 감정평가액: <b id="cg_amt">-</b>) 입력 → 계산 → <b>계산서1 복사 버튼</b> 클릭 → ② 아래에 붙여넣기</div>
+        <textarea id="cg_feeText" rows="4" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"></textarea>
+        <div class="row" style="margin-top:8px">
+          <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
+          <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
+            <option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select>
+          <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
+          <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
+            <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option></select>
+          <span class="hint" id="cg_feeState">계산서 붙여넣으면 평가수수료 자동입력</span>
         </div>
-        <div class="card">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">청구 금액</h2>
-            <button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
-          <div class="tw"><table id="cg_preview"></table></div>
-          <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료를 <b>천원 미만 절사</b>. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부 착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.</div>
-        </div>
+        <div class="tw" style="margin-top:8px"><table id="cg_table">
+          <tr><th colspan="2">과　목</th><th style="width:190px">금　액</th></tr>
+          <tr><td class="cg-g">(가)</td><td class="cg-n">평가수수료</td><td class="cg-v" id="cgv_fee">-</td></tr>
+          <tr><td class="cg-g" rowspan="6">(나)<br>실비</td>
+            <td class="cg-n">여　비<span class="cg-undo" id="cgUndoTravel" title="소재지 기준 여비 자동값으로 복원" onclick="cgResetTravel()">↺</span></td>
+            <td class="cg-in"><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></td></tr>
+          <tr><td class="cg-n">물건조사비</td><td class="cg-in"><input type="text" id="cg_survey" placeholder="15,000"></td></tr>
+          <tr><td class="cg-n">공부발급비</td><td class="cg-in"><input type="text" id="cg_doc" placeholder="15,000"></td></tr>
+          <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
+          <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
+            <td class="cg-in"><input type="text" id="cg_special" placeholder="0"></td></tr>
+          <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
+          <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
+          <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
+          <tr><td colspan="2" class="cg-s">총　계</td><td class="cg-v big" id="cgv_total">-</td></tr>
+          <tr><td colspan="2" class="cg-s">기납부착수금</td><td class="cg-in"><input type="text" id="cg_downPayment" placeholder="1,000,000"></td></tr>
+          <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
+        </table></div>
+        <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
+        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료를 <b>천원 미만 절사</b>. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
+          여비는 본건 소재지 기준으로 자동 입력되고, 물건조사비·공부발급비는 기본 15,000원이며 모든 칸은 직접 고칠 수 있습니다.</div>
       </div>
     </div>
-
   </div>
 
     <!-- 우측 메모장 (집합건물과 동일) + 좌우 너비 조절 손잡이 -->
@@ -2153,26 +2171,37 @@ function cgTravelAuto(){
   if(fee==null)fee=A.arapTravelFee(subjectSgg());
   return fee==null?40000:fee;
 }
+// 여비·특별용역비의 자동값 복원(↺) — 집합건물 청구서와 같은 구성
+function cgResetTravel(){CG_TRAVEL_MANUAL=false;var el=document.getElementById('cg_travel');if(el)el.value=won(cgTravelAuto());renderCheonggu();saveForm();}
+function cgResetSpecial(){var v=cgSpecialAuto(),el=document.getElementById('cg_special');
+  if(v==null||!el)return;el.value=won(Number(v));el.dataset.autoKey=v;renderCheonggu();saveForm();}
 function renderCheonggu(){
   var A=window.ArapCheonggu;
   // 여비·물건조사비·공부발급비 자동 채움(비어 있고 편집 중이 아닐 때)
   var tv=document.getElementById('cg_travel');
-  if(tv&&document.activeElement!==tv&&!CG_TRAVEL_MANUAL)tv.value=String(cgTravelAuto());
+  if(tv&&document.activeElement!==tv&&!CG_TRAVEL_MANUAL)tv.value=won(cgTravelAuto());
   var sp=document.getElementById('cg_special'),spAuto=cgSpecialAuto();
   if(sp&&spAuto!=null&&document.activeElement!==sp&&sp.dataset.autoKey!==spAuto){sp.value=won(Number(spAuto));sp.dataset.autoKey=spAuto;}
-  var sv=document.getElementById('cg_survey');if(sv&&!hasV(sv.value)&&document.activeElement!==sv)sv.value='15000';
-  var dv=document.getElementById('cg_doc');if(dv&&!hasV(dv.value)&&document.activeElement!==dv)dv.value='15000';
+  var undo=document.getElementById('cgUndoSpecial');if(undo)undo.hidden=(spAuto==null);
+  var sv=document.getElementById('cg_survey');if(sv&&!hasV(sv.value)&&document.activeElement!==sv)sv.value='15,000';
+  var dv=document.getElementById('cg_doc');if(dv&&!hasV(dv.value)&&document.activeElement!==dv)dv.value='15,000';
+  ['cg_etc','cg_special'].forEach(function(id){var el=document.getElementById(id);   // 빈 칸은 0으로 보여준다(집합건물 청구서와 같은 모양)
+    if(el&&!hasV(el.value)&&document.activeElement!==el)el.value='0';});
   var amtEl=document.getElementById('cg_amt');if(amtEl)amtEl.textContent=(document.getElementById('resFinal')||{}).textContent||'-';
-  var c=cgFee(),box=document.getElementById('cg_preview'),btn=document.getElementById('btnCheonggu'),res=document.getElementById('resCheonggu');
-  if(!c){if(box)box.innerHTML='<tr><td class="tt-c" style="padding:10px">수수료 계산서를 붙여넣으면 청구 금액이 계산됩니다.</td></tr>';if(btn)btn.disabled=true;if(res)res.textContent='-';return;}
-  if(btn)btn.disabled=false;
+  var c=cgFee(),btn=document.getElementById('btnCheonggu'),res=document.getElementById('resCheonggu');
+  var st=document.getElementById('cg_feeState');
   var fm=A?A.fmt:function(n){return won(n);};
-  var row=function(k,v,strong){return '<tr><td class="rowh" style="text-align:left">'+k+'</td><td class="calc-c"'+(strong?' style="font-size:13px"':'')+'>'+(v?fm(v)+' 원':'-')+'</td></tr>';};
-  if(box)box.innerHTML=
-    row('평가수수료',c.평가수수료)+row('여비',c.여비)+row('물건조사비',c.물건조사비)+row('공부발급비',c.공부발급비)
-    +row('기타실비',c.기타실비)+row('특별용역비',c.특별용역비)+row('실비 소계',c.소계)
-    +row('합계',c.합계)+row('부가가치세',c.부가세)+row('총계',c.총계,1)
-    +row('기납부 착수금',c.착수금)+row('정산청구액',c.정산청구액,1);
+  var put=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v?fm(v)+' 원':'-';};
+  ['cgv_fee','cgv_sub','cgv_sum','cgv_vat','cgv_total','cgv_due'].forEach(function(id){put(id,null);});
+  if(!c){
+    if(btn)btn.disabled=true;if(res)res.textContent='-';
+    if(st){st.textContent='계산서 붙여넣으면 평가수수료 자동입력';st.style.color='';}
+    return;
+  }
+  if(btn)btn.disabled=false;
+  if(st){st.textContent='✅ 계산서 인식됨 (평가수수료 자동)';st.style.color='#16a34a';}
+  put('cgv_fee',c.평가수수료);put('cgv_sub',c.소계);put('cgv_sum',c.합계);
+  put('cgv_vat',c.부가세);put('cgv_total',c.총계);put('cgv_due',c.정산청구액);
   if(res)res.textContent=c.정산청구액?fm(c.정산청구액)+' 원':'-';
 }
 async function downloadCheonggu(){

@@ -1,4 +1,4 @@
-// Codex: 토지건물 화면 회귀 — 거래사례 자동계산 복구/'-' 표기, 청구서 특별용역비 방식 드롭다운.
+// Codex: 토지건물 화면 회귀 — 거래사례 자동계산 복구/'-' 표기, 청구서 표 구성·특별용역비 방식.
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_ui.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -65,6 +65,31 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   assert.equal(special['기준-하한'],'302,536');   // 1,815,216 - 1,512,680
   assert.equal(special['직접입력_유지'],'302,536');
   assert.deepEqual(special.options,['직접입력','상한-하한','기준-하한']);
+
+  // ④ 청구서 표 구성(집합건물과 같은 구성) + 계산값
+  const cg=await page.evaluate(async(fee)=>{
+    showTab('cheonggu');
+    document.getElementById('cg_feeText').value=fee;
+    const set=(id,v)=>{const el=document.getElementById(id);el.value=v;el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));};
+    set('cg_specialMode','직접입력');set('cg_special','0');set('cg_travel','40,000');
+    set('cg_survey','15,000');set('cg_doc','15,000');set('cg_etc','0');set('cg_downPayment','300,000');
+    const t=id=>document.getElementById(id).textContent.trim();
+    return {rows:Array.from(document.querySelectorAll('#cg_table tr')).map(r=>Array.from(r.children).map(c=>c.textContent.replace(/\s+/g,'')).join('|')),
+            fee:t('cgv_fee'),sub:t('cgv_sub'),sum:t('cgv_sum'),vat:t('cgv_vat'),total:t('cgv_total'),due:t('cgv_due'),
+            state:t('cg_feeState'),btn:document.getElementById('btnCheonggu').disabled};
+  },fee);
+  console.log('청구서', JSON.stringify({fee:cg.fee,sub:cg.sub,sum:cg.sum,vat:cg.vat,total:cg.total,due:cg.due,btn:cg.btn}));
+  console.log('청구서 행', JSON.stringify(cg.rows,null,0));
+  assert.equal(cg.fee,'1,512,000 원');          // 하한 1,512,680 → 천원 절사
+  assert.equal(cg.sub,'70,000 원');
+  assert.equal(cg.sum,'1,582,000 원');
+  assert.equal(cg.vat,'158,200 원');
+  assert.equal(cg.total,'1,740,200 원');
+  assert.equal(cg.due,'1,440,200 원');          // 총계 − 착수금 300,000
+  assert.equal(cg.btn,false);
+  assert(cg.state.includes('인식'));
+  for(const m of ['평가수수료','여　비','물건조사비','공부발급비','기타실비','특별용역비','소　계','합계(가+나)','부가가치세','총　계','기납부착수금','정산청구액'])
+    assert(cg.rows.some(r=>r.replace(/\s+/g,'').includes(m.replace(/\s+/g,''))),m);
 
   console.log('errors',errs);assert.deepEqual(errs,[]);
   console.log('PASS');
