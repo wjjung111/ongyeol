@@ -69,6 +69,9 @@
   .lgd{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;}
   .mapchk{font-size:12px;color:#475569;font-weight:600;cursor:pointer;user-select:none;}
   .mapchk input{vertical-align:-2px;margin-right:3px;cursor:pointer;}
+  /* 범례(본건·표준지·사례)는 체크박스를 글자 오른쪽에 둔다 — 색 점·이름·토글 순서 */
+  .kindchk{color:#0f172a;}
+  .kindchk input{margin:0 0 0 5px;}
   /* 핀 모양(.mkr)은 arap_map.js가 넣는다 — 거래사례 지도 페이지와 같게 유지하려고 */
   #mapMiss{margin-top:6px;font-size:12px;color:#b45309;}
   #mapMiss b{color:#92400e;}
@@ -634,13 +637,15 @@
           </select>
           <button class="btn gh sm" onclick="mapRefresh(true)" title="소재지 칸의 주소를 다시 조회해 핀을 새로 찍습니다(직접 옮긴 핀도 초기화)">↻ 주소 다시 찾기</button>
         </div>
-        <div class="note">각 탭의 <b>소재지 칸에 적힌 주소</b>를 좌표로 바꿔 지도에 찍습니다. 시·군·구가 없는 사례 주소(예 “자양동 617-33”)는 <b>본건과 같은 시군구</b>에서 먼저 찾습니다. 토지는 <b>필지 테두리</b>로 그리고(속은 비워 둡니다 — <b>본건·채택된 사례만</b> 옅게 칠합니다) 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직이고(화살촉·필지는 제자리, 두 번 누르면 원위치), 옮긴 자리는 저장됩니다. <b>이름표(또는 필지)를 누르면</b> 소재지와 함께 <b>계산된 단가·시점</b>이 뜹니다 — 거래사례는 토지단가·거래시점, 평가사례는 사례단가·기준시점, 비교표준지는 공시지가·공시기준일, 본건은 적용단가·기준시점(본건에서의 직선거리도 함께). 필지가 엉뚱하면 소재지 칸을 고치거나 「주소 다시 찾기」를 누르세요. 지적선·용도지역은 브이월드 도면입니다.</div>
-        <div id="mapLegend" style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 6px;font-size:12px;font-weight:600">
-          <span><i class="lgd" style="background:#dc2626"></i>본건</span>
-          <span><i class="lgd" style="background:#2563eb"></i>비교표준지</span>
-          <span><i class="lgd" style="background:#16a34a"></i>거래사례</span>
-          <span><i class="lgd" style="background:#ea580c"></i>평가사례</span>
-          <span style="color:#626b78;font-weight:400">테두리가 굵고 속이 옅게 칠해진 것 = 본건·지금 채택된 사례 (나머지는 테두리만)</span>
+        <div class="note">각 탭의 <b>소재지 칸에 적힌 주소</b>를 좌표로 바꿔 지도에 찍습니다. 시·군·구가 없는 사례 주소(예 “자양동 617-33”)는 <b>본건과 같은 시군구</b>에서 먼저 찾습니다. 토지는 <b>필지 테두리</b>로 그리고(속은 비워 둡니다 — <b>본건·선정한 비교표준지·채택된 사례만</b> 옅게 칠합니다) 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직이고(화살촉·필지는 제자리, 두 번 누르면 원위치), 옮긴 자리는 저장됩니다. <b>이름표(또는 필지)를 누르면</b> 소재지와 함께 <b>계산된 단가·시점</b>이 뜹니다 — 거래사례는 토지단가·거래시점, 평가사례는 사례단가·기준시점, 비교표준지는 공시지가·공시기준일, 본건은 적용단가·기준시점(본건에서의 직선거리도 함께). 필지가 엉뚱하면 소재지 칸을 고치거나 「주소 다시 찾기」를 누르세요. 아래 <b>범례의 체크박스</b>로 본건·비교표준지·거래사례·평가사례를 <b>종류별로 켜고 끌 수 있습니다</b>(「모두 체크」·「모두 체크해제」) — 끄면 지도에서만 감춰지고 값·이름표 자리는 그대로라 다시 켜면 있던 대로 돌아옵니다. 지적선·용도지역은 브이월드 도면입니다.</div>
+        <div id="mapLegend" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:8px 0 6px;font-size:12px;font-weight:600">
+          <label class="mapchk kindchk" title="체크를 끄면 지도에서 감춥니다(값은 그대로)"><i class="lgd" style="background:#dc2626"></i>본건<input type="checkbox" class="kindbox" data-kind="본건" checked onchange="mapToggleKind()"></label>
+          <label class="mapchk kindchk" title="체크를 끄면 지도에서 감춥니다(값은 그대로)"><i class="lgd" style="background:#2563eb"></i>비교표준지<input type="checkbox" class="kindbox" data-kind="비교표준지" checked onchange="mapToggleKind()"></label>
+          <label class="mapchk kindchk" title="체크를 끄면 지도에서 감춥니다(값은 그대로)"><i class="lgd" style="background:#16a34a"></i>거래사례<input type="checkbox" class="kindbox" data-kind="거래사례" checked onchange="mapToggleKind()"></label>
+          <label class="mapchk kindchk" title="체크를 끄면 지도에서 감춥니다(값은 그대로)"><i class="lgd" style="background:#ea580c"></i>평가사례<input type="checkbox" class="kindbox" data-kind="평가사례" checked onchange="mapToggleKind()"></label>
+          <button class="btn gh sm" onclick="mapCheckKinds(true)">모두 체크</button>
+          <button class="btn gh sm" onclick="mapCheckKinds(false)">모두 체크해제</button>
+          <span style="color:#626b78;font-weight:400">테두리가 굵고 속이 옅게 칠해진 것 = 본건·선정한 비교표준지·지금 채택된 사례 (나머지는 테두리만)</span>
         </div>
         <div id="mapBox" style="height:640px;border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5"></div>
         <div id="mapStatus" class="status" style="margin-top:7px">위치도 탭을 열면 주소를 조회합니다.</div>
@@ -3157,7 +3162,10 @@ function mapItems(){
   });
   STDS.forEach(function(S,i){
     var loc=((S['소재지']||'')+' '+(S['지번']||'')).trim();
+    // 본건이 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)은 본건·채택 사례처럼 안쪽을 옅게 칠한다
+    var picked=LANDS.some(function(L){return Math.min(L.stdIdx||0,STDS.length-1)===i;});
     if(loc)out.push({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region,poly:true,
+      pick:picked,
       info:mapInfo([mapUnit(num(S['공시지가']),'공시지가'),mapDate(gongsiDay,'공시기준일')])});
   });
   TRADES.forEach(function(c,i){
@@ -3177,6 +3185,20 @@ function mapOpen(){return mapView().open(mapItems());}
 function mapRefresh(force){return mapView().open(mapItems(),force);}   // force=true면 저장된 좌표를 버리고 주소로 다시 찾는다
 function mapSetBase(){mapView().setBase();}
 function mapToggleOverlay(){mapView().toggleOverlay();}
+// ── 범례 토글(본건·비교표준지·거래사례·평가사례를 지도에서 켜고 끈다) ──
+// 값·좌표·이름표 위치는 손대지 않고 그리기만 건너뛰므로, 다시 체크하면 있던 자리에 그대로 돌아온다.
+function mapKindBoxes(){return Array.prototype.slice.call(document.querySelectorAll('#mapLegend input.kindbox'));}
+function mapToggleKind(){
+  var vis={},on=[],off=[];
+  mapKindBoxes().forEach(function(b){
+    var k=b.getAttribute('data-kind');
+    vis[k]=b.checked;(b.checked?on:off).push(k);
+  });
+  mapView().setVisible(vis);
+  mapView().status(off.length?('👁️ 지도 표시 : '+(on.length?on.join(' · '):'없음')+' (숨김 : '+off.join(' · ')+')')
+                             :'👁️ 모두 표시 중입니다.');
+}
+function mapCheckKinds(on){mapKindBoxes().forEach(function(b){b.checked=!!on;});mapToggleKind();}
 </script>
 <script src="arap_toji_opinion.js"></script>
 <script src="arap_building_cost_data.js"></script>

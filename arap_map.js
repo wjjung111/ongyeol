@@ -18,6 +18,8 @@
     });
     M.open();                    // 지도 띄우기(처음이면 Leaflet 내려받기) + 새로고침
     M.refresh(items, force);     // items = [{o, kind, label, color, loc, region, pick}]
+    M.setVisible({'평가사례':false});  // 분류(kind)별 보이기/숨기기 — 화면 위치는 그대로 두고 다시 그린다
+                                      //   준 분류만 바뀌고 나머지는 그대로. 숨겨도 항목·좌표는 남는다.
        o      : 좌표를 붙여 둘 객체 — 조회 결과를 o._xy 에 넣는다(호출한 쪽이 저장하면 됨)
        kind   : '본건' 같은 분류 (팝업에 표시, '본건'이면 거리 기준점이 된다)
        label  : 핀 이름표
@@ -161,6 +163,7 @@ function create(opt){
   var getKey=opt.key||function(){return '';};
   var onSave=opt.onSave||function(){};
   var map=null,layers={},markers=[],shapes=[],tileFail=0,wmsWarned=false,items=[];
+  var hidden={};   // 분류(kind) → true면 지도에서 감춘다. 항목·좌표는 그대로 두고 그리기만 건너뛴다.
 
   function status(msg,err){
     var e=el(opt.status);if(!e)return;
@@ -218,6 +221,14 @@ function create(opt){
     });
   }
 
+  // ── 분류(kind)별 보이기/숨기기 ──
+  // 준 분류만 바꾸고(예 {'평가사례':false}) 나머지는 그대로 둔다. 항목·좌표·이름표 위치는 그대로라
+  // 다시 켜면 있던 자리에 그대로 돌아온다. 기본은 화면 위치 유지 — refit=true면 보이는 것에 맞춰 다시 맞춘다.
+  function setVisible(m,refit){
+    if(m)Object.keys(m).forEach(function(k){if(m[k])delete hidden[k];else hidden[k]=true;});
+    if(map&&window.L)draw(!refit);
+    return hidden;
+  }
   function subjectLL(){
     for(var i=0;i<items.length;i++){
       var it=items[i];
@@ -366,7 +377,10 @@ function create(opt){
     var pts=[],bnd=null,n=0;
     items.forEach(function(it){
       if(!it.xy)return;
-      var ll=[it.xy.y,it.xy.x],icon,myPoly=null,myN=0;
+      // 이름표 방향 번호는 숨김과 상관없이 매긴다 — 체크를 껐다 켤 때마다 이름표가 딴 쪽으로 튀지 않게
+      var myN=it.xy.geom?n++:0;
+      if(hidden[it.kind])return;
+      var ll=[it.xy.y,it.xy.x],icon,myPoly=null;
       if(it.xy.geom){
         // 채우기는 **선정된 것(본건·채택 사례)에만**. 나머지는 테두리만 — 필지가 겹칠 때 색이 쌓여
         // 바탕지도·지적선이 가려지는 것을 막는다. 안 채운 필지도 `fill:true`는 그대로 둬야
@@ -380,7 +394,7 @@ function create(opt){
           ll=[pb.getCenter().lat,pb.getCenter().lng];
           bnd=bnd?bnd.extend(pb):L.latLngBounds(pb.getSouthWest(),pb.getNorthEast());
         }
-        myPoly=poly;myN=n++;
+        myPoly=poly;
         icon=parcelIcon(it,myN,myPoly);
       }else{
         icon=dotIcon(it);
@@ -440,12 +454,13 @@ function create(opt){
       }));
     }).then(function(){
       draw();onSave();
-      var ok=items.filter(function(i){return i.xy;}).length;
+      var ok=items.filter(function(i){return i.xy&&!hidden[i.kind];}).length;
+      var hid=items.filter(function(i){return i.xy&&hidden[i.kind];}).length;
       var want=items.filter(function(i){return i.poly&&i.xy;}).length;
       var got=items.filter(function(i){return i.xy&&i.xy.geom;}).length;
       // 필지 경계를 한 건도 못 받으면 조용히 점만 찍히므로 이유를 알려 준다(키에 데이터API 권한이 없는 경우)
       var pmsg=want?(got?(' · 필지 경계 '+got+'/'+want):' · 필지 경계를 못 받아 점으로 표시합니다(브이월드 키에 데이터API 권한 확인 필요)'):'';
-      status('✅ '+ok+'곳 표시'+(miss.length?(' · '+miss.length+'곳 실패'):'')+pmsg+(force?' (주소로 다시 찾음)':''),want&&!got);
+      status('✅ '+ok+'곳 표시'+(hid?(' · 체크를 꺼 '+hid+'곳 숨김'):'')+(miss.length?(' · '+miss.length+'곳 실패'):'')+pmsg+(force?' (주소로 다시 찾음)':''),want&&!got);
       if(missEl)missEl.innerHTML=miss.length?
         ('⚠️ 위치를 못 찾은 항목: <b>'+miss.map(esc).join('</b> / <b>')+'</b> — 소재지 칸의 지번을 확인하거나, 지도에서 비슷한 핀을 끌어다 놓아 주세요.'):'';
     });
@@ -467,7 +482,7 @@ function create(opt){
   }
 
   return {
-    open:open, refresh:refresh, setBase:setBase, toggleOverlay:toggleOverlay,
+    open:open, refresh:refresh, setBase:setBase, toggleOverlay:toggleOverlay, setVisible:setVisible,
     status:status, items:function(){return items;},
     leaflet:function(){return map;}, markers:function(){return markers;}
   };
