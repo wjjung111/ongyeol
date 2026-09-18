@@ -56,6 +56,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     const out={};
     set('cg_specialMode','상한-하한');out['상한-하한']=document.getElementById('cg_special').value;
     set('cg_specialMode','기준-하한');out['기준-하한']=document.getElementById('cg_special').value;
+    set('cg_specialMode','상한-기준');out['상한-기준']=document.getElementById('cg_special').value;
     set('cg_specialMode','직접입력');out['직접입력_유지']=document.getElementById('cg_special').value;
     out.options=Array.from(document.querySelectorAll('#cg_specialMode option')).map(o=>o.value);
     return out;
@@ -63,8 +64,9 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   console.log('특별용역비', JSON.stringify(special));
   assert.equal(special['상한-하한'],'615,580');   // 2,128,260 - 1,512,680
   assert.equal(special['기준-하한'],'302,536');   // 1,815,216 - 1,512,680
-  assert.equal(special['직접입력_유지'],'302,536');
-  assert.deepEqual(special.options,['직접입력','상한-하한','기준-하한']);
+  assert.equal(special['상한-기준'],'313,044');   // 2,128,260 - 1,815,216
+  assert.equal(special['직접입력_유지'],'313,044');
+  assert.deepEqual(special.options,['직접입력','상한-하한','기준-하한','상한-기준']);
 
   // ④ 청구서 표 구성(집합건물과 같은 구성) + 계산값
   const cg=await page.evaluate(async(fee)=>{

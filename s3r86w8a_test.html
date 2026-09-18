@@ -3109,9 +3109,11 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   const setSpecialFeeMode=v=>setOv(p=>({...p,specialFeeModeSel:v}));
   const specialFeeAuto=(()=>{if(specialFeeMode==="직접입력")return null;
     const f=parseFeeStatement(feeText);if(!f.하한수수료)return null;
-    const hi=specialFeeMode==="상한-하한"?f.상한수수료:f.기준수수료;if(!hi)return null;
+    // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
+    const hi=specialFeeMode==="기준-하한"?f.기준수수료:f.상한수수료;
+    const lo=specialFeeMode==="상한-기준"?f.기준수수료:f.하한수수료;if(!hi||!lo)return null;
     const rd1000=n=>Math.floor((n||0)/1000)*1000;
-    return String(rd1000(hi)-rd1000(f.하한수수료));})();
+    return String(rd1000(hi)-rd1000(lo));})();
   const specialFeeEff=specialFeeMode==="직접입력"?specialFee:(specialFeeAuto!=null?fmtComma(specialFeeAuto):"0");
   // PDF 인식(접수내용 이미지)에서 착수금·특용비·요율 기준이 들어오면 자동 반영
   useEffect(()=>{
@@ -3214,8 +3216,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:10}}>여비</span>
         <input style={{...S.inp,width:90,textAlign:"right"}} value={ov.feeTravel==null?"40,000":ov.feeTravel} onChange={e=>setOv(p=>({...p,feeTravel:fmtComma(stripComma(e.target.value))}))} title="출장 여비 — 건마다 입력 (청구서·회보서에 반영, 기본 40,000)"/>
         <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:10}}>특별용역비</span>
-        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감해 자동 계산">
-          {["상한-하한","기준-하한","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
+        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감해 자동 계산">
+          {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
         </select>
         <input style={{...S.inp,width:110,textAlign:"right",...(specialFeeMode!=="직접입력"?{background:"#f1f5f9",color:"#334155",fontWeight:700}:{})}}
           value={specialFeeMode==="직접입력"?specialFee:(specialFeeAuto!=null?fmtComma(specialFeeAuto):"")}
