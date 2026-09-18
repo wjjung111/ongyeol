@@ -602,7 +602,7 @@
           </select>
           <button class="btn gh sm" onclick="mapRefresh(true)" title="소재지 칸의 주소를 다시 조회해 핀을 새로 찍습니다(직접 옮긴 핀도 초기화)">↻ 주소 다시 찾기</button>
         </div>
-        <div class="note">각 탭의 <b>소재지 칸에 적힌 주소</b>를 좌표로 바꿔 지도에 찍습니다. 시·군·구가 없는 사례 주소(예 “자양동 617-33”)는 <b>본건과 같은 시군구</b>에서 먼저 찾습니다. 토지는 <b>필지 테두리</b>로 그리고 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직이고(화살촉·필지는 제자리, 두 번 누르면 원위치), 옮긴 자리는 저장됩니다. 필지가 엉뚱하면 소재지 칸을 고치거나 「주소 다시 찾기」를 누르세요. 지적선·용도지역은 브이월드 도면입니다.</div>
+        <div class="note">각 탭의 <b>소재지 칸에 적힌 주소</b>를 좌표로 바꿔 지도에 찍습니다. 시·군·구가 없는 사례 주소(예 “자양동 617-33”)는 <b>본건과 같은 시군구</b>에서 먼저 찾습니다. 토지는 <b>필지 테두리</b>로 그리고 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직이고(화살촉·필지는 제자리, 두 번 누르면 원위치), 옮긴 자리는 저장됩니다. <b>이름표(또는 필지)를 누르면</b> 소재지와 함께 <b>계산된 단가·시점</b>이 뜹니다 — 거래사례는 토지단가·거래시점, 평가사례는 사례단가·기준시점, 비교표준지는 공시지가·공시기준일, 본건은 적용단가·기준시점(본건에서의 직선거리도 함께). 필지가 엉뚱하면 소재지 칸을 고치거나 「주소 다시 찾기」를 누르세요. 지적선·용도지역은 브이월드 도면입니다.</div>
         <div id="mapLegend" style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 6px;font-size:12px;font-weight:600">
           <span><i class="lgd" style="background:#dc2626"></i>본건</span>
           <span><i class="lgd" style="background:#2563eb"></i>비교표준지</span>
@@ -2976,23 +2976,35 @@ function mapView(){
   return MAPV;
 }
 // ── 지도에 찍을 항목 모으기 ──
+// 이름표(또는 필지)를 누르면 뜨는 설명창에 계산된 단가와 그 시점을 한 줄로 같이 보여준다.
+// 시점은 물건 성격에 맞춰: 거래사례=거래시점, 평가사례·본건=기준시점, 비교표준지=공시기준일.
+function mapUnit(u,label){return u?(label+' '+won(u)+'원/㎡'):'';}
+function mapDate(v,label){return hasV(v)?(label+' '+String(v).trim()):'';}
+function mapInfo(parts){return parts.filter(function(s){return hasV(s);}).join(' · ');}
 function mapItems(){
   var region=subjectSgg(),out=[];
+  var gs=window.GONGSI_RESULT||{},gijun=cgVal('base_gijun'),gongsiDay=cgVal('base_gongsi');
   LANDS.forEach(function(L,i){
     var loc=String(L.fullAddr||'').trim()||((L['소재지']||'')+' '+(L['지번']||'')).trim();
-    if(loc)out.push({o:L,kind:'본건',label:LANDS.length>1?('본건 '+(i+1)):'본건',color:'#dc2626',loc:loc,region:region,pick:true,poly:true});
+    var row=gs.rows&&gs.rows[i];
+    if(loc)out.push({o:L,kind:'본건',label:LANDS.length>1?('본건 '+(i+1)):'본건',color:'#dc2626',loc:loc,region:region,pick:true,poly:true,
+      info:mapInfo([mapUnit(row?row.apply:0,'적용단가'),mapDate(gijun,'기준시점')])});
   });
   STDS.forEach(function(S,i){
     var loc=((S['소재지']||'')+' '+(S['지번']||'')).trim();
-    if(loc)out.push({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region,poly:true});
+    if(loc)out.push({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region,poly:true,
+      info:mapInfo([mapUnit(num(S['공시지가']),'공시지가'),mapDate(gongsiDay,'공시기준일')])});
   });
   TRADES.forEach(function(c,i){
+    var cal=tradeCalc(c);
     if(hasV(c.loc))out.push({o:c,kind:'거래사례',label:'거래 #'+(i+1),color:'#16a34a',loc:c.loc,region:region,poly:true,
-      pick:(ETC.type==='t'&&ETC.idx===i)||GA.idx===i});
+      pick:(ETC.type==='t'&&ETC.idx===i)||GA.idx===i,
+      info:mapInfo([mapUnit(cal.landUnit,'토지단가'),mapDate(c.date,'거래시점')])});
   });
   APPRS.forEach(function(a,i){
     if(hasV(a.loc))out.push({o:a,kind:'평가사례',label:'평가 '+(a.no||(i+1)),color:'#ea580c',loc:a.loc,region:region,poly:true,
-      pick:ETC.type==='a'&&ETC.idx===i});
+      pick:ETC.type==='a'&&ETC.idx===i,
+      info:mapInfo([mapUnit(num(a.unit),'사례단가'),mapDate(a.base,'기준시점')])});
   });
   return out;
 }
