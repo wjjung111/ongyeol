@@ -40,20 +40,16 @@ function standardMap(S,i){
   m['표준지_면적']=mark(S['면적'])||area(S['면적']);
   m['표준지_공시지가']=mark(S['공시지가'])||money(num(S['공시지가']));return m;
 }
-// 시산가액 표의 면적 칸 — 평가에 쓴 **사정면적**을 적는다.
-// 공부면적과 다르고 지분을 적어 뒀으면 「223.7 x 1/2 = 111.85」처럼 근거째 한 줄로(셀이 좁으면 한글이 접는다),
-// 지분 없이 사정면적만 직접 넣었으면 그 면적만 적는다. 사정면적이 없으면 종전대로 공부면적.
-function evalAreaText(L,row){
-  var gongbu=num((row&&row.gongbu)!=null?row.gongbu:L['면적']),size=num(row&&row.size)||landArea(L);
-  if(!size)return mark(L['면적'])||area(L['면적']);
-  if(!gongbu||Math.abs(gongbu-size)<=1e-6)return area(size);
-  var lab=(typeof shareLabel==='function')?shareLabel(L):'';
-  return lab?(area(gongbu)+' x '+lab+' = '+area(size)):area(size);
+// 사정면적 칸 — 평가에 쓴 면적(사정면적)만 적는다.
+// 양식에 공부면적 칸이 따로 있으므로 「223.7 x 1/2 = 111.85」 같은 산식은 쓰지 않는다(2026-09-18 양식 개정).
+function evalArea(L,row){
+  var size=num(row&&row.size)||landArea(L);
+  return size?area(size):(mark(L['면적'])||area(L['면적']));
 }
 function parcelMap(L,i,gs,ga){
   var g=gs.rows[i],a=(ga.rows||[])[i]||{};
   return Object.assign(landMap(L,i),standardMap(STDS[g.stdIdx]||{},g.stdIdx),factors('공시개별',g.factors),factors('거래개별',a.factors||[]),{
-    '토지_사정면적':evalAreaText(L,g),
+    '토지_사정면적':evalArea(L,g),
     '공시시점_치':fixed(g.time,5),'공시_지역요인':fixed(g.area,3),'공시개별_계':fixed(g.individual,3),
     '그밖_결정보정치':fixed(g.etc,2),'공시_산정단가':money(g.calculated),'공시_적용단가':money(g.apply),'공시_시산가액':money(g.total),
     '거래_채택단가':money(a.source),'거래_사정':fixed(a.sajeong,3),'거래_시점':fixed(a.time,5),'거래_지역':fixed(a.area,3),
@@ -110,7 +106,10 @@ function buildingMaps(rows){
     var land=LANDS[0]||{},first=(g.rows[0]&&g.rows[0].data)||{};
     return {'건물_번호':g.key,'건물_소재지':text(first['소재지'])||text(land['소재지']),'건물_지번':text(first['지번'])||text(land['지번']),
       '건물_구조':unique('구조')||val('bt_strct'),'건물_층수':groups.length===1?val('bt_flrs'):unique('층별'),
-      '건물_용도':unique('용도')||val('bt_purps'),'건물_면적':area(g.rows.reduce(function(s,r){return s+r.size;},0)),
+      '건물_용도':unique('용도')||val('bt_purps'),
+      // 물건 표는 공부(연)면적과 사정면적을 나란히 적는다
+      '건물_면적':area(g.rows.reduce(function(s,r){return s+(r.gongbu!=null?r.gongbu:r.size);},0)),
+      '건물_사정면적':area(g.rows.reduce(function(s,r){return s+r.size;},0)),
       '건물_승인일':docDot(val('bt_useApr')),'건물_비고':'-'};   // 비고는 비워두지 않고 '-'
   });
 }
@@ -145,7 +144,7 @@ function opinionData(){
     '거래_채택기호':'#'+(GA.idx+1),'거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
     '거래_시점률':gt.time==null?'':fixed((gt.time-1)*100,3)+'%','거래_시점':fixed(gt.time,5),
     '공시_시산가액':money(gs.total),'거래_시산가액':money(ga.total),'토지감정평가액':money(window.LAND_FINAL),
-    '토지_면적':area(gs.size),'토지_사정면적':area(gs.size),   // 합계 자리(최종 표)는 사정면적 합계
+    '토지_면적':area(gs.gongbuSize||gs.size),'토지_사정면적':area(gs.size),   // 합계 자리 — 공부면적/사정면적 각각
     '공시_적용단가':gs.rows.every(function(r){return r.apply===gs.rows[0].apply;})?money(gs.applyUnit):'필지별 상이',
     '건물_합계면적':area(br.size),'건물가액':money(br.total),'감정평가액':money((window.LAND_FINAL||0)+br.total)
   };

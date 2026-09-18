@@ -149,15 +149,16 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     const heads=[...doc.getElementsByTagNameNS('*','tbl')].map(t=>[...t.getElementsByTagNameNS('*','tc')].slice(0,9).map(c=>c.textContent.replace(/\s+/g,'')).join('|'));
     return {saj,area:maps.parcels[0]['토지_사정면적'],gongbu:maps.parcels[0]['토지_면적'],
             floor:{면적:maps.floors[0]['층1_면적'],공부:maps.floors[0]['층1_공부면적']},
+            bld:{공부:maps.buildings[0]['건물_면적'],사정:maps.buildings[0]['건물_사정면적']},
             heads:heads.filter(h=>h.includes('면적')),
             cells:cells.filter(t=>t.includes('223.7')||t.includes('111.85')),left:(xml.match(/\{\{[^}]+\}\}/g)||[])};
   });
   console.log('⑨ 의견서 면적 칸',opinion);
   assert.equal(opinion.saj,'111.85','분수 지분(1/2)도 사정면적으로 계산된다');
-  assert.equal(opinion.area,'223.7 x 1/2 = 111.85');
+  assert.equal(opinion.area,'111.85','사정면적 칸은 숫자만(공부면적 칸이 따로 있음)');
   assert.equal(opinion.gongbu,'223.7','물건 표는 공부면적 그대로');
-  assert.equal(opinion.cells.filter(t=>t==='223.7 x 1/2 = 111.85').length,2,'공시지가기준법·거래사례비교법 시산가액 표 두 곳');
-  assert.ok(opinion.cells.includes('223.7'),'물건 표의 공부면적은 그대로');
+  assert.ok(opinion.cells.filter(t=>t==='111.85').length>=3,'물건 표·시산가액 두 표의 사정면적 칸');
+  assert.ok(opinion.cells.filter(t=>t==='223.7').length>=3,'같은 표들의 공부면적 칸');
   assert.deepEqual(opinion.left,[],'남은 토큰 없음');
   // 건물: 재조달원가 표는 공부(연)면적 100, 건물가액 산출 표는 사정면적 30
   assert.equal(opinion.floor.공부,'100');
@@ -165,8 +166,11 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   const head=t=>opinion.heads.filter(h=>h.includes(t)).length;
   assert.ok(opinion.heads.some(h=>h.includes('사정면적')),'시산가액·건물가액·최종 표 머리는 사정면적');
   assert.ok(opinion.heads.some(h=>h.includes('공부면적')),'재조달원가 표 머리는 공부면적');
-  assert.equal(opinion.heads.filter(h=>h.includes('사정면적')).length,4,'사정면적 머리 4곳(공시·거래·건물가액·최종)');
-  assert.equal(opinion.heads.filter(h=>h.includes('공부면적')).length,1,'공부면적 머리 1곳(재조달원가)');
+  // 사정면적 머리: 물건 토지·물건 건물·공시·거래·건물가액·최종 6곳 / 공부면적 머리: 물건 토지·물건 건물·공시·거래·재조달원가 5곳
+  assert.equal(opinion.heads.filter(h=>h.includes('사정면적')).length,6);
+  assert.equal(opinion.heads.filter(h=>h.includes('공부면적')).length,5);
+  assert.equal(opinion.bld.공부,'200','건물 물건 표는 공부(연)면적 합계');
+  assert.equal(opinion.bld.사정,'60','건물 물건 표 사정면적 합계');
 
   if(errs.length){console.log('페이지 오류',errs);throw new Error('page errors');}
   console.log('✅ 모두 통과');
