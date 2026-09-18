@@ -175,6 +175,12 @@
   #tblTrade th.cdrag.dragging{opacity:.45;}
   .grip{color:#94a3b8;cursor:grab;letter-spacing:-1px;}
   #tblTrade th.cdrag:hover .grip{color:#2563eb;}
+  /* 평가사례 표 — 왼쪽 손잡이(⠿)를 끌어서 행을 위아래로 옮긴다 */
+  #tblAppr td.grip-c{cursor:grab;width:22px;padding:2px;text-align:center;font-size:14px;line-height:1;}
+  #tblAppr td.grip-c:active{cursor:grabbing;}
+  #tblAppr td.grip-c:hover .grip{color:#2563eb;}
+  #tblAppr tr.dragover td{background:#dbeafe;}
+  #tblAppr tr.dragging td{opacity:.45;}
   .mv{color:#94a3b8;cursor:pointer;font-weight:700;padding:0 1px;}
   .mv:hover{color:#2563eb;}
   /* 건 관리 바 (집합건물과 동일 UX) */
@@ -492,7 +498,7 @@
                 <div class="pst" id="pApprMsg"></div>
               </div>
               <div class="tw"><table id="tblAppr"></table></div>
-              <div class="note">행마다 있는 <b>kapa hub</b> 칸에 붙여넣으면 필요한 항목(소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적)만 골라 그 행에 채웁니다. 여러 건을 한꺼번에 붙이면 아래 행으로 이어지고(모자라면 행 추가), 모든 칸은 직접 수정할 수 있습니다. ✕는 3행까지는 비우기, 4행부터는 삭제입니다. 맨 끝 <b>비고</b> 칸은 자유 메모로 화면에만 남고 문서에는 나가지 않습니다(붙여넣기를 해도 지워지지 않음).</div>
+              <div class="note">행마다 있는 <b>kapa hub</b> 칸에 붙여넣으면 필요한 항목(소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적)만 골라 그 행에 채웁니다. 여러 건을 한꺼번에 붙이면 아래 행으로 이어지고(모자라면 행 추가), 모든 칸은 직접 수정할 수 있습니다. ✕는 3행까지는 비우기, 4행부터는 삭제입니다. <b>왼쪽 ⠿ 손잡이를 끌면 행을 위아래로 옮길 수 있고</b>, 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다(기호를 직접 고쳐 두셨으면 그대로 둡니다). 맨 끝 <b>비고</b> 칸은 자유 메모로 화면에만 남고 문서에는 나가지 않습니다(붙여넣기를 해도 지워지지 않음).</div>
             </div>
 
             <!-- 그 밖의 요인 -->
@@ -1731,7 +1737,8 @@ function addCase(){TRADES.push({});renderTrade();syncPick();saveForm();}
 // ── 거래사례 열 이동 (집합건물 사례 표와 같은 끌어놓기) ──
 // 사례 번호(#1·#2…)는 따로 저장하지 않고 열 순서에서 나오므로 옮기면 저절로 다시 매겨진다.
 // 대신 자리로 기억하는 것들 — 그밖의요인·거래사례 선정, ↩복구 자리 — 은 같이 옮겨 줘야 한다.
-function tradeIdxAfterMove(j,f,t){
+// splice로 f자리 항목을 t자리로 옮겼을 때, 옛 자리 j가 가는 새 자리 (거래사례 열·평가사례 행 공용)
+function idxAfterMove(j,f,t){
   if(j===f)return t;
   if(f<t)return (j>f&&j<=t)?j-1:j;
   return (j>=t&&j<f)?j+1:j;
@@ -1740,12 +1747,12 @@ function moveTrade(f,t){
   f=+f;t=+t;
   if(!(f>=0&&t>=0)||f===t||f>=TRADES.length||t>=TRADES.length)return;
   TRADES.splice(t,0,TRADES.splice(f,1)[0]);
-  if(ETC.type==='t')ETC.idx=tradeIdxAfterMove(ETC.idx,f,t);
-  GA.idx=tradeIdxAfterMove(GA.idx,f,t);
+  if(ETC.type==='t')ETC.idx=idxAfterMove(ETC.idx,f,t);
+  GA.idx=idxAfterMove(GA.idx,f,t);
   TRADE_UNDO.forEach(function(s){
-    s.i=tradeIdxAfterMove(s.i,f,t);
-    if(s.etc&&s.etc.type==='t')s.etc.idx=tradeIdxAfterMove(s.etc.idx,f,t);
-    if(s.ga)s.ga.idx=tradeIdxAfterMove(s.ga.idx,f,t);
+    s.i=idxAfterMove(s.i,f,t);
+    if(s.etc&&s.etc.type==='t')s.etc.idx=idxAfterMove(s.etc.idx,f,t);
+    if(s.ga)s.ga.idx=idxAfterMove(s.ga.idx,f,t);
   });
   renderTrade();syncPick();calcGongsi();saveForm();
   var msg=document.getElementById('pTradeMsg');
@@ -1802,16 +1809,56 @@ var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지�
 function apprHasData(a){return a&&['loc','use','jimok','cond','unit','base','purp'].some(function(k){return String(a[k]||'').trim()!=='';});}
 function renderAppr(){
   while(APPRS.length<3)APPRS.push({});   // 기본 화면은 항상 빈 3행(거래사례와 같은 규격)
-  var h='<tr><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
+  var h='<tr><th style="width:22px"></th><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
-    h+='<tr><td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';
+    h+='<tr ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
+      +'<td class="grip-c" draggable="true" title="끌어서 위아래로 옮기기 — 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다"'
+      +' ondragstart="apprDragStart(event,'+i+')" ondragend="apprDragEnd()"><span class="grip">⠿</span></td>';
+    h+='<td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onchange="ETC={type:\'a\',idx:'+i+'};syncPick();calcGongsi();autoEtcTime();"></td>';
     h+='<td class="kp-c kp-narrow"><textarea class="kp" rows="1" cols="3" placeholder="" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
     APPR_COLS.forEach(function(c){h+='<td><input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();saveForm();"></td>';});
     h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
   document.getElementById('tblAppr').innerHTML=h;
 }
-function addAppr(){APPRS.push({no:'abcdefghij'[APPRS.length]||String(APPRS.length+1),use:'2종일주',jimok:'대'});renderAppr();syncPick();saveForm();}
+var APPR_SYM='abcdefghij';
+function apprSym(i){return APPR_SYM[i]||String(i+1);}
+function addAppr(){APPRS.push({no:apprSym(APPRS.length),use:'2종일주',jimok:'대'});renderAppr();syncPick();saveForm();}
+
+// ── 평가사례 행 이동 (왼쪽 ⠿ 손잡이를 끌어서 위아래로) ──
+// 기호가 모두 기본 순서(a·b·c…) 그대로면 자리 순서대로 다시 매기고,
+// 직접 고쳐 둔 기호가 하나라도 있으면 손대지 않는다(의견서에 쓰는 기호를 말없이 바꾸지 않으려고).
+function apprSymsAuto(){return APPRS.every(function(a,i){return !hasV(a.no)||a.no===apprSym(i);});}
+function moveAppr(f,t){
+  f=+f;t=+t;
+  if(!(f>=0&&t>=0)||f===t||f>=APPRS.length||t>=APPRS.length)return;
+  var auto=apprSymsAuto();
+  APPRS.splice(t,0,APPRS.splice(f,1)[0]);
+  if(ETC.type==='a')ETC.idx=idxAfterMove(ETC.idx,f,t);
+  if(auto)APPRS.forEach(function(a,i){if(hasV(a.no)||apprHasData(a))a.no=apprSym(i);});
+  renderAppr();syncPick();calcGongsi();saveForm();
+  var msg=document.getElementById('pApprMsg');
+  if(msg){msg.className='pst ok';
+    msg.textContent='✅ 평가사례를 '+(f+1)+'행 → '+(t+1)+'행으로 옮겼습니다'
+      +(auto?' (기호는 자리 순서대로 다시 매겼습니다).':' — 기호는 직접 적어 두신 값이라 그대로 뒀습니다.');}
+}
+var APPR_DRAG=-1;
+function apprDragStart(e,i){APPR_DRAG=i;
+  var tr=e.currentTarget.parentNode;if(tr)tr.classList.add('dragging');
+  try{e.dataTransfer.setData('text/plain',String(i));e.dataTransfer.effectAllowed='move';}catch(_){}}
+function apprDragOver(e,i){
+  if(APPR_DRAG<0)return;
+  e.preventDefault();try{e.dataTransfer.dropEffect='move';}catch(_){}
+  if(APPR_DRAG!==i)e.currentTarget.classList.add('dragover');}
+function apprDragLeave(e){e.currentTarget.classList.remove('dragover');}
+function apprDrop(e,i){
+  e.preventDefault();
+  var f=APPR_DRAG;
+  if(f<0){var d=parseInt(e.dataTransfer.getData('text/plain'),10);f=isNaN(d)?-1:d;}
+  apprDragEnd();
+  if(f>=0)moveAppr(f,i);}
+function apprDragEnd(){APPR_DRAG=-1;
+  document.querySelectorAll('#tblAppr tr').forEach(function(el){el.classList.remove('dragover','dragging');});}
 function delAppr(i){
   // 3행까지는 항상 남긴다: 3행 이하면 그 행만 비우고, 4행 이상이면 행을 없앤다
   if(APPRS.length<=3){APPRS[i]={};renderAppr();syncPick();calcGongsi();saveForm();return;}
@@ -1826,7 +1873,7 @@ function apprPaste(e,i){
   var msg=document.getElementById('pApprMsg'),res=parseApprText(text);
   if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
   res.out.forEach(function(a,k){var j=i+k;while(APPRS.length<=j)APPRS.push({});
-    a.no='abcdefghij'[j]||String(j+1);a.memo=(APPRS[j]||{}).memo||'';   // 직접 적어 둔 비고는 붙여넣기로 지우지 않는다
+    a.no=apprSym(j);a.memo=(APPRS[j]||{}).memo||'';   // 직접 적어 둔 비고는 붙여넣기로 지우지 않는다
     APPRS[j]=a;});
   renderAppr();syncPick();calcGongsi();saveForm();
   msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 반영(행 '+(i+1)+(res.out.length>1?'~'+(i+res.out.length):'')+') — 소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적 자동';
