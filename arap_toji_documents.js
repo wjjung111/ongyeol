@@ -14,7 +14,7 @@ function yohangMap(){
 }
 // {{토큰}}이 든 <hp:p> 문단을 값의 줄 수만큼 복제한다(줄배치 캐시 제거 → 한글이 다시 배치).
 // 집합건물 expandYohangPara와 같은 방식. 값이 비면 아무것도 하지 않고 양식 표시를 남긴다.
-function expandPara(xmlText,token,value,black){
+function expandPara(xmlText,token,value,recolor){
   if(!value)return xmlText;
   var ti=xmlText.indexOf(token);if(ti<0)return xmlText;
   var ps=xmlText.lastIndexOf('<hp:p ',ti),pe=xmlText.indexOf('</hp:p>',ti);
@@ -22,7 +22,7 @@ function expandPara(xmlText,token,value,black){
   if(ps<0||pe<0)return xmlText.split(token).join(esc(value));
   pe+=7;
   var tpl=xmlText.slice(ps,pe).replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/,'');
-  Object.keys(black||{}).forEach(function(r){tpl=tpl.split('charPrIDRef="'+r+'"').join('charPrIDRef="'+black[r]+'"');});
+  Object.keys(recolor||{}).forEach(function(r){tpl=tpl.split('charPrIDRef="'+r+'"').join('charPrIDRef="'+recolor[r]+'"');});
   var clones=String(value).split('\n').map(function(line){return tpl.split(token).join(esc(line));}).join('');
   return xmlText.slice(0,ps)+clones+xmlText.slice(pe);
 }
@@ -57,29 +57,29 @@ async function buildYohang(){
   var headerXml=dec.decode(entries.find(function(e){return e.name==='Contents/header.xml';}).data),header=xml(headerXml);
   var charPrs=Array.from(header.getElementsByTagNameNS('*','charPr'));
   var red=new Set(charPrs.filter(function(p){return (p.getAttribute('textColor')||'').toUpperCase()==='#FF0000';}).map(function(p){return p.getAttribute('id');}));
-  // 채운 글자는 검정으로 — 빨강 글자모양과 색만 다른 쌍둥이 글자모양을 찾아 쓴다(글자모양 목록은 건드리지 않음)
+  // 채운 자리는 **빨강 그대로** 남긴다 — 앱이 채운 곳을 한눈에 보고 한글에서 다듬으라는 뜻(사용자 요청 2026-09-18).
+  // 양식에서 검정으로 들어 있는 자리(토지이용계획)는 색만 다른 빨강 쌍둥이 글자모양으로 바꿔 같이 빨갛게 만든다.
+  // (글자모양 목록은 건드리지 않는다 — id 불연속·itemCnt 불일치는 한글 글꼴 깨짐의 원인)
   var norm=function(p){return ser(p).replace(/ id="\d+"/,'').replace(/textColor="[^"]*"/,'');};
-  var black={};charPrs.forEach(function(p){
-    if(!red.has(p.getAttribute('id')))return;
-    var twin=charPrs.find(function(q){return q!==p&&(q.getAttribute('textColor')||'').toUpperCase()==='#000000'&&norm(q)===norm(p);});
-    if(twin)black[p.getAttribute('id')]=twin.getAttribute('id');
+  var redOf={};charPrs.forEach(function(p){
+    if(red.has(p.getAttribute('id')))return;
+    var twin=charPrs.find(function(q){return q!==p&&red.has(q.getAttribute('id'))&&norm(q)===norm(p);});
+    if(twin)redOf[p.getAttribute('id')]=twin.getAttribute('id');
   });
   var toice=(typeof assembleToice==='function')?assembleToice():'';
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
     fillLocationNarrative(d);
     Array.from(d.getElementsByTagNameNS('*','run')).filter(function(r){return red.has(r.getAttribute('charPrIDRef'));}).forEach(function(r){
-      var filled=false;
       Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){
         t.textContent=t.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
           if(!map[k])return full;                       // 안 채운 칸은 양식 표시 그대로
-          filled=true;return map[k];});
+          return map[k];});                             // 채운 값도 빨강 글자모양 그대로 둔다
       });
-      if(filled&&black[r.getAttribute('charPrIDRef')])r.setAttribute('charPrIDRef',black[r.getAttribute('charPrIDRef')]);
     });
     var out=ser(d);
-    // 토지이용계획은 여러 줄 → 문단을 줄 수만큼 복제하고, 복제본 글자색도 검정으로
-    out=expandPara(out,'{{요항_용도지역}}',toice,black);
+    // 토지이용계획은 여러 줄 → 문단을 줄 수만큼 복제하고, 복제본 글자색은 빨강으로(다른 채움 자리와 같게)
+    out=expandPara(out,'{{요항_용도지역}}',toice,redOf);
     e.data=enc.encode(out);
   });
   // Rebuild previews so the original placeholder preview is not mistaken for output.
