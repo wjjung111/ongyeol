@@ -1711,10 +1711,14 @@ function tradeCell(c,i,r){
   var k=r[1],t=r[2];
   if(t==='auto'){var cal=tradeCalc(c),ov=manualNum(c[k]);
     return '<td class="calc-c'+(ov?' ovr':'')+'"><input data-i="'+i+'" data-k="'+k+'" value="'+(ov?attr(c[k]):fmtAuto(k,cal))+'" title="'+attr(tradeTitle(k,c,cal))+'" oninput="tradeIn('+i+',\''+k+'\',this.value)" onblur="refreshTradeCol('+i+')"></td>';}
-  return '<td class="'+(t==='jud'?'jud-c':'')+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(c[k]||'')+'" oninput="tradeIn('+i+',\''+k+'\',this.value)"></td>';
+  var dv=c[k]||'';
+  if(k==='reCost'&&dv){var dd=String(dv).replace(/[^\d]/g,'');if(dd)dv=Number(dd).toLocaleString('ko-KR');}   // 옛 저장값(콤마 없음)도 표시할 때 콤마
+  return '<td class="'+(t==='jud'?'jud-c':'')+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(dv)+'" oninput="tradeIn('+i+',\''+k+'\',this.value,this)"></td>';
 }
 // 입력 중에는 표를 통째로 다시 그리지 않고(포커스 유지) 같은 열의 자동 칸만 갱신
-function tradeIn(i,k,v){TRADES[i][k]=v;
+function tradeIn(i,k,v,el){
+  if(k==='reCost'){var d=String(v).replace(/[^\d]/g,'');v=d?Number(d).toLocaleString('ko-KR'):'';if(el&&el.value!==v)el.value=v;}   // 재조달원가: 천원 단위 콤마 자동
+  TRADES[i][k]=v;
   // 거래일자·소재지·용도지역이 바뀌면 계산해 둔 시점수정치는 더 이상 맞지 않으므로 지운다(다시 선정하면 재계산)
   if(k==='date'||k==='loc'||k==='use'){delete TRADES[i].timeMeta;delete TRADES[i].timeErr;if(k==='loc')delete TRADES[i].sgg;refreshTradeTime();}
   refreshTradeCol(i);calcGongsi();saveForm();}
