@@ -92,7 +92,9 @@ function appraisalMap(a){
     '평사1_단가':mark(a.unit)||(hasV(a.unit)?money(num(a.unit)):''),'평사1_목적':text(a.purp),'평사1_시점':docDot(a.base)};
 }
 function floorMap(r){
+  // 면적 두 가지 — 재조달원가 표는 공부(연)면적, 건물가액 산출 표는 평가에 쓴 사정면적
   var d=r.data;return {'층1_번호':text(d['동'])||'가','층1_해당층':text(d['층별']),'층1_면적':area(r.size),
+    '층1_공부면적':area(r.gongbu!=null?r.gongbu:r.size),
     // 구조는 한 줄만 쓴다 — 빈 둘째 줄({{층N_구조2}})은 지우는 손이 가서 템플릿에서 뺐다.
     '층1_이용상황':text(d['용도']),'층1_구조':text(d['구조']),'층1_재조달':money(r.reCost),
     '층1_내용연수':text(r.life),'층1_경과연수':text(r.elapsed),'층1_잔가율':r.remaining+'/'+r.life,
