@@ -1,4 +1,4 @@
-// 요항표 탭 검증 — 입력칸 자동채움·직접입력·토지이용계획 복붙 정리·저장 후 복원·hwpx 생성(검정 글자, 미치환 토큰 0)
+// 요항표 탭 검증 — 입력칸 자동채움·직접입력·토지이용계획 복붙 정리·저장 후 복원·hwpx 생성(채운 값은 빨강 유지, 미치환 토큰 0)
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_yohang.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -135,23 +135,36 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     const file=path.join(out,'요항표.hwpx');await (await dl).saveAs(file);
     const res=await page.evaluate(async bytes=>{
       const entries=await ArapCheonggu.parseZip(Uint8Array.from(bytes).buffer);
-      const dec=new TextDecoder();let text='',redRuns=0,left=[];
+      const dec=new TextDecoder();let text='',redRuns=0,left=[],redText='';
+      // 빨강 글자모양 id 를 양식에서 찾아 둔다(채운 값이 그 글자모양으로 남아야 한다)
+      const head=dec.decode(entries.find(e=>e.name==='Contents/header.xml').data);
+      const hdoc=new DOMParser().parseFromString(head,'application/xml');
+      const redIds=new Set(Array.from(hdoc.getElementsByTagNameNS('*','charPr'))
+        .filter(p=>(p.getAttribute('textColor')||'').toUpperCase()==='#FF0000').map(p=>p.getAttribute('id')));
       for(const e of entries.filter(e=>/^Contents\/section\d+\.xml$/.test(e.name))){
         const xml=dec.decode(e.data);
         (xml.match(/\{\{[^}]+\}\}/g)||[]).forEach(t=>left.push(t));
-        redRuns+=(xml.match(/charPrIDRef="43"/g)||[]).length;
         const doc=new DOMParser().parseFromString(xml,'application/xml');
         if(doc.querySelector('parsererror'))throw Error('XML 오류');
+        Array.from(doc.getElementsByTagNameNS('*','run')).forEach(r=>{
+          if(!redIds.has(r.getAttribute('charPrIDRef')))return;
+          redRuns++;redText+=r.textContent+'\n';
+        });
         text+=doc.documentElement.textContent;
       }
-      return {text,redRuns,left:[...new Set(left)]};
+      return {text,redRuns,redText,left:[...new Set(left)],redIds:[...redIds]};
     },Array.from(fs.readFileSync(file)));
     console.log('남은 토큰',res.left,'| 빨강런',res.redRuns);
-    for(const m of ['여수동','성남여수초등학교 북서측','성남여수동행정복지센터 버스정류장','등고평탄한','정방형','주상용 건부지','남서측','북측','철근콘크리트구조 지상 4층','몰탈위 페인팅 마감','샷시','제1종일반주거지역','가축사육제한구역','<추가기재>'])
+    console.log('빨강 글자:',JSON.stringify(res.redText.split('\n').filter(Boolean)));
+    for(const m of ['여수동','성남여수초등학교 북서측','성남여수동행정복지센터 버스정류장','등고평탄','정방형','주상용 건부지','남서측','북측','철근콘크리트구조 지상 4층','몰탈위 페인팅 마감','샷시','제1종일반주거지역','가축사육제한구역','<추가기재>'])
       assert(res.text.includes(m),'문서에 없음: '+m);
     assert.deepEqual(res.left,['{{사용자_메모}}'],'사용자 입력 토큰만 문자 그대로 보존');
     for(const line of [...surroundings.split('\n'),...locationEtc.split('\n')])assert(res.text.includes(line));
-    assert.equal(res.redRuns,0,'빨강 글자 남음');
+    // 앱이 채운 자리는 **빨강 그대로** 남는다(평가사가 한글에서 확인·수정하기 쉽게)
+    assert(res.redRuns>0,'채운 값이 빨강 글자모양으로 남아야 합니다');
+    for(const m of ['여수동','성남여수초등학교 북서측','성남여수동행정복지센터 버스정류장','등고평탄','정방형','주상용 건부지','철근콘크리트구조 지상 4층','몰탈위 페인팅 마감','샷시','제1종일반주거지역'])
+      assert(res.redText.includes(m),'빨강으로 나가야 함: '+m);
+    assert(!res.redText.includes('본건까지 차량의 진출입이 가능하며'),'양식 고정 문구는 검정 그대로');
     assert(res.text.includes('대비 등고평탄한 정방형의 토지임.'));
     assert(!res.text.includes('등고평탄한한'));
     assert(res.text.includes('본건 남서측으로 노폭 약 0m, 북측으로 노폭 약 0m 내외의 아스팔트 포장도로와 각각 접하고 있음.'));
