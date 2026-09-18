@@ -24,7 +24,7 @@
        color  : 핀 색
        loc    : 소재지 문자열
        region : 시·군·구가 없을 때 앞에 붙일 지역(본건 시군구) — 없으면 ''
-       pick   : true면 굵게 강조
+       pick   : true면 굵게 강조 + 필지 안쪽을 옅게 칠한다(안 주면 테두리만)
 
   좌표는 `o._xy = {x:경도, y:위도, addr, q:조회에 쓴 질의문, manual:직접 옮김}`.
   `_xy.q`가 지금 만든 질의문과 같으면 다시 조회하지 않는다(통신 아낌 + 직접 옮긴 핀 보존).
@@ -368,8 +368,11 @@ function create(opt){
       if(!it.xy)return;
       var ll=[it.xy.y,it.xy.x],icon,myPoly=null,myN=0;
       if(it.xy.geom){
+        // 채우기는 **선정된 것(본건·채택 사례)에만**. 나머지는 테두리만 — 필지가 겹칠 때 색이 쌓여
+        // 바탕지도·지적선이 가려지는 것을 막는다. 안 채운 필지도 `fill:true`는 그대로 둬야
+        // 필지 **안쪽을 눌러도 설명창이 뜬다**(이름표를 멀리 치워 뒀을 때 누를 곳).
         var poly=L.geoJSON(it.xy.geom,{style:{color:it.color,weight:it.pick?4:3,opacity:1,
-          fillColor:it.color,fillOpacity:it.pick?0.16:0.10}}).addTo(map);
+          fill:true,fillColor:it.color,fillOpacity:it.pick?0.16:0}}).addTo(map);
         poly.bindPopup(popup(it));   // 필지를 눌러도 설명이 뜬다(이름표를 멀리 치워 뒀을 때)
         shapes.push(poly);
         var pb=poly.getBounds();
