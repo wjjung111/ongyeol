@@ -824,8 +824,8 @@
           <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" title="수수료 배수(할증) — 예: 1.5. (가)평가수수료 = 요율 수수료 × 배수(천원 미만 절사). 이 값을 고치면 특별용역비 배수도 같은 값으로 따라갑니다." oninput="cgFeeMulIn(this.value)">
           <span class="hint" id="cg_mulNote" style="margin-left:2px"></span>
           <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
-          <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
-            <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option></select>
+          <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한·상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
+            <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option><option value="상한-기준">상한-기준</option></select>
           <span class="hint" id="cg_feeState">계산서 붙여넣으면 평가수수료 자동입력</span>
         </div>
         <div class="tw" style="margin-top:8px"><table id="cg_table">
@@ -839,7 +839,7 @@
           <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
           <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
             <td class="cg-in"><div class="mul-row">
-              <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
+              <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한·상한-기준이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
               <span class="mul-x" id="cg_specialMulX">×</span>
               <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다. 직접입력 방식에서는 쓰이지 않습니다." oninput="CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();">
             </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(예: 351,223 → 351,000). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
@@ -851,7 +851,7 @@
           <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
         </table></div>
         <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
-        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료 <b>× 배수</b>를 <b>천원 미만 절사</b>(배수 칸이 비면 1배). 특별용역비는 <b>직접입력이면 적은 금액이 그대로</b> 나가고(배수 없음), <b>상한-하한·기준-하한이면 차액 × 배수</b>가 칸 아래 <b>적용액</b>에 채워집니다 — 적용액은 그대로 고칠 수 있고(예: 351,223 → 351,000), 차액·배수를 다시 고치면 자동값으로 돌아갑니다. 수수료 옆 배수를 고치면 특별용역비 배수도 같은 값으로 따라옵니다. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
+        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료 <b>× 배수</b>를 <b>천원 미만 절사</b>(배수 칸이 비면 1배). 특별용역비는 <b>직접입력이면 적은 금액이 그대로</b> 나가고(배수 없음), <b>상한-하한·기준-하한·상한-기준이면 차액 × 배수</b>가 칸 아래 <b>적용액</b>에 채워집니다 — 적용액은 그대로 고칠 수 있고(예: 351,223 → 351,000), 차액·배수를 다시 고치면 자동값으로 돌아갑니다. 수수료 옆 배수를 고치면 특별용역비 배수도 같은 값으로 따라옵니다. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
           여비는 본건 소재지 기준으로 자동 입력되고, 물건조사비·공부발급비는 기본 15,000원이며 모든 칸은 직접 고칠 수 있습니다.</div>
       </div>
     </div>
@@ -2447,14 +2447,16 @@ function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
   return A.computeCheonggu(fee,cgVal('cg_downPayment'),String(cgSpecialApplied()),cgVal('cg_feeBasis'),
     cgEmptyNull('cg_travel'),cgEmptyNull('cg_survey'),cgEmptyNull('cg_doc'),cgEmptyNull('cg_etc'));
 }
-// 특별용역비 방식 — 집합건물 청구서와 같은 로직. '상한-하한'·'기준-하한'이면 계산서의 수수료 차액을 칸에 채운다.
+// 특별용역비 방식 — 집합건물 청구서와 같은 로직. '상한-하한'·'기준-하한'·'상한-기준'이면 계산서의 수수료 차액을 칸에 채운다.
 // 채워 넣는 방식이라 평가사가 그대로 고칠 수 있고, 방식이나 계산서가 바뀔 때만 다시 채운다.
 function cgSpecialAuto(){
   var A=window.ArapCheonggu,mode=cgVal('cg_specialMode')||'직접입력';
   if(!A||mode==='직접입력')return null;
   var f=A.parseFeeStatement(cgVal('cg_feeText'));if(!f||!f.하한수수료)return null;
-  var hi=mode==='상한-하한'?f.상한수수료:f.기준수수료;
-  return hi?String(hi-f.하한수수료):null;
+  // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
+  var hi=mode==='기준-하한'?f.기준수수료:f.상한수수료;
+  var lo=mode==='상한-기준'?f.기준수수료:f.하한수수료;
+  return (hi&&lo)?String(hi-lo):null;
 }
 function cgTravelAuto(){
   var A=window.ArapCheonggu;if(!A)return 40000;

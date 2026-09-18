@@ -3480,8 +3480,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   const setSpecialFeeMode=v=>setOv(p=>({...p,specialFeeModeSel:v}));
   const specialFeeAuto=(()=>{if(specialFeeMode==="직접입력")return null;
     const f=parseFeeStatement(feeText);if(!f.하한수수료)return null;
-    const hi=specialFeeMode==="상한-하한"?f.상한수수료:f.기준수수료;if(!hi)return null;
-    return String(hi-f.하한수수료);})();  // 절사 없이 그대로
+    // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
+    const hi=specialFeeMode==="기준-하한"?f.기준수수료:f.상한수수료;
+    const lo=specialFeeMode==="상한-기준"?f.기준수수료:f.하한수수료;if(!hi||!lo)return null;
+    return String(hi-lo);})();  // 절사 없이 그대로
   useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setSpecialFee(fmtComma(String(specialFeeAuto)));},[specialFeeMode,feeText]);
   const specialFeeEff=specialFee;  // 자동 모드도 칸에 채워진 값을 쓰므로 자유수정 가능
   // 여비 자동: 소재지(ov.jibun) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
@@ -3641,8 +3643,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
         <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>특별용역비 방식</span>
-        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감해 자동 계산">
-          {["상한-하한","기준-하한","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
+        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
+          {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
         </select>
         {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>✅ 계산서 인식됨 (평가수수료 자동)</span>:<span style={{fontSize:11,color:"#999"}}>계산서 붙여넣으면 평가수수료 자동입력</span>;})()}
       </div>
