@@ -54,6 +54,10 @@
   .y-land .y-shape{width:8em;}
   .y-land .y-direction{width:6em;}
   .y-land .y-width{width:4em;}
+  .y-bld .y-struct{width:15em;}
+  .y-bld .y-wall{width:12em;}
+  .y-bld .y-window{width:7em;}
+  .y-bld .y-usestate{width:16em;}
   .y-location textarea{display:block;width:100%;min-height:64px;resize:vertical;line-height:1.7;}
   .y-location input::placeholder,.y-location textarea::placeholder{color:#a0a7b2;opacity:1;}
   /* 그 밖의 사항(의견서 6항) 항목 목록 — 번호는 자리 순서로 자동(가·나·다…) */
@@ -758,11 +762,14 @@
           </div>
 
           <h3>Ⅲ. 건물의 개황</h3>
-          <div class="grid2">
-            <span class="fld" style="grid-column:1/-1"><label>건물 구조</label><input type="text" id="y_struct" placeholder="철근콘크리트구조 지상 4층"></span>
-            <span class="fld"><label>외벽</label><input type="text" id="y_wall" placeholder="몰탈위 페인팅 마감"></span>
-            <span class="fld"><label>창호</label><input type="text" id="y_window" placeholder="샷시"></span>
-            <span class="fld" style="grid-column:1/-1"><label>이용상태(공부상)</label><input type="text" id="y_usestate" placeholder="제2종근린생활시설 및 다가구주택"></span>
+          <!-- 양식 문장 그대로: "{{요항_건물구조}} 건물로서 / - 외벽 : {{요항_외벽}} 등 / - 창호 : {{요항_창호}}창호 등임. / 공부상 {{요항_이용상태}}로 이용 중임." -->
+          <div class="y-location y-bld">
+            <h4>1. 건물의 구조</h4>
+            <p><input type="text" id="y_struct" class="y-inline y-struct" aria-label="건물 구조" placeholder="철근콘크리트구조 지상 4층"> 건물로서</p>
+            <p>- 외벽 : <input type="text" id="y_wall" class="y-inline y-wall" aria-label="외벽" placeholder="몰탈위 페인팅 마감"> 등</p>
+            <p>- 창호 : <input type="text" id="y_window" class="y-inline y-window" aria-label="창호" placeholder="샷시">창호 등임.</p>
+            <h4>2. 이용상태</h4>
+            <p>공부상 <input type="text" id="y_usestate" class="y-inline y-usestate" aria-label="이용상태(공부상)" placeholder="제2종근린생활시설 및 다가구주택">로 이용 중임.</p>
           </div>
 
           <div class="row" style="margin-top:12px"><button class="btn" id="btnYohang2">📄 5. 요항표 받기 (.hwpx)</button><span class="hint" id="y_status" role="status"></span></div>

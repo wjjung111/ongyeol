@@ -61,7 +61,11 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     assert(await page.locator('#y_surroundings').evaluate(el=>el.matches(':placeholder-shown')),'포커스 상태에서도 기본 문장 표시');
     assert.equal(await page.locator('#y_surroundings').evaluate(el=>getComputedStyle(el,'::placeholder').color),'rgb(160, 167, 178)');
     assert.equal(await page.locator('#landQuery').getAttribute('placeholder'),'','다른 화면의 예시 숨김 동작은 유지');
-    assert.deepEqual(await page.locator('.y-location:not(.y-land) h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
+    assert.deepEqual(await page.locator('.y-location:not(.y-land):not(.y-bld) h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
+    // Ⅲ. 건물의 개황도 문장형 — 양식 문구 그대로("건물로서 / 등 / 창호 등임. / 로 이용 중임.")
+    assert.deepEqual(await page.locator('.y-bld h4').allTextContents(),['1. 건물의 구조','2. 이용상태']);
+    assert.deepEqual((await page.locator('.y-bld p').allTextContents()).map(t=>t.replace(/\s+/g,' ').trim()),[' 건물로서','- 외벽 : 등','- 창호 : 창호 등임.','공부상 로 이용 중임.'].map(t=>t.trim()));
+    assert.deepEqual(await page.evaluate(()=>['y_struct','y_wall','y_window','y_usestate'].map(id=>document.getElementById(id).closest('.y-bld')?document.getElementById(id).className:'')),['y-inline y-struct','y-inline y-wall','y-inline y-window','y-inline y-usestate']);
     async function outputParagraphs(){return page.evaluate(async()=>{
       const bytes=await ArapTojiDocuments.buildYohang();
       const entries=await ArapCheonggu.parseZip(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
