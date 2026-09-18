@@ -1,0 +1,783 @@
+[
+  {
+    "name": "감정서번호",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "평가목적",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "의뢰인",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "제출처",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "소유자",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "기준시점",
+    "source": "base_date",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "조사일",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "목적본문",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "근거기준가치",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "조사내용",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "평가방법",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "평가조건",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "서식버전",
+    "source": "고정 버전",
+    "kind": "상수",
+    "required": true,
+    "locations": [
+      "I. 감정평가 개요"
+    ]
+  },
+  {
+    "name": "사업명",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "사업소재지",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "사업단계",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "사업규모일정",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "사업현황",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "배정물건.기호",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건",
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "배정물건.용도",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "배정물건.동호",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "배정물건.면적",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "배정물건.분양가",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건",
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "총분양가",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건",
+      "III. 권리가액 및 정산 내역",
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "배정특이사항",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "조감도",
+    "source": "image: 로컬 PNG/JPEG 경로; 없으면 미첨부",
+    "kind": "이미지",
+    "required": false,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "조감도설명",
+    "source": "이미지 슬롯 상태 및 자료 설명",
+    "kind": "이미지설명",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "조감도출처",
+    "source": "사건 입력",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "II. 사업 및 배정물건"
+    ]
+  },
+  {
+    "name": "종전자산가액",
+    "source": "old_value",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "비례율",
+    "source": "ratio",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "비례율검산",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "권리가액",
+    "source": "right_value",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역",
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "권리가액출처",
+    "source": "right_source",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "권리가액차이",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "정산구분",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "정산총액",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "거래내역.일자",
+    "source": "transactions[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "거래내역.유형",
+    "source": "transactions[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "거래내역.금액",
+    "source": "transactions[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "거래내역.반영",
+    "source": "transactions[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "거래내역.증빙",
+    "source": "transactions[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "납부누계",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역",
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "환급누계",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역",
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "정산검토",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "III. 권리가액 및 정산 내역"
+    ]
+  },
+  {
+    "name": "거래사례.기호",
+    "source": "cases[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "거래사례.용도",
+    "source": "cases[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "거래사례.소재지",
+    "source": "cases[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "거래사례.면적",
+    "source": "cases[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "거래사례.거래일",
+    "source": "cases[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "거래사례.금액",
+    "source": "cases[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "거래사례.단가",
+    "source": "cases[].price / area",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "거래사례.출처",
+    "source": "cases[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "사례검토",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "IV. 거래사례 및 배정물건 평가"
+    ]
+  },
+  {
+    "name": "물건별평가.기호",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.용도",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.동호",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.면적",
+    "source": "units[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.선정사례",
+    "source": "units[].case_id",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.선정사유",
+    "source": "units[].selection_reason",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.시점근거",
+    "source": "units[].time",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.사례단가",
+    "source": "units[] 평가 계산",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.사정보정",
+    "source": "units[] 평가 계산",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.시점수정",
+    "source": "units[] 평가 계산",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.지역요인",
+    "source": "units[] 평가 계산",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "개별요인.항목",
+    "source": "units[].factors[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "개별요인.비교치",
+    "source": "units[].factors[]",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "개별요인.판단근거",
+    "source": "units[].factors[]",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.개별요인누계",
+    "source": "units[].factors 곱",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.산정단가",
+    "source": "사례단가 × 비교치",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.결정단가",
+    "source": "계산 또는 근거 있는 직접결정",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.단가결정근거",
+    "source": "units[].override_reason 또는 정리기준",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.평가액",
+    "source": "결정단가 × 면적 후 금액정리",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "물건별평가.금액정리",
+    "source": "units[].amount_rounding",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "배정물건 {{물건별평가.기호}} — {{물건별평가.용도}}"
+    ]
+  },
+  {
+    "name": "배정물건.평가액",
+    "source": "units[] 평가 계산",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "배정물건평가합계",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "프리미엄",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "정리전입주권가액",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "전체입주권가액",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "최종정리기준",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "지분평가.분자",
+    "source": "share.numerator",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "지분평가.분모",
+    "source": "share.denominator",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "지분평가.지분율",
+    "source": "share",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "지분평가.지분가액",
+    "source": "전체 정리 후 지분 적용 및 정리",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "지분평가.지분정리기준",
+    "source": "share.rounding",
+    "kind": "입력",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "최종금액",
+    "source": "engine.model 단일 계산결과",
+    "kind": "계산",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  },
+  {
+    "name": "결정의견",
+    "source": "평가사 작성·확정 문장",
+    "kind": "판단문장",
+    "required": true,
+    "locations": [
+      "V. 입주권 감정평가액 결정"
+    ]
+  }
+]
