@@ -60,6 +60,8 @@
   .etc-item{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;}
   .etc-item .lab{width:26px;flex-shrink:0;font-weight:700;font-size:13px;padding-top:6px;text-align:right;color:#1e293b;}
   .etc-item textarea{flex:1;min-width:0;box-sizing:border-box;border:1px solid #dce2e9;border-radius:4px;background:#fff;color:#1e293b;font:inherit;font-size:12px;padding:5px 8px;line-height:1.6;resize:vertical;min-height:46px;}
+  /* 사용자가 끼워 넣거나 고친 문구(양식 기본 문구가 아닌 것)는 빨간 글씨 — 다른 칸의 "직접 고친 값" 규칙과 같다 */
+  .etc-item.user .lab,.etc-item.user textarea{color:#dc2626;font-weight:700;}
   .etc-item .ops{display:flex;flex-direction:column;gap:3px;flex-shrink:0;}
   .etc-item .ops .btn{padding:2px 7px;font-size:11px;line-height:1.4;}
   .etc-item .ops .btn[disabled]{opacity:.35;cursor:default;}
@@ -794,6 +796,7 @@
         <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 4. 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
         <div class="row"><button class="btn gh" id="btnYohang">📄 5. 요항표 (.hwpx)</button><span class="hint">대상물건 정보 자동 · 추가 문구는 <b>6. 요항표</b> 탭에서 채웁니다</span></div>
         <input type="hidden" id="doc_yohang">
+        <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px dashed #e2e5ea"><button class="btn" id="btnAllDocs" onclick="downloadAllDocs()">📦 1~5 일괄 받기</button><span class="hint">표지·괄호감정표·의견서·명세표·요항표 다섯 파일을 한 번에 받습니다. 브라우저가 「여러 파일 다운로드 허용」을 물으면 <b>허용</b>을 누르세요(처음 한 번). 청구서(99)는 「8. 청구서 다운로드」 탭에서 따로.</span></div>
 
         <div id="doc_status" class="status" role="status"></div>
       </div>
@@ -2624,6 +2627,40 @@ function downloadGwal(){
 // 표지 토큰맵 — 의뢰인·건명(본건 소재지)·접수번호
 function pyojiMap(){return {'의뢰인':cgVal('ov_client'),'건명':cheongguAddr(),'접수번호':cgVal('ov_caseNo')};}
 function downloadPyoji(){return makeDoc('템플릿/토건 표지 템플릿.hwpx',pyojiMap(),'1. 표지');}
+// 1~5 일괄 받기 — 다섯 문서를 먼저 전부 만들어 두고(하나라도 못 만들면 그 문서만 빼고 알린다) 순서대로 내려받는다.
+// 파일마다 잠깐 간격을 두어 브라우저가 첫 파일만 받고 나머지를 막는 일을 줄인다(그래도 「여러 파일 다운로드 허용」은 사용자가 한 번 눌러야 함).
+// zip으로 묶지 않는 이유: 공용 zip 엔진(arap_cheonggu.js)이 파일 이름에 UTF-8 표시를 안 붙여 윈도우 탐색기에서 한글 이름이 깨진다.
+async function downloadAllDocs(){
+  var A=window.ArapCheonggu,btn=document.getElementById('btnAllDocs'),st=document.getElementById('doc_status');
+  if(!A||!window.ArapTojiOpinion||!window.ArapTojiDocuments){alert('문서 엔진이 아직 로드되지 않았습니다. 새로고침 후 다시 시도하세요.');return;}
+  btn.disabled=true;
+  try{
+    calcGongsi();renderBldCalc();calcFinal();
+    var br=bldResult();
+    if(br.size&&!br.total&&!confirm('건물 재조달원가가 입력되지 않아 괄호감정표·의견서의 건물가액이 빈칸으로 나갑니다.\n건물 탭에서 층별 재조달원가를 입력하세요.\n\n그래도 지금 받으시겠습니까?'))return;
+    var who=cgVal('ov_client')||'의뢰인';
+    var jobs=[
+      {name:'1. 표지_'+who+'.hwpx',make:async function(){return A.buildTokenHwpx(await fetchTplB64('템플릿/토건 표지 템플릿.hwpx'),pyojiMap(),{});}},
+      {name:'2. 괄호감정표_'+who+'.hwpx',make:async function(){return A.buildTokenHwpx(await fetchTplB64('템플릿/토건 괄호감정표 템플릿.hwpx'),gwalMap(),{});}},
+      {name:'3. 의견서(산출근거)_'+who+'.hwpx',make:async function(){return ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());}},
+      {name:'4. 명세표_'+who+'.xlsx',make:async function(){return ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());}},
+      {name:'5. 요항표_'+who+'.hwpx',make:async function(){return ArapTojiDocuments.buildYohang();}}
+    ];
+    var made=[],failed=[];
+    for(var i=0;i<jobs.length;i++){
+      if(st)st.textContent='문서를 만드는 중… ('+(i+1)+'/'+jobs.length+') '+jobs[i].name;
+      try{made.push({name:jobs[i].name,bytes:await jobs[i].make()});}
+      catch(e){console.error('일괄 생성 실패',jobs[i].name,e);failed.push(jobs[i].name.replace(/_.*$/,'')+' — '+e.message);}
+    }
+    for(var k=0;k<made.length;k++){
+      A.triggerDownload(made[k].bytes,made[k].name);
+      if(k<made.length-1)await new Promise(function(r){setTimeout(r,600);});
+    }
+    if(st){st.className='status'+(failed.length?' err':'');
+      st.textContent=(made.length?made.length+'개 파일을 받았습니다. 한글에서 열어 확인하세요.':'')+(failed.length?' 못 만든 문서: '+failed.join(' / '):'');}
+  }catch(e){console.error('일괄 받기 실패',e);if(st){st.className='status err';st.textContent='일괄 받기 실패: '+e.message;}}
+  finally{btn.disabled=false;}
+}
 
 // ================= 그 밖의 사항 (의견서 Ⅰ. 6항) =================
 // 양식(토건 의견서 템플릿)의 가·나·다 고정 문구를 기본값으로 보여 주고, 사용자가 항목을 끼워 넣거나 고치면
@@ -2638,14 +2675,16 @@ var ETC_LABELS='가나다라마바사아자차카타파하';
 var ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();
 window.ETC_ITEMS=ETC_ITEMS;
 function etcLabel(i){return (i<ETC_LABELS.length?ETC_LABELS[i]:String(i+1))+'.';}
+// 양식 기본 문구가 아닌 것(끼워 넣었거나 고친 것) — 빈 칸은 아직 안 쓴 것이라 제외
+function etcIsUser(t){t=String(t==null?'':t).trim();return !!t&&ETC_ITEMS_DEFAULT.indexOf(t)<0;}
 function etcItemsChanged(){window.ETC_ITEMS=ETC_ITEMS;saveForm();}
 function renderEtcItems(){
   var box=document.getElementById('etcItemsBox');if(!box)return;
   var h='';
   ETC_ITEMS.forEach(function(t,i){
     var last=i===ETC_ITEMS.length-1;
-    h+='<div class="etc-item" data-i="'+i+'"><span class="lab">'+etcLabel(i)+'</span>'
-      +'<textarea rows="2" aria-label="그 밖의 사항 '+etcLabel(i)+'" oninput="ETC_ITEMS['+i+']=this.value;etcItemsChanged();">'+String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</textarea>'
+    h+='<div class="etc-item'+(etcIsUser(t)?' user':'')+'" data-i="'+i+'"><span class="lab">'+etcLabel(i)+'</span>'
+      +'<textarea rows="2" aria-label="그 밖의 사항 '+etcLabel(i)+'" oninput="ETC_ITEMS['+i+']=this.value;this.parentNode.classList.toggle(\'user\',etcIsUser(this.value));etcItemsChanged();">'+String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</textarea>'
       +'<span class="ops">'
       +'<button type="button" class="btn gh" title="이 항목 아래에 새 항목을 끼워 넣습니다" onclick="etcItemAdd('+i+')">＋ 아래에 추가</button>'
       +'<span style="display:flex;gap:3px"><button type="button" class="btn gh" title="위로" onclick="etcItemMove('+i+',-1)"'+(i===0?' disabled':'')+'>▲</button>'

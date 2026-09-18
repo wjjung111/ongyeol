@@ -26,7 +26,11 @@ async function etcSection(page){return page.evaluate(async()=>{
   const entries=await ArapCheonggu.parseZip(bytes.buffer),sec=entries.find(e=>e.name==='Contents/section0.xml');
   const xml=new TextDecoder().decode(sec.data),doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.querySelector('parsererror'))throw Error('XML 오류');
-  const HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
+  const HP='http://www.hancom.co.kr/hwpml/2011/paragraph',HH='http://www.hancom.co.kr/hwpml/2011/head';
+  const hd=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>e.name==='Contents/header.xml').data),'application/xml');
+  const cpl=hd.getElementsByTagNameNS(HH,'charProperties')[0],cps=Array.from(cpl.getElementsByTagNameNS(HH,'charPr'));
+  const header={itemCnt:Number(cpl.getAttribute('itemCnt')),count:cps.length,contiguous:cps.every((c,i)=>c.getAttribute('id')===String(i)),
+    color:Object.fromEntries(cps.map(c=>[c.getAttribute('id'),(c.getAttribute('textColor')||'').toUpperCase()]))};
   const ps=Array.from(doc.documentElement.children).filter(n=>n.namespaceURI===HP&&n.localName==='p');
   const h=ps.findIndex(p=>/^6\.\s*그 밖의 사항/.test(p.textContent.trim()));
   const out=[];let lines=0;const pr0=ps[h+1].getAttribute('paraPrIDRef');
@@ -34,7 +38,7 @@ async function etcSection(page){return page.evaluate(async()=>{
     if(p.getElementsByTagNameNS(HP,'lineseg').length)lines++;
     const runs=Array.from(p.children).filter(n=>n.localName==='run').map(r=>({pr:r.getAttribute('charPrIDRef'),t:Array.from(r.getElementsByTagNameNS(HP,'t')).map(t=>t.textContent).join('')}));
     out.push({pr:p.getAttribute('paraPrIDRef'),text:p.textContent,runs});}
-  return {paras:out,lines,tokens:(xml.match(/\{\{[^}]+\}\}/g)||[]).length};
+  return {paras:out,lines,tokens:(xml.match(/\{\{[^}]+\}\}/g)||[]).length,header,redLeft:(xml.match(/TW:/g)||[]).length};
 });}
 const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).map(d=>({lab:d.querySelector('.lab').textContent,val:d.querySelector('textarea').value}));
 (async()=>{
@@ -42,7 +46,7 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||'msedge'});
   const errs=[];
   try{
-    const ctx=await browser.newContext();const page=await ctx.newPage();
+    const ctx=await browser.newContext({acceptDownloads:true});const page=await ctx.newPage();
     page.on('pageerror',e=>errs.push(e.message));page.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text());});
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     page.on('dialog',d=>d.accept());
@@ -80,6 +84,19 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
     console.log('③ 의견서',texts(sec4).map(t=>t.slice(0,14)));
     assert.deepEqual(texts(sec4).map(t=>t.slice(0,2)),['가.','나.','다.','라.']);
     assert.ok(texts(sec4)[1].startsWith('나. 본건 건물은 현황 무허가'));
+    // 끼워 넣은 항목만 빨간 글씨: 화면(.user) + 한글(빨간 쌍둥이 글자모양, 목록 끝에 추가·id 연속·itemCnt 일치)
+    assert.deepEqual(await page.evaluate(()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).map(d=>d.classList.contains('user'))),[false,true,false,false],'화면: 끼워 넣은 항목만 빨강');
+    const filled4=sec4.paras.filter(p=>p.text.trim());
+    const prs=filled4.map(p=>p.runs.map(r=>r.pr).join('/'));
+    console.log('③ 글자모양',prs,sec4.header);
+    assert.equal(prs[0],'32/36');assert.equal(prs[2],'32/36');assert.equal(prs[3],'32/36','기본 문구는 양식 글자모양(검정)');
+    assert.equal(sec4.redLeft,0,'TW: 표시가 남지 않는다');
+    assert.ok(filled4[1].runs.every(r=>sec4.header.color[r.pr]==='#FF0000'),'끼워 넣은 항목의 런은 빨간 글자모양');
+    assert.equal(sec4.header.color['32'],'#000000');assert.equal(sec4.header.color['36'],'#000000');
+    assert.equal(sec4.header.itemCnt,sec4.header.count);assert.ok(sec4.header.contiguous,'글자모양 id 연속');
+    assert.equal(sec4.header.count,plain.header.count+2,'빨간 쌍둥이 2개(번호·본문)만 추가');
+    const tplCount=await page.evaluate(async()=>{const b=await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx');const es=await ArapCheonggu.parseZip(Uint8Array.from(atob(b),c=>c.charCodeAt(0)).buffer);return (new TextDecoder().decode(es.find(e=>e.name==='Contents/header.xml').data).match(/<hh:charPr /g)||[]).length;});
+    assert.equal(plain.header.count,tplCount,'기본 문구만이면 글자모양 목록은 양식 그대로');
     assert.equal(sec4.paras.length,7,'항목 4 + 사이 빈 줄 3');
     assert.equal(sec4.lines,0,'갈아 끼운 문단은 줄배치 캐시 없음');
     assert.ok(sec4.paras.every(p=>p.pr==='39'),'문단모양은 양식 그대로');
@@ -115,6 +132,22 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
     assert.ok((await page.evaluate(items))[0].val.startsWith('본건 토지와 건물'),'새 건은 기본 문구');
     await page.evaluate(()=>{const o=collect();delete o.etcItems;ETC_ITEMS.length=0;applyForm(o);});
     assert.deepEqual((await page.evaluate(items)).map(x=>x.lab),['가.','나.','다.'],'옛 저장은 기본 문구');
+
+    // ⑧ 7번 탭 「1~5 일괄 받기」 — 다섯 파일이 번호 순서로 내려온다
+    await fixture(page);
+    await page.evaluate(()=>showTab('doc'));
+    // 파일 이름은 엔진의 triggerDownload 호출을 가로채 확인(헤드리스 크로미움은 blob 다운로드 이름을 'download'로 보고할 때가 있다)
+    const dl=[];page.on('download',d=>dl.push(1));
+    await page.evaluate(()=>{window.__names=[];const o=ArapCheonggu.triggerDownload;ArapCheonggu.triggerDownload=(b,n)=>{window.__names.push([n,b.length]);return o(b,n);};});
+    await page.locator('#btnAllDocs').click();
+    await page.waitForFunction(()=>/파일을 받았습니다/.test(document.getElementById('doc_status').textContent),null,{timeout:60000});
+    await page.waitForTimeout(500);
+    const names=await page.evaluate(()=>window.__names.map(x=>x[0]));
+    console.log('⑧ 일괄',await page.evaluate(()=>window.__names),'다운로드 이벤트',dl.length,await page.evaluate(()=>document.getElementById('doc_status').textContent));
+    assert.equal(dl.length,5,'다운로드 5건');
+    assert.ok(await page.evaluate(()=>window.__names.every(x=>x[1]>1000)),'파일마다 내용이 있다');
+    assert.deepEqual(names,['1. 표지_검증 의뢰인.hwpx','2. 괄호감정표_검증 의뢰인.hwpx','3. 의견서(산출근거)_검증 의뢰인.hwpx','4. 명세표_검증 의뢰인.xlsx','5. 요항표_검증 의뢰인.hwpx']);
+    assert.ok(!(await page.evaluate(()=>document.getElementById('btnAllDocs').disabled)));
 
     assert.deepEqual(errs,[]);
     console.log('toji_etc_items OK');
