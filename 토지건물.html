@@ -1022,7 +1022,24 @@ var LANDS=[{}],STDS=[{}];
 var SAJ_MODE={land:'direct',bld:'direct'};
 var fmtArea=function(n){return Number(n||0).toLocaleString('ko-KR',{maximumFractionDigits:4});};
 function roundArea(n){return Math.round(n*10000)/10000;}
-function shareArea(gongbu,share){var g=num(gongbu),s=num(share);return (g&&s)?roundArea(g*s/100):null;}
+// 지분 입력은 **퍼센트(50, 33.33)와 분수(1/2, 3/10) 둘 다** 받는다 — 평가사가 쓰는 표기가 분수라서.
+// num()은 '1/2'를 12로 읽어 버리므로 분수는 여기서 따로 계산한다.
+function parseShare(v){
+  var s=String(v==null?'':v).trim();
+  var m=s.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+  if(m){var a=parseFloat(m[1]),b=parseFloat(m[2]);return b?a/b*100:0;}
+  return num(s);
+}
+function shareArea(gongbu,share){var g=num(gongbu),s=parseShare(share);return (g&&s)?roundArea(g*s/100):null;}
+// 문서(의견서)에 적을 지분 표기 — 분수로 적었으면 그대로, %면 딱 떨어질 때만 분수로, 아니면 '33.33%'
+function shareLabel(L){
+  var raw=String((L&&L['지분'])||'').trim();
+  if(!raw)return '';
+  if(raw.indexOf('/')>=0)return raw.replace(/\s+/g,'');
+  var p=num(raw);if(!p)return '';
+  for(var d=1;d<=1000;d++){var n=p*d/100;if(Math.abs(n-Math.round(n))<1e-9)return Math.round(n)+'/'+d;}
+  return (Math.round(p*10000)/10000)+'%';
+}
 // 평가에 쓰는 토지 면적 — 사정면적이 있으면 그 값, 없으면 공부면적
 function landArea(L){var s=num(L&&L['사정면적']);return s?s:num(L&&L['면적']);}
 // 평가에 쓰는 건물 면적 — 같은 규칙(공부면적 = 연면적)
@@ -1035,7 +1052,7 @@ function sajHead(kind){
     +'<option value="share"'+(SAJ_MODE[kind]==='share'?' selected':'')+'>지분입력</option></select>';
 }
 var SAJ_TITLE='사정면적 — 값이 있으면 이 면적으로 평가액이 계산됩니다(비우면 공부면적). 지분입력으로 자동 채운 값도 자유롭게 고칠 수 있습니다.';
-var SHARE_TITLE='지분(%) — 예: 50, 33.33. 넣으면 공부면적 × 지분으로 사정면적이 자동 채워집니다.';
+var SHARE_TITLE='지분 — 퍼센트(50, 33.33)도 되고 분수(1/2, 3/10)도 됩니다. 넣으면 공부면적 × 지분으로 사정면적이 자동 채워지고, 의견서 시산가액 표에는 「223.7 x 1/2 = 111.85」처럼 적힙니다.';
 function setSajMode(kind,v){
   SAJ_MODE[kind]=(v==='share')?'share':'direct';
   if(kind==='land'){
@@ -1085,7 +1102,7 @@ function renderLands(){
         return '<td><input value="'+esc(L['면적'])+'" oninput="LANDS['+i+'][\'면적\']=this.value;landAreaChanged('+i+');"></td>'
           +'<td class="jud-c"><input value="'+esc(L['사정면적'])+'" placeholder="'+(share?'자동':'공부면적')+'" title="'+SAJ_TITLE+'"'
           +' oninput="LANDS['+i+'][\'사정면적\']=this.value;landChanged();"></td>'
-          +(share?('<td class="jud-c"><input value="'+esc(L['지분'])+'" placeholder="예 50" title="'+SHARE_TITLE+'"'
+          +(share?('<td class="jud-c"><input value="'+esc(L['지분'])+'" placeholder="50 또는 1/2" title="'+SHARE_TITLE+'"'
             +' oninput="LANDS['+i+'][\'지분\']=this.value;landShareChanged('+i+');"></td>'):'');
       return '<td><input value="'+esc(L[c])+'" oninput="LANDS['+i+'][\''+c+'\']=this.value;landChanged();"></td>';}).join('');
     if(multiStd){
@@ -1131,7 +1148,7 @@ function addBldRow(v){v=v||{};
   var tr=document.createElement('tr');
   tr.innerHTML=BLD_COLS.map(function(k){
     var cls=k==='사정면적'?' class="jud-c"':k==='지분'?' class="jud-c sajShare"':'';
-    var ph=k==='사정면적'?(SAJ_MODE.bld==='share'?'자동':'연면적'):k==='지분'?'예 50':'';
+    var ph=k==='사정면적'?(SAJ_MODE.bld==='share'?'자동':'연면적'):k==='지분'?'50 또는 1/2':'';
     var ti=k==='사정면적'?SAJ_TITLE:k==='지분'?SHARE_TITLE:'';
     return '<td data-k="bld.'+k+'"'+cls+'><input type="text" value="'+esc(v[k])+'" placeholder="'+ph+'" title="'+ti+'"></td>';}).join('')
     +'<td><span class="del" title="삭제">✕</span></td>';
@@ -2317,7 +2334,7 @@ function calcFinal(){
 // ================= 좌측 요약 사이드바 =================
 // 예시 회색글씨(placeholder): 본건 토지가 한 번 조회돼 실제 소재지가 들어오면 "예: 안양시 동안구 …" 같은 예시값은 전부 지운다.
 // '-'·'반올림'·'kais붙여넣기'·'⏳ 계산 중…'처럼 형식 안내인 것만 남긴다. 본건이 비면 원래 예시로 되돌린다.
-var KEEP_PH=['-','반올림','자동','kais붙여넣기','⏳ 계산 중…','예 50','공부면적','연면적'];   // 사정면적·지분 칸 안내는 계속 보여준다
+var KEEP_PH=['-','반올림','자동','kais붙여넣기','⏳ 계산 중…','50 또는 1/2','공부면적','연면적'];   // 사정면적·지분 칸 안내는 계속 보여준다
 function hideExamples(){
   var has=!!String((LANDS[0]||{})['소재지']||'').trim();
   document.querySelectorAll('input,textarea').forEach(function(el){

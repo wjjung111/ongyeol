@@ -39,7 +39,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   const share=await page.evaluate(()=>{
     document.getElementById('landSajMode').value='share';
     document.getElementById('landSajMode').dispatchEvent(new Event('change'));
-    const shareInput=[...document.querySelectorAll('#landTbl input')].find(i=>i.placeholder==='예 50');
+    const shareInput=[...document.querySelectorAll('#landTbl input')].find(i=>i.placeholder==='50 또는 1/2');
     shareInput.value='50';shareInput.dispatchEvent(new Event('input'));
     return {saj:LANDS[0]['사정면적'],size:GONGSI_RESULT.size,gongbu:GONGSI_RESULT.gongbuSize,total:GONGSI_RESULT.total,
             sajSum:document.getElementById('landSajSum').textContent,
@@ -128,6 +128,33 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   console.log('⑧ 명세표 행',st);
   assert.equal(st[0].공부,271.3);assert.equal(st[0].사정,135.6);
   assert.equal(st[1].공부,100);assert.equal(st[1].사정,30);
+
+  // ⑨ 의견서 시산가액 표: 평가에 쓴 사정면적이 「공부 x 지분 = 사정」으로 적힌다(공시지가기준법·거래사례비교법 둘 다)
+  const opinion=await page.evaluate(async()=>{
+    // 지분을 분수(1/2)로 적어도 받아야 한다
+    const inp=sel=>[...document.querySelectorAll('#landTbl input')].find(sel);
+    const gongbu=inp(i=>i.value===String(LANDS[0]['면적']));
+    gongbu.value='223.7';gongbu.dispatchEvent(new Event('input',{bubbles:true}));
+    const shareInput=inp(i=>i.placeholder==='50 또는 1/2');
+    shareInput.value='1/2';shareInput.dispatchEvent(new Event('input',{bubbles:true}));
+    const saj=LANDS[0]['사정면적'];
+    const maps=ArapTojiOpinion.data();
+    const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),maps);
+    const entries=await ArapCheonggu.parseZip(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
+    const xml=new TextDecoder().decode(entries.find(e=>e.name==='Contents/section0.xml').data);
+    const doc=new DOMParser().parseFromString(xml,'application/xml');
+    if(doc.querySelector('parsererror'))throw Error('XML 오류');
+    const cells=[...doc.getElementsByTagNameNS('*','tc')].map(c=>c.textContent.replace(/\s+/g,' ').trim());
+    return {saj,area:maps.parcels[0]['토지_사정면적'],gongbu:maps.parcels[0]['토지_면적'],
+            cells:cells.filter(t=>t.includes('223.7')||t.includes('111.85')),left:(xml.match(/\{\{[^}]+\}\}/g)||[])};
+  });
+  console.log('⑨ 의견서 면적 칸',opinion);
+  assert.equal(opinion.saj,'111.85','분수 지분(1/2)도 사정면적으로 계산된다');
+  assert.equal(opinion.area,'223.7 x 1/2 = 111.85');
+  assert.equal(opinion.gongbu,'223.7','물건 표는 공부면적 그대로');
+  assert.equal(opinion.cells.filter(t=>t==='223.7 x 1/2 = 111.85').length,2,'공시지가기준법·거래사례비교법 시산가액 표 두 곳');
+  assert.ok(opinion.cells.includes('223.7'),'물건 표의 공부면적은 그대로');
+  assert.deepEqual(opinion.left,[],'남은 토큰 없음');
 
   if(errs.length){console.log('페이지 오류',errs);throw new Error('page errors');}
   console.log('✅ 모두 통과');
