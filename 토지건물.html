@@ -647,7 +647,8 @@
           <button class="btn gh sm" onclick="mapCheckKinds(false)">모두 체크해제</button>
           <span style="color:#626b78;font-weight:400">테두리가 굵고 속이 옅게 칠해진 것 = 본건·선정한 비교표준지·지금 채택된 사례 (나머지는 테두리만)</span>
         </div>
-        <div id="mapBox" style="height:640px;border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5"></div>
+        <!-- 지도 높이: 화면이 큰 모니터에선 세로로 더 길게(85vh), 노트북처럼 낮은 화면에서도 최소 760px -->
+        <div id="mapBox" style="height:max(760px,85vh);border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5"></div>
         <div id="mapStatus" class="status" style="margin-top:7px">위치도 탭을 열면 주소를 조회합니다.</div>
         <div id="mapMiss"></div>
       </div>
