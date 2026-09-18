@@ -809,10 +809,10 @@
           <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
           <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
             <td class="cg-in"><div class="mul-row">
-              <input type="text" id="cg_special" placeholder="0">
-              <span class="mul-x">×</span>
-              <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 청구서에는 왼쪽 금액 × 배수가 나갑니다. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다." oninput="renderCheonggu();saveForm();">
-            </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden></div></td></tr>
+              <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
+              <span class="mul-x" id="cg_specialMulX">×</span>
+              <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다. 직접입력 방식에서는 쓰이지 않습니다." oninput="CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();">
+            </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(예: 351,223 → 351,000). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
           <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
           <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
           <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
@@ -821,7 +821,7 @@
           <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
         </table></div>
         <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
-        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료 <b>× 배수</b>를 <b>천원 미만 절사</b>(배수 칸이 비면 1배). <b>수수료 요율 옆 배수를 고치면 특별용역비 배수도 같은 값으로 따라오고</b>, 그 뒤 특별용역비 배수만 따로 고칠 수 있습니다 — 특별용역비는 <b>적어 둔 금액 × 배수</b>가 청구서에 나갑니다(칸 아래에 적용액 표시). 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
+        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료 <b>× 배수</b>를 <b>천원 미만 절사</b>(배수 칸이 비면 1배). 특별용역비는 <b>직접입력이면 적은 금액이 그대로</b> 나가고(배수 없음), <b>상한-하한·기준-하한이면 차액 × 배수</b>가 칸 아래 <b>적용액</b>에 채워집니다 — 적용액은 그대로 고칠 수 있고(예: 351,223 → 351,000), 차액·배수를 다시 고치면 자동값으로 돌아갑니다. 수수료 옆 배수를 고치면 특별용역비 배수도 같은 값으로 따라옵니다. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
           여비는 본건 소재지 기준으로 자동 입력되고, 물건조사비·공부발급비는 기본 15,000원이며 모든 칸은 직접 고칠 수 있습니다.</div>
       </div>
     </div>
@@ -2351,7 +2351,8 @@ var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결�
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
 var Y_IDS=['y_dong','y_near','y_surroundings','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate'];
-var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
+var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_specialApplied','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
+var CG_SPECIAL_MANUAL=false;  // 특별용역비 적용액(차액 × 배수)을 평가사가 직접 고쳤는지 — 고쳤으면 자동값으로 덮지 않는다
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
 
 // ================= 청구서 (한글 hwpx) — 엔진은 arap_cheonggu.js(집합건물 청구서와 동일 양식·계산) =================
@@ -2371,15 +2372,20 @@ function cheongguAddr(){
 function cgMul(id){var v=num(cgVal(id));return (v>0&&isFinite(v))?v:1;}
 function cgFeeMul(){return cgMul('cg_feeMul');}
 function cgSpecialMul(){return cgMul('cg_specialMul');}
-// 특별용역비 = 적어 둔 금액 × 배수 (원 미만 절사) — 청구서·합계에 이 값이 나간다
+// 특별용역비(청구서·합계에 나가는 값)
+//  · 직접입력: 칸에 적은 금액 그대로(배수 없음 — 평가사가 원하는 액수를 바로 적는 방식)
+//  · 상한-하한/기준-하한: 차액 × 배수(원 미만 절사)를 '적용액' 칸에 채우고, 평가사가 그 칸을 고쳤으면 고친 값
+function cgSpecialIsDirect(){return (cgVal('cg_specialMode')||'직접입력')==='직접입력';}
+function cgSpecialAutoApplied(){return Math.trunc(num(cgVal('cg_special'))*cgSpecialMul());}
 function cgSpecialApplied(){
-  var base=num(cgVal('cg_special')),m=cgSpecialMul();
-  return Math.trunc(base*m);
+  if(cgSpecialIsDirect())return num(cgVal('cg_special'));
+  if(CG_SPECIAL_MANUAL&&hasV(cgVal('cg_specialApplied')))return num(cgVal('cg_specialApplied'));
+  return cgSpecialAutoApplied();
 }
 // 수수료 배수를 고치면 특별용역비 배수도 같은 값으로 따라온다(그 뒤 따로 고칠 수 있음)
 function cgFeeMulIn(v){
   var sp=document.getElementById('cg_specialMul');
-  if(sp)sp.value=v;
+  if(sp&&sp.value!==v){sp.value=v;CG_SPECIAL_MANUAL=false;}
   renderCheonggu();saveForm();
 }
 // 수수료 계산서 인식 + 실비/착수금으로 청구금액 계산 (없으면 null)
@@ -2408,14 +2414,14 @@ function cgTravelAuto(){
 // 여비·특별용역비의 자동값 복원(↺) — 집합건물 청구서와 같은 구성
 function cgResetTravel(){CG_TRAVEL_MANUAL=false;var el=document.getElementById('cg_travel');if(el)el.value=won(cgTravelAuto());renderCheonggu();saveForm();}
 function cgResetSpecial(){var v=cgSpecialAuto(),el=document.getElementById('cg_special');
-  if(v==null||!el)return;el.value=won(Number(v));el.dataset.autoKey=v;renderCheonggu();saveForm();}
+  if(v==null||!el)return;el.value=won(Number(v));el.dataset.autoKey=v;CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();}
 function renderCheonggu(){
   var A=window.ArapCheonggu;
   // 여비·물건조사비·공부발급비 자동 채움(비어 있고 편집 중이 아닐 때)
   var tv=document.getElementById('cg_travel');
   if(tv&&document.activeElement!==tv&&!CG_TRAVEL_MANUAL)tv.value=won(cgTravelAuto());
   var sp=document.getElementById('cg_special'),spAuto=cgSpecialAuto();
-  if(sp&&spAuto!=null&&document.activeElement!==sp&&sp.dataset.autoKey!==spAuto){sp.value=won(Number(spAuto));sp.dataset.autoKey=spAuto;}
+  if(sp&&spAuto!=null&&document.activeElement!==sp&&sp.dataset.autoKey!==spAuto){sp.value=won(Number(spAuto));sp.dataset.autoKey=spAuto;CG_SPECIAL_MANUAL=false;}   // 차액이 새로 채워지면 적용액도 다시 자동
   var undo=document.getElementById('cgUndoSpecial');if(undo)undo.hidden=(spAuto==null);
   var sv=document.getElementById('cg_survey');if(sv&&!hasV(sv.value)&&document.activeElement!==sv)sv.value='15,000';
   var dv=document.getElementById('cg_doc');if(dv&&!hasV(dv.value)&&document.activeElement!==dv)dv.value='15,000';
@@ -2427,13 +2433,19 @@ function renderCheonggu(){
   var fm=A?A.fmt:function(n){return won(n);};
   var put=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v?fm(v)+' 원':'-';};
   ['cgv_fee','cgv_sub','cgv_sum','cgv_vat','cgv_total','cgv_due'].forEach(function(id){put(id,null);});
-  // 배수(할증) 칸 — 1이 아니면 파랗게, 특별용역비는 '× 배수 = 실제 청구액'을 칸 아래에 보여준다
-  var fmul=cgFeeMul(),smul=cgSpecialMul();
+  // 배수(할증) 칸 — 1이 아니면 파랗게. 특별용역비는 직접입력이면 배수 칸을 숨기고(적은 금액 그대로),
+  // 차액 방식이면 '= 적용액' 입력칸을 칸 아래에 보여준다(자동 채움, 평가사가 고치면 그 값 유지)
+  var fmul=cgFeeMul(),smul=cgSpecialMul(),direct=cgSpecialIsDirect();
   var fMulEl=document.getElementById('cg_feeMul'),sMulEl=document.getElementById('cg_specialMul');
   if(fMulEl)fMulEl.classList.toggle('on',fmul!==1);
-  if(sMulEl)sMulEl.classList.toggle('on',smul!==1);
-  var eq=document.getElementById('cg_specialEq');
-  if(eq){eq.hidden=(smul===1);eq.textContent='× '+smul+' = '+fm(cgSpecialApplied())+' 원';}
+  if(sMulEl){sMulEl.classList.toggle('on',!direct&&smul!==1);sMulEl.hidden=direct;}
+  var sMulX=document.getElementById('cg_specialMulX');if(sMulX)sMulX.hidden=direct;
+  var eq=document.getElementById('cg_specialEq'),ap=document.getElementById('cg_specialApplied');
+  if(eq)eq.hidden=direct;
+  if(ap&&!direct){
+    if(!CG_SPECIAL_MANUAL||!hasV(ap.value)){if(document.activeElement!==ap)ap.value=won(cgSpecialAutoApplied());CG_SPECIAL_MANUAL=false;}
+    ap.classList.toggle('on',CG_SPECIAL_MANUAL);
+  }
   var mulNote=document.getElementById('cg_mulNote');
   if(mulNote)mulNote.textContent=fmul!==1?('평가수수료 '+fmul+'배 적용'):'';
   if(!c){
@@ -2610,7 +2622,7 @@ function collect(){
   o.yohang={};Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.yohang[id]=el.value;});
   o.TOICE=TOICE;
   CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.cg[id]=el.value;});
-  o.cgTravelManual=CG_TRAVEL_MANUAL;
+  o.cgTravelManual=CG_TRAVEL_MANUAL;o.cgSpecialManual=CG_SPECIAL_MANUAL;
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};
   return o;
@@ -2748,6 +2760,7 @@ function applyForm(o){
   // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.
   CG_TRAVEL_MANUAL=typeof o.cgTravelManual==='boolean'?o.cgTravelManual:
     (hasV(cgVal('cg_travel'))&&num(cgVal('cg_travel'))!==40000&&num(cgVal('cg_travel'))!==cgTravelAuto());
+  CG_SPECIAL_MANUAL=o.cgSpecialManual===true;
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
   return true;
 }
@@ -2805,7 +2818,7 @@ function clearForm(){
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  CG_TRAVEL_MANUAL=false;
+  CG_TRAVEL_MANUAL=false;CG_SPECIAL_MANUAL=false;
   Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;}});TOICE={};
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
 }
@@ -2987,7 +3000,11 @@ function initMemoResize(){
 GONGSI_IDS.concat(GEORAE_IDS).forEach(function(id){
   var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',saveForm);});
 CG_IDS.forEach(function(id){
-  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){if(id==='cg_travel')CG_TRAVEL_MANUAL=hasV(el.value);renderCheonggu();saveForm();});});
+  var el=document.getElementById(id);if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',function(){if(id==='cg_travel')CG_TRAVEL_MANUAL=hasV(el.value);
+    if(id==='cg_specialApplied')CG_SPECIAL_MANUAL=hasV(el.value);   // 적용액을 손으로 고침 → 자동값으로 덮지 않음(비우면 자동 복귀)
+    if(id==='cg_special')CG_SPECIAL_MANUAL=false;                    // 차액(기초값)을 고치면 적용액은 다시 자동
+    renderCheonggu();saveForm();});});
+document.getElementById('cg_specialApplied').addEventListener('blur',function(){renderCheonggu();saveForm();});
 Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',saveForm);});
 document.getElementById('cg_travel').addEventListener('blur',function(){renderCheonggu();saveForm();});
 if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});}
