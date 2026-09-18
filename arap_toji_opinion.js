@@ -145,7 +145,42 @@ function opinionData(){
   });});
   return {global:m,detail:detail,parcels:parcels,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
-    trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea};
+    trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
+    // 그 밖의 사항(6항) — 첫 탭 목록. 화면이 없으면(null) 양식 문단을 그대로 둔다. 빈 항목은 뺀다.
+    etcItems:Array.isArray(window.ETC_ITEMS)?window.ETC_ITEMS.map(function(s){return text(s).trim();}).filter(Boolean):null};
+}
+// 「6. 그 밖의 사항」 아래 가·나·다 문단을 화면 목록으로 갈아 끼운다. 양식에는 토큰이 없으므로 제목을 찾아 그 아래
+// 같은 문단모양(paraPrIDRef)이 이어지는 동안을 6항 본문으로 본다(가·빈줄·나·빈줄·다). 첫 항목 문단이 번호 런("가.")과
+// 본문 런으로 나뉘어 있어 그 둘만 바꾸고, 항목 사이 빈 줄은 양식의 빈 문단을 복제한다. 한 항목 안의 줄바꿈은 번호 없는 문단.
+var ETC_LABELS='가나다라마바사아자차카타파하';
+function etcLabel(i){return (i<ETC_LABELS.length?ETC_LABELS[i]:String(i+1))+'.';}
+function fillEtcSection(doc,items){
+  if(!items)return;
+  var ps=children(doc.documentElement,'p');
+  var h=ps.findIndex(function(p){return /^6\.\s*그\s*밖의\s*사항/.test(p.textContent.trim());});
+  if(h<0)return;
+  var body=[],pr=null;
+  for(var i=h+1;i<ps.length;i++){
+    var p=ps[i];if(pr==null)pr=p.getAttribute('paraPrIDRef');
+    if(p.getAttribute('paraPrIDRef')!==pr)break;
+    body.push(p);
+  }
+  var isLabel=function(r){var t=descendants(r,'t')[0];return !!t&&/^[가-힣]\.\s*$/.test(t.textContent);};
+  var item=body.find(function(p){return children(p,'run').some(isLabel);});
+  if(!item)return;                                                  // 양식이 달라졌으면 손대지 않는다
+  var sep=body.find(function(p){return !p.textContent.trim();});
+  var anchor=body[body.length-1].nextSibling,parent=item.parentNode;
+  body.forEach(function(p){p.remove();});
+  var make=function(label,line){
+    var c=item.cloneNode(true),runs=children(c,'run'),lab=runs.find(isLabel),txt=runs.filter(function(r){return r!==lab&&descendants(r,'t').length;}).pop();
+    descendants(lab,'t').forEach(function(t,k){t.textContent=k?'':label;});
+    if(txt)descendants(txt,'t').forEach(function(t,k){t.textContent=k?'':(label?' ':'')+line;});
+    clearLines(c);return c;
+  };
+  items.forEach(function(s,i){
+    if(i&&sep){var b=sep.cloneNode(true);clearLines(b);parent.insertBefore(b,anchor);}
+    text(s).split(/\r?\n/).forEach(function(line,k){parent.insertBefore(make(k?'':etcLabel(i),line),anchor);});
+  });
 }
 function descendants(el,name){return Array.from(el.getElementsByTagNameNS(HP,name));}
 function children(el,name){return Array.from(el.children).filter(function(n){return n.namespaceURI===HP&&n.localName===name;});}
@@ -376,6 +411,8 @@ function opinionXml(xml,data){
   tables.filter(function(t){var r=children(t,'tr')[0];return r&&r.textContent.replace(/\s/g,'')==='조건항목세항목';})
     .forEach(function(t,i){if(items[i])fillFactorTable(t,items[i]);});
   replacePlain(doc,'개별요인 비교항목(상업지대)','개별요인 비교항목('+daegu+')');
+  // 6. 그 밖의 사항 — 첫 탭 목록으로 가·나·다 문단을 갈아 끼운다(아래 평가목적 치환이 항목 문구에도 적용되도록 먼저).
+  fillEtcSection(doc,data.etcItems);
   // 원본의 고정 샘플 문구 중 이미 앱에서 입력받는 항목을 연결한다. 법령·방법론 본문은 유지.
   replacePlain(doc,'귀 제시일인',val('ov_gijunBasis')||'귀 제시일인');
   replacePlain(doc,'일반거래(시가참고)',val('ov_purpose'));
