@@ -147,6 +147,13 @@
   #cg_table td.cg-in{padding:3px 6px;}
   #cg_table td.cg-in input{text-align:right;padding:2px 4px;}
   .cg-undo{cursor:pointer;color:#2563eb;margin-left:4px;font-weight:700;}
+  /* 배수(할증) 칸 — 수수료 요율 옆, 특별용역비 옆. 1이 아니면 파란 글씨로 눈에 띄게 */
+  .mul-in{width:52px;text-align:center;padding:2px 3px;font:inherit;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;}
+  .mul-in.on{color:#2563eb;font-weight:700;border-color:#93c5fd;background:#eff6ff;}
+  .mul-x{color:#64748b;font-size:12px;margin:0 2px;}
+  #cg_table td.cg-in .mul-row{display:flex;align-items:center;gap:2px;justify-content:flex-end;}
+  #cg_table td.cg-in .mul-row input[type=text]:first-child{flex:1;min-width:0;}
+  .mul-eq{font-size:12px;font-weight:700;color:#2563eb;white-space:nowrap;}
   td.tt-c{font-size:11px;color:#475569;background:#f8fafc;line-height:1.35;}
   td.tt-c.sel{font-weight:700;color:#0f2547;background:#eef2f7;}
   td.tt-c.busy{color:#2563eb;animation:ttBlink 1s ease-in-out infinite;}
@@ -778,6 +785,9 @@
           <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
           <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
             <option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select>
+          <span class="mul-x">×</span>
+          <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" title="수수료 배수(할증) — 예: 1.5. (가)평가수수료 = 요율 수수료 × 배수(천원 미만 절사). 이 값을 고치면 특별용역비 배수도 같은 값으로 따라갑니다." oninput="cgFeeMulIn(this.value)">
+          <span class="hint" id="cg_mulNote" style="margin-left:2px"></span>
           <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
           <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
             <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option></select>
@@ -793,7 +803,11 @@
           <tr><td class="cg-n">공부발급비</td><td class="cg-in"><input type="text" id="cg_doc" placeholder="15,000"></td></tr>
           <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
           <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
-            <td class="cg-in"><input type="text" id="cg_special" placeholder="0"></td></tr>
+            <td class="cg-in"><div class="mul-row">
+              <input type="text" id="cg_special" placeholder="0">
+              <span class="mul-x">×</span>
+              <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 청구서에는 왼쪽 금액 × 배수가 나갑니다. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다." oninput="renderCheonggu();saveForm();">
+            </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden></div></td></tr>
           <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
           <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
           <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
@@ -802,7 +816,7 @@
           <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
         </table></div>
         <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
-        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료를 <b>천원 미만 절사</b>. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
+        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료 <b>× 배수</b>를 <b>천원 미만 절사</b>(배수 칸이 비면 1배). <b>수수료 요율 옆 배수를 고치면 특별용역비 배수도 같은 값으로 따라오고</b>, 그 뒤 특별용역비 배수만 따로 고칠 수 있습니다 — 특별용역비는 <b>적어 둔 금액 × 배수</b>가 청구서에 나갑니다(칸 아래에 적용액 표시). 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
           여비는 본건 소재지 기준으로 자동 입력되고, 물건조사비·공부발급비는 기본 15,000원이며 모든 칸은 직접 고칠 수 있습니다.</div>
       </div>
     </div>
@@ -2332,7 +2346,7 @@ var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결�
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
 var Y_IDS=['y_dong','y_near','y_surroundings','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate'];
-var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_travel','cg_survey','cg_doc','cg_etc'];
+var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
 
 // ================= 청구서 (한글 hwpx) — 엔진은 arap_cheonggu.js(집합건물 청구서와 동일 양식·계산) =================
@@ -2345,10 +2359,30 @@ function cheongguAddr(){
   var hasBld=/[1-9]/.test((document.getElementById('resBld')||{}).textContent||'');
   return (a||'-')+more+(hasBld?' 토지 및 건물':' 토지');
 }
+// ── 배수(할증) — 수수료 요율 옆·특별용역비 옆 칸 ──
+// 비었거나 이상한 값이면 1(할증 없음). 계산은 공용 엔진(arap_cheonggu.js)을 건드리지 않고
+// "엔진에 넣기 전 값"에 곱하는 방식 — 평가수수료는 요율 수수료에, 특별용역비는 적어 둔 금액에 곱한다.
+// (평가수수료의 천원 미만 절사는 곱한 뒤에 엔진이 그대로 한다.)
+function cgMul(id){var v=num(cgVal(id));return (v>0&&isFinite(v))?v:1;}
+function cgFeeMul(){return cgMul('cg_feeMul');}
+function cgSpecialMul(){return cgMul('cg_specialMul');}
+// 특별용역비 = 적어 둔 금액 × 배수 (원 미만 절사) — 청구서·합계에 이 값이 나간다
+function cgSpecialApplied(){
+  var base=num(cgVal('cg_special')),m=cgSpecialMul();
+  return Math.trunc(base*m);
+}
+// 수수료 배수를 고치면 특별용역비 배수도 같은 값으로 따라온다(그 뒤 따로 고칠 수 있음)
+function cgFeeMulIn(v){
+  var sp=document.getElementById('cg_specialMul');
+  if(sp)sp.value=v;
+  renderCheonggu();saveForm();
+}
 // 수수료 계산서 인식 + 실비/착수금으로 청구금액 계산 (없으면 null)
 function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
   var fee=A.parseFeeStatement(cgVal('cg_feeText'));if(!fee||!fee.하한수수료)return null;
-  return A.computeCheonggu(fee,cgVal('cg_downPayment'),cgVal('cg_special'),cgVal('cg_feeBasis'),
+  var m=cgFeeMul();
+  if(m!==1)fee={하한수수료:fee.하한수수료*m,기준수수료:(fee.기준수수료||0)*m,상한수수료:(fee.상한수수료||0)*m};
+  return A.computeCheonggu(fee,cgVal('cg_downPayment'),String(cgSpecialApplied()),cgVal('cg_feeBasis'),
     cgEmptyNull('cg_travel'),cgEmptyNull('cg_survey'),cgEmptyNull('cg_doc'),cgEmptyNull('cg_etc'));
 }
 // 특별용역비 방식 — 집합건물 청구서와 같은 로직. '상한-하한'·'기준-하한'이면 계산서의 수수료 차액을 칸에 채운다.
@@ -2388,6 +2422,15 @@ function renderCheonggu(){
   var fm=A?A.fmt:function(n){return won(n);};
   var put=function(id,v){var el=document.getElementById(id);if(el)el.textContent=v?fm(v)+' 원':'-';};
   ['cgv_fee','cgv_sub','cgv_sum','cgv_vat','cgv_total','cgv_due'].forEach(function(id){put(id,null);});
+  // 배수(할증) 칸 — 1이 아니면 파랗게, 특별용역비는 '× 배수 = 실제 청구액'을 칸 아래에 보여준다
+  var fmul=cgFeeMul(),smul=cgSpecialMul();
+  var fMulEl=document.getElementById('cg_feeMul'),sMulEl=document.getElementById('cg_specialMul');
+  if(fMulEl)fMulEl.classList.toggle('on',fmul!==1);
+  if(sMulEl)sMulEl.classList.toggle('on',smul!==1);
+  var eq=document.getElementById('cg_specialEq');
+  if(eq){eq.hidden=(smul===1);eq.textContent='× '+smul+' = '+fm(cgSpecialApplied())+' 원';}
+  var mulNote=document.getElementById('cg_mulNote');
+  if(mulNote)mulNote.textContent=fmul!==1?('평가수수료 '+fmul+'배 적용'):'';
   if(!c){
     if(btn)btn.disabled=true;if(res)res.textContent='-';
     if(st){st.textContent='계산서 붙여넣으면 평가수수료 자동입력';st.style.color='';}
