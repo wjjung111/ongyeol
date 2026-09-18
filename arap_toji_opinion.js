@@ -139,15 +139,19 @@ function opinionData(){
   // 계산표의 수동 공시지가 수정은 그 밖의 요인 표에만 적용한다.
   var detail=Object.assign({},m,{'표준지_공시지가':money(etc.price)});
   var parcels=LANDS.map(function(L,i){return parcelMap(L,i,gs,ga);});
-  var standards=STDS.map(function(S,i){return Object.assign(standardMap(S,i),{
-    '필지_번호':gs.rows.map(function(r,j){return r.stdIdx===i?j+1:null;}).filter(Boolean).join(', '),
-    '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2)
+  // _selected = 본건 필지 중 하나라도 이 표준지를 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)
+  var standards=STDS.map(function(S,i){var used=gs.rows.map(function(r,j){return r.stdIdx===i?j+1:null;}).filter(Boolean);
+    return Object.assign(standardMap(S,i),{
+    '필지_번호':used.join(', '),
+    '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2),
+    _selected:used.length>0
   });});
   return {global:m,detail:detail,parcels:parcels,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 그 밖의 사항(6항) — 첫 탭 목록. 화면이 없으면(null) 양식 문단을 그대로 둔다. 빈 항목은 뺀다.
-    etcItems:Array.isArray(window.ETC_ITEMS)?window.ETC_ITEMS.map(function(s){return text(s).trim();}).filter(Boolean):null};
+    // user = 양식 기본 문구가 아닌 것(끼워 넣었거나 고친 것) → 한글에서 빨간 글씨로 나가 검토하기 쉽게
+    etcItems:Array.isArray(window.ETC_ITEMS)?window.ETC_ITEMS.map(function(s){return {text:text(s).trim(),user:typeof etcIsUser==='function'&&etcIsUser(s)};}).filter(function(x){return x.text;}):null};
 }
 // 「6. 그 밖의 사항」 아래 가·나·다 문단을 화면 목록으로 갈아 끼운다. 양식에는 토큰이 없으므로 제목을 찾아 그 아래
 // 같은 문단모양(paraPrIDRef)이 이어지는 동안을 6항 본문으로 본다(가·빈줄·나·빈줄·다). 첫 항목 문단이 번호 런("가.")과
@@ -171,16 +175,75 @@ function fillEtcSection(doc,items){
   var sep=body.find(function(p){return !p.textContent.trim();});
   var anchor=body[body.length-1].nextSibling,parent=item.parentNode;
   body.forEach(function(p){p.remove();});
-  var make=function(label,line){
+  // 사용자가 넣은 항목의 런은 markRun(r) 로 빨강 표시 — buildOpinion이 header.xml에 쌍둥이 글자모양을 만든 뒤 실제 id로 바꾼다.
+  // (글자모양 목록은 끝에 이어 붙여 id 연속·itemCnt 일치 유지 — CLAUDE.md 위험 지점)
+  var make=function(label,line,user){
     var c=item.cloneNode(true),runs=children(c,'run'),lab=runs.find(isLabel),txt=runs.filter(function(r){return r!==lab&&descendants(r,'t').length;}).pop();
     descendants(lab,'t').forEach(function(t,k){t.textContent=k?'':label;});
     if(txt)descendants(txt,'t').forEach(function(t,k){t.textContent=k?'':(label?' ':'')+line;});
+    if(user)[lab,txt].forEach(function(r){if(r)markRun(r,'r');});
     clearLines(c);return c;
   };
   items.forEach(function(s,i){
+    var it=typeof s==='string'?{text:s,user:false}:s;
     if(i&&sep){var b=sep.cloneNode(true);clearLines(b);parent.insertBefore(b,anchor);}
-    text(s).split(/\r?\n/).forEach(function(line,k){parent.insertBefore(make(k?'':etcLabel(i),line),anchor);});
+    text(it.text).split(/\r?\n/).forEach(function(line,k){parent.insertBefore(make(k?'':etcLabel(i),line,it.user),anchor);});
   });
+}
+// ── 글자모양 쌍둥이(색·굵게·밑줄) ──
+// 본문 런의 charPrIDRef를 "TW:<r|b|u 조합>:<원래id>"로 표시해 두면, buildOpinion이 header.xml에 원래 글자모양과 그 속성만 다른
+// 쌍둥이를 목록 끝에 추가하고(id 연속·itemCnt 일치 — 한글은 글자모양을 목록 순번으로 찾는다) 표시를 새 id로 바꾼다.
+// r = 빨강(#FF0000), b = 굵게, u = 밑줄. 이미 표시된 런에 다시 표시하면 조합이 합쳐진다.
+var HH='http://www.hancom.co.kr/hwpml/2011/head';
+function markRun(run,flags){
+  var cur=run.getAttribute('charPrIDRef')||'',m=/^TW:([rbu]*):(\d+)$/.exec(cur);
+  var have=m?m[1]:'',id=m?m[2]:cur;
+  var all=(have+flags).split('').filter(function(c,i,a){return 'rbu'.indexOf(c)>=0&&a.indexOf(c)===i;}).sort().join('');
+  run.setAttribute('charPrIDRef','TW:'+all+':'+id);
+}
+function addTwinCharPrs(headerXml,sectionXmls){
+  var need={};sectionXmls.forEach(function(x){(x.match(/charPrIDRef="TW:[rbu]*:\d+"/g)||[]).forEach(function(m){need[m.slice(16,-1)]=true;});});
+  var keys=Object.keys(need);if(!keys.length)return {header:headerXml,sections:sectionXmls};
+  var doc=new DOMParser().parseFromString(headerXml,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw new Error('의견서 템플릿 header.xml을 읽을 수 없습니다.');
+  var list=doc.getElementsByTagNameNS(HH,'charProperties')[0],prs=Array.from(list.getElementsByTagNameNS(HH,'charPr'));
+  if(prs.length!==Number(list.getAttribute('itemCnt')))throw new Error('글자모양 itemCnt가 실제 개수와 다릅니다.');
+  var next=prs.length,map={};
+  keys.forEach(function(key){
+    var parts=key.split(':'),flags=parts[0],id=parts[1];
+    var src=prs.find(function(p){return p.getAttribute('id')===id;});if(!src)throw new Error('글자모양 '+id+' 없음');
+    var twin=src.cloneNode(true);twin.setAttribute('id',String(next));
+    if(flags.indexOf('r')>=0)twin.setAttribute('textColor','#FF0000');
+    var ul=twin.getElementsByTagNameNS(HH,'underline')[0];
+    if(flags.indexOf('b')>=0&&!twin.getElementsByTagNameNS(HH,'bold').length){
+      var b=doc.createElementNS(HH,'hh:bold');                     // 위치는 밑줄 요소 앞(양식의 굵은 글자모양과 같은 순서)
+      if(ul)twin.insertBefore(b,ul);else twin.appendChild(b);
+    }
+    if(flags.indexOf('u')>=0){
+      if(!ul){ul=doc.createElementNS(HH,'hh:underline');ul.setAttribute('shape','SOLID');ul.setAttribute('color','#000000');twin.appendChild(ul);}
+      ul.setAttribute('type','BOTTOM');
+    }
+    list.appendChild(twin);map[key]=String(next);next++;
+  });
+  list.setAttribute('itemCnt',String(next));
+  var sections=sectionXmls.map(function(x){return x.replace(/charPrIDRef="TW:([rbu]*:\d+)"/g,function(m,key){return 'charPrIDRef="'+map[key]+'"';});});
+  return {header:new XMLSerializer().serializeToString(doc),sections:sections};
+}
+// 런 하나의 글자 가운데 일부만 다른 글자모양으로 — 런을 앞·가운데·뒤 셋으로 쪼개고 가운데에 flags 표시
+function emphasize(p,needle,flags){
+  var runs=descendants(p,'run');
+  for(var i=0;i<runs.length;i++){
+    var ts=descendants(runs[i],'t');if(ts.length!==1)continue;
+    var at=ts[0].textContent.indexOf(needle);if(at<0)continue;
+    var run=runs[i],full=ts[0].textContent,mid=run.cloneNode(true),tail=run.cloneNode(true);
+    ts[0].textContent=full.slice(0,at);
+    descendants(mid,'t')[0].textContent=needle;markRun(mid,flags);
+    descendants(tail,'t')[0].textContent=full.slice(at+needle.length);
+    run.parentNode.insertBefore(mid,run.nextSibling);mid.parentNode.insertBefore(tail,mid.nextSibling);
+    if(!full.slice(0,at))run.remove();if(!full.slice(at+needle.length))tail.remove();
+    clearLines(p);return true;
+  }
+  return false;
 }
 function descendants(el,name){return Array.from(el.getElementsByTagNameNS(HP,name));}
 function children(el,name){return Array.from(el.children).filter(function(n){return n.namespaceURI===HP&&n.localName===name;});}
@@ -361,9 +424,15 @@ function opinionXml(xml,data){
   // 토큰으로 표를 식별한다. 표 번호나 XML 문자열 위치에 의존하지 않는다.
   tables.forEach(function(tbl){
     var rows=children(tbl,'tr');
+    var picked=data.standards.filter(function(x){return x._selected;});
     if(hasToken(tbl,'토지_소재지'))resizeRows(tbl,1,1,1,data.parcels,state);
+    else if(hasToken(tbl,'표준지_소재지')){
+      resizeRows(tbl,2,2,2,data.standards,state);
+      // 표준지가 둘 이상이면 선정한 표준지 행(2행씩)은 굵게 — 어느 것을 썼는지 표에서 바로 보이게
+      if(data.standards.length>1)data.standards.forEach(function(sd,i){if(!sd._selected)return;
+        children(tbl,'tr').slice(2+2*i,4+2*i).forEach(function(r){descendants(r,'run').forEach(function(run){if(descendants(run,'t').length)markRun(run,'b');});});});
+    }
     else if(hasToken(tbl,'건물_소재지'))resizeRows(tbl,1,1,1,data.buildings.length?data.buildings:[blankMap(tbl)],state);
-    else if(hasToken(tbl,'표준지_소재지'))resizeRows(tbl,2,2,2,data.standards,state);
     else if(hasToken(tbl,'공시시점_설명'))resizeRows(tbl,1,1,1,data.standards,state);
     else if(hasToken(tbl,'공시개별_번호'))resizeRows(tbl,1,1,1,data.parcels,state);
     else if(hasToken(tbl,'평사1_기호'))resizeRows(tbl,1,3,1,data.appraisals.length?data.appraisals:[blankMap(tbl)],state);
@@ -373,7 +442,8 @@ function opinionXml(xml,data){
       [2,4].forEach(function(col,i){var t=descendants(children(rows[2],'tc')[col],'t')[0];t.textContent=fixed(i?data.stdArea:data.stdSajeong,3);});
     }
     else if(hasToken(tbl,'필지_번호')){
-      resizeRows(tbl,1,1,1,hasToken(tbl,'그밖_사례기호')?data.standards:data.parcels,state);
+      // 그 밖의 요인 보정치 결정 표: 선정하지 않은 표준지는 빼고 선정한 표준지만(모두 미선정이면 양식 빈 행)
+      resizeRows(tbl,1,1,1,hasToken(tbl,'그밖_사례기호')?picked:data.parcels,state);
     }
     else if(hasToken(tbl,'층1_번호'))resizeRows(tbl,1,5,1,data.floors.length?data.floors:[blankMap(tbl)],state);
     else if(hasToken(tbl,'신축1_분류')){
@@ -413,6 +483,13 @@ function opinionXml(xml,data){
   replacePlain(doc,'개별요인 비교항목(상업지대)','개별요인 비교항목('+daegu+')');
   // 6. 그 밖의 사항 — 첫 탭 목록으로 가·나·다 문단을 갈아 끼운다(아래 평가목적 치환이 항목 문구에도 적용되도록 먼저).
   fillEtcSection(doc,data.etcItems);
+  // 비교표준지 선정사유 — 표준지가 둘 이상이면 어느 것을 골랐는지 문장에 넣고(굵게·밑줄) 나머지는 양식 문구 그대로
+  if(data.standards.length>1){var pk=data.standards.filter(function(x){return x._selected;}).map(function(x){return x['표준지_기호'];});
+    if(pk.length){var label='표준지 '+pk.join(', ');
+      descendants(doc,'p').some(function(p){var t=descendants(p,'t');
+        if(t.length!==1||t[0].textContent.indexOf('같거나 비슷하여 비교표준지로 선정하였음')<0)return false;
+        t[0].textContent=t[0].textContent.replace('같거나 비슷하여 비교표준지로 선정하였음','같거나 비슷한 '+label+'를 비교표준지로 선정하였음');
+        return emphasize(p,label,'bu');});}}
   // 원본의 고정 샘플 문구 중 이미 앱에서 입력받는 항목을 연결한다. 법령·방법론 본문은 유지.
   replacePlain(doc,'귀 제시일인',val('ov_gijunBasis')||'귀 제시일인');
   replacePlain(doc,'일반거래(시가참고)',val('ov_purpose'));
@@ -435,11 +512,14 @@ function opinionXml(xml,data){
 }
 async function buildOpinion(b64,data){
   var A=window.ArapCheonggu,bin=atob(b64),bytes=Uint8Array.from(bin,function(c){return c.charCodeAt(0);});
-  var entries=await A.parseZip(bytes.buffer),found=false;
-  entries.forEach(function(e){if(/^Contents\/section\d+\.xml$/.test(e.name)){
-    e.data=new TextEncoder().encode(opinionXml(new TextDecoder().decode(e.data),data));found=true;
-  }});
-  if(!found)throw new Error('의견서 본문이 없는 템플릿입니다.');
+  var entries=await A.parseZip(bytes.buffer),dec=new TextDecoder(),enc=new TextEncoder();
+  var secs=entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);});
+  if(!secs.length)throw new Error('의견서 본문이 없는 템플릿입니다.');
+  var xmls=secs.map(function(e){return opinionXml(dec.decode(e.data),data);});
+  // 표시해 둔 글자모양 쌍둥이(빨강·굵게·밑줄)를 header.xml에 추가하고 본문 표시를 실제 id로
+  var head=entries.find(function(e){return e.name==='Contents/header.xml';});
+  if(head){var r=addTwinCharPrs(dec.decode(head.data),xmls);head.data=enc.encode(r.header);xmls=r.sections;}
+  secs.forEach(function(e,i){e.data=enc.encode(xmls[i]);});
   // 미리보기에는 원본 템플릿의 토큰이나 예전 샘플이 남지 않게 한다.
   entries=entries.filter(function(e){return e.name!=='Preview/PrvImage.png';});
   var preview=entries.find(function(e){return e.name==='Preview/PrvText.txt';});
