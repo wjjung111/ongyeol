@@ -81,6 +81,28 @@ function fakeData(pnu){
   assert.ok(popups.some(t=>t.includes('공시지가 3,500,000원/㎡')),'표준지 설명창');
   assert.ok(popups.some(t=>t.includes('사례단가 4,100,000원/㎡')),'평가사례 설명창');
 
+  // ⑤ 필지 채우기는 선정된 것(본건·채택 사례)에만, 나머지는 테두리만 — 그래도 안쪽 클릭은 먹는다
+  const fills=await page.evaluate(()=>[...document.querySelectorAll('#mapBox path.leaflet-interactive')].map(p=>({
+    stroke:p.getAttribute('stroke'),fill:p.getAttribute('fill'),fo:Number(p.getAttribute('fill-opacity')),w:p.getAttribute('stroke-width')})));
+  console.log('필지 스타일',fills);
+  const picked=await page.evaluate(()=>mapItems().filter(i=>i.pick).length);
+  assert.equal(fills.filter(p=>p.fo>0).length,picked,'채워진 필지 수 = 선정된 항목 수');
+  assert.ok(fills.some(p=>p.fo===0),'선정 안 된 필지는 테두리만');
+  assert.ok(fills.every(p=>p.fill&&p.fill!=='none'),'fill 자체는 남겨 둬야 안쪽 클릭이 먹는다');
+
+  const spot=await page.evaluate(()=>{
+    const ps=[...document.querySelectorAll('#mapBox path.leaflet-interactive')];
+    const p=ps.find(p=>Number(p.getAttribute('fill-opacity'))===0),r=p.getBoundingClientRect();
+    try{mapView().leaflet().closePopup();}catch(e){}
+    return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};
+  });
+  await page.waitForTimeout(250);
+  await page.mouse.click(spot.x,spot.y);
+  await page.waitForSelector('.leaflet-popup-content',{timeout:5000});
+  const inside=(await page.locator('.leaflet-popup-content').first().innerText()).replace(/\n/g,' | ');
+  console.log('테두리만 칠한 필지 안쪽 클릭 →',inside);
+  assert.ok(inside.length>0,'테두리만 칠한 필지도 안쪽을 누르면 설명창이 뜬다');
+
   if(errs.length){console.log('페이지 오류',errs);throw new Error('page errors');}
   console.log('✅ 모두 통과');
   await browser.close();server.close();
