@@ -103,6 +103,23 @@ function fakeData(pnu){
   console.log('테두리만 칠한 필지 안쪽 클릭 →',inside);
   assert.ok(inside.length>0,'테두리만 칠한 필지도 안쪽을 누르면 설명창이 뜬다');
 
+  // ⑥ 비교표준지도 **본건이 고른 것만** 채운다 — 표준지를 둘로 늘리고 본건이 B를 고르면 B만 칠해진다
+  await page.evaluate(()=>{
+    STDS=[{소재지:'관양동',지번:'1445-1',지목:'대',면적:'150',공시지가:'3,500,000',용도지역:'2종일주',etcDecide:'1'},
+          {소재지:'관양동',지번:'1450-2',지목:'대',면적:'160',공시지가:'3,300,000',용도지역:'2종일주'}];
+    LANDS[0].stdIdx=1;
+    renderStds();renderLands();calcGongsi();
+  });
+  const stdPick=await page.evaluate(()=>mapItems().filter(i=>i.kind==='비교표준지').map(i=>({label:i.label,pick:!!i.pick})));
+  console.log('표준지 선정',stdPick);
+  assert.deepEqual(stdPick,[{label:'표준지 A',pick:false},{label:'표준지 B',pick:true}]);
+  await page.evaluate(()=>mapRefresh(false));
+  await page.waitForTimeout(400);
+  const blue=await page.evaluate(()=>[...document.querySelectorAll('#mapBox path.leaflet-interactive')]
+    .filter(p=>p.getAttribute('stroke')==='#2563eb').map(p=>Number(p.getAttribute('fill-opacity'))).sort());
+  console.log('표준지 필지 fill-opacity',blue);
+  assert.deepEqual(blue,[0,0.16],'고른 표준지 한 곳만 채워진다');
+
   if(errs.length){console.log('페이지 오류',errs);throw new Error('page errors');}
   console.log('✅ 모두 통과');
   await browser.close();server.close();
