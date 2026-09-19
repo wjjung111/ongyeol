@@ -1668,6 +1668,11 @@ function IpjSidebar({ov,cal,collapsed,setCollapsed}){
 
 // ─────────────────────── ① 대상물건개요 (사업·본건·분담금) ───────────────────────
 function IpjTabGaeyo({ov,setOv}){
+  // 분담금 자동: 조합원분양가 합 − 권리가액. 칸이 비었거나 직전 자동값 그대로면 새 자동값으로 채운다(직접 고친 값은 유지 — 여비 자동입력과 같은 방식)
+  const bunboAuto=(()=>{const g=pNum(ov.gwolli);const hap=(ov.units||[]).reduce((t,x)=>t+(pNum(x.bunyangga)||0),0);if(g==null&&!hap)return null;return hap-(g||0);})();
+  const fmtSigned=v=>{const t=String(v??"").trim();const neg=t.startsWith("-");const d=fmtComma(t);return d?(neg?"-":"")+d:"";}; // 분담금은 음수(환급)일 수 있어 부호 유지
+  useEffect(()=>{if(bunboAuto==null)return;const cur=String(ov.bunbo||"").trim();const a=fmtSigned(bunboAuto);
+    if((cur===""||cur===String(ov.bunboKey||"__"))&&cur!==a)setOv(p=>({...p,bunbo:a,bunboKey:a}));},[bunboAuto,ov.bunbo]);
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
   const uu=(i,k,v)=>setOv(p=>{const units=p.units.map((x,j)=>j===i?{...x,[k]:v}:x);return{...p,units};});
   const addUnit=()=>setOv(p=>({...p,units:[...p.units,ipjNewUnit(SYM(p.units.length))]}));
@@ -1710,7 +1715,7 @@ function IpjTabGaeyo({ov,setOv}){
         <Fld label="종전자산평가액" value={ov.jongjeon} onChange={v=>u("jongjeon",fmtComma(v))} w={160}/>
         <Fld label="추정비례율(%)" value={ov.birye} onChange={v=>u("birye",v)} w={100} ph="예) 262.00"/>
         <Fld label="권리가액" value={ov.gwolli} onChange={v=>u("gwolli",fmtComma(v))} w={160}/>
-        <Fld label="분담금(비우면 자동)" value={ov.bunbo} onChange={v=>u("bunbo",fmtComma(v))} w={160}/>
+        <Fld label="분담금(자동·수정가능)" value={ov.bunbo} onChange={v=>u("bunbo",fmtSigned(v))} w={160} ph="조합원분양가 합 − 권리가액"/>
         <Fld label="기준일까지 납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="환급 시 마이너스"/>
       </div>
       <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다.</div>
