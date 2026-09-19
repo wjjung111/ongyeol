@@ -26,6 +26,7 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     await page.goto(base+'/입주권.html',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('text=② 접수개요',{timeout:60000});
     await page.click('text=② 접수개요');
+    await page.locator('div:has(> span:text-is("평가구분")) input').first().fill('증여');
     // 카드: Ⅰ. 입지조건 1~6 모두 보이고 파란 칸 3개(샘플 값)
     for(const h of ['Ⅰ. 입지조건','1. 지리적 위치','2. 부근상황','3. 교통상황','4. 접면도로 상황','5. 토지이용계획 및 공법상제한사항','6. 기타사항'])assert.ok(await page.locator('text='+h).first().isVisible(),h);
     const blanks=page.locator('input[title*="파란 플레이스홀더"]');assert.equal(await blanks.count(),3);
@@ -73,7 +74,11 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     const uf=await dl('3. 의견서','3. 의견서.hwpx');const u=unzip(fs.readFileSync(uf));const ux=u['Contents/section0.xml'].toString('utf8'),uh=u['Contents/header.xml'].toString('utf8');
     const ids=[...uh.matchAll(/<hh:charPr id="(\d+)"/g)].map(m=>+m[1]);assert.deepEqual(ids,[...Array(57).keys()]);assert.ok(uh.includes('<hh:charProperties itemCnt="57"'));
     for(const b of ['50','51','52'])assert.equal(ux.includes('charPrIDRef="'+b+'"'),false,'의견서 파란 글자모양 '+b);
-    assert.deepEqual(runsOf(ux,'53'),['상속(증여)']);
+    assert.equal(ux.includes('charPrIDRef="53"'),false,'평가구분 빨강이 검정으로');
+    assert.ok(ux.includes('「상속세 및 증여세법」상 </hp:t></hp:run><hp:run charPrIDRef="54"><hp:t>증여</hp:t></hp:run><hp:run charPrIDRef="39"><hp:t>재산에 대한 일반거래(시가참고) 목적의 감정평가임.'),'평가구분·평가목적 문장');
+    assert.ok(ux.includes('본건은 일반거래(시가참고) 목적의 감정평가로서'),'나. 평가목적');
+    const gf=await dl('2. 괄호감정표','2. 괄호감정표.hwpx');const gx=unzip(fs.readFileSync(gf))['Contents/section0.xml'].toString('utf8');
+    assert.ok(gx.includes('<hp:t>일반거래(시가참고)</hp:t>'),'괄호감정표 평가목적');assert.deepEqual(gx.match(/\{\{[^}]+\}\}/g)||[],[]);
     assert.ok(runsOf(ux,'55').some(t=>t.includes('방배')),'의견서 값이 검정 쌍둥이(55)로');
     const left=[...new Set(ux.match(/\{\{[^}]+\}\}/g)||[])];assert.deepEqual(left,[],'의견서 미치환 '+left);
     assert.deepEqual(errors,[]);
