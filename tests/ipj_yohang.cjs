@@ -43,20 +43,21 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     await page.click('button:has-text("취소")');
     await page.click('text=④ 가격산출');
     // ④ 가격산출 — 집합건물과 같은 구성: 사례 선택(체크) → 가치형성요인 비교(호수별 블록) → 적용단가 → 입주권 감정평가액 결정
-    for(const h of ['사례 선택','가치형성요인 비교','적용단가','입주권 감정평가액 결정'])assert.ok(await page.locator('text='+h).first().isVisible(),h);
+    for(const h of ['사례 선택','가치형성요인 비교','결정단가 · 아파트감정가 처리','입주권 감정평가액 결정'])assert.ok(await page.locator('text='+h).first().isVisible(),h);
     const chk=page.locator('table:has(th:text-is("선정")) input[type=checkbox]');assert.equal(await chk.count(),4);
     assert.deepEqual(await chk.evaluateAll(els=>els.map(e=>e.checked)),[true,false,false,true]);
-    assert.equal(await page.locator('text=본건 가 ·').count(),1);assert.equal(await page.locator('text=본건 나 ·').count(),1);
+    const facT=page.locator('table:has(th:has-text("비교사례"))');assert.equal(await facT.locator('td[rowspan]').filter({hasText:/^가$/}).count(),1);assert.equal(await facT.locator('td[rowspan]').filter({hasText:/^나$/}).count(),1);assert.equal(await facT.locator('th:has-text("결정단가(원/㎡)")').count(),2);
+    assert.equal(await facT.locator('input[placeholder*="대등함"], input').count()>=8,true);
     const finalBefore=await page.locator('text=金').first().innerText();
     // 결정단가 처리 '없음' → 결정단가=산출단가 그대로 → 최종액 변동
     await page.locator('select').filter({hasText:'반올림'}).first().selectOption('none');
-    assert.ok(await page.locator('text=산출단가를 그대로 결정단가로 적용').isVisible());
+    assert.ok(await page.locator('text=산정단가를 그대로 결정단가로 적용').isVisible());
     assert.notEqual(await page.locator('text=金').first().innerText(),finalBefore);
     await page.locator('select').filter({hasText:'반올림'}).first().selectOption('round');
     assert.equal(await page.locator('text=金').first().innerText(),finalBefore);
     // 사례 ㉠ 선정 해제 → 본건 가는 남은 선정 사례(㉣)로 자동 이동, 다시 선정하면 복귀 가능
     await chk.nth(0).uncheck();await page.waitForTimeout(200);
-    assert.equal(await page.locator('text=사례 #㉣').count(),2);
+    assert.equal(await facT.locator('td:has-text("(㉣)")').count(),2);
     await chk.nth(0).check();await page.waitForTimeout(200);
     const dl=async(label,name)=>{const [d]=await Promise.all([page.waitForEvent('download',{timeout:60000}),page.click('button:has-text("'+label+'")')]);const f=path.join(out,name);await d.saveAs(f);return f;};
     const yf=await dl('4. 요항표','4. 요항표.hwpx');

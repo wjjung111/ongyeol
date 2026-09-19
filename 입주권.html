@@ -1901,54 +1901,68 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
     </div>
 
     {!sel.length?null:<>
-    {/* 가치형성요인 비교 — 본건 호수(가·나…)마다 적용 사례와 비교 (의견서 개별요인표와 같은 값) */}
-    <Card title="가치형성요인 비교">
-      <div style={{...S.row,marginBottom:12}}><span style={S.lbl}>물건 유형</span>
+    {/* 가치형성요인 비교 — 의견서 「개별요인 비교치」 표와 같은 가로 배치: 본건 호수(가·나…)마다 비교치 한 줄 + 의견 네 줄 */}
+    <Card title="가치형성요인 비교" sub="개별요인 비교치 — 시점수정치는 위 「사례 선택」에서">
+      <div style={{...S.row,marginBottom:10}}><span style={S.lbl}>물건 유형</span>
         <span style={{fontWeight:700,color:C.pri,marginLeft:4}}>주거용</span><span style={{fontSize:11,color:"#888",marginLeft:8}}>(입주권 — 아파트)</span></div>
-      {ov.units.map((x,i)=>{const c=sel.find(k=>String(k.id)===String(x.appliedCaseId))||sel[0];if(!c)return null;const r=cal.rows[i]||{};
-        return(<div key={i} style={{marginBottom:16,padding:12,background:C.lb,borderRadius:6}}>
-        <div style={{...S.h3,display:"flex",alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{padding:"2px 10px",borderRadius:4,fontSize:12,fontWeight:700,background:C.pri,color:"#fff",marginRight:8}}>본건 {x.sym}{x.dong?` · ${x.dong}동 ${x.ho}호`:""}</span>
-          사례 #{caseSym(c)} — {c.aptName} {c.dong}동 {c.ho}호{sameTag(c)}
-          {sel.length>1&&<select value={String(x.appliedCaseId||sel[0].id)} onChange={e=>uu(i,"appliedCaseId",e.target.value)} style={{...S.sel2,marginLeft:10,fontSize:11,padding:"2px 6px"}}>{sel.map(k=><option key={k.id} value={k.id}>#{caseSym(k)} {k.aptName}</option>)}</select>}
-        </div>
-        <table style={{...S.tbl,marginBottom:8}}><thead><tr><th style={S.th}>소재지</th><th style={S.th}>동/층/호</th><th style={S.th}>건물명</th><th style={S.th}>전유면적</th><th style={S.th}>가격</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
-        <tbody><tr><td style={S.tdL}>{c.location} {c.jibun}</td><td style={S.td}>{c.dong}/{c.floor}/{c.ho}</td><td style={S.tdL}>{c.aptName}</td><td style={S.tdR}>{fmtDec(c.exclusiveArea,2)}</td><td style={S.tdR}>{fmt(pNum(c.price))}</td><td style={S.tdR}>{fmt(pNum(c.unitPrice))}</td><td style={S.td}>{fmtDate(c.tradeDate)}</td><td style={{...S.td,cursor:"pointer",fontWeight:700,color:C.acc}} title="클릭해서 시점수정치 입력" onClick={()=>setEditTimeId(c.id)}>{c.timeAdj?fmtDec(c.timeAdj,5):"미입력 (클릭)"}</td></tr></tbody></table>
-        <table style={S.tbl}><thead><tr><th style={{...S.th,width:100}}>요인구분</th><th style={S.th}>세부항목</th><th style={{...S.th,width:65}}>비교치</th><th style={{...S.th,minWidth:220}}>의견</th></tr></thead><tbody>
-          {resFac.map(f=>{const val=pNum(x[f.key])||1;const isEq=Math.abs(val-1)<0.001;
-            return(<tr key={f.key}><td style={{...S.td,fontWeight:600}}>{f.label}</td><td style={{...S.tdL,fontSize:11,color:"#555"}}>{f.desc}</td>
-              <td style={S.td}><FactorInput value={val} onChange={v=>uu(i,f.key,v)}/></td>
-              <td style={S.td}><textarea style={{...S.inp,width:"100%",minHeight:36,resize:"vertical",fontSize:12,lineHeight:1.4}} value={x[f.note]||""} onChange={e=>uu(i,f.note,e.target.value)} placeholder={isEq?"대체로 대등함.":""}/></td></tr>);})}
-          <tr style={{background:"#e0f2fe"}}><td style={{...S.td,fontWeight:700}} colSpan={2}>가치형성요인 합계</td><td style={{...S.td,fontWeight:700,fontSize:14}}>{fmtDec3(r.gaebyeol||1)}</td><td style={S.td}>-</td></tr>
-        </tbody></table>
-      </div>);})}
+      {(()=>{const th={border:"1px solid #d9cfcf",background:"#6d2b2b",color:"#fff",padding:"8px 6px",fontSize:12,fontWeight:700,textAlign:"center",lineHeight:1.3};
+        const td={border:"1px solid #d9cfcf",padding:"6px 8px",fontSize:12,textAlign:"center",verticalAlign:"middle",background:"#fff"};
+        const noteIn={...S.inp,flex:1,fontSize:12,border:"1px solid #eee2e2",padding:"3px 6px"};
+        return(<div style={{overflowX:"auto"}}><table style={{borderCollapse:"collapse",width:"100%",fontSize:12}}><thead><tr>
+          <th style={{...th,width:44}}>일련<br/>번호</th><th style={{...th,minWidth:150}}>비교사례</th>
+          <th style={{...th,width:80}}>단지외부<br/>요인</th><th style={{...th,width:80}}>단지내부<br/>요인</th><th style={{...th,width:80}}>호별<br/>요인</th><th style={{...th,width:80}}>기타<br/>요인</th><th style={{...th,width:80}}>계</th>
+        </tr></thead><tbody>
+        {ov.units.map((x,i)=>{const c=sel.find(k=>String(k.id)===String(x.appliedCaseId))||sel[0];if(!c)return null;const r=cal.rows[i]||{};
+          return(<React.Fragment key={i}>
+          <tr>
+            <td rowSpan={2} style={{...td,fontWeight:700,background:"#f6f0f0",color:"#6d2b2b",fontSize:14}}>{x.sym}</td>
+            <td style={{...td,lineHeight:1.4}}>
+              {sel.length>1
+                ?<select value={String(x.appliedCaseId||sel[0].id)} onChange={e=>uu(i,"appliedCaseId",e.target.value)} style={{...S.sel2,fontSize:12,padding:"2px 6px",maxWidth:220}}>{sel.map(k=><option key={k.id} value={k.id}>({caseSym(k)}) {k.aptName} {k.dong}/{k.floor}/{k.ho}</option>)}</select>
+                :<span>({caseSym(c)}) {c.aptName}<br/>{c.dong}/{c.floor}/{c.ho}</span>}
+              <div style={{marginTop:3}}>{sameTag(c)}</div>
+            </td>
+            {resFac.map(f=><td key={f.key} style={td}><FactorInput value={pNum(x[f.key])||1} onChange={v=>uu(i,f.key,v)}/></td>)}
+            <td style={{...td,fontWeight:700,fontSize:13}}>{fmtDec3(r.gaebyeol||1)}</td>
+          </tr>
+          <tr><td colSpan={6} style={{...td,textAlign:"left",padding:"6px 10px"}}>
+            {resFac.map(f=>{const isEq=Math.abs((pNum(x[f.key])||1)-1)<0.001;
+              return(<div key={f.key} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                <span style={{minWidth:92,color:"#444",whiteSpace:"nowrap"}}>{f.label}:</span>
+                <input value={x[f.note]||""} onChange={e=>uu(i,f.note,e.target.value)} placeholder={isEq?"본건은 거래사례와 대체로 대등함.":""} style={noteIn}/>
+              </div>);})}
+          </td></tr>
+          {/* 적용단가 — 이 호수의 개별요인 바로 아래 */}
+          {(()=>{const has=!!(c&&c.timeAdj);const sh={...th,background:"#8a4a4a",padding:"5px 4px",fontSize:11};const sd={...td,padding:"5px 6px"};
+            return(<tr><td colSpan={7} style={{...td,padding:0,background:"#fbf8f8"}}>
+              <table style={{borderCollapse:"collapse",width:"100%",fontSize:12}}><thead><tr>
+                <th style={{...sh,width:44}}>일련<br/>번호</th><th style={sh}>거래사례<br/>단가 (원/㎡)</th><th style={sh}>사정<br/>보정</th><th style={sh}>시점<br/>수정</th><th style={sh}>지역<br/>요인</th><th style={sh}>개별<br/>요인</th><th style={sh}>전유면적당<br/>산정단가(원/㎡)</th><th style={sh}>전유면적당<br/>결정단가(원/㎡)</th><th style={sh}>전유<br/>(㎡)</th><th style={sh}>산출금액<br/>(원)</th><th style={sh}>아파트<br/>감정가(원)</th>
+              </tr></thead><tbody><tr>
+                <td style={{...sd,fontWeight:700}}>{x.sym}</td>
+                <td style={sd}>{c?fmt(r.cu):"-"}</td><td style={sd}>1.000</td>
+                <td style={sd}>{has?fmtDec(c.timeAdj,5):<span style={{color:C.dng,cursor:"pointer",fontWeight:600}} onClick={()=>setEditTimeId(c.id)}>미입력 (클릭)</span>}</td>
+                <td style={sd}>1.000</td><td style={sd}>{fmtDec3(r.gaebyeol||1)}</td>
+                <td style={{...sd,fontWeight:600}}>{has?fmt(Math.round(r.sanjeongDanga)):"-"}</td>
+                <td style={{...sd,fontWeight:700,color:C.acc}}>{has?fmt(r.gyeoljeong):"-"}</td>
+                <td style={sd}>{fmtDec(r.jeonyu,2)}</td>
+                <td style={{...sd,fontWeight:600}}>{has?fmt(Math.round(r.sanjeongGaek)):"-"}</td>
+                <td style={{...sd,fontWeight:700,color:C.dng}}>{has?fmt(r.aptGam):"-"}</td>
+              </tr></tbody></table>
+            </td></tr>);})()}
+          </React.Fragment>);})}
+        </tbody></table></div>);})()}
+      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 비교치·의견은 본건 호수마다 저장되어 의견서 개별요인표(개별_가·개별_나)에 그대로 들어갑니다. 선정 사례가 둘 이상이면 「비교사례」 칸에서 호수별 적용 사례를 고릅니다.</div>
     </Card>
 
-    {/* 적용단가 — 호수(가·나…)별 한 줄 */}
-    <Card title="적용단가">
-      <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
-        {["기호","사례","사례단가","사정보정","시점수정","가형요","산출단가","결정단가","전유(㎡)","산출금액","아파트감정가"].map(h=><th key={h} style={S.th}>{h}</th>)}
-      </tr></thead><tbody>
-        {ov.units.map((x,i)=>{const r=cal.rows[i]||{};const c=r.c;const has=!!(c&&c.timeAdj);return(<tr key={i}>
-          <td style={{...S.td,fontWeight:700}}>{x.sym}</td>
-          <td style={S.td}>{c?`#${caseSym(c)}`:"-"}</td>
-          <td style={S.tdR}>{c?fmt(r.cu):"-"}</td><td style={S.tdR}>1.000</td>
-          <td style={S.tdR}>{has?fmtDec(c.timeAdj,5):"-"}</td>
-          <td style={S.tdR}>{fmtDec3(r.gaebyeol||1)}</td>
-          <td style={{...S.tdR,fontWeight:600}}>{has?fmt(Math.round(r.sanjeongDanga)):"-"}</td>
-          <td style={{...S.tdR,fontWeight:700,color:C.acc}}>{has?fmt(r.gyeoljeong):"-"}</td>
-          <td style={S.tdR}>{fmtDec(r.jeonyu,2)}</td>
-          <td style={{...S.tdR,fontWeight:600}}>{has?fmt(Math.round(r.sanjeongGaek)):"-"}</td>
-          <td style={{...S.tdR,fontWeight:700,color:C.dng}}>{has?fmt(r.aptGam):"-"}</td>
-        </tr>);})}
-      </tbody></table></div>
-      {noTa&&<div style={{marginTop:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산출단가·결정단가·아파트감정가가 계산되지 않습니다. 위 표의 시점수정치를 클릭해 입력하세요.</div>}
+    {/* 결정단가·아파트감정가 처리 — 적용단가 줄은 위 요인 표의 호수마다 바로 아래에 있음 */}
+    <Card title="결정단가 · 아파트감정가 처리" sub="각 호수의 적용단가 줄은 위 가치형성요인 표 안(개별요인 바로 아래)에 있습니다">
+      {noTa&&<div style={{marginBottom:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산정단가·결정단가·아파트감정가가 계산되지 않습니다. 「사례 선택」의 시점수정치를 클릭해 입력하세요.</div>}
       <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
         <RndSelIpj unitKey="rndDanga" modeKey="rndDangaMode" label="결정단가 처리" units={dangaUnits}/>
         <RndSelIpj unitKey="rndAmt" modeKey="rndAmtMode" label="아파트감정가 처리" units={amtUnits}/>
       </div>
       <div style={{marginTop:4,fontSize:11,color:"#666"}}>
-        {(ov.rndDangaMode||"round")==="none"?"※ 산출단가를 그대로 결정단가로 적용":`※ 결정단가: ${uLbl(ov.rndDanga||"100000",dangaUnits)} 단위에서 ${mLbl(ov.rndDangaMode||"round")}`}
+        {(ov.rndDangaMode||"round")==="none"?"※ 산정단가를 그대로 결정단가로 적용":`※ 결정단가: ${uLbl(ov.rndDanga||"100000",dangaUnits)} 단위에서 ${mLbl(ov.rndDangaMode||"round")}`}
         {" / "}
         {(ov.rndAmtMode||"round")==="none"?"아파트감정가: 산출금액 그대로":`아파트감정가: ${uLbl(ov.rndAmt||"1000000",amtUnits)} 단위에서 ${mLbl(ov.rndAmtMode||"round")}`}
       </div>
