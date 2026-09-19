@@ -58,7 +58,7 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
     const init=await page.evaluate(items);
     console.log('① 기본',init.map(x=>x.lab+' '+x.val.slice(0,12)));
     assert.deepEqual(init.map(x=>x.lab),['가.','나.','다.']);
-    assert.ok(init[0].val.startsWith('본건 토지와 건물에 대하여 공부'));
+    assert.ok(init[0].val.startsWith('본건의 소재지'),'가 = 소재지·공부자료(2026-09-19 순서)');assert.ok(init[1].val.startsWith('본건 토지와 건물에 대하여 공부'));
     assert.ok(init[2].val.includes('업무진행시 참고바람.'));
     assert.ok(await page.evaluate(()=>{const c=document.getElementById('etcItemsCard');return !!c&&c.closest('.tab').id==='tab-daesang'&&c.parentElement.lastElementChild===c;}),'첫 탭 맨 아래 카드');
 
@@ -71,7 +71,7 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
     assert.equal(plain.paras.filter(p=>p.text.trim()).map(p=>p.runs.length).join(','),'2,2,2','번호 런 + 본문 런');
     assert.equal(plain.paras.filter(p=>p.text.trim()).map(p=>p.runs.map(r=>r.pr).join('/')).join(' '),'32/36 32/36 32/36','양식과 같은 글자모양');
     assert.ok(texts(plain)[2].includes('본건은 담보 목적의 감정평가로서'),'평가목적 치환이 항목에도 적용');
-    assert.ok(!texts(plain)[0].includes('현황      토지'),'양식의 정렬용 여러 칸 공백은 한 칸으로');
+    assert.ok(!texts(plain)[1].includes('현황      토지'),'양식의 정렬용 여러 칸 공백은 한 칸으로');
 
     // ③ 가 아래에 새 항목을 끼워 넣으면 가·나·다·라로 다시 매겨진다 (새 항목이 '나')
     await page.evaluate(()=>{etcItemAdd(0);const ta=document.querySelector('#etcItemsBox .etc-item[data-i="1"] textarea');ta.value='본건 건물은 현황 무허가 증축 부분이 있으며 평가에서 제외하였음.';ta.dispatchEvent(new Event('input',{bubbles:true}));});
@@ -79,7 +79,7 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
     console.log('③ 끼워넣기',four.map(x=>x.lab+' '+x.val.slice(0,10)));
     assert.deepEqual(four.map(x=>x.lab),['가.','나.','다.','라.']);
     assert.ok(four[1].val.startsWith('본건 건물은 현황'));
-    assert.ok(four[2].val.startsWith('본건의 소재지'),'원래 나가 다로');
+    assert.ok(four[2].val.startsWith('본건 토지와 건물'),'원래 나가 다로');
     const sec4=await etcSection(page);
     console.log('③ 의견서',texts(sec4).map(t=>t.slice(0,14)));
     assert.deepEqual(texts(sec4).map(t=>t.slice(0,2)),['가.','나.','다.','라.']);
@@ -116,7 +116,7 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
     console.log('⑤ 줄바꿈',mlTexts.map(t=>t.slice(0,10)));
     assert.equal(mlTexts[1],'나. 첫 줄');assert.equal(mlTexts[2],'둘째 줄');assert.ok(mlTexts[3].startsWith('다.'));
     await page.evaluate(()=>etcItemMove(1,1));
-    let mv=await page.evaluate(items);assert.deepEqual(mv.map(x=>x.lab),['가.','나.','다.','라.']);assert.ok(mv[2].val.startsWith('첫 줄'));assert.ok(mv[1].val.startsWith('본건의 소재지'));
+    let mv=await page.evaluate(items);assert.deepEqual(mv.map(x=>x.lab),['가.','나.','다.','라.']);assert.ok(mv[2].val.startsWith('첫 줄'));assert.ok(mv[1].val.startsWith('본건 토지와 건물'));
     await page.evaluate(()=>etcItemDel(2));
     mv=await page.evaluate(items);assert.deepEqual(mv.map(x=>x.lab),['가.','나.','다.']);assert.ok(!mv.some(x=>x.val.startsWith('첫 줄')));
 
@@ -129,9 +129,41 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
 
     // ⑦ 새 건(newCase) → 기본 문구, 옛 저장(etcItems 없음) 복원 → 기본 문구
     await page.evaluate(()=>{ETC_ITEMS[0]='바뀐 문구';renderEtcItems();etcItemsChanged();newCase();});
-    assert.ok((await page.evaluate(items))[0].val.startsWith('본건 토지와 건물'),'새 건은 기본 문구');
+    assert.ok((await page.evaluate(items))[0].val.startsWith('본건의 소재지'),'새 건은 기본 문구');
     await page.evaluate(()=>{const o=collect();delete o.etcItems;ETC_ITEMS.length=0;applyForm(o);});
     assert.deepEqual((await page.evaluate(items)).map(x=>x.lab),['가.','나.','다.'],'옛 저장은 기본 문구');
+
+    // ⑨ 지분 평가 문구 자동 — 지분입력 1/2 → 가 다음에 「본 평가는 귀 제시 지분(1/2)만의 평가로서 …」(빨강), 바꾸면 따라가고, 지우면 빠진다
+    await fixture(page);
+    await page.evaluate(()=>{setSajMode('land','share');LANDS[0]['지분']='1/2';landShareChanged(0);});
+    let sh=await page.evaluate(items);
+    console.log('⑨ 지분 1/2',sh.map(x=>x.lab+' '+x.val.slice(0,16)));
+    assert.deepEqual(sh.map(x=>x.lab),['가.','나.','다.','라.']);
+    assert.ok(sh[0].val.startsWith('본건의 소재지'));assert.ok(sh[1].val.startsWith('본 평가는 귀 제시 지분(1/2)만의 평가로서'));
+    assert.ok(sh[1].val.endsWith('사정면적은 소수점 셋째자리까지 적용하였으니 업무 진행시 참고 하시기 바람.'));
+    assert.ok(sh[2].val.startsWith('본건 토지와 건물'));assert.ok(sh[3].val.startsWith('본건은 '));
+    assert.deepEqual(await page.evaluate(()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).map(d=>d.classList.contains('user'))),[false,true,false,false],'지분 문구만 빨강');
+    const shSec=await etcSection(page);
+    assert.ok(texts(shSec)[1].startsWith('나. 본 평가는 귀 제시 지분(1/2)만의'),'의견서 6항 나 = 지분 문구');
+    assert.ok(shSec.paras.filter(p=>p.text.trim())[1].runs.every(r=>shSec.header.color[r.pr]==='#FF0000'),'지분 문구는 빨강');
+    await page.evaluate(()=>{LANDS[0]['지분']='50';landShareChanged(0);});   // 50% → 1/2 (같은 문구, 그대로)
+    sh=await page.evaluate(items);assert.equal(sh.length,4);assert.ok(sh[1].val.includes('지분(1/2)'));
+    await page.evaluate(()=>{LANDS[0]['지분']='1/3';landShareChanged(0);});
+    sh=await page.evaluate(items);assert.equal(sh.length,4);assert.ok(sh[1].val.includes('지분(1/3)'),'지분을 바꾸면 문구도');
+    await page.evaluate(()=>{LANDS[0]['지분']='';landShareChanged(0);});
+    sh=await page.evaluate(items);assert.deepEqual(sh.map(x=>x.lab),['가.','나.','다.']);assert.ok(!sh.some(x=>x.val.startsWith('본 평가는')),'지분을 지우면 문구도 빠진다');
+    // 손으로 고친 문구는 자동으로 바꾸거나 지우지 않는다
+    await page.evaluate(()=>{LANDS[0]['지분']='1/2';landShareChanged(0);const ta=document.querySelector('#etcItemsBox .etc-item[data-i="1"] textarea');ta.value=ta.value+' (수정)';ta.dispatchEvent(new Event('input',{bubbles:true}));});
+    await page.evaluate(()=>{LANDS[0]['지분']='1/4';landShareChanged(0);});
+    sh=await page.evaluate(items);assert.equal(sh.length,4);assert.ok(sh[1].val.includes('지분(1/2)')&&sh[1].val.endsWith('(수정)'),'고친 문구는 그대로');
+    await page.evaluate(()=>{LANDS[0]['지분']='';landShareChanged(0);});
+    sh=await page.evaluate(items);assert.equal(sh.length,4,'고친 문구는 지분을 지워도 남는다');
+    await page.evaluate(()=>{setSajMode('land','direct');etcItemsReset();});
+    // 옛 순서(가 물적동일 / 나 소재지 / 다 목적)로 저장된 건은 새 순서로, 고친 게 있으면 그대로
+    await page.evaluate(()=>{const o=collect();o.etcItems=[ETC_ITEMS_DEFAULT[1],ETC_ITEMS_DEFAULT[0],ETC_ITEMS_DEFAULT[2]];applyForm(o);});
+    assert.ok((await page.evaluate(items))[0].val.startsWith('본건의 소재지'),'옛 순서 저장 → 새 순서');
+    await page.evaluate(()=>{const o=collect();o.etcItems=[ETC_ITEMS_DEFAULT[1]+' 고침',ETC_ITEMS_DEFAULT[0],ETC_ITEMS_DEFAULT[2]];applyForm(o);});
+    assert.ok((await page.evaluate(items))[0].val.startsWith('본건 토지와 건물'),'고친 건은 그대로');
 
     // ⑧ 7번 탭 「1~5 일괄 받기」 — 다섯 파일이 번호 순서로 내려온다
     await fixture(page);

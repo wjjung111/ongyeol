@@ -389,6 +389,30 @@ function fillFactorTable(tbl,groups){
   children(tbl,'sz')[0].setAttribute('height',String(headH+unit*made.length));
   clearLines(tbl);
 }
+// 거래사례 표에 사례 열을 늘린다(양식 3열 → count열). 마지막 사례 열을 복제해 토큰 번호({{거래3_…}}→{{거래4_…}})만 바꾸고,
+// 사례 열 너비는 본문 폭(52,726) 안에 들어오도록 줄인다 — 4열이면 9,837씩, 표 전체 50,882(예시 문서와 같은 값).
+var TRADE_PER_TABLE=4,TRADE_TABLE_WIDTH=50882;
+function addTradeCols(tbl,count){
+  var cur=Number(tbl.getAttribute('colCnt'));if(!(count+1>cur))return;
+  var rows=children(tbl,'tr'),firstW=0;
+  rows.forEach(function(tr,ri){
+    var cells=children(tr,'tc'),src=cells[cells.length-1];
+    if(!ri)firstW=Number(children(cells[0],'cellSz')[0].getAttribute('width'));
+    for(var c=cur;c<=count;c++){
+      var tc=src.cloneNode(true);
+      children(tc,'cellAddr')[0].setAttribute('colAddr',String(c));
+      var from='{{거래'+(cur-1)+'_',to='{{거래'+c+'_';
+      descendants(tc,'t').forEach(function(t){if(t.textContent.indexOf(from)>=0)t.textContent=t.textContent.split(from).join(to);});
+      tr.appendChild(tc);
+    }
+  });
+  var caseW=Math.floor((TRADE_TABLE_WIDTH-firstW)/count);
+  rows.forEach(function(tr){children(tr,'tc').forEach(function(tc){
+    if(Number(children(tc,'cellAddr')[0].getAttribute('colAddr'))>0)children(tc,'cellSz')[0].setAttribute('width',String(caseW));});});
+  tbl.setAttribute('colCnt',String(count+1));
+  var sz=children(tbl,'sz')[0];if(sz)sz.setAttribute('width',String(firstW+caseW*count));
+  clearLines(tbl);
+}
 // 표 오른쪽 끝의 빈 열을 지운다(거래사례가 3건이 안 되는 마지막 표 — 5건이면 #4·#5만 남기고 빈 열 삭제).
 function dropCols(tbl,keep){
   var cols=Number(tbl.getAttribute('colCnt'));if(!(keep<cols))return;
@@ -465,27 +489,29 @@ function opinionXml(xml,data){
       resizeRows(tbl,1,2,1,refs,state);
     }
   });
-  // 거래사례는 3열 양식을 유지하고, 4개 이상이면 같은 표를 이어 붙인다. 사례 번호는 원래 번호 보존.
+  // 거래사례 표 — 양식은 3열이지만 한 표에 최대 4건까지 넣는다(4건이면 열을 하나 늘려 4열 — 2026-09-19 예시 문서 기준).
+  // 5건 이상은 같은 표를 이어 붙이되 고르게 나눈다(5건 → 3+2, 6건 → 3+3, 7건 → 4+3). 사례 번호는 원래 번호 보존.
   tables.filter(function(t){return hasToken(t,'거래1_소재지');}).forEach(function(tbl){
     var host=tbl;while(host.parentNode&&!(host.namespaceURI===HP&&host.localName==='p'))host=host.parentNode;
-    var last=host,groups=Math.max(1,Math.ceil(data.trades.length/3));
-    for(var g=0;g<groups;g++){
-      var target=g?host.cloneNode(true):host;
+    var n=data.trades.length,groups=Math.max(1,Math.ceil(n/TRADE_PER_TABLE)),per=Math.max(1,Math.ceil(n/groups)),last=host;
+    for(var g=1;g<groups;g++){
       // 모든 복사본은 값 치환 전 원본을 사용한다(아래에서 일괄 scope).
-      // 이어지는 표(거래사례#4~)는 앞 표 아래에 끼어 페이지 경계에서 잘리지 않도록 새 페이지에서 시작한다.
-      if(g){target.setAttribute('pageBreak','1');last.parentNode.insertBefore(target,last.nextSibling);last=target;}
+      // 이어지는 표는 앞 표 아래에 끼어 페이지 경계에서 잘리지 않도록 새 페이지에서 시작한다.
+      var copy=host.cloneNode(true);copy.setAttribute('pageBreak','1');last.parentNode.insertBefore(copy,last.nextSibling);last=copy;
     }
     var target=host;
     for(var g=0;g<groups;g++){
-      var table=descendants(target,'tbl')[0],map={},used=0;
+      var table=descendants(target,'tbl')[0],map={},items=data.trades.slice(g*per,(g+1)*per);
       table.setAttribute('id',String(1900000000+state.seq++));
-      for(var c=0;c<3;c++){
-        var item=data.trades[g*3+c];if(item)used=c+1;
+      var cols=Math.max(3,items.length);
+      if(cols>3)addTradeCols(table,cols);
+      for(var c=0;c<cols;c++){
+        var item=items[c];
         Object.assign(map,tradeMap(item&&item.data,c+1));
         var t=descendants(children(children(table,'tr')[0],'tc')[c+1],'t')[0];t.textContent=item?'거래사례#'+(item.index+1):'';
       }
       scope(table,map,state);
-      if(used)dropCols(table,used+1);   // 사례가 없는 뒤쪽 열은 빈칸으로 두지 않고 지운다
+      if(items.length)dropCols(table,items.length+1);   // 사례가 없는 뒤쪽 열은 빈칸으로 두지 않고 지운다
       clearLines(target);target=target.nextSibling;
     }
   });

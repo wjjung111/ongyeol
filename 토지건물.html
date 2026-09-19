@@ -429,7 +429,7 @@
      <!-- 그 밖의 사항 — 의견서 「Ⅰ. 6. 그 밖의 사항」의 가·나·다 문단. 양식의 고정 문구를 여기서 보여 주고, 항목을 끼워 넣거나 고치면 순서대로 가나다… 다시 매겨 의견서에 그대로 내보낸다 -->
      <div class="card" id="etcItemsCard">
        <h2>그 밖의 사항 <span class="hint" style="font-weight:400">— 의견서 Ⅰ. 6. 그 밖의 사항</span></h2>
-       <div class="note">양식에 있는 기본 문구 세 개가 미리 들어 있습니다. <b>＋ 아래에 추가</b>로 그 사이에 문구를 끼워 넣으면 <b>가·나·다·라…</b> 번호가 자동으로 다시 매겨지고, 의견서(산출근거)에 화면 그대로 나갑니다. 한 항목 안에서 줄을 바꾸면 번호 없이 이어지는 문단이 됩니다.</div>
+       <div class="note">양식에 있는 기본 문구 세 개가 미리 들어 있습니다. <b>＋ 아래에 추가</b>로 그 사이에 문구를 끼워 넣으면 <b>가·나·다·라…</b> 번호가 자동으로 다시 매겨지고, 의견서(산출근거)에 화면 그대로 나갑니다. 한 항목 안에서 줄을 바꾸면 번호 없이 이어지는 문단이 됩니다. 토지 표에서 <b>지분입력</b>으로 지분을 넣으면 「본 평가는 귀 제시 지분(1/2)만의 평가로서 …」 문구가 첫 항목 다음에 자동으로 끼고(지분을 지우면 빠짐), 손으로 고친 뒤에는 자동으로 바꾸지 않습니다.</div>
        <div id="etcItemsBox"></div>
        <div class="row" style="margin-top:6px">
          <button class="btn gh sm" onclick="etcItemAdd()">＋ 항목 추가</button>
@@ -1052,12 +1052,12 @@ function sajHead(kind){
     +'<option value="share"'+(SAJ_MODE[kind]==='share'?' selected':'')+'>지분입력</option></select>';
 }
 var SAJ_TITLE='사정면적 — 값이 있으면 이 면적으로 평가액이 계산됩니다(비우면 공부면적). 지분입력으로 자동 채운 값도 자유롭게 고칠 수 있습니다.';
-var SHARE_TITLE='지분 — 퍼센트(50, 33.33)도 되고 분수(1/2, 3/10)도 됩니다. 넣으면 공부면적 × 지분으로 사정면적이 자동 채워지고, 의견서 시산가액 표에는 「223.7 x 1/2 = 111.85」처럼 적힙니다.';
+var SHARE_TITLE='지분 — 퍼센트(50, 33.33)도 되고 분수(1/2, 3/10)도 됩니다. 넣으면 공부면적 × 지분으로 사정면적이 자동 채워지고, 「그 밖의 사항」에 지분 평가 문구(본 평가는 귀 제시 지분(1/2)만의 평가로서 …)가 자동으로 들어갑니다.';
 function setSajMode(kind,v){
   SAJ_MODE[kind]=(v==='share')?'share':'direct';
   if(kind==='land'){
     if(SAJ_MODE.land==='share')LANDS.forEach(function(L,i){if(hasV(L['지분']))recalcLandSaj(i);});
-    renderLands();calcGongsi();saveForm();sd();
+    renderLands();calcGongsi();saveForm();sd();etcSyncShare();
   }else{
     if(SAJ_MODE.bld==='share')document.querySelectorAll('#bldBody tr').forEach(recalcBldSaj);
     applyBldSajMode();sumBld();saveForm();renderBldCalc();
@@ -1065,7 +1065,7 @@ function setSajMode(kind,v){
 }
 function recalcLandSaj(i){var L=LANDS[i];if(!L)return;var a=shareArea(L['면적'],L['지분']);L['사정면적']=(a==null?'':String(a));}
 function landAreaChanged(i){if(SAJ_MODE.land==='share')recalcLandSaj(i);landChanged();}
-function landShareChanged(i){recalcLandSaj(i);landChanged();}
+function landShareChanged(i){recalcLandSaj(i);landChanged();etcSyncShare();}
 function blankFactors(){return ['1.00','1.00','1.00','1.00','1.00','1.00'];}
 function landFactors(L){if(!L.gf||L.gf.length!==6)L.gf=blankFactors();return L.gf;}
 function landGaFactors(L){if(!L.gaf||L.gaf.length!==6)L.gaf=blankFactors();return L.gaf;}
@@ -2696,11 +2696,42 @@ async function downloadAllDocs(){
 // 양식(토건 의견서 템플릿)의 가·나·다 고정 문구를 기본값으로 보여 주고, 사용자가 항목을 끼워 넣거나 고치면
 // 자리 순서대로 가·나·다·라… 다시 매겨 저장한다. 의견서로 내보낼 때는 arap_toji_opinion.js가 window.ETC_ITEMS를 읽어
 // 양식의 6항 문단을 이 목록으로 갈아 끼운다(양식 파일·플레이스홀더는 손대지 않는다 — 요항표 부근상황과 같은 방식).
+// 순서는 2026-09-19 예시 문서 기준: 가 소재지·공부자료 / (지분 평가면 여기에 지분 문구 자동) / 물적 동일성 / 목적.
 var ETC_ITEMS_DEFAULT=[
-  '본건 토지와 건물에 대하여 공부(등기사항전부증명서와 토지대장 및 일반건축물대장 등)와 현황 토지 및 건물의 면적·구조 등을 종합적으로 검토한 결과 물적 동일성이 인정됨.',
   '본건의 소재지, 지번 지목, 면적 및 이용상황 등은 귀 제시자료 및 관련 공부자료에 의거하였음.',
+  '본건 토지와 건물에 대하여 공부(등기사항전부증명서와 토지대장 및 일반건축물대장 등)와 현황 토지 및 건물의 면적·구조 등을 종합적으로 검토한 결과 물적 동일성이 인정됨.',
   '본건은 일반거래(시가참고) 목적의 감정평가로서, 담보나 소송 등 다른 목적으로 사용될 수 없으므로 업무진행시 참고바람.'
 ];
+// 이 순서로 바꾸기 전(가 물적동일성 / 나 소재지 / 다 목적)에 저장된 건 — 세 문구가 그대로면 새 순서로 맞춘다(고친 게 있으면 그대로 둔다)
+var ETC_ITEMS_OLD_ORDER=[ETC_ITEMS_DEFAULT[1],ETC_ITEMS_DEFAULT[0],ETC_ITEMS_DEFAULT[2]];
+function etcMigrate(items){return JSON.stringify(items)===JSON.stringify(ETC_ITEMS_OLD_ORDER)?ETC_ITEMS_DEFAULT.slice():items;}
+// ── 지분 평가 문구(자동) ──
+// 토지 표를 「지분입력」으로 두고 지분(1/2, 50 …)을 넣으면 「그 밖의 사항」 첫 항목 다음에 아래 문구가 자동으로 끼고,
+// 지분을 지우면 빠진다. 문구를 손으로 고쳤으면 그때부터는 자동으로 바꾸거나 지우지 않는다(자유수정 원칙).
+// 양식 기본 문구가 아니므로 화면·의견서 모두 빨강(채움 자리 — 지분 값을 한눈에 확인).
+var ETC_SHARE_RE=/^본 평가는 귀 제시 지분\((.*?)\)만의 평가로서/;
+function etcShareText(label){
+  return '본 평가는 귀 제시 지분('+label+')만의 평가로서, 공유지분의 위치를 특정할 수 없는바, 전체를 기준으로 평가한 후 귀 제시 지분 비율에 의하여 산정하되, 사정면적은 소수점 셋째자리까지 적용하였으니 업무 진행시 참고 하시기 바람.';
+}
+// 본건 필지들의 지분 표기(분수 우선) — 필지마다 다르면 '1/2, 1/3'
+function etcShareLabel(){
+  if(SAJ_MODE.land!=='share')return '';
+  var labels=[];LANDS.forEach(function(L){var s=shareLabel(L);if(s&&labels.indexOf(s)<0)labels.push(s);});
+  return labels.join(', ');
+}
+function etcSyncShare(){
+  var label=etcShareLabel(),want=label?etcShareText(label):'';
+  var i=-1;ETC_ITEMS.some(function(t,k){if(ETC_SHARE_RE.test(String(t==null?'':t).trim())){i=k;return true;}return false;});
+  var cur=i>=0?String(ETC_ITEMS[i]).trim():'',m=cur?ETC_SHARE_RE.exec(cur):null,auto=!!m&&cur===etcShareText(m[1]);
+  if(want){
+    if(i<0)ETC_ITEMS.splice(Math.min(1,ETC_ITEMS.length),0,want);
+    else if(auto&&cur!==want)ETC_ITEMS[i]=want;
+    else return;
+  }else{
+    if(i>=0&&auto)ETC_ITEMS.splice(i,1);else return;
+  }
+  renderEtcItems();etcItemsChanged();
+}
 var ETC_LABELS='가나다라마바사아자차카타파하';
 var ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();
 window.ETC_ITEMS=ETC_ITEMS;
@@ -2904,7 +2935,7 @@ function applyForm(o){
   CG_SPECIAL_MANUAL=o.cgSpecialManual===true;
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
   // 그 밖의 사항 — 이 기능 전에 저장된 건(etcItems 없음)은 양식 기본 문구로
-  ETC_ITEMS=Array.isArray(o.etcItems)?o.etcItems.map(function(s){return String(s==null?'':s);}):ETC_ITEMS_DEFAULT.slice();
+  ETC_ITEMS=Array.isArray(o.etcItems)?etcMigrate(o.etcItems.map(function(s){return String(s==null?'':s);})):ETC_ITEMS_DEFAULT.slice();
   window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
   return true;
 }

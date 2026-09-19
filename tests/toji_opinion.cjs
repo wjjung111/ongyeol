@@ -76,20 +76,53 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     const multiBytes=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));
     fs.writeFileSync(path.join(out,'multi.hwpx'),Buffer.from(multiBytes));const many=await validate(page,multiBytes,'multi');
     for(const marker of ['두번째동','다른표준동','거래사례#4','거래동 33-1','평가동','43-1','7층','3,333,000','3,555,000'])assert(many.text.includes(marker),marker);
-    // 거래사례 표는 3열 양식이고, 마지막 표는 실제 사례 수만큼만 남긴다(4건 → 3열 표 2개 + 1열만 남은 표 2개).
-    assert.equal(many.sizes.filter(s=>s[0]===17&&s[1]===4).length,2);
-    assert.equal(many.sizes.filter(s=>s[0]===17&&s[1]===2).length,2);
+    // 거래사례 표는 한 표에 최대 4건 — 4건이면 열을 늘려 4열(구분 포함 5열) 표 하나(2026-09-19 예시 문서 기준). 이어 붙인 표 없음.
+    assert.equal(many.sizes.filter(s=>s[0]===17&&s[1]===5).length,2);
+    assert.equal(many.sizes.filter(s=>s[0]===17&&(s[1]===4||s[1]===2)).length,0);
     assert(!many.text.includes('거래사례#5'));
     assert(many.sizes.some(s=>s[0]===8&&s[1]===6));assert(many.sizes.some(s=>s[0]===6&&s[1]===7));
-    // 거래사례 4번째부터의 이어지는 표는 새 페이지에서 시작한다(pageBreak="1").
-    const breaks=await page.evaluate(async bytes=>{
+    const tradeGeo=async bytes=>page.evaluate(async bytes=>{
       const entries=await ArapCheonggu.parseZip(Uint8Array.from(bytes).buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
       const xml=new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data);
-      const doc=new DOMParser().parseFromString(xml,'application/xml');
-      return Array.from(doc.getElementsByTagNameNS(HP,'p')).filter(p=>p.getElementsByTagNameNS(HP,'tbl').length&&p.textContent.includes('거래사례#4'))
-        .map(p=>p.getAttribute('pageBreak'));
+      const doc=new DOMParser().parseFromString(xml,'application/xml'),ch=(el,n)=>Array.from(el.children).filter(x=>x.localName===n);
+      return Array.from(doc.getElementsByTagNameNS(HP,'tbl')).filter(t=>t.textContent.includes('거래사례#')&&t.textContent.includes('잔존연수')).map(t=>{
+        let host=t;while(host.parentNode&&host.localName!=='p')host=host.parentNode;
+        const head=ch(ch(t,'tr')[0],'tc');
+        return {cols:Number(t.getAttribute('colCnt')),width:Number(ch(t,'sz')[0].getAttribute('width')),
+          cells:head.map(c=>[ch(c,'cellSz')[0].getAttribute('width'),c.textContent.trim()]),
+          rows:ch(t,'tr').every(r=>ch(r,'tc').length===head.length),pageBreak:host.getAttribute('pageBreak'),
+          last:ch(ch(t,'tr').slice(-1)[0],'tc').map(c=>c.textContent.trim())};
+      });
+    },bytes);
+    const geo4=await tradeGeo(multiBytes);
+    assert.equal(geo4.length,2);
+    for(const g of geo4){
+      assert.equal(g.width,50882,'4열 표 너비는 예시 문서와 같은 50,882');   // 본문 폭 52,726 안
+      assert.deepEqual(g.cells.map(c=>c[0]),['11534','9837','9837','9837','9837']);
+      assert.deepEqual(g.cells.map(c=>c[1]),['구분','거래사례#1','거래사례#2','거래사례#3','거래사례#4']);
+      assert.ok(g.rows,'모든 행이 5칸');
+      assert.equal(g.last[0],'토지단가(원/㎡)');assert.equal(g.last.length,5);assert.ok(g.last.every(v=>v),'4번째 사례 토지단가도 채움');
+    }
+    // 5건이면 고르게 3+2 — 두 번째 표는 새 페이지(pageBreak="1")에서 시작하고 양식 3열 너비 그대로, 빈 열은 지운다
+    const fiveBytes=await page.evaluate(async()=>{TRADES.push({loc:'거래동 99-1',use:'일반상업',jimok:'대',landA:'100',bldA:'0',total:'250000000',date:'2025.03.01',landUnit:'2500000'});calcGongsi();
+      return Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data()));});
+    const five=await validate(page,fiveBytes,'five');assert(five.text.includes('거래사례#5'));assert(!five.text.includes('거래사례#6'));
+    const geo5=await tradeGeo(fiveBytes);
+    assert.deepEqual(geo5.map(g=>g.cols),[4,3,4,3]);
+    assert.deepEqual(geo5.map(g=>g.width),[48686,36302,48686,36302]);
+    assert.deepEqual(geo5.map(g=>g.cells.map(c=>c[1]).join('|')),['구분|거래사례#1|거래사례#2|거래사례#3','구분|거래사례#4|거래사례#5','구분|거래사례#1|거래사례#2|거래사례#3','구분|거래사례#4|거래사례#5']);
+    assert.deepEqual(geo5.map(g=>g.pageBreak),['0','1','1','1'],'이어 붙인 표는 새 페이지(두 번째 자리의 첫 표는 양식이 원래 쪽나누기)');
+    await page.evaluate(()=>{TRADES.pop();calcGongsi();});
+    // 양식에 구운 쪽나누기(예시 문서와 같은 자리): 거래사례 표 뒤 빈 줄 없이 다음 제목이 새 페이지에서 시작
+    const heads=await page.evaluate(async bytes=>{
+      const entries=await ArapCheonggu.parseZip(Uint8Array.from(bytes).buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
+      const doc=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data),'application/xml');
+      const ps=Array.from(doc.documentElement.children).filter(n=>n.localName==='p');
+      const after=[];ps.forEach((p,i)=>{if(p.getElementsByTagNameNS(HP,'tbl').length&&p.textContent.includes('잔존연수'))after.push(ps[i+1].textContent.trim().slice(0,20));});
+      return {after,breaks:ps.filter(p=>p.getAttribute('pageBreak')==='1').map(p=>p.textContent.trim().slice(0,20))};
     },multiBytes);
-    assert.equal(breaks.length,2);assert(breaks.every(v=>v==='1'),'거래사례#4 표는 새 페이지에서 시작해야 합니다: '+breaks);
+    assert.deepEqual(heads.after.map(t=>t.slice(0,8)),['(4) 그 밖의','3) 토지단가의']);
+    for(const h of ['(4) 그 밖의 요인 보정치','3) 토지단가의 산정','4) 거래사례비교법에 의한'])assert(heads.breaks.some(b=>b.startsWith(h)),'쪽나누기: '+h+' / '+heads.breaks.join(','));
     // 수동 수정값과 평가사례 채택을 문서에 반영한다.
     await page.evaluate(()=>{ETC={type:'a',idx:3};STDS[0].etcOvr={src:'2345678',std:'1234567',stdTime:'1.07',out1:'7654321',out2:'3456789',ind:'1.123',ratio:'2.22'};document.getElementById('eSaj2').value='1.1';document.getElementById('eArea2').value='1.2';calcGongsi();});
     const over=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));
