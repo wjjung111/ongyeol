@@ -82,6 +82,11 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     assert.ok(gx.includes('<hp:t>일반거래(시가참고)</hp:t>'),'괄호감정표 평가목적');assert.deepEqual(gx.match(/\{\{[^}]+\}\}/g)||[],[]);
     assert.ok(runsOf(ux,'55').some(t=>t.includes('방배')),'의견서 값이 검정 쌍둥이(55)로');
     const left=[...new Set(ux.match(/\{\{[^}]+\}\}/g)||[])];assert.deepEqual(left,[],'의견서 미치환 '+left);
+    // Ⅳ-2 표: 가·나 행(프리미엄) + 합계 행(권리가액·납입액·프리미엄합·합계·감정평가액)
+    const t42=[...ux.matchAll(/<hp:tbl\b(?:(?!<hp:tbl\b).)*?<\/hp:tbl>/gs)].map(m=>m[0]).find(t=>t.includes('①권리가액'));assert.ok(t42,'Ⅳ-2 표');
+    const rows42=[...t42.matchAll(/<hp:tr\b.*?<\/hp:tr>/gs)].map(m=>[...m[0].matchAll(/<hp:tc\b.*?<\/hp:tc>/gs)].map(c=>(c[0].match(/<hp:t>(.*?)<\/hp:t>/g)||[]).map(x=>x.replace(/<\/?hp:t>/g,'')).join('')));
+    assert.equal(rows42.length,4);assert.deepEqual(rows42[1].slice(0,3),['가','-','-']);assert.equal(rows42[2][0],'나');assert.equal(rows42[3][0],'합계');
+    assert.ok(/^[\d,]+$/.test(rows42[1][3])&&rows42[1][3]===rows42[1][4],'가 행 프리미엄 '+rows42[1]);assert.ok(/^[\d,]+$/.test(rows42[3][1])&&/^[\d,]+$/.test(rows42[3][5]),'합계 행 '+rows42[3]);assert.ok(t42.includes('rowCnt="4"'));
     assert.deepEqual(errors,[]);
     console.log('OK ipj_yohang:',path.basename(yf),path.basename(uf));
   }finally{await browser.close();server.close();}
