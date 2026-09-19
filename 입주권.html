@@ -1348,11 +1348,13 @@ const IPJ_CIRCLED=["㉠","㉡","㉢","㉣","㉤","㉥"];
 const IPJ_HO_SYMS=["가","나"];
 
 // ── 결정단가 십만·아파트감정가 백만 반올림 (골든테스트 기준 고정) ──
+// 집합건물(ARM) applyR과 같은 규칙: 「N원 단위에서 반올림/절사」 = 그 자릿수에서 반올림/절사 (만원 단위 → 십만원 배수. 16,268,717 → 16,300,000)
 const ipjRound=(v,unit,mode)=>{
   if(!v||isNaN(v))return 0;
-  if(mode==="floor")return Math.floor(v/unit)*unit;
-  if(mode==="none")return Math.round(v);
-  return Math.round(v/unit)*unit;
+  if(mode==="none"||!unit)return Math.round(v);
+  const d=unit*10;
+  if(mode==="floor")return Math.floor(v/d)*d;
+  return Math.round(v/d)*d;
 };
 
 const ipjNewUnit=sym=>({
@@ -1379,7 +1381,7 @@ const ipjEmptyOv=()=>({
   // 본건 2호수
   units:[ipjNewUnit("가"), ipjNewUnit("나")],
   // 반올림(고정 기본값: 결정단가 십만·감정가 백만)
-  rndDanga:"100000", rndAmt:"1000000", rndDangaMode:"round", rndAmtMode:"round",
+  rndDanga:"10000", rndAmt:"100000", rndDangaMode:"round", rndAmtMode:"round", rndLogic:"arm",   // 만원 단위에서 반올림(=십만원 배수)·십만원 단위에서 반올림(=백만원 배수)
   // 최종 감정평가액 결정: 방식(none 그대로 / round 반올림 / floor 절사) × 단위
   finalRndMode:"none", finalRndUnit:"1000000",
 });
@@ -1418,7 +1420,7 @@ const ipjCalcUnit=(u,cases,ov)=>{
   const ta=(c&&c.timeAdj)||1;                            // 시점수정치
   const cu=(c&&pNum(c.unitPrice))||0;                    // 사례단가
   const sanjeongDanga=cu*1.000*ta*1.000*gaebyeolR;       // 산정단가 = 사례단가×사정(1)×시점×지역(1)×개별계
-  const uDanga=pNum(ov.rndDanga)||100000, uAmt=pNum(ov.rndAmt)||1000000;
+  const uDanga=pNum(ov.rndDanga)||10000, uAmt=pNum(ov.rndAmt)||100000;
   const gyeoljeong=ipjRound(sanjeongDanga,uDanga,ov.rndDangaMode||"round"); // 결정단가(기본 십만원 단위 반올림 — ④ 가격산출 「결정단가 처리」)
   const sanjeongGaek=gyeoljeong*jeonyu;                   // 산정가액 = 결정단가×전유
   const aptGam=ipjRound(sanjeongGaek,uAmt,ov.rndAmtMode||"round");       // 아파트감정가(기본 백만원 단위 반올림)★결정단가 기준
@@ -1870,7 +1872,7 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
   const RndSelIpj=({unitKey,modeKey,label,units})=>{const m=ov[modeKey]||"round";return(<div style={S.rnd}><span style={{fontWeight:600}}>{label}:</span>
     <select style={{...S.sel2,opacity:m==="none"?.5:1}} value={ov[unitKey]||units[0].v} disabled={m==="none"} onChange={e=>u(unitKey,e.target.value)}>{units.map(o=><option key={o.v} value={o.v}>{o.k}</option>)}</select>
     <span>단위에서</span><select style={S.sel2} value={m} onChange={e=>u(modeKey,e.target.value)}><option value="round">반올림</option><option value="floor">절사</option><option value="none">없음</option></select></div>);};
-  const dangaUnits=[{k:"만원",v:"10000"},{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"}], amtUnits=[{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"},{k:"천만원",v:"10000000"}];
+  const dangaUnits=[{k:"천원",v:"1000"},{k:"만원",v:"10000"},{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"}], amtUnits=[{k:"만원",v:"10000"},{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"},{k:"천만원",v:"10000000"}];
   const mLbl=m=>m==="none"?"없음":m==="floor"?"절사":"반올림", uLbl=(v,list)=>(list.find(o=>o.v===String(v))||list[0]).k;
   const noTa=sel.some(c=>!c.timeAdj);
   return(<div>
@@ -1962,9 +1964,9 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
         <RndSelIpj unitKey="rndAmt" modeKey="rndAmtMode" label="아파트감정가 처리" units={amtUnits}/>
       </div>
       <div style={{marginTop:4,fontSize:11,color:"#666"}}>
-        {(ov.rndDangaMode||"round")==="none"?"※ 산정단가를 그대로 결정단가로 적용":`※ 결정단가: ${uLbl(ov.rndDanga||"100000",dangaUnits)} 단위에서 ${mLbl(ov.rndDangaMode||"round")}`}
+        {(ov.rndDangaMode||"round")==="none"?"※ 산정단가를 그대로 결정단가로 적용":`※ 결정단가: ${uLbl(ov.rndDanga||"10000",dangaUnits)} 단위에서 ${mLbl(ov.rndDangaMode||"round")} (집합건물과 같은 규칙 — 그 자릿수에서 처리)`}
         {" / "}
-        {(ov.rndAmtMode||"round")==="none"?"아파트감정가: 산출금액 그대로":`아파트감정가: ${uLbl(ov.rndAmt||"1000000",amtUnits)} 단위에서 ${mLbl(ov.rndAmtMode||"round")}`}
+        {(ov.rndAmtMode||"round")==="none"?"아파트감정가: 산출금액 그대로":`아파트감정가: ${uLbl(ov.rndAmt||"100000",amtUnits)} 단위에서 ${mLbl(ov.rndAmtMode||"round")}`}
       </div>
     </Card>
     </>}
@@ -1998,7 +2000,7 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
           <span style={{fontSize:12,color:"#64748b"}}>단위 {(ov.finalRndMode||"none")==="none"?"— 합계 그대로":"기준"}</span>
         </div>
         <div style={{fontSize:12,color:"#166534",marginTop:8}}>金 {numberToKoreanMoney(cal.finalDecided)}원整</div>
-        <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 결정단가·아파트감정가 처리는 위 「적용단가」에서(기본 십만원·백만원 단위 반올림). 최종 감정평가액은 위 옵션 기준으로 문서(표지·괄호표·명세표·의견서)에 표기.</div>
+        <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 결정단가·아파트감정가 처리는 위 「적용단가」에서(기본 만원·십만원 단위에서 반올림 = 십만원·백만원 배수). 최종 감정평가액은 위 옵션 기준으로 문서(표지·괄호표·명세표·의견서)에 표기.</div>
         </div>);})()}
     </Card>
     <Card title="청구서" sub="감정서 5종 버튼은 위 「사례 선택」 아래에 있습니다">
@@ -2060,6 +2062,7 @@ function App(){
   const snapshot=()=>({ov,cases,fee});
   const loadCase=(id,silent)=>{
     try{const raw=ipjLS.get(ipjCaseKey(id));if(!raw)return;const d=JSON.parse(raw);
+      if(d.ov&&!d.ov.rndLogic){if(String(d.ov.rndDanga||"100000")==="100000")d.ov.rndDanga="10000";if(String(d.ov.rndAmt||"1000000")==="1000000")d.ov.rndAmt="100000";d.ov.rndLogic="arm";} // 옛 기본값(배수 맞춤)→같은 금액이 나오는 새 단위
       setOv(d.ov||ipjEmptyOv());setCases(d.cases||[]);setFee({...ipjEmptyFee(),...(d.fee||{})});
       setCurrentId(id);setStep(0);setShowList(false);}catch(e){}
   };
