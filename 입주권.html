@@ -1379,7 +1379,7 @@ const ipjEmptyOv=()=>({
   // 본건 2호수
   units:[ipjNewUnit("가"), ipjNewUnit("나")],
   // 반올림(고정 기본값: 결정단가 십만·감정가 백만)
-  rndDanga:"100000", rndAmt:"1000000",
+  rndDanga:"100000", rndAmt:"1000000", rndDangaMode:"round", rndAmtMode:"round",
   // 최종 감정평가액 결정: 방식(none 그대로 / round 반올림 / floor 절사) × 단위
   finalRndMode:"none", finalRndUnit:"1000000",
 });
@@ -1419,9 +1419,9 @@ const ipjCalcUnit=(u,cases,ov)=>{
   const cu=(c&&pNum(c.unitPrice))||0;                    // 사례단가
   const sanjeongDanga=cu*1.000*ta*1.000*gaebyeolR;       // 산정단가 = 사례단가×사정(1)×시점×지역(1)×개별계
   const uDanga=pNum(ov.rndDanga)||100000, uAmt=pNum(ov.rndAmt)||1000000;
-  const gyeoljeong=ipjRound(sanjeongDanga,uDanga,"round"); // 결정단가(십만 반올림)
+  const gyeoljeong=ipjRound(sanjeongDanga,uDanga,ov.rndDangaMode||"round"); // 결정단가(기본 십만원 단위 반올림 — ④ 가격산출 「결정단가 처리」)
   const sanjeongGaek=gyeoljeong*jeonyu;                   // 산정가액 = 결정단가×전유
-  const aptGam=ipjRound(sanjeongGaek,uAmt,"round");       // 아파트감정가(백만 반올림)★결정단가 기준
+  const aptGam=ipjRound(sanjeongGaek,uAmt,ov.rndAmtMode||"round");       // 아파트감정가(기본 백만원 단위 반올림)★결정단가 기준
   const bunyang=pNum(u.bunyangga)||0;                     // 조합원분양가
   const premium=aptGam-bunyang;                           // 프리미엄
   return {c,jeonyu,gaebyeol:gaebyeolR,ta,cu,sanjeongDanga,gyeoljeong,sanjeongGaek,aptGam,bunyang,premium};
@@ -1580,7 +1580,7 @@ async function ipjDownloadAllDocs(ov, cases){
 }
 
 // ─────────────────────── 방배 디에이치방배(이상기) 샘플 ───────────────────────
-const IPJ_SAMPLE_VER="2026-08-06a";
+const IPJ_SAMPLE_VER="2026-09-19a";
 function ipjSample(){
   const ov=ipjEmptyOv();
   Object.assign(ov,{
@@ -1596,7 +1596,7 @@ function ipjSample(){
   });
   const c1={id:"ipjc1",symbol:"㉠",location:"방배동",jibun:"3278",aptName:"방배아트자이",dong:"105",floor:"5",ho:"501",
     exclusiveArea:"59.99",price:"2200000000",unitPrice:"36670455",tradeDate:"2026-02-04",approvalDate:"2018-10-29",
-    timeAdj:1.015,timeAdjDetail:"매매가격지수(한국부동산원) : 2026.02 ~ 2026.06\n시점수정치 : 101.5/100.0≒1.01500",isShown:true};
+    timeAdj:1.015,timeAdjDetail:"매매가격지수(한국부동산원) : 2026.02 ~ 2026.06\n시점수정치 : 101.5/100.0≒1.01500",isShown:true,isSelected:true};
   const c2={id:"ipjc2",symbol:"㉡",location:"방배동",jibun:"3283",aptName:"방배그랑자이",dong:"106",floor:"18",ho:"1801",
     exclusiveArea:"59.96",price:"2850000000",unitPrice:"47530974",tradeDate:"2025-09-05",approvalDate:"2021-07-23",
     timeAdj:null,timeAdjDetail:"",isShown:true};
@@ -1605,7 +1605,7 @@ function ipjSample(){
     timeAdj:null,timeAdjDetail:"",isShown:true};
   const c4={id:"ipjc4",symbol:"㉣",location:"방배동",jibun:"3283",aptName:"방배그랑자이",dong:"103",floor:"18",ho:"1802",
     exclusiveArea:"112.96",price:"3849966663",unitPrice:"34082559",tradeDate:"2026-01-15",approvalDate:"2021-07-23",
-    timeAdj:1.015,timeAdjDetail:"매매가격지수(한국부동산원) : 2026.01 ~ 2026.06\n시점수정치 : 101.5/100.0≒1.01500",isShown:true};
+    timeAdj:1.015,timeAdjDetail:"매매가격지수(한국부동산원) : 2026.01 ~ 2026.06\n시점수정치 : 101.5/100.0≒1.01500",isShown:true,isSelected:true};
   const cases=[c1,c2,c3,c4];
   Object.assign(ov.units[0],{dong:"111",floor:"21",ho:"2103",type:"59A",baejeong:"25평형(59㎡)",
     jeonyu:"59.86",gongyong:"21.50",gonggeup:"81.36",gyeyak:"81.36",daeji:"33.50",bunyangga:"1056900000",
@@ -1814,7 +1814,7 @@ function IpjTabSarye({ov,cases,setCases}){
 }
 
 // ─────────────────────── ④ 가격산출 (계산 · 다운로드 · 청구서) ───────────────────────
-function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
+function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
   const cal=ipjCalc(ov,cases);
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
   const uu=(i,k,v)=>setOv(p=>{const units=p.units.map((x,j)=>j===i?{...x,[k]:v}:x);return{...p,units};});
@@ -1846,25 +1846,107 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
   const inTd={...S.inp,width:"100%",textAlign:"right",border:"1px solid #e5d9d9"};
   const sumTd={border:_bd,padding:"6px 12px",textAlign:"center",fontWeight:700,color:"#5a2b2b",letterSpacing:2};
   const sumV={border:_bd,padding:"6px 10px",textAlign:"right",fontWeight:700};
+  // ── 집합건물(ARM) ④ 가격산출과 같은 구성: 사례 선택 → 문서 버튼 → 가치형성요인 비교 → 적용단가 → (입주권) 감정평가액 결정 ──
+  const allCases=cases.filter(c=>c.isShown!==false);
+  const sel=allCases.filter(c=>c.isSelected);
+  const togSel=id=>setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,isSelected:!c.isSelected};if(nv.isSelected)nv.isShown=true;return nv;}));
+  // 옛 저장건(선정 표시 없이 호수별 appliedCaseId만 있음) → 그 사례를 선정으로 표시
+  useEffect(()=>{if(cases.length&&!cases.some(c=>c.isSelected)){const ids=new Set((ov.units||[]).map(x=>String(x.appliedCaseId||"")).filter(Boolean));if(ids.size)setCases(p=>p.map(c=>ids.has(String(c.id))?{...c,isSelected:true}:c));}},[]);
+  // 호수의 적용 사례가 비었거나 선정에서 빠졌으면 첫 선정 사례로 (칸은 자유수정)
+  useEffect(()=>{if(!sel.length)return;const first=String(sel[0].id);const bad=(ov.units||[]).some(x=>!sel.some(c=>String(c.id)===String(x.appliedCaseId)));
+    if(bad)setOv(p=>({...p,units:p.units.map(x=>sel.some(c=>String(c.id)===String(x.appliedCaseId))?x:{...x,appliedCaseId:first})}));},[sel.map(c=>c.id).join(","),ov.units.map(x=>x.appliedCaseId).join(",")]);
+  const [editTimeId,setEditTimeId]=useState(null);
+  const applySijeom=(id,text)=>{const v=parseTA(text);if(v)setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));setEditTimeId(null);};
+  const resFac=[{key:"extFactor",note:"noteExt",label:"단지 외부요인",desc:"편익시설, 교통, 교육, 자연환경, 공원·녹지, 거주환경"},{key:"intFactor",note:"noteInt",label:"단지 내부요인",desc:"세대수, 층수, 동배치, 조경, 구조·재질, 난방, 주차, 보안·관리"},{key:"hoFactor",note:"noteHo",label:"호별 요인",desc:"일조·채광·조망, 통풍, 엘리베이터, 소음, 전유면적, 평면방식"},{key:"etcFactor",note:"noteEtc",label:"기타 요인",desc:"재개발·재건축, 도시재생 편입 여부"}];
+  const caseSym=c=>IPJ_CIRCLED[cases.indexOf(c)]||c.symbol;
+  const sameTag=c=>{const normL=t=>(t||"").replace(/^[가-힣]+(특별|광역|특례)?시\s*/,"").replace(/[가-힣]+구\s*/,"").replace(/\s+/g," ").trim();const cl=normL(`${c.location} ${c.jibun}`);const sl=normL(`${ov.beopjeongdong||""} ${ov.jibun||""}`);const same=cl&&sl&&(cl===sl||sl.includes(cl)||cl.includes(sl));return <span style={{marginLeft:8,padding:"2px 10px",borderRadius:4,fontSize:12,fontWeight:600,color:"#fff",background:same?"#059669":"#d97706"}}>{same?"동일단지":"인근지역"}</span>;};
+  const RndSelIpj=({unitKey,modeKey,label,units})=>{const m=ov[modeKey]||"round";return(<div style={S.rnd}><span style={{fontWeight:600}}>{label}:</span>
+    <select style={{...S.sel2,opacity:m==="none"?.5:1}} value={ov[unitKey]||units[0].v} disabled={m==="none"} onChange={e=>u(unitKey,e.target.value)}>{units.map(o=><option key={o.v} value={o.v}>{o.k}</option>)}</select>
+    <span>단위에서</span><select style={S.sel2} value={m} onChange={e=>u(modeKey,e.target.value)}><option value="round">반올림</option><option value="floor">절사</option><option value="none">없음</option></select></div>);};
+  const dangaUnits=[{k:"만원",v:"10000"},{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"}], amtUnits=[{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"},{k:"천만원",v:"10000000"}];
+  const mLbl=m=>m==="none"?"없음":m==="floor"?"절사":"반올림", uLbl=(v,list)=>(list.find(o=>o.v===String(v))||list[0]).k;
+  const noTa=sel.some(c=>!c.timeAdj);
   return(<div>
-    <Card title="본건 호별 선정 · 개별요인" sub="가=㉠, 나=㉣ 대응 사례 선택 (사정보정·지역요인 = 1.000 고정)">
+    {/* 사례 선택 */}
+    <Card title="사례 선택" sub="③에서 붙여넣은 거래사례 — 체크한 사례가 본건(가·나…)에 적용됩니다 · 시점수정치 클릭 → 바로 입력">
+      {!allCases.length?<div style={{color:"#999",fontSize:12}}>③ 사례 등 입력에서 사례를 추가해주세요.</div>:
+      <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr><th style={{...S.th,width:40}}>선정</th><th style={S.th}>기호</th><th style={S.th}>소재지</th><th style={S.th}>건물명</th><th style={S.th}>동/층/호</th><th style={S.th}>전유면적</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
+      <tbody>{allCases.map(c=>(<tr key={c.id} style={{background:c.isSelected?C.sel:"transparent"}}>
+        <td style={S.td}><input type="checkbox" checked={!!c.isSelected} onChange={()=>togSel(c.id)}/></td>
+        <td style={{...S.td,fontWeight:600}}>{caseSym(c)}</td>
+        <td style={S.tdL}>{c.location} {c.jibun}</td>
+        <td style={S.tdL}>{c.aptName}</td>
+        <td style={S.td}>{c.dong}/{c.floor}/{c.ho}</td>
+        <td style={S.tdR}>{fmtDec(c.exclusiveArea,2)}</td>
+        <td style={S.tdR}>{fmt(pNum(c.unitPrice))}</td>
+        <td style={S.td}>{fmtDate(c.tradeDate)}</td>
+        <td style={{...S.td,cursor:"pointer",fontWeight:700,color:c.timeAdj?C.acc:"#999"}} title="클릭해서 시점수정치 입력" onClick={()=>setEditTimeId(c.id)}>{c.timeAdj?fmtDec(c.timeAdj,5):"미입력 (클릭)"}</td>
+      </tr>))}</tbody></table></div>}
+      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 선정된 사례: {sel.length}건{!sel.length&&allCases.length?" — 위 체크박스에서 사례를 선정하세요.":""} | 시점수정치 클릭 → 바로 입력</div>
+    </Card>
+    {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
+      return <SijeomModal c={c} ov={ov} propType="주거용" onApply={t=>applySijeom(editTimeId,t)} onClose={()=>setEditTimeId(null)}/>;})()}
+
+    {/* 문서 다운로드 — 집합건물과 같은 자리(사례 선택 아래, 오른쪽 정렬) */}
+    <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
+      {IPJ_FILES.map(f=><button key={f.key} disabled={!!busy} style={{...S.btn,background:"#fff",border:"1px solid "+C.bdr,color:C.pri,padding:"9px 14px"}} onClick={()=>dl(f)}>{busy===f.key?"생성중…":f.label}</button>)}
+      <button disabled={!!busy} style={{...S.btn,background:"#7c3aed",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 22px"}} onClick={dlAll}>{busy==="all"?"생성중…":"📥 감정서 5종 모두"}</button>
+    </div>
+
+    {!sel.length?null:<>
+    {/* 가치형성요인 비교 — 본건 호수(가·나…)마다 적용 사례와 비교 (의견서 개별요인표와 같은 값) */}
+    <Card title="가치형성요인 비교">
+      <div style={{...S.row,marginBottom:12}}><span style={S.lbl}>물건 유형</span>
+        <span style={{fontWeight:700,color:C.pri,marginLeft:4}}>주거용</span><span style={{fontSize:11,color:"#888",marginLeft:8}}>(입주권 — 아파트)</span></div>
+      {ov.units.map((x,i)=>{const c=sel.find(k=>String(k.id)===String(x.appliedCaseId))||sel[0];if(!c)return null;const r=cal.rows[i]||{};
+        return(<div key={i} style={{marginBottom:16,padding:12,background:C.lb,borderRadius:6}}>
+        <div style={{...S.h3,display:"flex",alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{padding:"2px 10px",borderRadius:4,fontSize:12,fontWeight:700,background:C.pri,color:"#fff",marginRight:8}}>본건 {x.sym}{x.dong?` · ${x.dong}동 ${x.ho}호`:""}</span>
+          사례 #{caseSym(c)} — {c.aptName} {c.dong}동 {c.ho}호{sameTag(c)}
+          {sel.length>1&&<select value={String(x.appliedCaseId||sel[0].id)} onChange={e=>uu(i,"appliedCaseId",e.target.value)} style={{...S.sel2,marginLeft:10,fontSize:11,padding:"2px 6px"}}>{sel.map(k=><option key={k.id} value={k.id}>#{caseSym(k)} {k.aptName}</option>)}</select>}
+        </div>
+        <table style={{...S.tbl,marginBottom:8}}><thead><tr><th style={S.th}>소재지</th><th style={S.th}>동/층/호</th><th style={S.th}>건물명</th><th style={S.th}>전유면적</th><th style={S.th}>가격</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
+        <tbody><tr><td style={S.tdL}>{c.location} {c.jibun}</td><td style={S.td}>{c.dong}/{c.floor}/{c.ho}</td><td style={S.tdL}>{c.aptName}</td><td style={S.tdR}>{fmtDec(c.exclusiveArea,2)}</td><td style={S.tdR}>{fmt(pNum(c.price))}</td><td style={S.tdR}>{fmt(pNum(c.unitPrice))}</td><td style={S.td}>{fmtDate(c.tradeDate)}</td><td style={{...S.td,cursor:"pointer",fontWeight:700,color:C.acc}} title="클릭해서 시점수정치 입력" onClick={()=>setEditTimeId(c.id)}>{c.timeAdj?fmtDec(c.timeAdj,5):"미입력 (클릭)"}</td></tr></tbody></table>
+        <table style={S.tbl}><thead><tr><th style={{...S.th,width:100}}>요인구분</th><th style={S.th}>세부항목</th><th style={{...S.th,width:65}}>비교치</th><th style={{...S.th,minWidth:220}}>의견</th></tr></thead><tbody>
+          {resFac.map(f=>{const val=pNum(x[f.key])||1;const isEq=Math.abs(val-1)<0.001;
+            return(<tr key={f.key}><td style={{...S.td,fontWeight:600}}>{f.label}</td><td style={{...S.tdL,fontSize:11,color:"#555"}}>{f.desc}</td>
+              <td style={S.td}><FactorInput value={val} onChange={v=>uu(i,f.key,v)}/></td>
+              <td style={S.td}><textarea style={{...S.inp,width:"100%",minHeight:36,resize:"vertical",fontSize:12,lineHeight:1.4}} value={x[f.note]||""} onChange={e=>uu(i,f.note,e.target.value)} placeholder={isEq?"대체로 대등함.":""}/></td></tr>);})}
+          <tr style={{background:"#e0f2fe"}}><td style={{...S.td,fontWeight:700}} colSpan={2}>가치형성요인 합계</td><td style={{...S.td,fontWeight:700,fontSize:14}}>{fmtDec3(r.gaebyeol||1)}</td><td style={S.td}>-</td></tr>
+        </tbody></table>
+      </div>);})}
+    </Card>
+
+    {/* 적용단가 — 호수(가·나…)별 한 줄 */}
+    <Card title="적용단가">
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
-        {["기호","대응 거래사례","시점수정치","단지외부","단지내부","호별","기타","개별계","결정단가","아파트감정가","조합원분양가","프리미엄"].map(h=><th key={h} style={S.th}>{h}</th>)}
+        {["기호","사례","사례단가","사정보정","시점수정","가형요","산출단가","결정단가","전유(㎡)","산출금액","아파트감정가"].map(h=><th key={h} style={S.th}>{h}</th>)}
       </tr></thead><tbody>
-        {ov.units.map((x,i)=>{const r=cal.rows[i]||{};return(<tr key={i}>
-          <td style={{...S.td,fontWeight:700,background:"#eff6ff"}}>{x.sym}</td>
-          <td style={S.td}><select value={x.appliedCaseId||""} onChange={e=>uu(i,"appliedCaseId",e.target.value)} style={{...S.sel2,width:150}}>
-            <option value="">— 선택 —</option>{shown.map((c,ci)=><option key={c.id} value={c.id}>{IPJ_CIRCLED[cases.indexOf(c)]||c.symbol} {c.aptName}</option>)}</select></td>
-          <td style={S.td}>{r.ta?Number(r.ta).toFixed(5):"-"}</td>
-          {["extFactor","intFactor","hoFactor","etcFactor"].map(k=><td key={k} style={S.td}><FactorInput value={x[k]} onChange={v=>uu(i,k,v)}/></td>)}
-          <td style={{...S.td,fontWeight:600}}>{(r.gaebyeol||1).toFixed(3)}</td>
-          <td style={{...S.td,textAlign:"right"}}>{fmt(r.gyeoljeong)}</td>
-          <td style={{...S.td,textAlign:"right",fontWeight:600}}>{fmt(r.aptGam)}</td>
-          <td style={{...S.td,textAlign:"right"}}>{fmt(r.bunyang)}</td>
-          <td style={{...S.td,textAlign:"right",color:C.acc,fontWeight:600}}>{fmt(r.premium)}</td>
+        {ov.units.map((x,i)=>{const r=cal.rows[i]||{};const c=r.c;const has=!!(c&&c.timeAdj);return(<tr key={i}>
+          <td style={{...S.td,fontWeight:700}}>{x.sym}</td>
+          <td style={S.td}>{c?`#${caseSym(c)}`:"-"}</td>
+          <td style={S.tdR}>{c?fmt(r.cu):"-"}</td><td style={S.tdR}>1.000</td>
+          <td style={S.tdR}>{has?fmtDec(c.timeAdj,5):"-"}</td>
+          <td style={S.tdR}>{fmtDec3(r.gaebyeol||1)}</td>
+          <td style={{...S.tdR,fontWeight:600}}>{has?fmt(Math.round(r.sanjeongDanga)):"-"}</td>
+          <td style={{...S.tdR,fontWeight:700,color:C.acc}}>{has?fmt(r.gyeoljeong):"-"}</td>
+          <td style={S.tdR}>{fmtDec(r.jeonyu,2)}</td>
+          <td style={{...S.tdR,fontWeight:600}}>{has?fmt(Math.round(r.sanjeongGaek)):"-"}</td>
+          <td style={{...S.tdR,fontWeight:700,color:C.dng}}>{has?fmt(r.aptGam):"-"}</td>
         </tr>);})}
       </tbody></table></div>
+      {noTa&&<div style={{marginTop:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산출단가·결정단가·아파트감정가가 계산되지 않습니다. 위 표의 시점수정치를 클릭해 입력하세요.</div>}
+      <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
+        <RndSelIpj unitKey="rndDanga" modeKey="rndDangaMode" label="결정단가 처리" units={dangaUnits}/>
+        <RndSelIpj unitKey="rndAmt" modeKey="rndAmtMode" label="아파트감정가 처리" units={amtUnits}/>
+      </div>
+      <div style={{marginTop:4,fontSize:11,color:"#666"}}>
+        {(ov.rndDangaMode||"round")==="none"?"※ 산출단가를 그대로 결정단가로 적용":`※ 결정단가: ${uLbl(ov.rndDanga||"100000",dangaUnits)} 단위에서 ${mLbl(ov.rndDangaMode||"round")}`}
+        {" / "}
+        {(ov.rndAmtMode||"round")==="none"?"아파트감정가: 산출금액 그대로":`아파트감정가: ${uLbl(ov.rndAmt||"1000000",amtUnits)} 단위에서 ${mLbl(ov.rndAmtMode||"round")}`}
+      </div>
     </Card>
+    </>}
     <Card title="입주권 감정평가액 결정" sub="의견서 Ⅳ장과 동일 구성 — 1. 프레미엄 상당액 → 2. 감정평가액">
       {(()=>{const gTh={border:"1px solid #bbf7d0",background:"#166534",color:"#fff",padding:"6px 10px",fontSize:12,fontWeight:600,textAlign:"center"};
         const gTd={border:"1px solid #bbf7d0",padding:"6px 12px",fontSize:13,textAlign:"right",background:"#fff"};
@@ -1895,15 +1977,11 @@ function IpjTabGagyeok({ov,setOv,cases,fee,setFee}){
           <span style={{fontSize:12,color:"#64748b"}}>단위 {(ov.finalRndMode||"none")==="none"?"— 합계 그대로":"기준"}</span>
         </div>
         <div style={{fontSize:12,color:"#166534",marginTop:8}}>金 {numberToKoreanMoney(cal.finalDecided)}원整</div>
-        <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 결정단가는 십만원, 아파트감정가는 백만원 단위 반올림(결정단가 기준). 최종 감정평가액은 위 옵션 기준으로 문서(표지·괄호표·명세표·의견서)에 표기.</div>
+        <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 결정단가·아파트감정가 처리는 위 「적용단가」에서(기본 십만원·백만원 단위 반올림). 최종 감정평가액은 위 옵션 기준으로 문서(표지·괄호표·명세표·의견서)에 표기.</div>
         </div>);})()}
     </Card>
-    <Card title="한글파일 다운로드 (입주권 감정서 5종 + 청구서)">
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>
-        {IPJ_FILES.map(f=><button key={f.key} disabled={busy} style={{...S.btn,background:"#fff",border:"1px solid "+C.bdr,color:C.pri}} onClick={()=>dl(f)}>{busy===f.key?"생성중…":f.label} hwpx</button>)}
-        <button disabled={busy} style={{...S.btn,background:C.pri,color:"#fff"}} onClick={dlAll}>{busy==="all"?"생성중…":"📥 감정서 5종 모두"}</button>
-      </div>
-      <div style={{marginTop:16}}>
+    <Card title="청구서" sub="감정서 5종 버튼은 위 「사례 선택」 아래에 있습니다">
+      <div>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
           <div style={{fontWeight:700,color:C.pri}}>청구서 (수수료)</div>
           <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{fontSize:12,color:"#2563eb"}}>수수료 계산 사이트 ↗</a>
@@ -1981,7 +2059,7 @@ function App(){
   },[ov,cases,fee]);
 
   const tabProps={0:<IpjTabGaeyo ov={ov} setOv={setOv}/>,1:<IpjTabJeopsu ov={ov} setOv={setOv}/>,
-    2:<IpjTabSarye ov={ov} cases={cases} setCases={setCases}/>,3:<IpjTabGagyeok ov={ov} setOv={setOv} cases={cases} fee={fee} setFee={setFee}/>};
+    2:<IpjTabSarye ov={ov} cases={cases} setCases={setCases}/>,3:<IpjTabGagyeok ov={ov} setOv={setOv} cases={cases} setCases={setCases} fee={fee} setFee={setFee}/>};
   return(<div style={{...S.app,display:"flex",minHeight:"calc(100vh - 46px)"}}>
     <IpjSidebar ov={ov} cal={cal} collapsed={leftCollapsed} setCollapsed={setLeftCollapsed}/>
     <div style={{flex:1,padding:"14px 18px",maxWidth:1180}}>
