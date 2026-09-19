@@ -31,6 +31,8 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     const blanks=page.locator('input[title*="파란 플레이스홀더"]');assert.equal(await blanks.count(),3);
     assert.deepEqual(await blanks.evaluateAll(els=>els.map(e=>e.value)),["서울특별시 서초구 방배동","지하철 7호선 '이수역' 동측","지하철 7호선 '이수역'"]);
     assert.ok(await page.locator('text=본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.').isVisible());
+    assert.ok(await page.locator('text=기준시점 현재 지적 미정리된 상태임.').isVisible());
+    assert.ok((await page.locator('input[title*="파란 플레이스홀더"]').count())===3);
     // 직접 입력 → 파일에 그대로
     await blanks.nth(0).fill('경기도 성남시 수정구 여수동');await blanks.nth(1).fill('성남시청 북서측');await blanks.nth(2).fill('지하철 8호선 \'모란역\'');
     // 시점수정 창: 본건(방배동, 시군구 '서초구')이면 지역이 서초구로 자동 선택(집합건물과 같은 동작), 구 목록은 가나다순
@@ -66,6 +68,7 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     const paraOf=s=>{const i=yx.indexOf(s);const a=yx.lastIndexOf('<hp:p ',i),b=yx.indexOf('</hp:p>',i);return yx.slice(a,b);};
     assert.equal(paraOf('대상물건은 ').includes('linesegarray'),false);assert.equal(paraOf('버스정류장').includes('linesegarray'),false);
     assert.equal(paraOf('본건 주위는').includes('linesegarray'),true);
+    assert.ok(yx.includes('<hp:t>기준시점 현재 지적 미정리된 상태임.</hp:t>'),'5번 고정 문구');
     // 의견서
     const uf=await dl('3. 의견서','3. 의견서.hwpx');const u=unzip(fs.readFileSync(uf));const ux=u['Contents/section0.xml'].toString('utf8'),uh=u['Contents/header.xml'].toString('utf8');
     const ids=[...uh.matchAll(/<hh:charPr id="(\d+)"/g)].map(m=>+m[1]);assert.deepEqual(ids,[...Array(57).keys()]);assert.ok(uh.includes('<hh:charProperties itemCnt="57"'));
