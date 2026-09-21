@@ -17,6 +17,9 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #f5f6f8; }
     input:focus, textarea:focus, select:focus { outline: 2px solid #2563eb !important; outline-offset: -1px; background: #eff6ff !important; }
+    .ipj-etc-note input::placeholder { color: #b8bdc5; opacity: 1; }
+    .ipj-etc-hint { display: none; margin-top: 4px; padding: 5px 8px; border: 1px solid #dbe3ee; border-radius: 4px; background: #f8fafc; color: #64748b; font-size: 11px; }
+    .ipj-etc-note:focus-within .ipj-etc-hint { display: block; }
   </style>
 </head>
 <body>
@@ -1823,6 +1826,7 @@ function IpjTabSarye({ov,cases,setCases}){
 }
 
 // ─────────────────────── ④ 가격산출 (계산 · 다운로드 · 청구서) ───────────────────────
+const IPJ_ETC_NOTE_SUGGESTION="본건은 준공전 부동산으로서 사업진행 결과 등에 따른 불확실성을 고려하였음.";
 function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
   const cal=ipjCalc(ov,cases);
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
@@ -1931,7 +1935,10 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
             {resFac.map(f=>{const isEq=Math.abs((pNum(x[f.key])||1)-1)<0.001;
               return(<div key={f.key} style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
                 <span style={{minWidth:92,color:"#444",whiteSpace:"nowrap"}}>{f.label}:</span>
-                <input value={x[f.note]||""} onChange={e=>uu(i,f.note,e.target.value)} placeholder={isEq?"본건은 거래사례와 대체로 대등함.":""} style={noteIn}/>
+                {f.note==="noteEtc"?<div className="ipj-etc-note" style={{flex:1,minWidth:0}}>
+                  <input aria-label={x.sym+" 기타 요인"} aria-describedby={!x[f.note]?"ipj-etc-hint-"+i:undefined} value={x[f.note]||""} onChange={e=>uu(i,f.note,e.target.value)} onKeyDown={e=>{if(e.key==="Tab"&&!e.shiftKey&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!e.nativeEvent.isComposing&&!e.currentTarget.value){e.preventDefault();uu(i,f.note,IPJ_ETC_NOTE_SUGGESTION);}}} placeholder={IPJ_ETC_NOTE_SUGGESTION} style={{...noteIn,width:"100%"}}/>
+                  {!x[f.note]&&<div id={"ipj-etc-hint-"+i} className="ipj-etc-hint" role="tooltip">Tab을 누르면 그대로 입력됩니다.</div>}
+                </div>:<input value={x[f.note]||""} onChange={e=>uu(i,f.note,e.target.value)} placeholder={isEq?"본건은 거래사례와 대체로 대등함.":""} style={noteIn}/>}
               </div>);})}
           </td></tr>
           {/* 적용단가 — 이 호수의 개별요인 바로 아래 */}
