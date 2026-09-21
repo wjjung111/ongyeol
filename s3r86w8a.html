@@ -3786,6 +3786,7 @@ function App(){
   const [loaded,setLoaded]=useState(false);
   const [caseList,setCaseList]=useState([]);  // [{id,label,updated}]
   const [currentId,setCurrentId]=useState(null);
+  const [caseRevision,setCaseRevision]=useState(0); // 평가건 전환 시 대상물건 입력 화면도 초기화
   const [showList,setShowList]=useState(false);
   const [leftCollapsed,setLeftCollapsed]=useState(false);
   const [rightCollapsed,setRightCollapsed]=useState(false);
@@ -3951,6 +3952,7 @@ function App(){
       if(r&&r.value){const d=JSON.parse(r.value);
         if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
         if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
+        setCaseRevision(v=>v+1);
         setCurrentId(id);setStep(0);setShowList(false);
       }
     }catch(e){alert("불러오기 실패");}
@@ -3958,6 +3960,7 @@ function App(){
 
   // 새 건
   const newCase=()=>{
+    setCaseRevision(v=>v+1);
     setOv({...emptyOv,writeDate:today()});
     setCases([]);setPrecs([]);setPropType("주거용");
     setUD("만원");setUM("round");setTD("백만원");setTM("round");setManU("");
@@ -4029,7 +4032,7 @@ function App(){
     <div style={{fontSize:12,color:"#888",marginBottom:4}}>거래사례비교법 · {propType}</div>
     <div style={S.steps}>{labels.map((l,i)=><div key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</div>)}</div>
     <div style={{display:step===0?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
-    <div style={{display:step===1?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
+    <div style={{display:step===1?"block":"none"}}><Step2 key={caseRevision} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} saved={!!(currentId&&saveStatus==="✅")}/></div>
     <div style={{display:step===4?"block":"none"}}><StepMap ov={ov} sfx="" active={step===4}/></div>
@@ -6621,6 +6624,7 @@ function App(){
   const [loaded,setLoaded]=useState(false);
   const [caseList,setCaseList]=useState([]);  // [{id,label,updated}]
   const [currentId,setCurrentId]=useState(null);
+  const [caseRevision,setCaseRevision]=useState(0); // 평가건 전환 시 대상물건 입력 화면도 초기화
   const [showList,setShowList]=useState(false);
   const [leftCollapsed,setLeftCollapsed]=useState(false);
   const [rightCollapsed,setRightCollapsed]=useState(false);
@@ -6758,6 +6762,7 @@ function App(){
       if(r&&r.value){const d=JSON.parse(r.value);
         if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
         if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
+        setCaseRevision(v=>v+1);
         setCurrentId(id);setStep(0);setShowList(false);
       }
     }catch(e){alert("불러오기 실패");}
@@ -6765,6 +6770,7 @@ function App(){
 
   // 새 건
   const newCase=()=>{
+    setCaseRevision(v=>v+1);
     setOv({...emptyOv,writeDate:today()});
     setCases([]);setPrecs([]);setPropType("주거용");
     setUD("만원");setUM("round");setTD("백만원");setTM("round");setManU("");
@@ -6836,7 +6842,7 @@ function App(){
     <div style={{fontSize:12,color:"#888",marginBottom:4}}>거래사례비교법 · {propType}</div>
     <div style={S.steps}>{labels.map((l,i)=><div key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</div>)}</div>
     <div style={{display:step===0?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
-    <div style={{display:step===1?"block":"none"}}><Step2 ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
+    <div style={{display:step===1?"block":"none"}}><Step2 key={caseRevision} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} tplFromUser={tplFromUser} saved={!!(currentId&&saveStatus==="✅")}/></div>
     <div style={{display:step===4?"block":"none"}}><StepMap ov={ov} sfx="M" active={step===4}/></div>
