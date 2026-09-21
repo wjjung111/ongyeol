@@ -15,6 +15,7 @@ function calculateUnit(u,appC,settings,h){
 }
 const fmt=v=>v==null||!Number.isFinite(Number(v))?'':Number(v).toLocaleString('ko-KR',{maximumFractionDigits:4});
 const text=v=>v==null?'':String(v),sym=i=>'가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허그느드르므브스으즈츠크트프흐'[i]||String(i+1);
+const FACTOR_NOTE_DEFAULT='- 외부요인:\n- 내부요인:\n- 호별요인:\n- 기타요인:';
 const all=(n,name)=>Array.from(n.getElementsByTagNameNS(HP,name));
 const children=(n,name)=>Array.from(n.children).filter(e=>e.localName===name);
 const xml=s=>{const d=new DOMParser().parseFromString(s,'application/xml');if(d.querySelector('parsererror'))throw Error('한글 문서 XML을 읽지 못했습니다.');return d;};
@@ -35,7 +36,7 @@ function model(input,h){
  const rows=units.map((u,i)=>{const c=findCase(u),cal=calculateUnit(u,c,input,h),{ext,intF,ho,etc,totFac:factor,ua:area,raw,rnd:unit,finalAmt:amount,ready}=cal;
  const cv=caseValues(c,g.ARAP_INDEX_DATA,h.parseTimeAdjDetail,ov);
  return {u,c,area,unit,amount,ready,values:{...cv,'일련번호':sym(i),'동':u.dong||'','층':u.floor||'','호수':u.ho||'','동층호':[u.dong,u.floor,u.ho].map(text).join('/'),'대지지분':fmt(num(u.landArea)),'전유면적':fmt(num(u.area)),'평가면적':fmt(area),'공용면적':fmt(num(u.commonArea)),'합계면적':num(u.area)!=null&&num(u.commonArea)!=null?fmt(num(u.area)+num(u.commonArea)):'',
- '외부_비교치':ext==null?'':ext.toFixed(3),'내부_비교치':intF==null?'':intF.toFixed(3),'호별_비교치':ho==null?'':ho.toFixed(3),'기타_비교치':etc==null?'':etc.toFixed(3),'가형요_합계':factor==null?'':factor.toFixed(3),'개별요인_의견':u.factorNote||'','적용_사례단가':c?fmt(num(c.unitPrice)):'','적용_사정보정':c?'1.000':'','적용_지역요인':c?'1.000':'','적용_가형요':factor==null?'':factor.toFixed(3),'적용_산출단가':fmt(raw==null?null:Math.round(raw)),'적용_결정단가':fmt(unit),'감정평가액':fmt(amount)}};});
+ '외부_비교치':ext==null?'':ext.toFixed(3),'내부_비교치':intF==null?'':intF.toFixed(3),'호별_비교치':ho==null?'':ho.toFixed(3),'기타_비교치':etc==null?'':etc.toFixed(3),'가형요_합계':factor==null?'':factor.toFixed(3),'개별요인_의견':u.factorNote||FACTOR_NOTE_DEFAULT,'적용_사례단가':c?fmt(num(c.unitPrice)):'','적용_사정보정':c?'1.000':'','적용_지역요인':c?'1.000':'','적용_가형요':factor==null?'':factor.toFixed(3),'적용_산출단가':fmt(raw==null?null:Math.round(raw)),'적용_결정단가':fmt(unit),'감정평가액':fmt(amount)}};});
  const total=rows.every(r=>r.ready)?rows.reduce((n,r)=>n+r.amount,0):null,used=[];rows.forEach(r=>{if(r.c&&!used.some(c=>c.id===r.c.id))used.push(r.c);});
  const name=g.ArapBldrgst?g.ArapBldrgst.buildingNameOnly(ov.buildingName):ov.buildingName||'',floors=text(ov.floors).split('/'),parts=text(ov.jibun).match(/^(.*?)([^\s]+(?:동|리|가))\s+(.+)$/);
  const common={...caseValues(used[0],g.ARAP_INDEX_DATA,h.parseTimeAdjDetail,ov),'의뢰인':ov.client||'','접수번호':ov.caseNoDisplay||ov.caseNo||'','건명':[ov.jibun,name,rows[0].values['동층호']+'호'+(rows.length>1?' 외 '+(rows.length-1)+'개호':'')].filter(Boolean).join(' '),'감정평가액':fmt(total),'감정평가액한글':total!=null?h.numberToKoreanMoney(total)+'원':'','소유자':ov.owner||'','제출처':ov.submitTo||'','평가목적':ov.purpose||'','평가구분':ov.evalCategory||'','기준시점':ov.baseDate||'','조사기간':ov.surveyDate||'','작성일자':ov.writeDate||'','감정평가사':ov.appraiserName||'','심사자':ov.reviewerName||'','세대':rows.length+'개호','세대_사정':rows.length+'개호','유형':ov.kind||ov.mainUseJeonyu||'','건물명':name,'소재지_동까지':parts?(parts[1]+parts[2]).trim():ov.jibun||'','소재지_시군구':parts?parts[1].trim():'','소재지_지번':parts?(parts[2]+' '+parts[3]):ov.jibun||'','규모':floors[0]?('지상 '+floors[0]+'층'+(floors[1]?' / 지하 '+floors[1]+'층':'')):'','주구조':ov.structure||'','주용도_표제부':ov.mainUse||'','사용승인일':ov.approvalDate||'','인근위치설명':ov.nearDesc||'','기준시점근거구':ov.baseDateBasis==='현장조사완료일인'?'대상물건의 가격조사를 완료한 날짜인':ov.baseDateBasis||'','사례선정이유':ov.caseSelectionReason||(used.length?'대상물건과의 위치·용도·규모 및 가격형성요인의 유사성을 고려하여 '+used.map(c=>'#'+c.symbol).join(', ')+'을 비교 거래사례로 선정하였음.':''),'사정보정치':used.length?'1.000':''};
@@ -53,17 +54,8 @@ function render(entries,m,h,mode){
  function expand(t,start,count,maps,mutate){const old=children(t,'tr').slice(start,start+count),anchor=old[0];maps.forEach((map,i)=>{old.forEach((r,j)=>{const clone=r.cloneNode(true);if(mutate)mutate(clone,map,i,j);fill(clone,{...m.common,...map});t.insertBefore(clone,anchor);});});old.forEach(r=>r.remove());children(t,'tr').forEach((r,i)=>children(r,'tc').forEach(c=>c.setAttribute('header',i<start?'1':'0')));repair(t);}
  const full=mode==='full',doc=xml(read('Contents/section1.xml')),tables=all(doc,'tbl');
  if(tables.length!==10||[1,7,5,2,3,14,9,3,2,2].some((n,i)=>children(tables[i],'tr').length!==n))throw Error('여러 호수 템플릿의 표 구조가 변경되었습니다. 템플릿 버전을 확인하세요.');
- // The supplied form used empty paragraphs instead of a body top margin.
- // Dynamic continuation pages must reserve space below its paper-anchored header.
- const pageMargin=all(doc,'secPr')[0].getElementsByTagNameNS(HP,'pagePr')[0].getElementsByTagNameNS(HP,'margin')[0];
- pageMargin.setAttribute('top','14000');pageMargin.setAttribute('bottom','7000');
- let pendingBreak=false;
- Array.from(doc.documentElement.children).forEach(p=>{
-  if(p.localName!=='p')return;
-  const content=Array.from(p.getElementsByTagName('*')).some(e=>['tbl','pic','ctrl','secPr','line','container'].includes(e.localName))||visible(p).trim();
-  if(!content){pendingBreak=pendingBreak||p.getAttribute('pageBreak')==='1';p.remove();}
-  else {if(pendingBreak)p.setAttribute('pageBreak','1');pendingBreak=false;reset(p);}
- });
+ // 템플릿의 빈 문단과 페이지 여백은 고정 머리말과 본문 사이의 실제 간격이다.
+ // 이를 제거하거나 재계산하면 한글에서 장 제목이 본문과 겹치므로 원형을 보존한다.
 
  // Building-level overview name has no dong suffix; units retain their own dong/floor/ho.
  all(tables[1],'tc').filter(c=>visible(c).includes('{{건물명}}')).forEach(c=>setText(c,'{{건물명}}'));
