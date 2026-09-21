@@ -78,23 +78,12 @@ function render(entries,m,h,mode){
  setText(children(children(tables[9],'tr')[0],'tc')[1],'동/층/호수');if(m.adjusted)setText(children(children(tables[9],'tr')[0],'tc')[2],'사정면적\n(㎡)');
  expand(tables[9],1,1,m.rows.map(r=>r.values),(r,v)=>{const cs=children(r,'tc');setText(cs[0],v['일련번호']);setText(cs[1],v['동층호']);setText(cs[2],v['평가면적']);});
  const totalRow=children(tables[9],'tr').at(-1).cloneNode(true);["합계","",fmt(m.rows.reduce((n,r)=>n+(r.area||0),0)),"",fmt(m.total)].forEach((v,i)=>setText(children(totalRow,'tc')[i],v));tables[9].appendChild(totalRow);repair(tables[9]);
- // Fixed-purpose boilerplate must follow the receipt data rather than imply inheritance/gift.
- all(doc,'p').filter(p=>!all(p,'tbl').length).forEach(p=>{const s=visible(p);if(s.includes('상속세 및 증여세법')&&s.includes('감정평가임'))setText(p,`본건은 ${m.common['소재지_동까지']} 소재 ${m.ov.nearDesc||''}에 위치하는 부동산(구분건물)으로서, ${m.ov.evalCategory?m.ov.evalCategory+'재산에 대한 ':''}${m.ov.purpose||''} 목적의 감정평가임.`);});
+ // 감정평가 목적 문단은 사용자 템플릿의 고정 문구와 서식을 유지하고 입력 필드만 치환한다.
  // Source bases differ by series; never reuse the apartment base month for officetels.
  all(doc,'p').filter(p=>!all(p,'tbl').length&&visible(p).includes('{{지수출처}}')).forEach(p=>setText(p,'[출처: '+[...new Set(selectedMaps.map(v=>v['지수출처']))].join(', ')+']'));
  fill(doc,m.common);
  function paragraph(value,pageBreak=false){const base=Array.from(doc.documentElement.children).find(p=>p.localName==='p'&&p.getAttribute('paraPrIDRef')===(pageBreak?'35':'54')&&!all(p,'tbl').length&&all(p,'t').length);const p=base.cloneNode(true);Array.from(p.children).filter(x=>x.localName!=='run').forEach(x=>x.remove());setText(p,value);p.setAttribute('pageBreak',pageBreak?'1':'0');p.setAttribute('columnBreak','0');doc.documentElement.appendChild(p);return p;}
  paragraph(m.roundNote);
- if(full){
-  paragraph('감정평가명세표',true);paragraph(m.ov.jibun||'');const spec=tables[9].cloneNode(true);spec.setAttribute('id','1800000000');spec.setAttribute('colCnt','8');
-  const widths=[3800,8000,6200,6000,6000,6200,6800,7505],heads=['기호','동/층/호','전유면적(㎡)','공용면적(㎡)','대지권(㎡)','사정면적(㎡)','단가(원/㎡)','평가액(원)'];
-  const sums=k=>m.rows.every(r=>num(r.u[k])!=null)?fmt(m.rows.reduce((n,r)=>n+num(r.u[k]),0)):'';
-  const data=[heads,...m.rows.map(r=>[r.values['일련번호'],r.values['동층호'],r.values['전유면적'],r.values['공용면적'],r.values['대지지분'],r.values['평가면적'],fmt(r.unit),fmt(r.amount)]),['합계','',sums('area'),sums('commonArea'),sums('landArea'),fmt(m.rows.reduce((n,r)=>n+(r.area||0),0)),'',fmt(m.total)]];
-  const patterns=children(spec,'tr').slice(0,2).map(r=>r.cloneNode(true));children(spec,'tr').forEach(r=>r.remove());
-  data.forEach((values,i)=>{const row=patterns[i?1:0].cloneNode(true),cell=children(row,'tc')[i?2:2].cloneNode(true);children(row,'tc').forEach(c=>c.remove());values.forEach((v,j)=>{const c=cell.cloneNode(true);children(c,'cellAddr')[0].setAttribute('colAddr',j);children(c,'cellSpan')[0].setAttribute('colSpan','1');children(c,'cellSz')[0].setAttribute('width',widths[j]);c.setAttribute('header',i?'0':'1');setText(c,v);row.appendChild(c);});spec.appendChild(row);});repair(spec);const holder=paragraph('');children(holder,'run')[0].appendChild(spec);
-  paragraph('토지이용계획 및 공법상 제한사항',true);for(const line of text(m.toice).split('\n'))paragraph(line);
-  // Images are embedded by appendImages after the common fields and tables are resolved.
- }
  const cover=xml(read('Contents/section0.xml'));fill(cover,m.common);
  if(full){write('Contents/section0.xml',serial(cover));write('Contents/section1.xml',serial(doc));}
  else {write('Contents/section0.xml',serial(doc));entries=entries.filter(e=>e.name!=='Contents/section1.xml');header.documentElement.setAttribute('secCnt','1');const pkg=xml(read('Contents/content.hpf'));Array.from(pkg.getElementsByTagNameNS(OPF,'item')).filter(e=>e.getAttribute('id')==='section1').forEach(e=>e.remove());Array.from(pkg.getElementsByTagNameNS(OPF,'itemref')).filter(e=>e.getAttribute('idref')==='section1').forEach(e=>e.remove());write('Contents/content.hpf',serial(pkg));}
@@ -105,7 +94,6 @@ let templatePromise;
 async function build(input,h,mode='opinion'){
  const m=model(input,h);if(!templatePromise)templatePromise=fetch('templates/jiphap_multi_res.hwpx').then(r=>{if(!r.ok)throw Error('여러 호수 한글 템플릿을 불러오지 못했습니다.');return r.arrayBuffer();}).catch(e=>{templatePromise=null;throw e;});
  const entries=await h.parseZip((await templatePromise).slice(0)),r=render(entries,m,h,mode);
- if(mode==='full')appendImages(r,m);
  const bytes=h.createZipStored(r.entries);return {bytes,model:m};
 }
 function appendImages(r,m){
