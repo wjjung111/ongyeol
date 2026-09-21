@@ -2594,6 +2594,7 @@ async function buildEvalHwpxV2(tokenMap){
   for(const e of entries){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
+      xml=v2OverviewBuildingName(xml);        // 대상물건 개요 건물명: 동 번호를 붙이지 않음
       xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)
       xml=v2StripValueLineSeg(xml);             // 값 문단 줄배치 캐시 제거 → 긴 값 삽입 시 글자 겹침 방지 (치환 전)
       xml=v2DecisionTableEffArea(xml,tokenMap); // '감정평가액의 결정' 표: 지분평가·면적사정이면 사정면적으로 (치환 전)
@@ -2653,6 +2654,10 @@ function v2DecisionNote(xml,map){
   return xml.slice(0,at)+p+xml.slice(at);
 }
 // 감정평가표 '평가내역' 표: 공부 칸·사정 칸이 같은 {{세대}} 토큰 → 두 번째(사정)만 {{세대_사정}}으로 바꿔 지분평가 때 '1세대 × 1/2'가 들어가게
+function v2OverviewBuildingName(xml){
+  // 대상물건 개요의 건물명 뒤에 붙은 동 번호만 제거. 별도 동/층/호 문단은 유지.
+  return xml.replace(/(<hp:run\b[^>]*><hp:t>\{\{건물명\}\}<\/hp:t><\/hp:run>)<hp:run\b[^>]*><hp:t>\s*<\/hp:t><\/hp:run><hp:run\b[^>]*><hp:t>\{\{동\}\}<\/hp:t><\/hp:run><hp:run\b[^>]*><hp:t>동<\/hp:t><\/hp:run>/g,'$1');
+}
 function v2SecondSedaeToken(xml){
   const tok="{{세대}}";const i1=xml.indexOf(tok);if(i1<0)return xml;
   const i2=xml.indexOf(tok,i1+tok.length);if(i2<0)return xml;
