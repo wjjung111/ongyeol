@@ -46,6 +46,7 @@
   <script src="arap_index_data.js"></script>
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
   <script src="arap_jiphap_parcels.js"></script>
+  <script src="arap_multi_hwpx.js"></script>
   <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
   <style>
     /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
@@ -1095,7 +1096,8 @@ function CommaF({label,value,onChange,w,placeholder}){return(<div style={S.row}>
 function RndSel({dU,setDU,mth,setMth,label}){return(<div style={S.rnd}><span style={{fontWeight:600}}>{label}:</span><select style={{...S.sel2,opacity:mth==="none"?0.4:1}} value={dU} onChange={e=>setDU(e.target.value)} disabled={mth==="none"}>{dUnits.map(o=><option key={o.k} value={o.k}>{o.k}</option>)}</select><span style={{opacity:mth==="none"?0.4:1}}>단위에서</span><select style={S.sel2} value={mth} onChange={e=>setMth(e.target.value)}>{mOpts.map(o=><option key={o.k} value={o.k}>{o.l}</option>)}</select></div>);}
 
 function FactorInput({value,onChange}){
-  const [txt,setTxt]=useState(String(value));
+  const [txt,setTxt]=useState(String(value??""));
+  useEffect(()=>setTxt(String(value??"")),[value]);
   const handleChange=e=>{const v=e.target.value;setTxt(v);const n=parseFloat(v);if(!isNaN(n)&&n>0)onChange(n);};
   const handleBlur=()=>{const n=parseFloat(txt);if(isNaN(n)||n<=0)setTxt(String(value));else{setTxt(String(n));onChange(n);}};
   const handleFocus=e=>{e.target.select();};
@@ -4326,7 +4328,8 @@ function CommaF({label,value,onChange,w,placeholder}){return(<div style={S.row}>
 function RndSel({dU,setDU,mth,setMth,label}){return(<div style={S.rnd}><span style={{fontWeight:600}}>{label}:</span><select style={{...S.sel2,opacity:mth==="none"?0.4:1}} value={dU} onChange={e=>setDU(e.target.value)} disabled={mth==="none"}>{dUnits.map(o=><option key={o.k} value={o.k}>{o.k}</option>)}</select><span style={{opacity:mth==="none"?0.4:1}}>단위에서</span><select style={S.sel2} value={mth} onChange={e=>setMth(e.target.value)}>{mOpts.map(o=><option key={o.k} value={o.k}>{o.l}</option>)}</select></div>);}
 
 function FactorInput({value,onChange}){
-  const [txt,setTxt]=useState(String(value));
+  const [txt,setTxt]=useState(String(value??""));
+  useEffect(()=>setTxt(String(value??"")),[value]);
   const handleChange=e=>{const v=e.target.value;setTxt(v);const n=parseFloat(v);if(!isNaN(n)&&n>0)onChange(n);};
   const handleBlur=()=>{const n=parseFloat(txt);if(isNaN(n)||n<=0)setTxt(String(value));else{setTxt(String(n));onChange(n);}};
   const handleFocus=e=>{e.target.select();};
@@ -5070,7 +5073,7 @@ function Step2({ov,setOv,propType,setPropType}){
                 <td style={S.td}><input style={{...S.inp,width:"100%",border:"none",textAlign:"right",background:"transparent",...inpStyle}} value={unit.landArea||""} onChange={e=>updUnit(i,"landArea",e.target.value)}/></td>
                 <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",...inpStyle,fontWeight:400}} value={unit.mainUseJeonyu||""} onChange={e=>updUnit(i,"mainUseJeonyu",e.target.value)} placeholder="아파트"/></td>
                 <td style={{...S.td,textAlign:"right",...inpStyle,color:"#333"}}>{unit.area||"-"}</td>
-                <td style={S.td}><input style={{...S.inp,width:"100%",border:"none",textAlign:"right",background:"transparent",...inpStyle}} value={unit.assessedArea||""} onChange={e=>updUnit(i,"assessedArea",e.target.value)} placeholder={unit.area||""}/></td>
+                <td style={S.td}><input style={{...S.inp,width:"100%",border:"none",textAlign:"right",background:"transparent",...inpStyle}} value={unit.assessedArea??""} onChange={e=>updUnit(i,"assessedArea",e.target.value)} placeholder={unit.area||""}/></td>
                 <td style={S.td}>
                   <div style={{display:"flex",alignItems:"center",gap:3}}>
                     <input style={{...S.inp,flex:1,minWidth:0,border:"none",textAlign:"left",background:"transparent",...inpStyle}} value={fmtComma(unit.deskPrice||"")} onChange={e=>updUnit(i,"deskPrice",stripComma(e.target.value))} placeholder="0"/>
@@ -5677,7 +5680,7 @@ const insertToice=(xml,value)=>{
 
 function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,uM,tM,propType){
   // 표시된 사례에 #1, #2, ... 새 기호 부여 (원본 cases는 유지, 의견서 출력용으로만 재매핑)
-  const _shownRaw=cases.filter(c=>c.isShown);
+  const _shownRaw=cases.filter(c=>c.isShown||c.isSelected);
   const _symMap=new Map();
   _shownRaw.forEach((c,i)=>{if(c.symbol!=null&&c.symbol!=="")_symMap.set(String(c.symbol),String(i+1));});
   const _remapSym=s=>(s!=null&&_symMap.has(String(s)))?_symMap.get(String(s)):s;
@@ -5866,7 +5869,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   const _u0=_u4[0],_u1=_u4[1],_u2=_u4[2],_u3=_u4[3];
   // 실제 호 개수를 generateDocxBlob에 알려주기 위해 데이터에 저장 (빈 호 행 자동 제거용)
   d.__unitsLen=_units.length;
-  const _refC=_applySym(comp[0])||sc||_applySym(cases.find(c=>c.isSelected&&c.timeAdj))||null;
+  const _refC=_applySym(cases.find(c=>c.isSelected&&c.timeAdj)||cases.find(c=>c.isSelected))||null;
   const _hasAdj=!!_refC?.timeAdj;
   const _uv=getUV(uD),_tv=getUV(tD);
   const _refSym=_refC?.symbol?`#${_refC.symbol}`:"";
@@ -5879,22 +5882,8 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
     }
     return _refC;
   };
-  const _calcUnit=(unit)=>{
-    if(!unit)return null;
-    const appC=_getAppliedC(unit);
-    const cP=appC?.unitPrice||0,cA=appC?.timeAdj||0;
-    const hasAdjU=!!appC?.timeAdj;
-    const ext=pNum(unit.extFactor)||1;
-    const intF=pNum(unit.intFactor)||1;
-    const ho=pNum(unit.hoFactor)||1;
-    const totFac=Math.round(ext*intF*ho*1000)/1000;
-    const ua=pNum(unit.assessedArea)||pNum(unit.evalArea)||pNum(unit.area)||0;
-    const raw=hasAdjU?cP*cA*totFac:0;
-    const rnd=hasAdjU?applyR(raw,_uv,uM):0;
-    const rawAmt=hasAdjU&&ua?rnd*ua:0;
-    const finalAmt=hasAdjU&&ua?applyR(rawAmt,_tv,tM):0;
-    return{ext,intF,ho,totFac,ua,raw,rnd,rawAmt,finalAmt,appC,hasAdjU};
-  };
+  const _calcUnit=unit=>unit?ArapMultiHwpx.calculateUnit(unit,_getAppliedC(unit),{uD,uM,tD,tM},{applyR,getUV}):null;
+  const _note=u=>[u?.factorNote,(![null,undefined,"",1,"1","1.0","1.000"].includes(u?.etcFactor)?`기타요인 비교치: ${u.etcFactor}`:"")].filter(Boolean).join(" / ");
   const _ucs=_u4.map(_calcUnit);
   const _u0c=_ucs[0],_u1c=_ucs[1],_u2c=_ucs[2],_u3c=_ucs[3];
   const _setMulti=(firstKey,restKeys,value)=>{d[firstKey]=value??"";for(const k of restKeys)d[k]="";};
@@ -6056,7 +6045,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   _setMulti("G_023",["G_024"],_fac(_u0,"intFactor"));
   d["G_025"]=_fac(_u0,"hoFactor");
   d["C_001"]=_u0c?fmtDec3(_u0c.totFac):"";
-  d["G_026"]=pStr(_u0?.factorNote);
+  d["G_026"]=_note(_u0);
   // 나호
   d["Y_266"]="나";
   d["Y_267"]=_u1?_dfh(_u1):"";
@@ -6065,7 +6054,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   d["G_028"]=_fac(_u1,"intFactor");
   d["G_029"]=_fac(_u1,"hoFactor");
   d["C_002"]=_u1c?fmtDec3(_u1c.totFac):"";
-  _setMulti("G_030",["G_031"],pStr(_u1?.factorNote));
+  _setMulti("G_030",["G_031"],_note(_u1));
   // 다호
   d["Y_269"]="다";
   _setMulti("Y_270",["Y_271","Y_272"],_u2?_dfh(_u2):"");
@@ -6074,7 +6063,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   d["G_033"]=_fac(_u2,"intFactor");
   d["G_034"]=_fac(_u2,"hoFactor");
   d["C_003"]=_u2c?fmtDec3(_u2c.totFac):"";
-  d["G_035"]=pStr(_u2?.factorNote);
+  d["G_035"]=_note(_u2);
   // 라호
   d["Y_274"]="라";
   _setMulti("Y_275",["Y_276","Y_277","Y_278","Y_279","Y_280"],_u3?_dfh(_u3):"");
@@ -6083,91 +6072,95 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   d["G_037"]=_fac(_u3,"intFactor");
   d["G_038"]=_fac(_u3,"hoFactor");
   d["C_004"]=_u3c?fmtDec3(_u3c.totFac):"";
-  d["G_039"]=pStr(_u3?.factorNote);
+  d["G_039"]=_note(_u3);
 
   // === L. 적용단가 표 (Y_282~Y_301, C_005~C_022) ===
   // 가호 — 적용사례·단가·시점수정치는 모두 호별 적용사례에서 가져옴
   d["Y_282"]="가";d["Y_283"]=_hSym(_u0c);d["Y_284"]=_hPrice(_u0c);d["Y_285"]="1.000";d["Y_286"]=_hAdj(_u0c);
   d["C_005"]=_u0c?fmtDec3(_u0c.totFac):"";
-  d["C_006"]=_u0c?fmt(Math.round(_u0c.raw||0)):"";
-  d["C_007"]=_u0c?fmt(_u0c.rnd||0):"";
+  d["C_006"]=_u0c?.raw!=null?fmt(Math.round(_u0c.raw)):"";
+  d["C_007"]=_u0c?.rnd!=null?fmt(_u0c.rnd):"";
   // 나호
   d["Y_287"]="나";d["Y_288"]=_hSym(_u1c);d["Y_289"]=_hPrice(_u1c);d["Y_290"]="1.000";d["Y_291"]=_hAdj(_u1c);
   d["C_008"]=_u1c?fmtDec3(_u1c.totFac):"";
-  d["C_009"]=_u1c?fmt(Math.round(_u1c.raw||0)):"";
-  _setMulti("C_010",["C_011","C_012"],_u1c?fmt(_u1c.rnd||0):"");
+  d["C_009"]=_u1c?.raw!=null?fmt(Math.round(_u1c.raw)):"";
+  _setMulti("C_010",["C_011","C_012"],_u1c?.rnd!=null?fmt(_u1c.rnd):"");
   // 다호
   d["Y_292"]="다";d["Y_293"]=_hSym(_u2c);d["Y_294"]=_hPrice(_u2c);d["Y_295"]="1.000";d["Y_296"]=_hAdj(_u2c);
   d["C_013"]=_u2c?fmtDec3(_u2c.totFac):"";
-  d["C_014"]=_u2c?fmt(Math.round(_u2c.raw||0)):"";
-  _setMulti("C_015",["C_016","C_017"],_u2c?fmt(_u2c.rnd||0):"");
+  d["C_014"]=_u2c?.raw!=null?fmt(Math.round(_u2c.raw)):"";
+  _setMulti("C_015",["C_016","C_017"],_u2c?.rnd!=null?fmt(_u2c.rnd):"");
   // 라호
   d["Y_297"]="라";d["Y_298"]=_hSym(_u3c);d["Y_299"]=_hPrice(_u3c);d["Y_300"]="1.000";d["Y_301"]=_hAdj(_u3c);
   d["C_018"]=_u3c?fmtDec3(_u3c.totFac):"";
-  d["C_019"]=_u3c?fmt(Math.round(_u3c.raw||0)):"";
-  _setMulti("C_020",["C_021","C_022"],_u3c?fmt(_u3c.rnd||0):"");
+  d["C_019"]=_u3c?.raw!=null?fmt(Math.round(_u3c.raw)):"";
+  _setMulti("C_020",["C_021","C_022"],_u3c?.rnd!=null?fmt(_u3c.rnd):"");
 
   // === M. 시산가액 표 (Y_302~Y_309, C_023~C_041) ===
   const _totalAmt=_ucs.reduce((s,c)=>s+(c?.finalAmt||0),0);
-  d["Y_302"]="가";d["Y_303"]=_u0?pStr(_u0.assessedArea||_u0.area):"";
-  d["C_023"]=_u0c?fmt(_u0c.rnd||0):"";
-  d["C_024"]=_u0c?fmt(Math.round(_u0c.rawAmt||0)):"";
-  d["C_025"]=_u0c?fmt(_u0c.finalAmt||0):"";
-  d["Y_304"]="나";d["Y_305"]=_u1?pStr(_u1.assessedArea||_u1.area):"";
-  _setMulti("C_026",["C_027","C_028"],_u1c?fmt(_u1c.rnd||0):"");
-  d["C_029"]=_u1c?fmt(Math.round(_u1c.rawAmt||0)):"";
-  d["C_030"]=_u1c?fmt(_u1c.finalAmt||0):"";
-  d["Y_306"]="다";d["Y_307"]=_u2?pStr(_u2.assessedArea||_u2.area):"";
-  _setMulti("C_031",["C_032","C_033"],_u2c?fmt(_u2c.rnd||0):"");
-  d["C_034"]=_u2c?fmt(Math.round(_u2c.rawAmt||0)):"";
-  d["C_035"]=_u2c?fmt(_u2c.finalAmt||0):"";
-  d["Y_308"]="라";d["Y_309"]=_u3?pStr(_u3.assessedArea||_u3.area):"";
-  _setMulti("C_036",["C_037","C_038"],_u3c?fmt(_u3c.rnd||0):"");
-  d["C_039"]=_u3c?fmt(Math.round(_u3c.rawAmt||0)):"";
-  d["C_040"]=_u3c?fmt(_u3c.finalAmt||0):"";
+  d["Y_302"]="가";d["Y_303"]=_u0?pStr(ArapMultiHwpx.effectiveArea(_u0)):"";
+  d["C_023"]=_u0c?.rnd!=null?fmt(_u0c.rnd):"";
+  d["C_024"]=_u0c?.rawAmt!=null?fmt(Math.round(_u0c.rawAmt)):"";
+  d["C_025"]=_u0c?.finalAmt!=null?fmt(_u0c.finalAmt):"";
+  d["Y_304"]="나";d["Y_305"]=_u1?pStr(ArapMultiHwpx.effectiveArea(_u1)):"";
+  _setMulti("C_026",["C_027","C_028"],_u1c?.rnd!=null?fmt(_u1c.rnd):"");
+  d["C_029"]=_u1c?.rawAmt!=null?fmt(Math.round(_u1c.rawAmt)):"";
+  d["C_030"]=_u1c?.finalAmt!=null?fmt(_u1c.finalAmt):"";
+  d["Y_306"]="다";d["Y_307"]=_u2?pStr(ArapMultiHwpx.effectiveArea(_u2)):"";
+  _setMulti("C_031",["C_032","C_033"],_u2c?.rnd!=null?fmt(_u2c.rnd):"");
+  d["C_034"]=_u2c?.rawAmt!=null?fmt(Math.round(_u2c.rawAmt)):"";
+  d["C_035"]=_u2c?.finalAmt!=null?fmt(_u2c.finalAmt):"";
+  d["Y_308"]="라";d["Y_309"]=_u3?pStr(ArapMultiHwpx.effectiveArea(_u3)):"";
+  _setMulti("C_036",["C_037","C_038"],_u3c?.rnd!=null?fmt(_u3c.rnd):"");
+  d["C_039"]=_u3c?.rawAmt!=null?fmt(Math.round(_u3c.rawAmt)):"";
+  d["C_040"]=_u3c?.finalAmt!=null?fmt(_u3c.finalAmt):"";
   d["C_041"]=_totalAmt?fmt(_totalAmt):"";
 
   // === N. 감정평가액 결정 요약 (Y_310~Y_327, C_042~C_056) ===
   d["Y_310"]="가";
   _setMulti("Y_311",["Y_312","Y_313","Y_314","Y_315"],_u0?_dfh(_u0):"");
-  d["Y_316"]=_u0?pStr(_u0.assessedArea||_u0.area):"";
-  d["C_042"]=_u0c?fmt(_u0c.rnd||0):"";
-  d["C_043"]=_u0c?fmt(_u0c.finalAmt||0):"";
+  d["Y_316"]=_u0?pStr(ArapMultiHwpx.effectiveArea(_u0)):"";
+  d["C_042"]=_u0c?.rnd!=null?fmt(_u0c.rnd):"";
+  d["C_043"]=_u0c?.finalAmt!=null?fmt(_u0c.finalAmt):"";
   d["Y_317"]="나";
   d["Y_318"]=_u1?_dfh(_u1):"";
-  d["Y_319"]=_u1?pStr(_u1.assessedArea||_u1.area):"";
-  _setMulti("C_044",["C_045","C_046"],_u1c?fmt(_u1c.rnd||0):"");
-  d["C_047"]=_u1c?fmt(_u1c.finalAmt||0):"";
+  d["Y_319"]=_u1?pStr(ArapMultiHwpx.effectiveArea(_u1)):"";
+  _setMulti("C_044",["C_045","C_046"],_u1c?.rnd!=null?fmt(_u1c.rnd):"");
+  d["C_047"]=_u1c?.finalAmt!=null?fmt(_u1c.finalAmt):"";
   d["Y_320"]="다";
   d["Y_321"]=_u2?_dfh(_u2):"";
-  d["Y_322"]=_u2?pStr(_u2.assessedArea||_u2.area):"";
-  _setMulti("C_048",["C_049","C_050"],_u2c?fmt(_u2c.rnd||0):"");
-  d["C_051"]=_u2c?fmt(_u2c.finalAmt||0):"";
+  d["Y_322"]=_u2?pStr(ArapMultiHwpx.effectiveArea(_u2)):"";
+  _setMulti("C_048",["C_049","C_050"],_u2c?.rnd!=null?fmt(_u2c.rnd):"");
+  d["C_051"]=_u2c?.finalAmt!=null?fmt(_u2c.finalAmt):"";
   d["Y_323"]="라";
   _setMulti("Y_324",["Y_325","Y_326"],_u3?_dfh(_u3):"");
-  d["Y_327"]=_u3?pStr(_u3.assessedArea||_u3.area):"";
-  _setMulti("C_052",["C_053","C_054"],_u3c?fmt(_u3c.rnd||0):"");
-  d["C_055"]=_u3c?fmt(_u3c.finalAmt||0):"";
+  d["Y_327"]=_u3?pStr(ArapMultiHwpx.effectiveArea(_u3)):"";
+  _setMulti("C_052",["C_053","C_054"],_u3c?.rnd!=null?fmt(_u3c.rnd):"");
+  d["C_055"]=_u3c?.finalAmt!=null?fmt(_u3c.finalAmt):"";
   d["C_056"]=_totalAmt?fmt(_totalAmt):"";
 
   // === [N호 확장] 호별 행 데이터 — expandHoRows가 가호행 '틀'을 호 수만큼 복제·치환 (4호 하드코딩 대체) ===
   // 기존 _u0~_u3 / Y_013~ 4호 키는 그대로 둠. expandHoRows가 호행을 이 데이터로 재생성하므로 4호 키는 실질 무시됨(안전망).
   const _hangulSeq="가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허그느드르므브스으즈츠크트프흐";
   const _ucsAll=_units.map(_calcUnit);
-  const _totalAll=_ucsAll.reduce((s,c)=>s+(c?.finalAmt||0),0);
-  const _hg=(i)=>_hangulSeq[i]||"";
+  const _totalAll=_ucsAll.length&&_ucsAll.every(c=>c?.ready)?_ucsAll.reduce((s,c)=>s+c.finalAmt,0):null;
+  const _hg=(i)=>_hangulSeq[i]||String(i+1);
   d.__hoData={
     "개요":_units.map((u,i)=>({Y_013:_hg(i),Y_014:u?_dfh(u):"",Y_015:"",Y_016:"",Y_017:"",Y_018:"",Y_019:pStr(u?.area),Y_020:pStr(u?.commonArea),Y_021:_contractArea(u),Y_022:pStr(u?.landArea),Y_023:pStr(u?.mainUseJeonyu)})),
-    "가치":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_259:_hg(i),Y_260:u?_dfh(u):"",Y_261:"",Y_262:"",Y_263:"",Y_264:"",Y_265:_hSym(uc),G_022:_fac(u,"extFactor"),G_023:_fac(u,"intFactor"),G_024:"",G_025:_fac(u,"hoFactor"),C_001:uc?fmtDec3(uc.totFac):"",G_026:pStr(u?.factorNote)};}),
-    "적용단가":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_282:_hg(i),Y_283:_hSym(uc),Y_284:_hPrice(uc),Y_285:"1.000",Y_286:_hAdj(uc),C_005:uc?fmtDec3(uc.totFac):"",C_006:uc?fmt(Math.round(uc.raw||0)):"",C_007:uc?fmt(uc.rnd||0):""};}),
-    "시산":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_302:_hg(i),Y_303:u?pStr(u.assessedArea||u.area):"",C_023:uc?fmt(uc.rnd||0):"",C_024:uc?fmt(Math.round(uc.rawAmt||0)):"",C_025:uc?fmt(uc.finalAmt||0):""};}),
-    "결정":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_310:_hg(i),Y_311:u?_dfh(u):"",Y_312:"",Y_313:"",Y_314:"",Y_315:"",Y_316:u?pStr(u.assessedArea||u.area):"",C_042:uc?fmt(uc.rnd||0):"",C_043:uc?fmt(uc.finalAmt||0):""};}),
+    "가치":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_259:_hg(i),Y_260:u?_dfh(u):"",Y_261:"",Y_262:"",Y_263:"",Y_264:"",Y_265:_hSym(uc),G_022:_fac(u,"extFactor"),G_023:_fac(u,"intFactor"),G_024:"",G_025:_fac(u,"hoFactor"),C_001:uc?fmtDec3(uc.totFac):"",G_026:_note(u)};}),
+    "적용단가":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_282:_hg(i),Y_283:_hSym(uc),Y_284:_hPrice(uc),Y_285:"1.000",Y_286:_hAdj(uc),C_005:uc?fmtDec3(uc.totFac):"",C_006:uc?.raw!=null?fmt(Math.round(uc.raw)):"",C_007:uc?.rnd!=null?fmt(uc.rnd):""};}),
+    "시산":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_302:_hg(i),Y_303:u?pStr(ArapMultiHwpx.effectiveArea(u)):"",C_023:uc?.rnd!=null?fmt(uc.rnd):"",C_024:uc?.rawAmt!=null?fmt(Math.round(uc.rawAmt)):"",C_025:uc?.finalAmt!=null?fmt(uc.finalAmt):""};}),
+    "결정":_units.map((u,i)=>{const uc=_ucsAll[i];return{Y_310:_hg(i),Y_311:u?_dfh(u):"",Y_312:"",Y_313:"",Y_314:"",Y_315:"",Y_316:u?pStr(ArapMultiHwpx.effectiveArea(u)):"",C_042:uc?.rnd!=null?fmt(uc.rnd):"",C_043:uc?.finalAmt!=null?fmt(uc.finalAmt):""};}),
     // [사례 N개] 거래사례 표(사례1 틀=Y_199~Y_208 2행)를 표시사례 수만큼 복제 — 3사례 하드코딩(_caseSlots) 대체
     "거래사례":_shownC.map((c,i)=>({Y_199:`#${c.symbol||(i+1)}`,Y_200:`${pStr(c.location)} ${pStr(c.jibun)}`.trim(),Y_201:`${pStr(c.dong)}/${pStr(c.floor)}`,Y_202:pStr(c.aptName),Y_203:pStr(c.exclusiveArea),Y_204:fmt(c.price),Y_205:fmtDate(c.tradeDate),Y_206:pStr(c.ho),Y_207:fmt(c.unitPrice),Y_208:fmtDate(c.approvalDate)}))
   };
+  while(d.__hoData["거래사례"].length<4)d.__hoData["거래사례"].push(Object.fromEntries(Object.keys(d.__hoData["거래사례"][0]||{Y_199:"",Y_200:"",Y_201:"",Y_202:"",Y_203:"",Y_204:"",Y_205:"",Y_206:"",Y_207:"",Y_208:""}).map(k=>[k,""])));
   // 합계는 전체 호 기준으로 재계산 (기존 4호 _totalAmt 대체)
   d["C_041"]=_totalAll?fmt(_totalAll):"";
-  d["C_056"]=_totalAll?fmt(_totalAll):"";
+  d["C_056"]=_totalAll!=null?fmt(_totalAll):"";
+  d["감정평가액"]=d["시산가액"]=_totalAll!=null?fmt(_totalAll):"";
+  d["산출금액"]=_totalAll!=null?fmt(_ucsAll.reduce((sum,c)=>sum+c.rawAmt,0)):"";
+  d["평가면적"]=d["사정면적"]=_units.every(u=>ArapMultiHwpx.effectiveArea(u)!=null)?String(_units.reduce((sum,u)=>sum+ArapMultiHwpx.effectiveArea(u),0)):"";
 
   // [사례별 시점수정] 혼합 건: 선정 사례마다 산식 종류 자동감지(자본수익률 vs 매매지수) → 사례별 표 데이터
   // 감지규칙: timeAdjDetail에 '매매/지수' 키워드 + 지수비(値/値≒) 파싱되면 매매지수, 아니면 자본수익률
@@ -6567,6 +6560,14 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     const bm=String(ov.feeBasis||"").match(/하한|기준|상한/);if(bm)setFeeBasis(bm[0]);
   },[ov.feeDownPayment,ov.feeSpecial,ov.feeBasis]);
 
+  const doMultiHwpx=async(mode)=>{
+    if(propType!=="주거용"){alert("이 한글 템플릿은 주거용입니다. 비주거용은 워드 의견서를 이용하세요.");return;}
+    setDownloading(true);
+    try{
+      const result=await ArapMultiHwpx.build({ov,cases,uD,uM,tD,tM},{applyR,getUV,parseTimeAdjDetail,numberToKoreanMoney,assembleToice,parseZip,createZipStored},mode);
+      triggerDownload(result.bytes,`${mode==="full"?"1. 감정평가서":"3. 의견서"}_${ov.client||"의뢰인"}.hwpx`);
+    }catch(e){console.error(e);alert("한글파일 생성 실패: "+e.message);}finally{setDownloading(false);}
+  };
   const doExport=async()=>{
     if(!tplB64){alert("의견서 템플릿(.docx)을 먼저 업로드하세요.");return;}
     if(!ov.baseDateBasis&&!confirm("기준시점근거가 아직 '선택' 상태입니다.\n'의뢰일인'으로 간주하고 진행할까요?\n(취소 후 ① 접수개요 탭에서 직접 선택할 수 있습니다)"))return;
@@ -6599,6 +6600,14 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
 
   return(<div>
+    <div style={{...S.card,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+      <button style={{...S.btn,background:C.pri,color:"white"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("opinion")}>3. 의견서 (한글)</button>
+      <button style={{...S.btn,background:"#7c3aed",color:"white"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("full")}>1. 감정평가서 (전체 한글)</button>
+      <span style={{fontSize:12}}>주거용 · 호수별 표 자동 확장 · 거래사례 기본 4행, 추가 사례 자동 확장</span>
+      {downloading&&<span>한글파일 생성 중…</span>}
+    </div>
+    {window.ArapMultiHwpx&&React.createElement(ArapMultiHwpx.Attachments,{ov,setOv})}
+
     {/* 사례 선택 */}
     <div style={S.card}><div style={S.h2}>사례 선택</div>
       <table style={S.tbl}><thead><tr><th style={{...S.th,width:40}}>선정</th><th style={S.th}>기호</th><th style={S.th}>소재지</th><th style={S.th}>건물명</th><th style={S.th}>동/층/호</th><th style={S.th}>전유면적</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
@@ -6632,7 +6641,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <span style={{fontSize:11,color:"#059669"}}>{tplFromUser?"✅ 내 템플릿 사용중":"✅ 내장 디폴트 사용중"}</span>
       </>}
       <button style={{...S.btn,background:(tplLoaded&&saved)?C.pri:"#94a3b8",color:"#fff",fontSize:13,padding:"8px 20px",cursor:(tplLoaded&&saved)?"pointer":"not-allowed"}} onClick={doExport} disabled={!tplLoaded||downloading||!saved}>
-        {downloading?"⏳ 생성중...":"3. 의견서"}
+        {downloading?"⏳ 생성중...":"3. 의견서 (워드)"}
       </button>
     </div>
     {/* 물건 유형 선택 (주거용/비주거용) */}
@@ -6655,21 +6664,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         }
         return refC;
       };
-      const calcRow=(u)=>{
-        const appC=getAppliedC(u);
-        const ext=pNum(u.extFactor)||1, intF=pNum(u.intFactor)||1, ho=pNum(u.hoFactor)||1;
-        const totFac=ext*intF*ho;
-        const ua=pNum(u.assessedArea)||pNum(u.evalArea)||pNum(u.area);
-        const cP=appC?.unitPrice||0, cA=appC?.timeAdj||0;
-        const hasAdjU=!!appC?.timeAdj;
-        const raw=hasAdjU?cP*cA*totFac:0;
-        const rnd=hasAdjU?applyR(raw,uv,uM):0;
-        const rawAmt=hasAdjU&&ua?rnd*ua:0;
-        const finalAmt=hasAdjU&&ua?applyR(rawAmt,tv,tM):0;
-        return {ext,intF,ho,totFac,ua,raw,rnd,rawAmt,finalAmt,appC,hasAdjU};
-      };
-      const units=ov.units||[];
-      const totals=units.reduce((acc,u)=>{const r=calcRow(u);acc.area+=pNum(u.area)||0;acc.assessed+=r.ua||0;acc.amt+=r.finalAmt;return acc;},{area:0,assessed:0,amt:0});
+      const calcRow=u=>ArapMultiHwpx.calculateUnit(u,getAppliedC(u),{uD,uM,tD,tM},{applyR,getUV});
+      const units=(ov.units||[]).filter(u=>u&&(u.ho||u.dong||u.floor||pNum(u.area)>0));
+      const rows=units.map(calcRow),allReady=rows.length>0&&rows.every(r=>r.ready);
+      const totals=rows.reduce((acc,r)=>{acc.assessed+=r.ua||0;acc.amt+=r.finalAmt||0;return acc;},{assessed:0,amt:0});
       return(<>
       <div style={S.card}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:10,gap:12,flexWrap:"wrap"}}>
@@ -6700,6 +6698,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           <th style={S.th}>외부요인</th>
           <th style={S.th}>내부요인</th>
           <th style={S.th}>호별요인</th>
+          <th style={S.th}>기타요인</th>
           <th style={S.th}>계</th>
           <th style={S.th}>산출단가</th>
           <th style={S.th}>결정단가</th>
@@ -6724,6 +6723,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
               <td style={S.td}><FactorInput value={r.ext} onChange={v=>updUnit(u.id,'extFactor',v)}/></td>
               <td style={S.td}><FactorInput value={r.intF} onChange={v=>updUnit(u.id,'intFactor',v)}/></td>
               <td style={S.td}><FactorInput value={r.ho} onChange={v=>updUnit(u.id,'hoFactor',v)}/></td>
+              <td style={S.td}><FactorInput value={r.etc} onChange={v=>updUnit(u.id,'etcFactor',v)}/></td>
               <td style={S.tdR}>{fmtDec3(r.totFac)}</td>
               <td style={{...S.tdR,fontWeight:600}}>{r.hasAdjU?fmt(Math.round(r.raw)):"-"}</td>
               <td style={{...S.tdR,fontWeight:700,color:C.acc}}>{r.hasAdjU?fmt(r.rnd):"-"}</td>
@@ -6732,6 +6732,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             </tr>);
           })}
         </tbody></table></div>
+        <div style={{marginTop:12}}><b>호별 개별요인 비교 의견</b>{units.map((u,i)=><label key={u.id} style={{display:"flex",gap:8,marginTop:6,alignItems:"center"}}><span>{HANGUL_SYMBOLS.charAt(i)||i+1}</span><textarea aria-label={`호별 비교 의견 ${i+1}`} style={{...S.ta,minHeight:50,flex:1}} value={u.factorNote||""} onChange={e=>updUnit(u.id,'factorNote',e.target.value)} placeholder="해당 호수의 비교 의견을 입력하세요"/></label>)}</div>
+        {!allReady&&<div style={{color:C.dng,marginTop:8}}>미입력 또는 0 이하인 면적·단가·시점수정치·비교치가 있어 전체 합계를 확정할 수 없습니다.</div>}
         {!hasAdj&&<div style={{marginTop:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산출단가/결정단가/총액이 계산되지 않습니다. ③ 사례 등 입력 탭에서 시점수정치를 입력하세요.</div>}
         <div style={{marginTop:6,fontSize:11,color:"#666"}}>
           {uM==="none"?"※ 산출단가를 그대로 결정단가로 적용":`※ 결정단가: ${uD}단위에서 ${uMl}`}
@@ -6755,19 +6757,19 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             return(<tr key={u.id}>
               <td style={{...S.td,fontWeight:700}}>{sym}</td>
               <td style={S.td}>{u.dong||"-"}/{u.floor||"-"}/{u.ho||"-"}</td>
-              <td style={S.tdR}>{u.assessedArea||u.area||"-"}</td>
-              <td style={S.tdR}>{hasAdj?fmt(r.rnd):"-"}</td>
-              <td style={{...S.tdR,fontWeight:700,fontSize:16,color:C.dng}}>{(hasAdj&&r.ua)?fmt(r.finalAmt):"-"}</td>
+              <td style={S.tdR}>{r.ua??"-"}</td>
+              <td style={S.tdR}>{r.hasAdjU?fmt(r.rnd):"-"}</td>
+              <td style={{...S.tdR,fontWeight:700,fontSize:16,color:C.dng}}>{r.ready?fmt(r.finalAmt):"-"}</td>
             </tr>);
           })}
           {units.length>1&&(<tr style={{background:"#fef3c7",fontWeight:700}}>
             <td colSpan={2} style={{...S.td,fontWeight:700}}>합계</td>
             <td style={{...S.tdR,fontWeight:700}}>{totals.assessed.toFixed(2)}</td>
             <td style={S.td}></td>
-            <td style={{...S.tdR,fontWeight:700,fontSize:16,color:C.dng}}>{fmt(totals.amt)}</td>
+            <td style={{...S.tdR,fontWeight:700,fontSize:16,color:C.dng}}>{allReady?fmt(totals.amt):"미완료"}</td>
           </tr>)}
         </tbody></table></div>
-        {desk?<div style={{marginTop:12,padding:10,background:"#faf5ff",borderRadius:4,fontSize:12}}>참고) 탁상가: <b>{fmt(desk)}원</b>{totals.amt?<> | 차이: <b>{fmt(totals.amt-desk)}원</b> ({((totals.amt/desk-1)*100).toFixed(2)}%)</>:null}</div>:null}
+        {desk?<div style={{marginTop:12,padding:10,background:"#faf5ff",borderRadius:4,fontSize:12}}>참고) 탁상가: <b>{fmt(desk)}원</b>{allReady&&totals.amt?<> | 차이: <b>{fmt(totals.amt-desk)}원</b> ({((totals.amt/desk-1)*100).toFixed(2)}%)</>:null}</div>:null}
       </div>
       </>);
     })()}
@@ -6832,7 +6834,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 // ── 건별 저장 키 ──
 const LIST_KEY="v2:appraisal-case-list";
 const caseKey=id=>`v2:case:${id}`;
-const HANGUL_SYMBOLS="가나다라마바사아자차카타파하";
+const HANGUL_SYMBOLS="가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허그느드르므브스으즈츠크트프흐";
 const symbolFor=i=>HANGUL_SYMBOLS.charAt(i)||String(i+1);
 const newUnit=id=>({id:id||Date.now()+Math.random(),dong:"",floor:"",ho:"",area:"",commonArea:"",landArea:"",mainUseJeonyu:"",evalArea:""});
 const emptyOv={caseNo:"",client:"",purpose:"일반거래(시가참고)",submitTo:"국세청 및 관할세무서",baseDate:"",surveyDate:"",writeDate:today(),baseValue:"시장가치",owner:"",condition:"-",listBasis:"등기사항전부증명서, 귀 제시목록 등",deskPrice:"",deskPrices:[],jibun:"",road:"",buildingName:"",kind:"",dong:"",floor:"",ho:"",area:"",commonArea:"",landArea:"",approvalDate:"",zoning:"",structure:"",complexScale:"",totalFloorArea:"",landAreaTotal:"",floors:"",areaOption:"none",shareNumer:"",shareDenom:"",excludeArea:"",areaDecimal:"2",areaRound:"round",mainUse:"",mainUseJeonyu:"",evalCategory:"",nearDesc:"",baseDateBasis:"",nearAreaBase:"전유면적",nearPriceLow:"",nearPriceHigh:"",nearKind:"",nrType:"",nrRegion:"",nrMigosi:"",nrMigosiPrev:"",nrTradeDate:"",nrCapPct:"",nrCapVal:"",nrCapFormula:"",units:[newUnit(1),newUnit(2)]};
