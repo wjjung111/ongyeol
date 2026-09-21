@@ -1370,6 +1370,16 @@ function ipjApplyMethodText(xml,edits){
   return {xml,values};
 }
 
+// 개별요인 비교 사유: 요인 이름을 템플릿에 표시하고 줄배치를 다시 계산한다.
+function ipjLabelFactorNotes(xml){
+  return xml.replace(/<hp:p\b[^>]*>(?:(?!<hp:p\b)[\s\S])*?<\/hp:p>/g,p=>{
+    if(!/\{\{개별_[가나]_설명_(외부|내부|호별|기타)\}\}/.test(p))return p;
+    return p.replace(/<hp:t>\{\{(개별_[가나]_설명_(외부|내부|호별|기타))\}\}<\/hp:t>/g,
+      (_,key,label)=>"<hp:t> "+label+"요인: {{"+key+"}}</hp:t>")
+      .replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/g,"");
+  });
+}
+
 async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -1382,6 +1392,7 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   for(const e of entries){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
+      if(colorOpinion)xml=ipjLabelFactorNotes(xml);
       let fixedValues={};
       if(opts&&opts.opinionMethodText){const edited=ipjApplyMethodText(xml,opts.opinionMethodText);xml=edited.xml;fixedValues=edited.values;}
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
