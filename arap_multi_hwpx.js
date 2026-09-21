@@ -3,6 +3,12 @@
 const HP='http://www.hancom.co.kr/hwpml/2011/paragraph',HC='http://www.hancom.co.kr/hwpml/2011/core',HH='http://www.hancom.co.kr/hwpml/2011/head',OPF='http://www.idpf.org/2007/opf/';
 const num=v=>{if(v==null||String(v).trim()==='')return null;const n=Number(String(v).replace(/,/g,''));return Number.isFinite(n)?n:null;};
 const blank=v=>v==null||String(v).trim()==='';
+function resolveCase(u,cases){
+ const selected=cases.filter(c=>c.isSelected);
+ if(u?.appliedCaseId!=null)return selected.find(c=>String(c.id)===String(u.appliedCaseId))||null;
+ if(u?.appliedSymbol)return selected.find(c=>String(c.symbol)===String(u.appliedSymbol))||null;
+ return selected.find(c=>c.timeAdj)||selected[0]||null;
+}
 const effectiveArea=u=>num([u.assessedArea,u.evalArea,u.area].find(v=>!blank(v)));
 function calculateUnit(u,appC,settings,h){
  const factor=k=>blank(u[k])?1:num(u[k]);
@@ -30,7 +36,7 @@ function caseValues(c,idx,parse,ov){
 function model(input,h){
  const {ov,cases=[],uD,uM,tD,tM}=input,selected=cases.filter(c=>c.isSelected),ref=selected.find(c=>c.timeAdj)||selected[0];
  const shown=cases.filter(c=>c.isShown||c.isSelected);const numbered=shown.map((c,i)=>({...c,symbol:i+1,originalSymbol:c.symbol}));
- const findCase=u=>{const c=(u.appliedSymbol?selected.find(c=>String(c.symbol)===String(u.appliedSymbol)):ref)||ref;return c?numbered.find(x=>x.id===c.id)||c:null;};
+ const findCase=u=>{const c=resolveCase(u,cases);return c?numbered.find(x=>x.id===c.id)||c:null;};
  const units=(ov.units||[]).filter(u=>u&&(u.ho||u.dong||u.floor||num(u.area)>0));
  if(!units.length)throw Error('② 대상물건개요에 호수를 입력하세요.');
  const rows=units.map((u,i)=>{const c=findCase(u),cal=calculateUnit(u,c,input,h),{ext,intF,ho,etc,totFac:factor,ua:area,raw,rnd:unit,finalAmt:amount,ready}=cal;
@@ -130,5 +136,5 @@ function Attachments({ov,setOv}){
  return h('div',{style:{padding:16,border:'1px solid #ddd',borderRadius:6,marginBottom:14,background:'#fff'}},h('b',null,'한글 감정평가서 출력 정보'),h('div',{style:{display:'flex',gap:12,flexWrap:'wrap',marginTop:10}},[['appraiserName','감정평가사'],['reviewerName','심사자']].map(([key,label])=>h('label',{key},label+' ',h('input',{'aria-label':label,value:ov[key]||'',onChange:e=>setOv(p=>({...p,[key]:e.target.value}))})))),h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}},['위생','급배수','급탕','난방','냉방','승강기','소방','방송','비고'].map(label=>h('label',{key:label},label+' ',h('select',{'aria-label':'설비 '+label,value:ov['facility'+label]||'',onChange:e=>setOv(p=>({...p,['facility'+label]:e.target.value}))},h('option',{value:''},'미입력'),h('option',{value:'○'},'있음'),h('option',{value:'-'},'없음'))))),h('p',{style:{fontSize:12}},'전체 감정평가서에는 명세표·필지별 토지이용계획과 첨부한 위치도·현황사진이 포함됩니다. 위치도는 지도에서 캡처한 이미지를 추가하세요.'),['location','photo'].map(kind=>h('label',{key:kind,style:{display:'inline-block',padding:8,background:'#eef2ff',marginRight:8,cursor:'pointer'}},kind==='location'?'위치도 이미지 추가':'현황사진 추가',h('input',{type:'file',accept:'image/png,image/jpeg,image/webp',multiple:true,disabled:busy,style:{display:'none'},onChange:e=>{add(Array.from(e.target.files),kind);e.target.value='';}}))),error&&h('p',{role:'alert',style:{color:'#dc2626'}},error),busy&&h('span',null,'이미지 처리 중…'),images.map((im,i)=>h('div',{key:im.id,style:{display:'flex',gap:8,alignItems:'center',marginTop:8}},h('img',{src:im.dataUrl,alt:im.caption,style:{width:90,height:65,objectFit:'contain'}}),h('span',null,im.kind==='location'?'위치도':'사진'),h('input',{'aria-label':'첨부 이미지 설명',value:im.caption,onChange:e=>update(im.id,{caption:e.target.value})}),h('button',{type:'button',disabled:i===0,onClick:()=>setOv(p=>{const a=[...(p.reportImages||[])];[a[i-1],a[i]]=[a[i],a[i-1]];return {...p,reportImages:a};})},'↑'),h('button',{type:'button',onClick:()=>setOv(p=>({...p,reportImages:(p.reportImages||[]).filter(x=>x.id!==im.id)}))},'삭제'))));
 }
 
-g.ArapMultiHwpx={model,build,Attachments,calculateUnit,effectiveArea};
+g.ArapMultiHwpx={model,build,Attachments,calculateUnit,effectiveArea,resolveCase};
 })(window);
