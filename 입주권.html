@@ -1508,6 +1508,16 @@ const ipjSjFields=(c,ov)=>{
 const ipjDong=u=>`${pStr(u.dong)}/${pStr(u.floor)}/${pStr(u.ho)}`;
 const ipjMoney=n=>fmt(n);
 
+// 의견서 4번의 자동 문구와 직접 수정값을 화면/다운로드에서 함께 사용한다.
+function ipjProjectStatusAuto(ov){
+  const name=ov.projName||"정비사업",c=name.charCodeAt(name.length-1);
+  const josa=c>=0xAC00&&c<=0xD7A3&&(c-0xAC00)%28===0?"는":"은";
+  return `본건 ${name}${josa} ${ov.projType||"재건축"}사업으로서, 관리처분계획인가를 받아 기준시점 현재 사업이 진행 중인 바,`;
+}
+function ipjProjectStatus(ov){
+  return ov.opProjectStatus==null?ipjProjectStatusAuto(ov):String(ov.opProjectStatus);
+}
+
 function buildIpjMap(ov,cases){
   const cal=ipjCalc(ov,cases);
   const U=ov.units||[], ga=U[0]||ipjNewUnit("가"), na=U[1]||ipjNewUnit("나");
@@ -1549,7 +1559,7 @@ function buildIpjMap(ov,cases){
   const projNm=ov.projName||"정비사업";
   m["목적_조합문구"]=`${projNm} 조합원(${ov.owner||ov.client||""})의`;  // 뒤 템플릿에 공백 1칸 있으므로 값 끝 공백 제거(겹침 방지)
   m["목적_입주권종류"]=`부동산을 취득할 수 있는 권리(입주권)`;
-  m["개요_사업상태문구"]=`본건 ${projNm}${josaEN(projNm)} ${ov.projType||"재건축"}사업으로서, 관리처분계획인가를 받아 기준시점 현재 사업이 진행 중인 바,`;
+  m["개요_사업상태문구"]=ipjProjectStatus(ov);
   m["정비사업유형"]=ov.projType||"재건축";
   m["사업명"]=ov.projName||""; m["사업위치"]=ov.projLoc||"";
   m["규모_세대수"]=ov.scale||""; m["입주시기"]=ov.moveIn||""; m["통칭표기"]=ov.tongching||"";
@@ -1767,6 +1777,7 @@ function IpjTabGaeyo({ov,setOv}){
       </div>
       <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다.</div>
     </Card>
+    <IpjOpinionMethodCard ov={ov} u={u} fmtSigned={fmtSigned}/>
   </div>);
 }
 
@@ -1824,6 +1835,42 @@ function IpjYohangCard({ov,u}){
       <div style={P}>해당사항 없음.</div>
     </div>
   </Card>);
+}
+
+const IPJ_OPINION_METHOD_PARAGRAPHS=[
+  "가. 부동산의 감정평가는 객관적이고 합리적인 시장가치의 도출을 위하여 일반적으로 다음과 같은감정평가방법을 적용함.",
+  "① 구분소유권의 대상이 되는 건물부분과 그 대지사용권의 가치를 일체로 하여 유사사례를 대상부동산의 현황에 맞게 보정·비교하여 구분소유권의 가액을 구하는 ”거래사례비교법“",
+  "② 1동 전체의 가액을 토지는 공시지가기준법 등으로, 건물은 원가법으로 구한 후 대상구분소유권에 배분하는 ”원가법“",
+  "③ 수익성부동산의 구분소유권 감정평가시 대상의 장래 기대되는 수익을 파악하고 이를 적정한 이율로 환원 또는 할인하여 대상부동산의 현재가치를 구하는 ”수익환원법“",
+  "나. {{개요_사업상태문구}} 도시 및 주거환경정비법제 81조 제1항의 규정에 의하면 관리처분계획인가의 고시가 있은 때에는 제86조에 따른 이전고시가 있는 날까지 종전의 토지 또는 건축물을 사용하거나 수익할 수 없으며, 같은조 제②항에 의하면 사업시행자는 제74조 제1항에 따른 관리처분계획인가를 받은 후에는 기존의 건축물은 철거하여야 하는 바 감정평가의 대상이 되지 못하므로, 부동산을 취득할 수 있는 권리(입주권)로서 감정평가하였음.",
+  "다. 부동산을 취득할 수 있는 권리(입주권)에 대한 감정평가는 상속세 및 증여세법 제61조 제3항 및     동법 시행령 제51조 제2항 등에 의거하여 평가기준일까지 납입한 금액과 평가기준일 현재의 프레미엄에 상당하는 금액을 합한 금액을 기준하여 감정평가하였음. 평가기준일 현재의 프레미엄에 상당하는 금액은 평가기준일 현재 부동산을 취득할 수 있는 권리(입주권)의 목적물인 구분건물(아파트)의 감정평가액에서 공급금액 상당액을 고려하여 산정하였음. ",
+  "라. 본건은 입주 예정인 아파트에 대한 입주권으로 기준시점 현재 {{정비사업유형}}사업이 완료되지 아니한 관      계로 구분소유권의 대상이 되는 건물부분과 그 소유권·대지권을 일체로 한 등기사항전부증명서, 토지이용계획확인서 및 집합건축물대장 등의 공부서류가 정리되지 않은 상태이나, 추후 사업완료와 함께소유권 및 대지권이 등재될 예정인 점, 일반적으로 아파트 및 아파트에 대한 분양권 등이 대지권을 포함하여 일체로 거래되는 관행 등을 고려하여 향후 소유권 및 대지권이 정상적으로 이전 취득될 것을 전제로 감정평가하였음.",
+  "마. 부동산을 취득할수 있는 권리(입주권)의 목적물인 구분건물(아파트)은 「감정평가에 관한 규칙」 제12조, 제16조에 의거 인근 유사 아파트의 일반적인 거래시세와 입지조건, 부근상황 및 건물의 구조, 용재, 시공상태, 설비상태, 층별·향별·위치별 효용성 등의 제반 가치형성요인을 종합 참작하여 건물과 토지의 소유권·대지권을 일체로 한 거래사례비교법을 적용하여 평가하였음. 한편, 대상물건의 특성상 원가법 적용이 적절하지 않고, 수익환원법은 수익과 비용 및 환원이율의 변동가능성 또는 불확실성에 따른 편차가 발생할 수 있고, 유사한 임대사례의 포착이 어려워 적용이 곤란한바, 다른 감정평가방법을 적용하는 것이 곤란하므로 동규칙 제12조 제2항에 따른 다른 감정평가방법에 의해 산출한 시산가액과 비교하는 합리성 검토는 생략하였음.",
+  "바. 본건 입주권의 분담금은 {{분담금}}원으로, 기준시점 현재까지 납부된 금액은 {{납입액}}원으로  탐문된 바, 이를 고려하여 감정평가하였음. "
+];
+function IpjOpinionMethodCard({ov,u,fmtSigned}){
+  const blue={color:"#0000ff",fontWeight:600,background:"#eef4ff",border:"none",borderBottom:"2px solid #2563eb",borderRadius:"3px 3px 0 0",padding:"1px 6px",margin:"0 2px",fontSize:13,fontFamily:"inherit",maxWidth:"100%"};
+  const tokenField=token=>{
+    if(token==="개요_사업상태문구")return <span>
+      <textarea aria-label="사업상태 문구" value={ipjProjectStatus(ov)} onChange={e=>u("opProjectStatus",e.target.value)} rows={3} style={{...blue,width:"100%",resize:"vertical",lineHeight:1.8,verticalAlign:"top"}}/>
+      {ov.opProjectStatus!=null&&<button type="button" onClick={()=>u("opProjectStatus",null)} style={{fontSize:11,color:"#2563eb",background:"none",border:0,cursor:"pointer"}}>↺ 사업정보로 자동 작성</button>}
+    </span>;
+    if(token==="정비사업유형")return <select aria-label="의견서 정비사업유형" value={ov.projType||"재건축"} onChange={e=>u("projType",e.target.value)} style={blue}><option>재건축</option><option>재개발</option></select>;
+    const key=token==="분담금"?"bunbo":"paid";
+    return <input aria-label={"의견서 "+token} value={ov[key]||""} onChange={e=>u(key,fmtSigned(e.target.value))} placeholder="0" style={{...blue,width:Math.max(12,String(ov[key]||"").length+2)+"ch",textAlign:"right"}}/>;
+  };
+  return <Card title="의견서 — 4. 감정평가방법의 적용 및 감정평가액의 산출의견" sub="파란 칸은 수정 가능하며 의견서에 반영됩니다. 검정 글씨는 양식 고정 문구입니다.">
+    <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center",fontSize:12,color:"#555",marginBottom:6}}>
+      <span><span style={{display:"inline-block",width:34,height:12,background:"#eef4ff",borderBottom:"2px solid #2563eb",verticalAlign:"middle",marginRight:4}}/>= 채우는 칸(파란 플레이스홀더)</span>
+      <span><span style={{display:"inline-block",width:34,height:12,borderBottom:"1px solid #999",verticalAlign:"middle",marginRight:4}}/>= 양식 고정 문구</span>
+    </div>
+    <div style={{background:"#fff",border:"1px solid #d9dde3",borderRadius:6,padding:"14px 22px 18px",fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif"}}>
+      <div style={{fontSize:18,fontWeight:700,color:"#111",marginBottom:16}}>4. 감정평가방법의 적용 및 감정평가액의 산출의견</div>
+      {IPJ_OPINION_METHOD_PARAGRAPHS.map((paragraph,i)=><div key={i} style={{fontSize:13,color:"#222",lineHeight:2.1,paddingLeft:14,wordBreak:"keep-all",marginTop:/^[나-바]\./.test(paragraph)?22:8}}>
+        {paragraph.split(/(\{\{[^}]+\}\})/g).map((part,j)=>part.startsWith("{{")?<React.Fragment key={j}>{tokenField(part.slice(2,-2))}</React.Fragment>:<React.Fragment key={j}>{part}</React.Fragment>)}
+      </div>)}
+    </div>
+  </Card>;
 }
 
 // ─────────────────────── ③ 사례 등 입력 (거래사례) ───────────────────────
