@@ -1356,7 +1356,6 @@ function Step1({ov,setOv}){
       <F label="소유자" value={ov.owner} onChange={v=>u("owner",v)}/>
       <F label="감정평가조건" value={ov.condition} onChange={v=>u("condition",v)}/>
       <F label="목록표시근거" value={ov.listBasis} onChange={v=>u("listBasis",v)}/>
-      <CommaF label="탁상가격" value={ov.deskPrice} onChange={v=>u("deskPrice",v)} w="200px" placeholder="직접입력"/>
     </div>
   </div>);
 }
@@ -4379,6 +4378,7 @@ function DragRow({children,index,onDrop,style}){
 
 // ── 왼쪽 사이드바: 대상물건 요약 ──
 const SYM=i=>"가나다라마바사아자차카타파하".charAt(i)||String(i+1);
+const FACTOR_NOTE_DEFAULT="- 외부요인:\n- 내부요인:\n- 호별요인:\n- 기타요인:";
 // 호별 탁상가격 합산 (deskPrices 우선, 없으면 단일 deskPrice 호환)
 const getTotalDeskPrice=(ov)=>{
   if(ov.deskPrices&&ov.deskPrices.length>0){
@@ -4594,22 +4594,6 @@ function DeskBar({ov}){
 // ── Step 1 ──
 function Step1({ov,setOv}){
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
-  // 호별 탁상가격 핸들러
-  const dpList=ov.deskPrices||[];
-  const addDeskPrice=()=>{
-    const next=[...dpList,{symbol:SYM(dpList.length),price:""}];
-    // 기존 단일 deskPrice 값이 있고 deskPrices가 비어있던 상태였다면 첫 항목으로 마이그레이션
-    if(dpList.length===0&&ov.deskPrice){next[0].price=ov.deskPrice;}
-    setOv(p=>({...p,deskPrices:next,deskPrice:""}));
-  };
-  const removeDeskPrice=(i)=>{
-    const next=dpList.filter((_,j)=>j!==i).map((dp,j)=>({...dp,symbol:SYM(j)}));
-    setOv(p=>({...p,deskPrices:next}));
-  };
-  const updDeskPrice=(i,val)=>{
-    setOv(p=>({...p,deskPrices:(p.deskPrices||[]).map((dp,j)=>j===i?{...dp,price:val}:dp)}));
-  };
-  const total=getTotalDeskPrice(ov);
   const af=ov.autoFields||{};
   const hasAuto=Object.keys(af).some(k=>af[k]);
   // 자동인식 필드를 사용자가 직접 수정하면 검토 완료로 간주 → 강조 해제
@@ -4635,28 +4619,6 @@ function Step1({ov,setOv}){
       <F label="소유자" value={ov.owner} onChange={v=>u("owner",v)}/>
       <F label="감정평가조건" value={ov.condition} onChange={v=>u("condition",v)}/>
       <F label="목록표시근거" value={ov.listBasis} onChange={v=>u("listBasis",v)}/>
-    </div>
-    {/* 호별 탁상가격 */}
-    <div style={{marginTop:12,padding:10,background:"#fffbeb",borderRadius:6,border:"1px solid #fde68a"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-        <span style={{fontSize:13,fontWeight:700,color:C.pri}}>탁상가격 (호별)</span>
-        <button style={{...S.btn,background:"#1d4ed8",color:"#fff",padding:"3px 10px",fontSize:11}} onClick={addDeskPrice}>+ 호 추가</button>
-        {total>0&&<span style={{fontSize:12,color:"#666",marginLeft:"auto"}}>합계: <b style={{color:"#2563eb",fontSize:13}}>{fmt(total)}원</b></span>}
-      </div>
-      {dpList.length===0?(
-        <div style={{fontSize:11,color:"#a16207"}}>[+ 호 추가] 버튼을 눌러 호별 탁상가격을 입력하세요. {ov.deskPrice&&<span> · 기존 단일 입력값({fmt(pNum(ov.deskPrice))}원)이 첫 호로 이전됩니다.</span>}</div>
-      ):(
-        <div style={{display:"flex",flexDirection:"column",gap:4}}>
-          {dpList.map((dp,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontWeight:700,color:"#d97706",minWidth:36,fontSize:13}}>({dp.symbol||SYM(i)})</span>
-              <input style={{...S.inp,flex:1,maxWidth:280,textAlign:"right"}} value={fmtComma(dp.price||"")} onChange={e=>updDeskPrice(i,stripComma(e.target.value))} placeholder="직접입력"/>
-              <span style={{fontSize:11,color:"#888"}}>원</span>
-              <button style={{...S.btn,background:"#fef2f2",color:C.dng,padding:"2px 8px",fontSize:11}} onClick={()=>removeDeskPrice(i)} title="삭제">✕</button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   </div>);
 }
@@ -4781,17 +4743,24 @@ function Step2({ov,setOv,propType,setPropType}){
       setOv(p=>({...p,units:[{id:Date.now(),dong:p.dong||"",floor:p.floor||"",ho:p.ho||"",area:p.area||"",commonArea:p.commonArea||"",landArea:p.landArea||"",mainUseJeonyu:p.mainUseJeonyu||"",evalArea:""}]}));
     }
   },[ov.units]);
-  const updUnit=(idx,key,val)=>{
+  const updUnitValues=(idx,values)=>{
     setOv(p=>{
       const units=[...(p.units||[])];
       if(!units[idx])units[idx]={id:Date.now()+idx};
-      units[idx]={...units[idx],[key]:val};
+      const changed={...units[idx],...values};
+      if(["area","evalArea","assessedArea"].some(key=>Object.prototype.hasOwnProperty.call(values,key))&&changed.deskPriceBasis==="unit"){
+        const area=[changed.assessedArea,changed.evalArea,changed.area].map(pNum).find(v=>v!=null);
+        const unitPrice=pNum(changed.deskUnitPrice);
+        changed.deskPrice=unitPrice!=null&&area>0?String(Math.round(unitPrice*area)):"";
+      }
+      units[idx]=changed;
       const next={...p,units};
       // 가호(0번) 변경은 스칼라 필드(다운스트림 호환)로 미러링
-      if(idx===0&&MIRROR_KEYS.includes(key))next[key]=val;
+      if(idx===0)for(const [key,val] of Object.entries(values))if(MIRROR_KEYS.includes(key))next[key]=val;
       return next;
     });
   };
+  const updUnit=(idx,key,val)=>updUnitValues(idx,{[key]:val});
   const addUnit=()=>{
     setOv(p=>({...p,units:[...(p.units||[]),{id:Date.now()+Math.random(),dong:"",floor:"",ho:"",area:"",commonArea:"",landArea:"",mainUseJeonyu:"",evalArea:""}]}));
   };
@@ -5055,13 +5024,14 @@ function Step2({ov,setOv,propType,setPropType}){
           </tr></thead>
           <tbody>
             {(ov.units||[]).map((unit,i)=>{
-              const evalAreaUsed=pNum(unit.assessedArea)||pNum(unit.evalArea)||pNum(unit.area);
+              const evalAreaUsed=[unit.assessedArea,unit.evalArea,unit.area].map(pNum).find(v=>v!=null);
               const deskP=pNum(unit.deskPrice);
-              const deskU=(deskP&&evalAreaUsed)?Math.round(deskP/evalAreaUsed):null;
+              const storedDeskU=pNum(unit.deskUnitPrice);
+              const deskU=unit.deskPriceBasis==="unit"&&storedDeskU!=null?storedDeskU:(deskP!=null&&evalAreaUsed>0?Math.round(deskP/evalAreaUsed):null);
               const stepUnits=[{k:"백만원",v:1000000},{k:"천만원",v:10000000},{k:"억원",v:100000000}];
               const stepU=unit.deskStepUnit||"백만원";
               const stepV=stepUnits.find(s=>s.k===stepU)?.v||1000000;
-              const stepDesk=(delta)=>{const cur=pNum(unit.deskPrice)||0;const next=Math.max(0,cur+delta*stepV);updUnit(i,"deskPrice",String(next));};
+              const stepDesk=(delta)=>{const cur=pNum(unit.deskPrice)||0;const next=Math.max(0,cur+delta*stepV);const nextUnit=evalAreaUsed>0?String(Math.round(next/evalAreaUsed)):"";updUnitValues(i,{deskPrice:String(next),deskUnitPrice:nextUnit,deskPriceBasis:"amount"});};
               const inpStyle={fontSize:12,fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif",fontWeight:600};
               return(<tr key={unit.id||i}>
                 <td style={{...S.td,fontWeight:700}}>{symbolFor(i)}</td>
@@ -5076,7 +5046,7 @@ function Step2({ov,setOv,propType,setPropType}){
                 <td style={S.td}><input style={{...S.inp,width:"100%",border:"none",textAlign:"right",background:"transparent",...inpStyle}} value={unit.assessedArea??""} onChange={e=>updUnit(i,"assessedArea",e.target.value)} placeholder={unit.area||""}/></td>
                 <td style={S.td}>
                   <div style={{display:"flex",alignItems:"center",gap:3}}>
-                    <input style={{...S.inp,flex:1,minWidth:0,border:"none",textAlign:"left",background:"transparent",...inpStyle}} value={fmtComma(unit.deskPrice||"")} onChange={e=>updUnit(i,"deskPrice",stripComma(e.target.value))} placeholder="0"/>
+                    <input aria-label={`탁상가격 ${symbolFor(i)}`} style={{...S.inp,flex:1,minWidth:0,border:"none",textAlign:"left",background:"transparent",...inpStyle}} value={fmtComma(unit.deskPrice||"")} onChange={e=>{const value=stripComma(e.target.value),amount=pNum(value),nextUnit=amount!=null&&evalAreaUsed>0?String(Math.round(amount/evalAreaUsed)):"";updUnitValues(i,{deskPrice:value,deskUnitPrice:nextUnit,deskPriceBasis:"amount"});}} placeholder="0"/>
                     <select style={{...S.sel2,padding:"2px 4px",fontSize:11,height:24}} value={stepU} onChange={e=>updUnit(i,"deskStepUnit",e.target.value)}>
                       {stepUnits.map(s=><option key={s.k} value={s.k}>{s.k}</option>)}
                     </select>
@@ -5086,7 +5056,7 @@ function Step2({ov,setOv,propType,setPropType}){
                     </div>
                   </div>
                 </td>
-                <td style={{...S.td,fontWeight:600,color:deskU?C.acc:"#999",...inpStyle}}>{deskU?fmtUnit(deskU):"-"}</td>
+                <td style={S.td}><input aria-label={`탁상단가 ${symbolFor(i)}`} style={{...S.inp,width:"100%",border:"none",textAlign:"right",background:"transparent",...inpStyle,color:deskU!=null?C.acc:"#999"}} value={deskU==null?"":fmtComma(deskU)} onChange={e=>{const value=stripComma(e.target.value),unitPrice=pNum(value),amount=unitPrice!=null&&evalAreaUsed>0?String(Math.round(unitPrice*evalAreaUsed)):"";updUnitValues(i,{deskUnitPrice:value,deskPrice:amount,deskPriceBasis:"unit"});}} placeholder="직접입력"/></td>
                 <td style={S.td}>{(ov.units||[]).length>1&&<span style={{cursor:"pointer",color:C.dng,fontSize:14}} onClick={()=>delUnit(i)}>✕</span>}</td>
               </tr>);
             })}
@@ -6606,7 +6576,6 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       <span style={{fontSize:12}}>주거용 · 호수별 표 자동 확장 · 거래사례 기본 4행, 추가 사례 자동 확장</span>
       {downloading&&<span>한글파일 생성 중…</span>}
     </div>
-    {window.ArapMultiHwpx&&React.createElement(ArapMultiHwpx.Attachments,{ov,setOv})}
 
     {/* 사례 선택 */}
     <div style={S.card}><div style={S.h2}>사례 선택</div>
@@ -6732,7 +6701,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             </tr>);
           })}
         </tbody></table></div>
-        <div style={{marginTop:12}}><b>호별 개별요인 비교 의견</b>{units.map((u,i)=><label key={u.id} style={{display:"flex",gap:8,marginTop:6,alignItems:"center"}}><span>{HANGUL_SYMBOLS.charAt(i)||i+1}</span><textarea aria-label={`호별 비교 의견 ${i+1}`} style={{...S.ta,minHeight:50,flex:1}} value={u.factorNote||""} onChange={e=>updUnit(u.id,'factorNote',e.target.value)} placeholder="해당 호수의 비교 의견을 입력하세요"/></label>)}</div>
+        <div style={{marginTop:12}}><b>호별 개별요인 비교 의견</b>{units.map((u,i)=><label key={u.id} style={{display:"flex",gap:8,marginTop:6,alignItems:"flex-start"}}><span style={{paddingTop:8,fontWeight:700}}>{HANGUL_SYMBOLS.charAt(i)||i+1}</span><textarea aria-label={`호별 비교 의견 ${i+1}`} style={{...S.ta,minHeight:92,flex:1,lineHeight:1.55}} value={u.factorNote||FACTOR_NOTE_DEFAULT} onChange={e=>updUnit(u.id,'factorNote',e.target.value)} placeholder={FACTOR_NOTE_DEFAULT}/></label>)}</div>
         {!allReady&&<div style={{color:C.dng,marginTop:8}}>미입력 또는 0 이하인 면적·단가·시점수정치·비교치가 있어 전체 합계를 확정할 수 없습니다.</div>}
         {!hasAdj&&<div style={{marginTop:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산출단가/결정단가/총액이 계산되지 않습니다. ③ 사례 등 입력 탭에서 시점수정치를 입력하세요.</div>}
         <div style={{marginTop:6,fontSize:11,color:"#666"}}>
