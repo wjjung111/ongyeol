@@ -76,7 +76,7 @@
         });
         var items=ArapJiphapParcels(ov).map(function(p,i,all){
           var loc=p.address;if(!store[loc])store[loc]={};
-          return {o:store[loc],kind:'본건',label:all.length>1?'본건 '+(i+1)+' ('+p.jibun+')':'본건 ('+p.jibun+')',color:'#dc2626',loc:loc,region:'',pick:true,poly:true};
+          return {o:store[loc],kind:'본건',label:'[본건]',labelGroup:'subject',boundaryLeader:true,color:'#dc2626',loc:loc,region:'',pick:true,poly:true};
         });
         v.open(items);
         return v;
