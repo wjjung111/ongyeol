@@ -47,6 +47,7 @@
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
   <script src="arap_jiphap_parcels.js"></script>
   <script src="arap_multi_hwpx.js"></script>
+  <script src="arap_multi_documents.js"></script>
   <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
   <style>
     /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
@@ -2354,19 +2355,20 @@ function insertSheetRows(xml,at,count,blankFn){
   const joined=arr.map(o=>o.x).join("");
   return xml.replace(/(<sheetData>)[\s\S]*?(<\/sheetData>)/,(m,a,b)=>a+joined+b);
 }
-async function downloadMyeongseXlsx(ov,totalAmount){
+async function downloadMyeongseXlsx(ov,totalAmount,options={}){
   // 시산가액 미결정 상태에서도 다운로드 허용 — 금액칸은 비거나 0으로 채워짐(평가사가 나중에 수기 입력)
-  if(!(ov.floorDetail||"").trim()){
+  if(!options.returnEntries&&!(ov.floorDetail||"").trim()){
     if(!confirm("층별면적(명세표용)이 비어 있습니다.\n등기 PDF를 다시 인식하거나 ① 물건정보에서 직접 입력하면 채워집니다.\n층별면적 없이 계속할까요?"))return;
   }
   {const st=(ov.regStructure||ov.structure||"").trim();
-    if(st&&!/지붕|슬래브|슬라브/.test(st)){
+    if(!options.returnEntries&&st&&!/지붕|슬래브|슬라브/.test(st)){
       if(!confirm(`명세표 구조란: "${st}"\n'지붕'(또는 슬래브) 단어가 없습니다 — 등기 표제부 건물내역에서 지붕 부분이 빠졌을 수 있습니다.\n① 물건정보의 '등기 표제부 건물내역' 칸을 확인해주세요.\n그대로 계속할까요?`))return;
     }
   }
   const fdLines=(ov.floorDetail||"").split("\n").map(s=>s.trim()).filter(Boolean);
   // 층별면적은 6줄 초과 시 자동으로 행이 추가됨(아래 floorOff 처리) — 묶지 않고 층별로 다 기입 가능
   const _mpN=(Array.isArray(ov.landParcels)?ov.landParcels.filter(p=>p&&p.jibun).length:0);
+  if(_mpN>12&&options.returnEntries)throw new Error("명세표는 호별 12필지까지 지원합니다.");
   if(_mpN>12&&!confirm("대지권 토지가 "+_mpN+"필지입니다. 명세표엔 12필지까지만 들어갑니다.\n앞 12필지만 표기하고 계속할까요? (나머지는 엑셀에서 수기 추가)"))return;
   const bin=atob(MYEONGSE_TPL_B64);
   const buf=new ArrayBuffer(bin.length);
@@ -2375,6 +2377,7 @@ async function downloadMyeongseXlsx(ov,totalAmount){
   const entries=await parseZip(buf);
   if(!entries.length){alert("명세표 템플릿 파싱 실패");return;}
   const {cells,parcels,annex}=buildMyeongseCellMap(ov,totalAmount);
+  Object.assign(cells,options.cells||{});
   const annexRows=annex?(annex.share?2:1):0;         // 부속면적 줄: 지분평가면 2행 끼움(분자 / "9.09 ×----", 분모는 기존 '공용면적' 줄에), 아니면 1행
   const nMS=Math.min(parcels.length,12);           // 명세표 필지수(행삽입으로 최대 12까지 수용)
   const deltaMS=nMS>3?2*(nMS-3)-1:0;               // 4필지 이상이면 건물란을 아래로 미는 행수(필지 사이 빈 행 유지)
@@ -2449,6 +2452,7 @@ async function downloadMyeongseXlsx(ov,totalAmount){
     }
     outEntries.push(e);
   }
+  if(options.returnEntries)return outEntries;
   const zipBuf=createZipStored(outEntries);
   const blob=new Blob([zipBuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   const url=URL.createObjectURL(blob);
@@ -2880,6 +2884,7 @@ async function downloadYohangHwpx(ov){
     triggerDownload(createZipStored(entries),`3. 요항표_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('요항표 hwpx 생성 실패',e);alert("요항표 생성 실패: "+e.message);}
 }
+window.ArapSingleDocuments={downloadMyeongseXlsx,YOHANG_TPL_B64,buildYohangTokenMap,expandYohangPara};
 try{window.buildEvalHwpxV2=buildEvalHwpxV2;window.buildV2TokenMap=buildV2TokenMap;window.buildCheongguTokenMap=buildCheongguTokenMap;window.buildTokenHwpx=buildTokenHwpx;window.V2CHEONGGU_TPL_B64=V2CHEONGGU_TPL_B64;window.V2CHEONGGU_BLUE2BLACK=V2CHEONGGU_BLUE2BLACK;}catch(e){console.error('v2 엔진 전역 노출 실패',e);}
 
 // [v2.0] 대표 샘플 건 — 압구정동 현대아파트 (처음 방문자에게 자동 로드되는 예시. 지수·사례 일부는 예시값)
@@ -4985,6 +4990,16 @@ function Step2({ov,setOv,propType,setPropType}){
       </div>
     </div>
 
+    <div style={S.card}><div style={S.h2}>요항표·명세표 입력</div>
+      <F label="외벽" value={ov.extWall||""} onChange={v=>u("extWall",v)}/>
+      <F label="창호" value={ov.windowType||""} onChange={v=>u("windowType",v)}/>
+      <F label="등기 표제부 건물내역" value={ov.regStructure||""} onChange={v=>u("regStructure",v)}/>
+      <label>층별면적(명세표용)<textarea aria-label="층별면적(명세표용)" style={{...S.inp,width:"100%",minHeight:70}} value={ov.floorDetail||""} onChange={e=>u("floorDetail",e.target.value)} placeholder={"1층 100.00\n2층 100.00"}/></label>
+      {(ov.landParcels||[]).map((p,i)=><F key={i} label={"필지 "+p.jibun+" 면적(㎡)"} value={p.area??""} onChange={v=>u("landParcels",ov.landParcels.map((x,j)=>j===i?{...x,area:v}:x))}/>)}
+      {(ov.units||[]).map((unit,i)=><details key={unit.id||i} style={{marginTop:8}}><summary>기호 {"가나다라마바사아자차카타파하"[i]||i+1} · 호별 명세표 정보</summary>
+        {[['regStructure','등기 표제부 건물내역'],['floorDetail','층별면적'],['landRatioDenom','대지권비율 분모']].map(([key,label])=><label key={key} style={{display:"block",marginTop:6}}>{label}<textarea aria-label={label+" "+(i+1)} style={{...S.inp,width:"100%"}} value={unit[key]||""} placeholder={key==="landRatioDenom"?"등기에 기재된 분모": "공통 입력값 사용"} onChange={e=>u("units",ov.units.map((x,j)=>j===i?{...x,[key]:e.target.value}:x))}/></label>)}
+      </details>)}
+    </div>
     {/* 토지이용계획 (의견서 개황표 '토지이용계획 및 공법상 제한사항' 칸) */}
     <div style={S.card}>
       <div style={S.h2}>토지이용계획 (의견서용)</div>
@@ -6532,6 +6547,13 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     const bm=String(ov.feeBasis||"").match(/하한|기준|상한/);if(bm)setFeeBasis(bm[0]);
   },[ov.feeDownPayment,ov.feeSpecial,ov.feeBasis]);
 
+  const doMultiDocument=async(kind)=>{
+    setDownloading(true);
+    try{
+      const result=await ArapMultiDocuments[kind]({ov,cases,uD,uM,tD,tM},{applyR,getUV,parseTimeAdjDetail,numberToKoreanMoney,assembleToice,parseZip,createZipStored});
+      triggerDownload(result.bytes,`${kind==="yohang"?"3. 요항표":"2. 명세표"}_${ov.client||"의뢰인"}.${kind==="yohang"?"hwpx":"xlsx"}`);
+    }catch(e){console.error(e);alert("파일 생성 실패: "+e.message);}finally{setDownloading(false);}
+  };
   const doMultiHwpx=async(mode)=>{
     if(propType!=="주거용"){alert("이 한글 템플릿은 주거용입니다. 비주거용은 워드 의견서를 이용하세요.");return;}
     setDownloading(true);
@@ -6572,13 +6594,6 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
 
   return(<div>
-    <div style={{...S.card,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-      <button style={{...S.btn,background:C.pri,color:"white"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("opinion")}>3. 의견서 (한글)</button>
-      <button style={{...S.btn,background:"#7c3aed",color:"white"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("full")}>1. 감정평가서 (전체 한글)</button>
-      <span style={{fontSize:12}}>주거용 · 호수별 표 자동 확장 · 거래사례 기본 4행, 추가 사례 자동 확장</span>
-      {downloading&&<span>한글파일 생성 중…</span>}
-    </div>
-
     {/* 사례 선택 */}
     <div style={S.card}><div style={S.h2}>사례 선택</div>
       <table style={S.tbl}><thead><tr><th style={{...S.th,width:40}}>선정</th><th style={S.th}>기호</th><th style={S.th}>소재지</th><th style={S.th}>건물명</th><th style={S.th}>동/층/호</th><th style={S.th}>전유면적</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
@@ -6600,20 +6615,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
     {<>
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
-      {!tplLoaded&&!tplError&&<span style={{fontSize:11,color:"#999"}}>⏳ 템플릿 로딩중...</span>}
-      {!tplLoaded&&tplError&&<>
-        <span style={{fontSize:12,color:"#dc2626",fontWeight:600}}>{tplError}</span>
-        <label style={{...S.btn,background:"#dc2626",color:"#fff",cursor:"pointer",fontSize:13,padding:"8px 16px"}}>
-          📎 .docx 템플릿 업로드
-          <input type="file" accept=".docx" onChange={handleTplUpload} style={{display:"none"}}/>
-        </label>
-      </>}
-      {tplLoaded&&<>
-        <span style={{fontSize:11,color:"#059669"}}>{tplFromUser?"✅ 내 템플릿 사용중":"✅ 내장 디폴트 사용중"}</span>
-      </>}
-      <button style={{...S.btn,background:(tplLoaded&&saved)?C.pri:"#94a3b8",color:"#fff",fontSize:13,padding:"8px 20px",cursor:(tplLoaded&&saved)?"pointer":"not-allowed"}} onClick={doExport} disabled={!tplLoaded||downloading||!saved}>
-        {downloading?"⏳ 생성중...":"3. 의견서 (워드)"}
-      </button>
+      <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("full")}>표지/괄감/의견서</button>
+      <button style={{...S.btn,background:saved?"#0891b2":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading} onClick={()=>doMultiDocument("yohang")}>요항표</button>
+      <button style={{...S.btn,background:saved?"#64748b":"#cbd5e1",color:"#fff",fontSize:13,padding:"9px 16px"}} disabled={!saved||downloading} onClick={()=>doMultiDocument("myeongse")}>명세표(excel)</button>
+      {downloading&&<span role="status">파일 생성 중…</span>}
     </div>
     {/* 물건 유형 선택 (주거용/비주거용) */}
     <div style={S.card}>
