@@ -23,7 +23,7 @@ const MOCK={
 };
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
-  const browser=await chromium.launch({headless:true});
+  const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL});
   try{
     const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[],calls=[];
     page.on('pageerror',e=>errors.push(e.message));
@@ -38,17 +38,17 @@ const MOCK={
     await page.goto(base+'/s3r86w8a.html',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('#root >> text=② 대상물건개요',{timeout:60000});
     await page.waitForFunction(()=>window.ArapBldrgst&&window.ArapBldrgst.Panel);
-    // ── 단일 호수: 대표 샘플(압구정)이 로드된 상태 → 주소칸에 지번 첫 필지가 미리 들어감 ──
+    // ── 단일 호수: 조회 주소는 저장된 물건과 무관하게 공란에서 시작 ──
     const single=page.locator('#root');
     await single.getByText('② 대상물건개요',{exact:true}).click();
     const panel=single.locator('text=🏢 건축물대장 불러오기').locator('xpath=ancestor::div[1]/..');
-    const qbox=single.locator('input[placeholder^="지번(예"]');
-    assert.equal(await qbox.inputValue(),'서울특별시 강남구 압구정동 456');
+    const qbox=single.locator('input[placeholder="조회할 지번주소 또는 도로명주소를 입력하세요"]');
+    assert.equal(await qbox.inputValue(),'');
     // 등기 인식 결과처럼 일부 칸을 채우고(빈칸 규칙 확인용), 나머지는 비운다
     // 입력칸은 '대상물건 정보'·'건물 개요' 카드 안에서만 찾는다(왼쪽 요약패널 등 같은 라벨 제외)
     const form=single.locator('xpath=//div[normalize-space(text())="대상물건 정보"]/.. | //div[normalize-space(text())="건물 개요 (의견서용)"]/..');
     const setF=async(label,val)=>{const inp=form.locator(`xpath=.//span[normalize-space(text())="${label}"]/following-sibling::input[1]`);await inp.fill(val);};
-    for(const [l,v] of [['지번주소','서울특별시 서초구 방배동 1344, 1344-1, 1344-2, 1344-3'],['도로명주소','서울특별시 서초구 서초대로1길 30'],['건물명','방배1차현대아파트'],['동','107'],['층','9'],['호','902'],['전유면적(㎡)','59.94'],['공용면적(㎡)',''],['용도지역',''],['주구조',''],['주용도(표제부)',''],['단지규모(동/세대)',''],['대지면적(㎡)','24657.999999999996'],['연면적(㎡)',''],['층수(지상/지하)',''],['소유자','한신명']])await setF(l,v);
+    for(const [l,v] of [['지번주소','서울특별시 서초구 방배동 1344, 1344-1, 1344-2, 1344-3'],['도로명주소','서울특별시 서초구 서초대로1길 30'],['건물명','방배1차현대아파트'],['동','107'],['층','9'],['호','902'],['전유면적(㎡)','59.94'],['공용면적(㎡)',''],['용도지역',''],['주구조',''],['주용도(표제부)',''],['단지규모(동/세대·호)',''],['대지면적(㎡)','24657.999999999996'],['연면적(㎡)',''],['층수(지상/지하)',''],['소유자','한신명']])await setF(l,v);
     const aprBox=form.locator('xpath=.//span[normalize-space(text())="사용승인일"]/..//input');
     await aprBox.first().fill('');
     await qbox.fill('서울 서초구 방배동 1344');
@@ -63,7 +63,7 @@ const MOCK={
     assert.equal(await getF('용도지역'),'제3종일반주거지역');
     assert.equal(await getF('주구조'),'철근콘크리트구조 (철근)콘크리트지붕');
     assert.equal(await getF('주용도(표제부)'),'공동주택(아파트)');
-    assert.equal(await getF('단지규모(동/세대)'),'2/192');
+    assert.equal(await getF('단지규모(동/세대·호)'),'2/192');
     assert.equal(await getF('연면적(㎡)'),'8123.45');
     assert.equal(await getF('층수(지상/지하)'),'13/1');
     assert.equal(await getF('대지면적(㎡)'),'24657.999999999996');   // 빈칸만 → 등기값 유지
@@ -89,7 +89,7 @@ const MOCK={
     await page.locator('#btn-multi').click();
     const multi=page.locator('#root-multi');
     await multi.getByText('② 대상물건개요',{exact:true}).click();
-    const mq=multi.locator('input[placeholder^="지번(예"]');
+    const mq=multi.locator('input[placeholder="조회할 지번주소 또는 도로명주소를 입력하세요"]');
     await mq.fill('서울 서초구 방배동 1344');
     await multi.locator('button:has-text("🔍 조회")').click();
     const msels=multi.locator('text=동 / 호').locator('xpath=following-sibling::select');
@@ -101,7 +101,7 @@ const MOCK={
     assert.deepEqual(units.map(r=>r.slice(0,5)),[['107','9','902','59.94','15.3234'],['107','9','901','59.94','15.3234']]);
     const mform=multi.locator('xpath=//div[normalize-space(text())="대상물건정보"]/..');
     const mget=async(label)=>mform.locator(`xpath=.//span[normalize-space(text())="${label}"]/following-sibling::input[1]`).inputValue();
-    assert.equal(await mget('용도지역'),'제3종일반주거지역');assert.equal(await mget('층수(지상/지하)'),'13/1');assert.equal(await mget('단지규모(동/세대)'),'2/192');
+    assert.equal(await mget('용도지역'),'제3종일반주거지역');assert.equal(await mget('층수(지상/지하)'),'13/1');assert.equal(await mget('단지규모(동/세대·호)'),'2/192');
     console.log('여러 호수 OK');
     assert.deepEqual(errors,[]);
     console.log('PASS');

@@ -43,7 +43,7 @@ function Invoke-Rone($url) {
 $tables = [ordered]@{
   "아파트"     = @{ id = "A_2024_00045"; roots = @("서울","경기") }
   "연립다세대" = @{ id = "A_2024_00080"; roots = @("서울","경기","인천","수도권") }
-  "오피스텔"   = @{ id = "A_2024_00615"; roots = @("서울","경기") }
+  "오피스텔"   = @{ id = "A_2024_00615"; roots = @("서울","경기","인천","수도권","전국","지방","부산","대구","광주","대전","울산","세종"); decimals = 2 }
 }
 
 # 비주거용(상업용) 시점수정용 — 상업용부동산 임대동향조사 '자본수익률'(분기)을 자동수신.
@@ -327,11 +327,11 @@ function Fetch-IndexData {
     throw "API 키가 없습니다. 같은 폴더에 'arap_apikey.local.txt' 파일을 만들고 부동산원 R-ONE 인증키를 한 줄로 넣으세요. (환경변수 RONE_API_KEY 로 넣어도 됨)"
   }
   Write-Host "부동산원 매매가격지수 수신 중..." -ForegroundColor Cyan
-  # 오피스텔 지역별 표 자동 탐색 — 이름만으론 구분 불가(#16: '매매가격지수(시계열)' A_2024_00615가 실제론 전국 규모별 표).
+  # 오피스텔은 GRP_FULLNM이 지역, CLS_FULLNM이 규모(전체/면적구간)다. 전체 규모 매매지수만 수집.
   # 월간 오피스텔 표 후보를 하나씩 열어 서울/경기 지역이 실제로 들어있는 첫 표를 채택한다. 없으면 오피스텔은 생략.
   try {
     $lj = Invoke-Rone ("{0}?Type=json&pIndex=1&pSize=1000&KEY={1}" -f $listBase, $apiKey)
-    $cands = @($lj.SttsApiTbl[1].row | Where-Object { $_.STATBL_NM -match "오피스텔" -and $_.DTACYCLE_NM -match "월" })
+    $cands = @($lj.SttsApiTbl[1].row | Where-Object { $_.STATBL_NM -match "오피스텔.*매매가격지수" -and $_.DTACYCLE_NM -match "월" })
     foreach ($c in $cands) { Write-Host ("  [오피스텔 표 후보] {0} {1} ({2})" -f $c.STATBL_ID, $c.STATBL_NM, $c.DTACYCLE_NM) }
     $found = $null
     foreach ($c in $cands) {
@@ -342,7 +342,8 @@ function Fetch-IndexData {
       $ok = $false
       if ($rows) {
         foreach ($r in $rows) {
-          $fn = [string]$r.CLS_FULLNM
+          if ([string]$r.CLS_NM -ne "전체") { continue }
+          $fn = [string]$r.GRP_FULLNM
           if ($regionNames.Count -lt 15 -and -not $regionNames.Contains($fn)) { $regionNames[$fn] = 1 }
           foreach ($sg in ($fn -split ">")) { $s = $sg.Trim(); if ($s -like "서울*" -or $s -like "경기*") { $ok = $true; break } }
           if ($ok) { break }
@@ -389,7 +390,8 @@ function Fetch-IndexData {
       foreach ($r in $rows) {
         if ($r.ITM_NM -and ($r.ITM_NM -notmatch "지수")) { continue }       # 표에 지수 외 항목이 섞여도 지수만
         if ($r.ITM_NM -and ($r.ITM_NM -match "전세|월세")) { continue }     # 매매가격지수만 (오피스텔 표 대비)
-        $full = [string]$r.CLS_FULLNM
+        if ($kind -eq "오피스텔" -and [string]$r.CLS_NM -ne "전체") { continue }
+        $full = if ($kind -eq "오피스텔") { [string]$r.GRP_FULLNM } else { [string]$r.CLS_FULLNM }
         if ($distinctCls.Count -lt 25 -and -not $distinctCls.Contains($full)) { $distinctCls[$full] = 1 }
         # 시도 판정: 경로 어느 구간이든 roots로 시작하면 채택 — 표마다 '수도권>서울', '서울특별시' 등 표기가 제각각(#14·#15)
         $hit = $false
@@ -404,8 +406,9 @@ function Fetch-IndexData {
           $byFull[$full] = [ordered]@{ cls = $cid; full = $full; s = [ordered]@{} }
         }
         $ym = [string]$r.WRTTIME_IDTFR_ID
-        # 공표 지수는 소수 1자리 — 산식 표기와 일치하도록 반올림 저장
-        $byFull[$full].s[$ym] = [math]::Round([double]$r.DTA_VAL, 1)
+        # 공표 자릿수: 오피스텔 2자리, 주택종합 1자리 — 산식 표기와 일치
+        $precision = if ($kind -eq "오피스텔") { 2 } else { 1 }
+        $byFull[$full].s[$ym] = [math]::Round([double]$r.DTA_VAL, $precision)
         if ($ym -gt $latest) { $latest = $ym }
       }
       if (@($rows).Count -lt 1000) { break }
@@ -425,7 +428,7 @@ function Fetch-IndexData {
       $regions[$name] = $byFull[$full]
     }
     Write-Host ("    {0}: 지역 {1}개, 최신 {2}" -f $kind, $regions.Count, $latest) -ForegroundColor Green
-    $out.tables[$kind] = [ordered]@{ statblId = $t.id; latest = $latest; regions = $regions }
+    $out.tables[$kind] = [ordered]@{ statblId = $t.id; latest = $latest; decimals = $(if ($kind -eq "오피스텔") { 2 } else { 1 }); regions = $regions }
   }
   if (-not $out.tables.Contains("아파트")) { throw "아파트 지수 수신 실패 — 기존 파일 유지" }
   # 비주거용 자본수익률(분기) — 실패해도 매매지수는 정상 저장

@@ -46,6 +46,7 @@ function dot(v){var m=String(v||'').match(/(\d{4})\D?(\d{2})\D?(\d{2})/);return 
 function numStr(v){var x=Number(v);if(v===''||v==null||isNaN(x))return'';return String(Number(x.toFixed(4)));}
 function stripDong(s){return txt(s).replace(/^제/,'').replace(/동$/,'').trim();}
 function stripHo(s){return txt(s).replace(/^제/,'').replace(/호$/,'').trim();}
+function buildingNameOnly(s){return txt(s).replace(/\s*제?\s*\d+[A-Za-z가-힣]?\s*동\s*$/,'').replace(/\s+제?\s*[A-Za-z가-하]\s*동\s*$/,'').trim();}
 function hoNum(s){var m=String(s||'').match(/\d+/);return m?Number(m[0]):0;}
 
 function bldUrl(pnu,op,extra){
@@ -146,16 +147,22 @@ function buildingFields(st,dong){
   var strct=joinPurps(t.strctCdNm,t.etcStrct);
   var roof=txt(t.etcRoof)||txt(t.roofCdNm);
   if(roof&&!/지붕|슬래브|슬라브/.test(roof))roof+='지붕';
-  var plat=txt(r.platPlc)||txt(t.platPlc)||st.addr;
+  var plat=txt(r.platPlc)||txt(t.platPlc)||st.addr||'';
   plat=plat.replace(/번지/g,'').replace(/\s+/g,' ').trim();
-  var mainCnt=Number(r.mainBldCnt)||0,hhld=Number(r.hhldCnt)||0;
-  if(!mainCnt)mainCnt=st.dongs.length;
-  if(!hhld)st.titles.forEach(function(x){if(!/부속/.test(txt(x.mainAtchGbCdNm)))hhld+=Number(x.hhldCnt)||0;});
+  // 공동주택은 세대수, 오피스텔 등은 호수로 공표된다. 부속건축물·중복 표제부 제외.
+  var mainCnt=Number(r.mainBldCnt)||0,hhld=Number(r.hhldCnt)||Number(r.hoCnt)||0;
+  var seenTitles=Object.create(null),mainTitles=st.titles.filter(function(x){
+    if(/부속/.test(txt(x.mainAtchGbCdNm)))return false;
+    var key=txt(x.mgmBldrgstPk)||txt(x.dongNm);
+    if(seenTitles[key])return false;seenTitles[key]=true;return true;
+  });
+  if(!mainCnt)mainCnt=mainTitles.length;
+  if(!hhld)mainTitles.forEach(function(x){hhld+=Number(x.hhldCnt)||Number(x.hoCnt)||0;});
   var landArea=numStr(r.platArea)||numStr(t.platArea);
   return{
     jibun:plat,
     road:txt(r.newPlatPlc)||txt(t.newPlatPlc),
-    buildingName:txt(r.bldNm)||txt(t.bldNm),
+    buildingName:buildingNameOnly(txt(r.bldNm)||txt(t.bldNm)),
     zoning:jj.join(', '),
     structure:(strct+(roof?' '+roof:'')).trim(),
     mainUse:joinPurps(t.mainPurpsCdNm,t.etcPurps)||joinPurps(r.mainPurpsCdNm,r.etcPurps),
@@ -295,6 +302,6 @@ function Panel(props){
   );
 }
 
-window.ArapBldrgst={search:search,load:load,buildingFields:buildingFields,hoList:hoList,unitFields:unitFields,firstParcel:firstParcel,Panel:Panel,
+window.ArapBldrgst={buildingNameOnly:buildingNameOnly,search:search,load:load,buildingFields:buildingFields,hoList:hoList,unitFields:unitFields,firstParcel:firstParcel,Panel:Panel,
   _internal:{stripDong:stripDong,stripHo:stripHo,looksRoad:looksRoad,numStr:numStr,dot:dot}};
 })();
