@@ -1666,8 +1666,8 @@ const IPJ_FILES=[
   {key:"pyoji",  label:"1. 표지",       b64:()=>PYOJI_IPJ_B64,   b2b:PYOJI_B2B,   fn:ov=>`1. 표지_${ov.client||"의뢰인"}.hwpx`},
   {key:"gwalho", label:"2. 괄호감정표",  b64:()=>GWALHO_IPJ_B64,  b2b:GWALHO_B2B,  fn:ov=>`2. 괄호감정표_${ov.client||"의뢰인"}.hwpx`},
   {key:"uigyeon",label:"3. 의견서",     b64:()=>UIGYEON_IPJ_B64, b2b:UIGYEON_B2B, opts:{opinionTokenColors:true}, fn:ov=>`3. 의견서_${ov.client||"의뢰인"}.hwpx`},
-  {key:"yohang", label:"4. 요항표",     b64:()=>YOHANG_IPJ_B64,  b2b:YOHANG_B2B,  fn:ov=>`4. 요항표_${ov.client||"의뢰인"}.hwpx`, opts:{stripTokenLines:true}},
-  {key:"myeongse",label:"5. 명세표",    b64:()=>MYEONGSE_IPJ_B64, b2b:MYEONGSE_B2B, fn:ov=>`5. 명세표_${ov.client||"의뢰인"}.hwpx`},
+  {key:"myeongse",label:"4. 명세표",    b64:()=>MYEONGSE_IPJ_B64, b2b:MYEONGSE_B2B, fn:()=>`4. 명세표.hwpx`},
+  {key:"yohang", label:"5. 요항표",     b64:()=>YOHANG_IPJ_B64,  b2b:YOHANG_B2B,  fn:()=>`5. 요항표.hwpx`, opts:{stripTokenLines:true}},
 ];
 
 async function ipjDownloadDoc(fileDef, ov, cases){
@@ -2006,7 +2006,7 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
   const 합계=rd0(평가수수료+소계), 부가세=Math.round(합계*0.1), 총계=합계+부가세, 정산=총계-P("downPayment");
   const setF=(k,v)=>setFee(p=>({...p,[k]:fmtComma(v)}));
   const pasteFee=e=>{const t=(e.clipboardData||window.clipboardData).getData("text");try{const f=parseFeeStatement(t);const v=fee.feeBasis==="기준"?f.기준수수료:fee.feeBasis==="상한"?f.상한수수료:f.하한수수료;if(v){e.preventDefault();setFee(p=>({...p,feeText:t,feeMain:fmtComma(String(v))}));}}catch(err){}};
-  const dlCheonggu=async()=>{try{const map=ipjCheongguMap(ov,fee);const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);triggerDownload(bytes,`6. 청구서_${ov.client||"의뢰인"}.hwpx`);}catch(e){alert("청구서 생성 실패: "+e.message);}};
+  const dlCheonggu=async()=>{try{const map=ipjCheongguMap(ov,fee);const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);triggerDownload(bytes,"__청구서.hwpx");}catch(e){alert("청구서 생성 실패: "+e.message);}};
   const _bd="1px solid #d9cfcf";
   const grpTd={border:_bd,padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#6d2b2b",background:"#f6f0f0",width:64};
   const nmTd={border:_bd,padding:"6px 12px",color:"#333"};
