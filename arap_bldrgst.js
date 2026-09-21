@@ -194,11 +194,11 @@ async function unitFields(pnu,dong,ho){
 }
 
 // ── React 패널 ──
-// props: S,C(앱 스타일), ov(현재 값 — 주소·동·호 미리 채움), multi(여러호수: 호 고르면 표에 추가), onApply(fields,{onlyEmpty,kind:'building'|'unit'})
+// props: S,C(앱 스타일), ov(현재 값 — 동·호 선택에 사용), multi(여러호수: 호 고르면 표에 추가), onApply(fields,{onlyEmpty,kind:'building'|'unit'})
 function Panel(props){
-  var R=window.React,h=R.createElement,useState=R.useState,useEffect=R.useEffect,useRef=R.useRef;
+  var R=window.React,h=R.createElement,useState=R.useState,useRef=R.useRef;
   var S=props.S||{},C=props.C||{},ov=props.ov||{};
-  var st=useState(function(){return firstParcel(ov.jibun)||'';}),q=st[0],setQ=st[1];
+  var st=useState(''),q=st[0],setQ=st[1];
   var st2=useState(''),msg=st2[0],setMsg=st2[1];
   var st3=useState(''),err=st3[0],setErr=st3[1];
   var st4=useState(false),busy=st4[0],setBusy=st4[1];
@@ -209,8 +209,7 @@ function Panel(props){
   var st9=useState(''),ho=st9[0],setHo=st9[1];
   var st10=useState(true),onlyEmpty=st10[0],setOnlyEmpty=st10[1];
   var st11=useState(''),hoMsg=st11[0],setHoMsg=st11[1];
-  var seeded=useRef(false),lastUnit=useRef(null);   // 마지막으로 채운 호 값 — 체크 해제 때 덮어쓰기 재적용용
-  useEffect(function(){if(!seeded.current&&!q&&ov.jibun){seeded.current=true;setQ(firstParcel(ov.jibun));}},[ov.jibun]);
+  var lastUnit=useRef(null);   // 마지막으로 채운 호 값 — 체크 해제 때 덮어쓰기 재적용용
 
   var opts={onlyEmpty:onlyEmpty};
   function fail(e){console.error('건축물대장',e);setErr('실패: '+(e&&e.message||e));}
@@ -277,7 +276,7 @@ function Panel(props){
     h('div',{style:S.h2||{}},'🏢 건축물대장 불러오기 ',h('span',{style:{fontSize:11,fontWeight:400,color:'#666'}},'(PDF 없이 주소로 조회 — 등기·접수 인식 뒤 남은 빈칸을 채웁니다)')),
     h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:6}},
       h('span',{style:Object.assign({},S.lbl||{},{minWidth:70})},'주소'),
-      h('input',{style:Object.assign({},inp,{flex:1,minWidth:260}),value:q,onChange:function(e){setQ(e.target.value);},placeholder:'지번(예: 서울 서초구 방배동 1344) 또는 도로명(예: 서초대로1길 30)',onKeyDown:function(e){if(e.key==='Enter'&&!busy)doSearch();}}),
+      h('input',{style:Object.assign({},inp,{flex:1,minWidth:260}),value:q,onChange:function(e){setQ(e.target.value);},placeholder:'조회할 지번주소 또는 도로명주소를 입력하세요',onKeyDown:function(e){if(e.key==='Enter'&&!busy)doSearch();}}),
       h('button',{style:Object.assign({},btn,busy?{background:'#94a3b8'}:{}),disabled:busy,onClick:doSearch},busy?'조회 중…':'🔍 조회'),
       h('label',{style:Object.assign({},hint,{display:'inline-flex',alignItems:'center',gap:4,cursor:'pointer'})},
         h('input',{type:'checkbox',checked:onlyEmpty,onChange:function(e){toggleOnlyEmpty(e.target.checked);}}),'빈칸만 채우기'),
