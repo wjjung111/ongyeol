@@ -1319,7 +1319,10 @@ function ipjColorOpinionTokens(xml,header){
     if(!id)return part;
     const colored=run.replace(/\bcharPrIDRef="[^"]+"/,'charPrIDRef="'+colorId(id[1],tableDepth?"#000000":"#0000FF")+'"');
     // 토큰 앞뒤의 고정 텍스트는 원래 run으로 복원한다 (글꼴·크기·굵기 보존).
-    return part.replace(/\{\{[^}]+\}\}/g,token=>'</hp:t></hp:run>'+colored+'<hp:t>'+token+'</hp:t></hp:run>'+run+'<hp:t>');
+    return part.replace(/\{\{[^}]+\}\}/g,token=>{
+      const tokenRun=token.startsWith("{{IPJ_FIXED_")?run.replace(/\bcharPrIDRef="[^"]+"/,'charPrIDRef="'+colorId(id[1],"#000000")+'"'):colored;
+      return '</hp:t></hp:run>'+tokenRun+'<hp:t>'+token+'</hp:t></hp:run>'+run+'<hp:t>';
+    });
   });
   if(added.length){
     const updated=block[0].replace(/itemCnt="\d+"/,'itemCnt="'+(styles.length+added.length)+'"').replace("</hh:charProperties>",added.join("")+"</hh:charProperties>");
@@ -1327,6 +1330,46 @@ function ipjColorOpinionTokens(xml,header){
   }
   return {xml,header};
 }
+// 문단별 검정 문구 수정값은 기존 파란 입력값과 분리해 건별로 보관한다.
+function ipjMethodTextDefault(i,j){
+  const part=IPJ_OPINION_METHOD_PARAGRAPHS[i].split(/(\{\{[^}]+\}\})/g)[j]||"";
+  return j===0?part.replace(/^[가나다라마바]\.\s*/,""):part;
+}
+function ipjApplyMethodText(xml,edits){
+  const values={};let active=false;
+  xml=xml.replace(/<hp:p\b(?:(?!<hp:p\b)[\s\S])*?<\/hp:p>/g,p=>{
+    const texts=[...p.matchAll(/<hp:t(?:\s[^>]*)?>([\s\S]*?)<\/hp:t>/g)];
+    const plain=texts.map(m=>m[1]).join("");
+    if(plain==="4. 감정평가방법의 적용 및 감정평가액의 산출의견"){active=true;return p;}
+    if(active&&plain==="5. 감정평가조건"){active=false;return p;}
+    if(!active)return p;
+    const i=IPJ_OPINION_METHOD_PARAGRAPHS.indexOf(plain);if(i<0)return p;
+    let pos=0;const changes=[];
+    plain.split(/(\{\{[^}]+\}\})/g).forEach((part,j)=>{
+      const key=i+":"+j,base=ipjMethodTextDefault(i,j),prefix=part.length-base.length;
+      if(j%2===0&&base&&Object.prototype.hasOwnProperty.call(edits,key)&&edits[key]!=null&&String(edits[key])!==base){
+        const token="IPJ_FIXED_"+i+"_"+j;values[token]=String(edits[key]);
+        changes.push({start:pos+prefix,end:pos+part.length,token:"{{"+token+"}}"});
+      }
+      pos+=part.length;
+    });
+    if(!changes.length)return p;
+    let offset=0;
+    p=p.replace(/(<hp:t(?:\s[^>]*)?>)([\s\S]*?)(<\/hp:t>)/g,(_,open,text,close)=>{
+      const begin=offset;offset+=text.length;let out="",cursor=0;
+      for(const ch of changes){
+        if(ch.end<=begin||ch.start>=offset)continue;
+        const a=Math.max(0,ch.start-begin),b=Math.min(text.length,ch.end-begin);
+        out+=text.slice(cursor,a)+(ch.start>=begin?ch.token:"");cursor=b;
+      }
+      return open+out+text.slice(cursor)+close;
+    });
+    // 수정된 문단의 길이에 맞춰 한글이 줄을 다시 배치하도록 한다.
+    return p.replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/g,"");
+  });
+  return {xml,values};
+}
+
 async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -1339,6 +1382,8 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   for(const e of entries){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
+      let fixedValues={};
+      if(opts&&opts.opinionMethodText){const edited=ipjApplyMethodText(xml,opts.opinionMethodText);xml=edited.xml;fixedValues=edited.values;}
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
       if(opts&&opts.stripTokenLines)xml=ipjStripTokenParaLineSeg(xml);  // 요항표: 문장 속 토큰 문단도 캐시 제거
       xml=ipjRetargetSelTables(xml);                     // 선정요약표·개별요인표·산정표 토큰을 '선정 사례' 기준으로 개명 (항상)
@@ -1346,6 +1391,7 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
       for(const[b,k]of Object.entries(blue2black))xml=xml.split('charPrIDRef="'+b+'"').join('charPrIDRef="'+k+'"');
       if(colorOpinion){const colored=ipjColorOpinionTokens(xml,opinionHeader);xml=colored.xml;opinionHeader=colored.header;}
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
+      for(const[tok,val]of Object.entries(fixedValues))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val).replace(/\r\n?|\n/g,"<hp:lineBreak/>"));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("hwpx 미치환 토큰",e.name,left);
       e.data=new TextEncoder().encode(xml);
@@ -1628,7 +1674,7 @@ async function ipjDownloadDoc(fileDef, ov, cases){
   const {m,cal}=buildIpjMap(ov,cases);
   const na=(ov.units||[])[1];                                              // 둘째 호수(나)
   const naEmpty=(ov.units||[]).length<=1 || !na || !(pStr(na.dong)||pStr(na.ho));  // 1호수 평가 여부
-  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{})});
+  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{}),...(fileDef.key==="uigyeon"?{opinionMethodText:ov.opMethodText||{}}:{})});
   triggerDownload(bytes, fileDef.fn(ov));
   try{window.arapUsageLog&&window.arapUsageLog("다운로드",{caseNo:ov.caseNoDisplay||ov.caseNo,addr:(ov.projLoc||ov.beopjeongdong||""),kind:"입주권 "+fileDef.label,amount:fmt(cal.finalDecided)});}catch(e){}
 }
@@ -1848,6 +1894,11 @@ const IPJ_OPINION_METHOD_PARAGRAPHS=[
   "마. 부동산을 취득할수 있는 권리(입주권)의 목적물인 구분건물(아파트)은 「감정평가에 관한 규칙」 제12조, 제16조에 의거 인근 유사 아파트의 일반적인 거래시세와 입지조건, 부근상황 및 건물의 구조, 용재, 시공상태, 설비상태, 층별·향별·위치별 효용성 등의 제반 가치형성요인을 종합 참작하여 건물과 토지의 소유권·대지권을 일체로 한 거래사례비교법을 적용하여 평가하였음. 한편, 대상물건의 특성상 원가법 적용이 적절하지 않고, 수익환원법은 수익과 비용 및 환원이율의 변동가능성 또는 불확실성에 따른 편차가 발생할 수 있고, 유사한 임대사례의 포착이 어려워 적용이 곤란한바, 다른 감정평가방법을 적용하는 것이 곤란하므로 동규칙 제12조 제2항에 따른 다른 감정평가방법에 의해 산출한 시산가액과 비교하는 합리성 검토는 생략하였음.",
   "바. 본건 입주권의 분담금은 {{분담금}}원으로, 기준시점 현재까지 납부된 금액은 {{납입액}}원으로  탐문된 바, 이를 고려하여 감정평가하였음. "
 ];
+function IpjMethodText({label,value,onChange}){
+  const ref=useRef(null);
+  useEffect(()=>{const el=ref.current;if(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}},[value]);
+  return <textarea ref={ref} aria-label={label} value={value} onChange={e=>onChange(e.target.value)} rows={2} style={{display:"block",width:"100%",padding:"4px 6px",border:"1px solid #edf0f4",borderRadius:4,background:"#fcfcfd",color:"#222",fontSize:13,fontFamily:"inherit",lineHeight:2.1,resize:"vertical",overflow:"hidden",boxSizing:"border-box"}}/>;
+}
 function IpjOpinionMethodCard({ov,u,fmtSigned}){
   const blue={color:"#0000ff",fontWeight:600,background:"#eef4ff",border:"none",borderBottom:"2px solid #2563eb",borderRadius:"3px 3px 0 0",padding:"1px 6px",margin:"0 2px",fontSize:13,fontFamily:"inherit",maxWidth:"100%"};
   const tokenField=token=>{
@@ -1859,16 +1910,33 @@ function IpjOpinionMethodCard({ov,u,fmtSigned}){
     const key=token==="분담금"?"bunbo":"paid";
     return <input aria-label={"의견서 "+token} value={ov[key]||""} onChange={e=>u(key,fmtSigned(e.target.value))} placeholder="0" style={{...blue,width:Math.max(12,String(ov[key]||"").length+2)+"ch",textAlign:"right"}}/>;
   };
-  return <Card title="의견서 — 4. 감정평가방법의 적용 및 감정평가액의 산출의견" sub="파란 칸은 수정 가능하며 의견서에 반영됩니다. 검정 글씨는 양식 고정 문구입니다.">
+  const groups=[{label:"가",items:[0,1,2,3]},{label:"나",items:[4]},{label:"다",items:[5]},{label:"라",items:[6]},{label:"마",items:[7]},{label:"바",items:[8]}];
+  const edits=ov.opMethodText||{};
+  const setText=(i,j,value)=>u("opMethodText",{...edits,[i+":"+j]:value});
+  const restore=items=>{const next={...edits};Object.keys(next).forEach(key=>{if(items.includes(Number(key.split(":")[0])))delete next[key];});u("opMethodText",next);};
+  return <Card title="의견서 — 4. 감정평가방법의 적용 및 감정평가액의 산출의견" sub="파란 칸과 검정 문구 모두 수정할 수 있으며, 저장한 내용이 의견서에 반영됩니다.">
     <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center",fontSize:12,color:"#555",marginBottom:6}}>
       <span><span style={{display:"inline-block",width:34,height:12,background:"#eef4ff",borderBottom:"2px solid #2563eb",verticalAlign:"middle",marginRight:4}}/>= 채우는 칸(파란 플레이스홀더)</span>
-      <span><span style={{display:"inline-block",width:34,height:12,borderBottom:"1px solid #999",verticalAlign:"middle",marginRight:4}}/>= 양식 고정 문구</span>
+      <span><span style={{display:"inline-block",width:34,height:12,borderBottom:"1px solid #999",verticalAlign:"middle",marginRight:4}}/>= 수정 가능한 본문</span>
     </div>
     <div style={{background:"#fff",border:"1px solid #d9dde3",borderRadius:6,padding:"14px 22px 18px",fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif"}}>
       <div style={{fontSize:18,fontWeight:700,color:"#111",marginBottom:16}}>4. 감정평가방법의 적용 및 감정평가액의 산출의견</div>
-      {IPJ_OPINION_METHOD_PARAGRAPHS.map((paragraph,i)=><div key={i} style={{fontSize:13,color:"#222",lineHeight:2.1,paddingLeft:14,wordBreak:"keep-all",marginTop:/^[나-바]\./.test(paragraph)?22:8}}>
-        {paragraph.split(/(\{\{[^}]+\}\})/g).map((part,j)=>part.startsWith("{{")?<React.Fragment key={j}>{tokenField(part.slice(2,-2))}</React.Fragment>:<React.Fragment key={j}>{part}</React.Fragment>)}
-      </div>)}
+      <div style={{display:"grid",gap:14}}>
+        {groups.map(group=><section key={group.label} aria-label={group.label+" 항목"} style={{border:"1px solid #e2e6ed",borderRadius:8,padding:"14px 16px",background:"#fff"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <strong style={{fontSize:14,color:"#1e293b"}}>{group.label}.</strong>
+            {Object.keys(edits).some(key=>group.items.includes(Number(key.split(":")[0])))&&<button type="button" onClick={()=>restore(group.items)} style={{border:0,background:"none",fontSize:11,color:"#64748b",cursor:"pointer"}}>{group.label}항 기본 문구로 복원</button>}
+          </div>
+          {group.items.map(i=><div key={i} style={{fontSize:13,color:"#222",lineHeight:2.1,marginTop:8}}>
+            {IPJ_OPINION_METHOD_PARAGRAPHS[i].split(/(\{\{[^}]+\}\})/g).map((part,j)=>{
+              if(part.startsWith("{{"))return <React.Fragment key={j}>{tokenField(part.slice(2,-2))}</React.Fragment>;
+              const base=ipjMethodTextDefault(i,j);if(!base.trim())return null;
+              const key=i+":"+j,value=edits[key]==null?base:String(edits[key]);
+              return <IpjMethodText key={j} label={group.label+"항 본문 "+(i+1)+"-"+(j+1)} value={value} onChange={v=>setText(i,j,v)}/>;
+            })}
+          </div>)}
+        </section>)}
+      </div>
     </div>
   </Card>;
 }
