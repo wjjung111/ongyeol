@@ -23,6 +23,8 @@
        o      : 좌표를 붙여 둘 객체 — 조회 결과를 o._xy 에 넣는다(호출한 쪽이 저장하면 됨)
        kind   : '본건' 같은 분류 (팝업에 표시, '본건'이면 거리 기준점이 된다)
        label  : 핀 이름표
+       labelGroup : 같은 값인 항목의 경계는 모두 표시하고 이름표는 하나만 표시(선택)
+       boundaryLeader : 화살촉이 중심 대신 실제 필지 경계를 가리킴(선택)
        color  : 핀 색
        loc    : 소재지 문자열
        region : 시·군·구가 없을 때 앞에 붙일 지역(본건 시군구) — 없으면 ''
@@ -263,14 +265,38 @@ function create(opt){
         away=Math.min(tx,ty)+30;           // 필지 테두리에서 30px 떨어뜨린다
       }
     }
-    away=Math.max(44,Math.min(away,150));  // 너무 붙지도, 화면 밖으로 날아가지도 않게
+    away=it.labelGroup?Math.max(44,away):Math.max(44,Math.min(away,150));  // 너무 붙지도, 화면 밖으로 날아가지도 않게
     return [Math.round(d[0]*away),Math.round(d[1]*away)];
   }
+  // 선택한 필지 묶음의 실제 경계 중 이름표에 가장 가까운 점(화살촉 위치).
+  function boundaryTip(it,poly,dx,dy){
+    if(!it.boundaryLeader||!poly||!map)return null;
+    var origin=map.latLngToLayerPoint(poly.getBounds().getCenter()),best=null,dist2=Infinity;
+    function ring(coords){
+      for(var i=0;i<coords.length-1;i++){
+        var a=map.latLngToLayerPoint([coords[i][1],coords[i][0]]),b=map.latLngToLayerPoint([coords[i+1][1],coords[i+1][0]]);
+        var ax=a.x-origin.x,ay=a.y-origin.y,vx=b.x-a.x,vy=b.y-a.y;
+        var den=vx*vx+vy*vy,t=den?Math.max(0,Math.min(1,((dx-ax)*vx+(dy-ay)*vy)/den)):0;
+        var x=ax+t*vx,y=ay+t*vy,d=(dx-x)*(dx-x)+(dy-y)*(dy-y);
+        if(d<dist2){dist2=d;best=[x,y];}
+      }
+    }
+    function visit(g){
+      if(!g)return;
+      if(g.type==='FeatureCollection')g.features.forEach(visit);
+      else if(g.type==='Feature')visit(g.geometry);
+      else if(g.type==='GeometryCollection')g.geometries.forEach(visit);
+      else if(g.type==='Polygon')ring(g.coordinates[0]);
+      else if(g.type==='MultiPolygon')g.coordinates.forEach(function(p){ring(p[0]);});
+    }
+    visit(poly.toGeoJSON());return best;
+  }
   // 이름표 → 필지로 향하는 화살표. 아이콘 원점(필지 중심)이 SVG 한가운데에 오게 놓는다.
-  function leader(dx,dy,color){
+  function leader(dx,dy,color,tip){
     var W=420,H=420,cx=W/2,cy=H/2;
-    var len=Math.sqrt(dx*dx+dy*dy)||1,ux=-dx/len,uy=-dy/len;   // 이름표 → 필지 방향
-    var tx=cx+ux*2,ty=cy+uy*2;                                  // 화살촉 끝(필지 쪽)
+    var ex=tip?tip[0]:0,ey=tip?tip[1]:0;
+    var len=Math.sqrt((ex-dx)*(ex-dx)+(ey-dy)*(ey-dy))||1,ux=(ex-dx)/len,uy=(ey-dy)/len;   // 이름표 → 필지 방향
+    var tx=cx+ex+(tip?0:ux*2),ty=cy+ey+(tip?0:uy*2);                                  // 화살촉 끝(필지 쪽)
     var bx=tx-ux*11,by=ty-uy*11;                                // 화살촉 밑변 중심
     var px=-uy*5,py=ux*5;
     return '<svg class="ldr" width="'+W+'" height="'+H+'" style="left:'+(-cx)+'px;top:'+(-cy)+'px">'+
@@ -288,8 +314,8 @@ function create(opt){
   function parcelIcon(it,n,poly){
     var o=labelOffset(it,n,poly),dx=o[0],dy=o[1];
     return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
-      html:'<div class="mkr par'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color)+
-           '<div class="lab" title="'+esc(LAB_TIP)+'" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>'});
+      html:'<div class="mkr par'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color,boundaryTip(it,poly,dx,dy))+
+           '<div class="lab" title="'+esc(it.boundaryLeader?'끌어서 이름표를 옮깁니다(화살촉은 필지 경계). 두 번 누르면 제자리로.':LAB_TIP)+'" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>'});
   }
   // 확대·축소하면 필지의 화면 크기가 달라지므로 이름표를 다시 밀어낸다(직접 옮긴 것은 그대로)
   var labeled=[];   // [{marker, it, n, poly}]
@@ -313,7 +339,7 @@ function create(opt){
     function paint(dx,dy){
       box.style.left=dx+'px';box.style.top=dy+'px';
       var svg=wrap.querySelector('svg.ldr');
-      if(svg)svg.outerHTML=leader(dx,dy,r.it.color);
+      if(svg)svg.outerHTML=leader(dx,dy,r.it.color,boundaryTip(r.it,r.poly,dx,dy));
     }
     function onMove(e){
       var p=evPt(e);if(!p||!start)return;
@@ -330,7 +356,7 @@ function create(opt){
       if(moved){
         r.it.xy.labOff=[parseInt(box.style.left,10)||0,parseInt(box.style.top,10)||0];
         onSave();
-        status('🏷️ '+r.it.label+' 이름표를 옮겼습니다(저장됨). 필지와 화살촉은 그대로입니다.');
+        status('🏷️ '+r.it.label+' 이름표를 옮겼습니다(저장됨). '+(r.it.boundaryLeader?'화살촉은 필지 경계를 가리킵니다.':'필지와 화살촉은 그대로입니다.'));
       }else if(start){
         r.marker.openPopup();   // 끌지 않고 그냥 눌렀으면 종전처럼 설명을 띄운다
       }
@@ -374,7 +400,15 @@ function create(opt){
     markers.forEach(function(m){map.removeLayer(m);});markers=[];
     shapes.forEach(function(s){map.removeLayer(s);});shapes=[];
     labeled=[];
-    var pts=[],bnd=null,n=0;
+    var pts=[],bnd=null,n=0,groups=Object.create(null);
+    items.forEach(function(it){
+      if(!it.labelGroup||!it.xy||hidden[it.kind])return;
+      var g=groups[it.labelGroup]||(groups[it.labelGroup]={leader:it,features:[]});
+      if(it.xy.geom){g.features.push(it.xy.geom);if(!g.leader.xy.geom)g.leader=it;}
+    });
+    Object.keys(groups).forEach(function(k){var g=groups[k];
+      if(g.features.length)g.poly=L.featureGroup(g.features.map(function(geom){return L.geoJSON(geom);}));
+    });
     items.forEach(function(it){
       if(!it.xy)return;
       // 이름표 방향 번호는 숨김과 상관없이 매긴다 — 체크를 껐다 켤 때마다 이름표가 딴 쪽으로 튀지 않게
@@ -400,6 +434,12 @@ function create(opt){
         icon=dotIcon(it);
       }
       pts.push(ll);
+      var group=it.labelGroup&&groups[it.labelGroup];
+      if(group&&group.leader!==it)return; // 경계·팝업은 전부 유지하고 묶음 이름표만 하나 표시
+      if(group&&group.poly){
+        myPoly=group.poly;var center=myPoly.getBounds().getCenter();ll=[center.lat,center.lng];
+        icon=parcelIcon(it,0,myPoly);myN=0;
+      }
       // 필지형 마커는 필지 중심에 못 박는다(화살촉 고정) — 이름표만 따로 끌 수 있게 한다.
       // 점 핀(집합건물)은 종전대로 마커째 끌어서 위치를 고친다.
       var m=L.marker(ll,{icon:icon,draggable:!myPoly,title:myPoly?'':(it.label+' — '+it.loc),
