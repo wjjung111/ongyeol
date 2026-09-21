@@ -1,4 +1,4 @@
-// 집합건물(단일호수 앱) 청구서 — 특별용역비 방식 드롭다운(상한-하한 / 기준-하한 / 상한-기준 / 직접입력) 자동 차액.
+// 집합건물(단일·여러 호수) 청구서 — 특별용역비 방식 드롭다운(상한-하한 / 기준-하한 / 상한-기준 / 직접입력) 자동 차액.
 // PLAYWRIGHT_MODULE=/path/to/playwright PLAYWRIGHT_CHANNEL=msedge node tests/jiphap_cheonggu_special.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('assert/strict');
@@ -12,7 +12,7 @@ const FEE=['1  예상평가액  1,775,270,360',
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
  const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
  try{
- for(const mode of ['single']){   // 청구서 카드는 단일호수 앱(#root)에만 있다
+ for(const mode of ['single','multi']){
  const ctx=await browser.newContext();const page=await ctx.newPage();const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message)});page.on('dialog',d=>d.accept());page.setDefaultTimeout(15000);console.log('START',mode);
  await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
  await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
