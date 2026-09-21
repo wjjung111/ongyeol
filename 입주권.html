@@ -1292,11 +1292,50 @@ function ipjPruneNaSummaryRow(xml){
   });
   return xml.split("각각 선정함").join("선정함");   // 선정사례 1개면 '각각' 제거
 }
+// 의견서: 표 밖의 토큰 값만 파랑, 표 안은 검정. 혼합 문장의 고정 문구는 기존 색 유지.
+function ipjColorOpinionTokens(xml,header){
+  const block=header.match(/<hh:charProperties\b[^>]*>([\s\S]*?)<\/hh:charProperties>/);
+  if(!block)throw new Error("의견서 글자모양 정보를 찾을 수 없습니다.");
+  const styles=block[1].match(/<hh:charPr\b[\s\S]*?<\/hh:charPr>/g)||[];
+  const byId=new Map(styles.map(s=>[s.match(/\bid="([^"]+)"/)[1],s]));
+  let nextId=Math.max(-1,...Array.from(byId.keys(),Number))+1;
+  const added=[],cache=new Map();
+  const colorId=(id,color)=>{
+    const key=id+color;if(cache.has(key))return cache.get(key);
+    const base=byId.get(id);if(!base)throw new Error("의견서 글자모양 누락: "+id);
+    if(base.includes('textColor="'+color+'"')){cache.set(key,id);return id;}
+    const newId=String(nextId++);
+    added.push(base.replace(/\bid="[^"]+"/,'id="'+newId+'"').replace(/\btextColor="[^"]+"/,'textColor="'+color+'"'));
+    cache.set(key,newId);return newId;
+  };
+  let tableDepth=0;const runs=[];
+  xml=xml.replace(/<hp:tbl\b[^>]*>|<\/hp:tbl>|<hp:run\b[^>]*>|<\/hp:run>|<hp:t(?:\s[^>]*)?>[\s\S]*?<\/hp:t>/g,part=>{
+    if(/^<hp:tbl\b/.test(part)){if(!/\/>$/.test(part))tableDepth++;return part;}
+    if(part==="</hp:tbl>"){tableDepth--;return part;}
+    if(/^<hp:run\b/.test(part)){if(!/\/>$/.test(part))runs.push(part);return part;}
+    if(part==="</hp:run>"){runs.pop();return part;}
+    if(!part.includes("{{")||!runs.length)return part;
+    const run=runs[runs.length-1],id=run.match(/\bcharPrIDRef="([^"]+)"/);
+    if(!id)return part;
+    const colored=run.replace(/\bcharPrIDRef="[^"]+"/,'charPrIDRef="'+colorId(id[1],tableDepth?"#000000":"#0000FF")+'"');
+    // 토큰 앞뒤의 고정 텍스트는 원래 run으로 복원한다 (글꼴·크기·굵기 보존).
+    return part.replace(/\{\{[^}]+\}\}/g,token=>'</hp:t></hp:run>'+colored+'<hp:t>'+token+'</hp:t></hp:run>'+run+'<hp:t>');
+  });
+  if(added.length){
+    const updated=block[0].replace(/itemCnt="\d+"/,'itemCnt="'+(styles.length+added.length)+'"').replace("</hh:charProperties>",added.join("")+"</hh:charProperties>");
+    header=header.replace(block[0],updated);
+  }
+  return {xml,header};
+}
 async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
   if(!entries.length)throw new Error("hwpx 템플릿 파싱 실패");
   const mi=entries.findIndex(e=>e.name==="mimetype");if(mi>0){const[m]=entries.splice(mi,1);entries.unshift(m);} // hwpx는 mimetype이 zip 첫 항목이어야 함
+  const colorOpinion=!!(opts&&opts.opinionTokenColors);
+  const headerEntry=colorOpinion?entries.find(e=>e.name==="Contents/header.xml"):null;
+  if(colorOpinion&&!headerEntry)throw new Error("의견서 header.xml 누락");
+  let opinionHeader=headerEntry?new TextDecoder("utf-8").decode(headerEntry.data):"";
   for(const e of entries){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
@@ -1304,13 +1343,15 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
       if(opts&&opts.stripTokenLines)xml=ipjStripTokenParaLineSeg(xml);  // 요항표: 문장 속 토큰 문단도 캐시 제거
       xml=ipjRetargetSelTables(xml);                     // 선정요약표·개별요인표·산정표 토큰을 '선정 사례' 기준으로 개명 (항상)
       if(opts&&opts.naEmpty){xml=ipjPruneNaBlock(xml);xml=ipjPruneNaRows(xml);xml=ipjPruneNaSummaryRow(xml);}  // 1호수: 명세표 '나' 블록 + 의견서 각 표 '나' 행 + 선정요약표 나행·'각각' 제거
+      for(const[b,k]of Object.entries(blue2black))xml=xml.split('charPrIDRef="'+b+'"').join('charPrIDRef="'+k+'"');
+      if(colorOpinion){const colored=ipjColorOpinionTokens(xml,opinionHeader);xml=colored.xml;opinionHeader=colored.header;}
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("hwpx 미치환 토큰",e.name,left);
-      for(const[b,k]of Object.entries(blue2black))xml=xml.split('charPrIDRef="'+b+'"').join('charPrIDRef="'+k+'"');
       e.data=new TextEncoder().encode(xml);
     }
   }
+  if(headerEntry)headerEntry.data=new TextEncoder().encode(opinionHeader);
   return createZipStored(entries);
 }
 function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis){
@@ -1568,7 +1609,7 @@ function buildIpjMap(ov,cases){
 const IPJ_FILES=[
   {key:"pyoji",  label:"1. 표지",       b64:()=>PYOJI_IPJ_B64,   b2b:PYOJI_B2B,   fn:ov=>`1. 표지_${ov.client||"의뢰인"}.hwpx`},
   {key:"gwalho", label:"2. 괄호감정표",  b64:()=>GWALHO_IPJ_B64,  b2b:GWALHO_B2B,  fn:ov=>`2. 괄호감정표_${ov.client||"의뢰인"}.hwpx`},
-  {key:"uigyeon",label:"3. 의견서",     b64:()=>UIGYEON_IPJ_B64, b2b:UIGYEON_B2B, fn:ov=>`3. 의견서_${ov.client||"의뢰인"}.hwpx`},
+  {key:"uigyeon",label:"3. 의견서",     b64:()=>UIGYEON_IPJ_B64, b2b:UIGYEON_B2B, opts:{opinionTokenColors:true}, fn:ov=>`3. 의견서_${ov.client||"의뢰인"}.hwpx`},
   {key:"yohang", label:"4. 요항표",     b64:()=>YOHANG_IPJ_B64,  b2b:YOHANG_B2B,  fn:ov=>`4. 요항표_${ov.client||"의뢰인"}.hwpx`, opts:{stripTokenLines:true}},
   {key:"myeongse",label:"5. 명세표",    b64:()=>MYEONGSE_IPJ_B64, b2b:MYEONGSE_B2B, fn:ov=>`5. 명세표_${ov.client||"의뢰인"}.hwpx`},
 ];
