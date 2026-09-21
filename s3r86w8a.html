@@ -5845,12 +5845,8 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   const _refSym=_refC?.symbol?`#${_refC.symbol}`:"";
   // 호별로 적용 사례 lookup: unit.appliedSymbol → 원본 cases에서 매칭 (재매핑 전 기호로 저장됨) → _applySym으로 표시 기호 적용
   const _getAppliedC=(unit)=>{
-    if(!unit)return _refC;
-    if(unit.appliedSymbol){
-      const found=cases.find(c=>String(c.symbol)===String(unit.appliedSymbol)&&c.isSelected);
-      if(found)return _applySym(found);
-    }
-    return _refC;
+    const found=ArapMultiHwpx.resolveCase(unit,cases);
+    return found?_applySym(found):null;
   };
   const _calcUnit=unit=>unit?ArapMultiHwpx.calculateUnit(unit,_getAppliedC(unit),{uD,uM,tD,tM},{applyR,getUV}):null;
   const _note=u=>[u?.factorNote,(![null,undefined,"",1,"1","1.0","1.000"].includes(u?.etcFactor)?`기타요인 비교치: ${u.etcFactor}`:"")].filter(Boolean).join(" / ");
@@ -6002,7 +5998,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
 
   // === K. 가치형성요인 비교 표 (Y_259~Y_281, G_022~G_039, C_001~C_004) ===
   // 호별 적용사례 표시 — 각 호의 appliedSymbol 따라 다를 수 있음
-  const _hSym=(uc)=>uc?.appC?.symbol?`#${uc.appC.symbol}`:_refSym;
+  const _hSym=(uc)=>uc?.appC?.symbol?`#${uc.appC.symbol}`:"";
   const _hAdj=(uc)=>uc?.appC?.timeAdj?fmtDec(uc.appC.timeAdj,5):"";
   const _hPrice=(uc)=>uc?.appC?.unitPrice?fmt(uc.appC.unitPrice):"";
   // 요인 디폴트: unit 존재 시 빈값이면 1.00, 미존재면 ""
@@ -6483,6 +6479,12 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   const updF=(id,key,val)=>{setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,[key]:val};nv.totalFactor=calcTF(nv);return nv;}));};
   const updN=(id,key,val)=>setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));
   const updUnit=(id,key,val)=>setOv(p=>({...p,units:(p.units||[]).map(u=>u.id===id?{...u,[key]:val}:u)}));
+  const selectUnitCase=(unitId,caseId)=>{
+    const chosen=cases.find(c=>String(c.id)===caseId);
+    if(!chosen)return;
+    setCases(p=>p.map(c=>c.id===chosen.id?{...c,isSelected:true,isShown:true}:c));
+    setOv(p=>({...p,units:(p.units||[]).map(u=>u.id===unitId?{...u,appliedCaseId:chosen.id,appliedSymbol:String(chosen.symbol)}:u)}));
+  };
 
   const area=getEffArea(ov);const rawArea=pNum(ov.area);const isAdj=ov.areaOption==="share"||ov.areaOption==="areaAdj";const uv=getUV(uD);const tv=getUV(tD);
   const selTA=sel.filter(c=>c.timeAdj);
@@ -6596,7 +6598,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
       return <SijeomModal c={c} ov={ov} propType={propType} onApply={t=>applySijeom(editTimeId,t)} onClose={()=>setEditTimeId(null)}/>;})()}
 
-    {!sel.length?null:<>
+    {<>
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
       {!tplLoaded&&!tplError&&<span style={{fontSize:11,color:"#999"}}>⏳ 템플릿 로딩중...</span>}
       {!tplLoaded&&tplError&&<>
@@ -6622,17 +6624,11 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     {/* 비주거용 시점수정 입력 — 사용자 요청으로 숨김 (필요시 ov.nrType 등 필드는 유지) */}
     {false&&propType==="비주거용"&&(<div></div>)}
 
-    {sel.length>0&&(()=>{
+    {(()=>{
       const refC = selTA[0] || sel[0];
       const hasAdj = !!refC?.timeAdj;
       // 호별 적용 사례 찾기: u.appliedSymbol 우선, 없으면 refC
-      const getAppliedC=(u)=>{
-        if(u.appliedSymbol){
-          const found=sel.find(c=>String(c.symbol)===String(u.appliedSymbol));
-          if(found)return found;
-        }
-        return refC;
-      };
+      const getAppliedC=u=>ArapMultiHwpx.resolveCase(u,cases);
       const calcRow=u=>ArapMultiHwpx.calculateUnit(u,getAppliedC(u),{uD,uM,tD,tM},{applyR,getUV});
       const units=(ov.units||[]).filter(u=>u&&(u.ho||u.dong||u.floor||pNum(u.area)>0));
       const rows=units.map(calcRow),allReady=rows.length>0&&rows.every(r=>r.ready);
@@ -6677,16 +6673,15 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           {units.map((u,i)=>{
             const sym=HANGUL_SYMBOLS.charAt(i)||String(i+1);
             const r=calcRow(u);
-            const curSym=u.appliedSymbol||r.appC?.symbol||"";
+            const curCaseId=r.appC?.id??"";
             return(<tr key={u.id}>
               <td style={S.td}>{i+1}</td>
               <td style={{...S.td,fontWeight:700}}>({sym})</td>
               <td style={S.td}>
-                {sel.length>1?(
-                  <select value={String(curSym)} onChange={e=>updUnit(u.id,'appliedSymbol',e.target.value)} style={{...S.sel2,padding:"2px 4px",fontSize:11}}>
-                    {sel.map(c=><option key={c.id} value={c.symbol}>#{c.symbol}</option>)}
-                  </select>
-                ):(r.appC?`#${r.appC.symbol}`:"-")}
+                <select aria-label={`적용 사례 ${sym}`} value={String(curCaseId)} onChange={e=>selectUnitCase(u.id,e.target.value)} style={{...S.sel2,padding:"2px 4px",fontSize:11,maxWidth:210}}>
+                  <option value="" disabled>사례 선택</option>
+                  {cases.map(c=><option key={c.id} value={String(c.id)}>#{c.symbol} · {c.aptName||c.location||"사례"}{c.ho?` ${c.ho}호`:""}</option>)}
+                </select>
               </td>
               <td style={S.tdR}>{r.appC?.timeAdj?fmtDec(r.appC.timeAdj,5):"-"}</td>
               <td style={S.td}><FactorInput value={r.ext} onChange={v=>updUnit(u.id,'extFactor',v)}/></td>

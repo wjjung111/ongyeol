@@ -31,5 +31,31 @@ assert.ok((await factorTable.locator('tbody tr').first().innerText()).includes('
 await page.reload();await scope.getByText('④ 가격산출',{exact:true}).click();assert.equal(await scope.getByLabel('호별 비교 의견 1',{exact:true}).inputValue(),'직접 입력한 호별 의견');assert.equal(await factorTable.locator('tbody tr').first().locator('input').nth(3).inputValue(),'0.99');
 const downloadBtn=scope.getByRole('button',{name:'1. 감정평가서 (전체 한글)',exact:true});await page.waitForFunction(()=>Array.from(document.querySelectorAll('#root-multi button')).some(b=>b.textContent==='1. 감정평가서 (전체 한글)'&&!b.disabled));const dlPromise=page.waitForEvent('download');await downloadBtn.click();const dl=await dlPromise;assert.match(dl.suggestedFilename(),/감정평가서.*hwpx$/);await dl.saveAs(path.join(out,'ui-full.hwpx'));console.log('PASS real UI calculations / factor-note save-reload / full HWPX download');
 await scope.screenshot({path:path.join(out,'multi-ui.png')});await scope.getByText('② 대상물건개요',{exact:true}).click();const unitTable=scope.locator('table').filter({has:page.getByRole('columnheader',{name:'사정면적',exact:true})});await scope.getByLabel('탁상단가 가',{exact:true}).fill('6000000');await page.waitForFunction(()=>{const u=JSON.parse(localStorage.getItem('v2:case:SYNTHETIC')).ov.units[0];return u.deskPrice==='180000000'&&u.deskPriceBasis==='unit';});await unitTable.locator('tbody tr').first().locator('input').nth(7).fill('15');await page.waitForFunction(()=>{const u=JSON.parse(localStorage.getItem('v2:case:SYNTHETIC')).ov.units[0];return u.deskPrice==='90000000'&&u.deskUnitPrice==='6000000';});await page.reload();await scope.getByText('② 대상물건개요',{exact:true}).click();assert.equal(await scope.getByLabel('탁상단가 가',{exact:true}).inputValue(),'6,000,000');await unitTable.locator('tbody tr').first().locator('input').nth(7).fill('0');await scope.getByText('④ 가격산출',{exact:true}).click();assert.equal(await scope.getByText('미완료',{exact:true}).count(),1);await page.waitForFunction(()=>JSON.parse(localStorage.getItem('v2:case:SYNTHETIC')).ov.units[0].assessedArea==='0');await page.reload();await scope.getByText('④ 가격산출',{exact:true}).click();assert.equal(await scope.getByText('미완료',{exact:true}).count(),1);console.log('PASS direct desk unit / basis persistence / assessed zero incomplete guard');
+// Each unit can choose a case before any global checkboxes are selected.
+await page.evaluate(()=>{const saved=JSON.parse(localStorage.getItem('v2:case:SYNTHETIC'));const input={...saved,cases:saved.cases.map(c=>({...c,isSelected:false})),ov:{...saved.ov,units:saved.ov.units.map(u=>{const next={...u,assessedArea:'30'};delete next.appliedSymbol;delete next.appliedCaseId;return next;})},propType:'주거용',rnd:{uD:'천원',uM:'round',tD:'만원',tM:'round'}};localStorage.setItem('v2:case:SYNTHETIC',JSON.stringify(input));});
+await page.reload();await scope.getByText('④ 가격산출',{exact:true}).click();
+assert.equal(await scope.getByLabel('적용 사례 가',{exact:true}).inputValue(),'');
+await scope.getByLabel('적용 사례 가',{exact:true}).selectOption('c1');
+await scope.getByLabel('적용 사례 나',{exact:true}).selectOption('c0');
+await scope.getByLabel('적용 사례 다',{exact:true}).selectOption('c1');
+await page.waitForFunction(()=>JSON.parse(localStorage.getItem('v2:case:SYNTHETIC')).ov.units.every((u,i)=>u.appliedCaseId===(i===1?'c0':'c1')));
+await page.reload();await scope.getByText('④ 가격산출',{exact:true}).click();
+for(const [symbol,id] of [['가','c1'],['나','c0'],['다','c1']])assert.equal(await scope.getByLabel('적용 사례 '+symbol,{exact:true}).inputValue(),id);
+const assigned=await page.evaluate(async()=>{
+ const input=JSON.parse(localStorage.getItem('v2:case:SYNTHETIC')),h=multiHelpers;
+ const result=await ArapMultiHwpx.build(input,h,'opinion');
+ const entries=await h.parseZip(result.bytes.buffer);
+ const doc=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>e.name==='Contents/section0.xml').data),'application/xml');
+ const factor=Array.from(doc.getElementsByTagNameNS('*','tbl'))[7];
+ const texts=Array.from(factor.children).filter(e=>e.localName==='tr').filter((r,i)=>i%2===1).map(r=>r.textContent);
+ const word=h.buildData(input.ov,input.cases,[],input.cases.filter(c=>c.isSelected),[],{},{},30,0,0,0,input.uD,'반올림',input.tD,'반올림',input.uM,input.tM,'주거용');
+ const reindexed=input.cases.map(c=>({...c,symbol:99-c.symbol}));
+ const missing=ArapMultiHwpx.model({...input,cases:input.cases.filter(c=>c.id!=='c1')},h);
+ return {ids:result.model.rows.map(r=>r.c.id),texts,wordSymbols:[word.Y_265,word.Y_268],reindexed:input.ov.units.map(u=>ArapMultiHwpx.resolveCase(u,reindexed)?.id),missing:missing.rows.map(r=>r.amount),total:missing.total};
+});
+assert.deepEqual(assigned.ids,['c1','c0','c1']);assert.deepEqual(assigned.reindexed,assigned.ids);
+assert.ok(assigned.texts[0].includes('#2'));assert.ok(assigned.texts[1].includes('#1'));assert.ok(assigned.texts[2].includes('#2'));
+assert.deepEqual(assigned.wordSymbols,['#2','#1']);assert.equal(assigned.missing[0],null);assert.equal(assigned.missing[2],null);assert.equal(assigned.total,null);
+console.log('PASS independent unit case selection / reload / HWPX-Word mapping / stable IDs / removed-case guard');
 assert.deepEqual(errors,[]);
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});
