@@ -201,7 +201,7 @@ function opinionData(){
   // _selected = 본건 필지 중 하나라도 이 표준지를 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)
   var standards=STDS.map(function(S,i){var used=gs.rows.map(function(r,j){return r.stdIdx===i?j+1:null;}).filter(Boolean);
     return Object.assign(standardMap(S,i),{
-    '필지_번호':(group&&used.length)?'일단지':used.join(', '),
+    '필지_번호':(group&&used.length)?(typeof groupWord==='function'?groupWord():'일단지'):used.join(', '),
     '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2),
     _selected:used.length>0
   });});
