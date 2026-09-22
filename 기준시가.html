@@ -215,7 +215,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
       <button type="button" class="btn primary" id="addRow">+ 층 추가</button>
       <button type="button" class="btn" id="clearAll">전체 지우기</button>
     </div>
-    <p class="hint">주차장·기계실·옥탑 등 부속부분은 주용도의 용도지수를 고르고 층 특성에서 "부속 주차장·기계실"을 선택하세요. 주거용(다가구·단독·공동) 행은 상속·증여 시 원칙적으로 개별주택가격으로 평가되므로 여기 결과는 참고용입니다.</p>
+    <p class="hint">주차장·기계실·옥탑·부속창고 등 부속부분은 주용도의 용도지수를 고르고 층 특성에서 "부속 주차장·기계실"(주거용이면 "주거용 부속")을 선택하세요. 조정률Ⅱ 연면적과 단독주택 면적조정(Ⅲ)은 건물 전체가 아니라 해당 부분(주택 부분·비주거 부분·부속 부분) 면적으로 판단합니다(해설서 계산사례 방식). 주거용(다가구·단독·공동) 행은 상속·증여 시 원칙적으로 개별주택가격으로 평가되므로 여기 결과는 참고용입니다.</p>
   </section>
 
   <section class="card">
@@ -379,8 +379,13 @@ function calc(){
   // 조정률 Ⅱ (건물 단위): 층수·연면적·인텔리전트 중 최고 하나
   const areaAll = rows.reduce((a,r)=>a+(+r.area||0),0);
   const fIdx = top<=0?null: top<=5?0.9: top<=10?1.0: top<=15?1.1: top<=20?1.2:1.3;
-  const aIdx = areaAll<1000?0.9: areaAll<5000?1.0: areaAll<10000?1.1: areaAll<50000?1.2:1.3;
-  const adjII = Math.max(fIdx??0, aIdx, intel||0);
+  const areaIdx = a => a<1000?0.9: a<5000?1.0: a<10000?1.1: a<50000?1.2:1.3;
+  // 부분별 면적: 비주거 본체 / 부속(주차장·기계실 등) — 조정률Ⅱ 연면적은 해당 부분 면적으로 판단(국세청 해설서 계산사례 p.68~69 방식)
+  let nonArea=0, attArea=0;
+  rows.forEach(r=>{ const ft=FLOORTYPE.find(f=>f[0]===r.ftype); if(!ft||ft[3]) return; if(r.ftype==="park") attArea+=(+r.area||0); else nonArea+=(+r.area||0); });
+  const adjIInon = Math.max(fIdx??0, areaIdx(nonArea), intel||0);
+  const adjIIatt = Math.max(fIdx??0, areaIdx(attArea), intel||0);
+  const adjII = adjIInon;
   const adjI = sIdx<100 ? roof : 1;
 
   let ready = base && sIdx && loc && rr!==null;
@@ -394,7 +399,7 @@ function calc(){
     let adj = 1;
     if(ready){
       const isRes = ft[3];
-      let ii = isRes ? (r.ftype==="apt" ? (fIdx??1) : 1) : adjII;   // Ⅱ: 주거용은 아파트 최고층수만
+      let ii = isRes ? (r.ftype==="apt" ? (fIdx??1) : 1) : (r.ftype==="park" ? adjIIatt : adjIInon);   // Ⅱ: 주거용은 아파트 최고층수만, 부속은 부속 부분 면적
       adj = adjI * ii * ft[2] * ex[2];
     }
     const unitSJ = ready ? floorK(base*(sIdx/100)*(u/100)*(loc.idx/100)*rr*adj) : 0;
@@ -408,7 +413,7 @@ function calc(){
   });
   $("areaTot").textContent = areaAll.toLocaleString("ko-KR",{maximumFractionDigits:2});
   $("valTot").textContent = ready? fmt(mode==="sj"?totSJ:totYD) : "–";
-  $("footNote").textContent = ready ? `조정률Ⅱ ${adjII.toFixed(2)} (층수 ${fIdx??"-"} / 연면적 ${aIdx} / 지능형 ${intel||"-"}) · 최고값 하나 적용` : "";
+  $("footNote").textContent = ready ? `조정률Ⅱ 비주거 ${adjIInon.toFixed(2)} (층수 ${fIdx??"-"} / 연면적 ${nonArea.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡ → ${areaIdx(nonArea)})${attArea?` · 부속 ${adjIIatt.toFixed(2)} (${attArea.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡)`:""} · 부분별 면적 판단` : "";
 
   // 힌트
   $("yearHint").textContent = `${year}년 고시 적용 · 건물신축가격기준액 ${fmt(base)}원/㎡ · 잔가율표 기준연도 ${year} (신축 ${year}년 = 1.000)`;
@@ -671,7 +676,7 @@ function mapUse(txt,area){
 function mapFloorType(it,use,top){
   const t=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ");
   const roof = /옥탑/.test(it.flrGbCdNm||"")||/옥탑/.test(it.flrNoNm||"")||String(it.flrGbCd)==="30";
-  const att = roof || /주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/.test(t);
+  const att = roof || /부속|창고|주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/.test(t) && !/^창고$/.test(t.trim());
   if(use===1||use===2) return att ? "res_att" : (use===1?"apt":"res");
   if(att) return "park";
   const ug = String(it.flrGbCd)==="10" || /지하/.test(it.flrGbCdNm||""); const n=Number(it.flrNo||0);
@@ -715,10 +720,20 @@ async function importByAddress(q){
       const grp=x=>{ const g=String(x.flrGbCd||""); const nm=(x.flrGbCdNm||"")+(x.flrNoNm||""); return (g==="10"||/지하/.test(nm))?0 : (g==="30"||/옥탑/.test(nm))?2 : 1; };
       fl.sort((a,b)=>{ const ga=grp(a), gb=grp(b); if(ga!==gb) return ga-gb; const na=Number(a.flrNo||0), nb=Number(b.flrNo||0); return ga===0? nb-na : na-nb; });
       const top=+$("topFloor").value||0;
-      rows=fl.map(it=>{ const area=+it.area||0; const txt=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" "); const m=mapUse(txt,area);
+      const mainTxt=(t&&[t.mainPurpsCdNm,t.etcPurps].filter(Boolean).join(" "))||"";
+      const mainM=mapUse(mainTxt, +(t&&t.totArea)||0);
+      const ATT_RE=/부속|창고|주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/;
+      rows=fl.map(it=>{ const area=+it.area||0; const txt=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ");
+        const isAttTxt = (ATT_RE.test(txt)&&!/^창고$/.test(txt.trim())) || /옥탑/.test(it.flrGbCdNm||"") || String(it.flrGbCd)==="30";
+        const m = isAttTxt && mainTxt ? {use:mainM.use, why:"부속부분 → 주용도("+mainTxt+") 지수 "+mainM.use+"번 적용 후 조정률 60"} : mapUse(txt,area);
         const ft=mapFloorType(it,m.use,top); const flag=/확인|미상|임시/.test(m.why);
         notes.push(`${it.flrNoNm||""} ${txt} ${area}㎡ → 용도 ${m.use}번 (${m.why}) · 층 특성 ${FLOORTYPE.find(f=>f[0]===ft)[1]}`);
         return newRow({floor:(it.flrNoNm||"")+(/부속/.test(it.mainAtchGbCdNm||"")?"(부속)":""), use:m.use, area:area, ftype:ft, note: flag?m.why:""}); });
+      const isDandok = /단독주택/.test(mainTxt) && !/다가구|다중|다세대|연립|기숙사/.test(mainTxt) && !rows.some(r=>r.use===2 && /다가구|다중|다세대|연립|기숙사/.test(r.floor));
+      if(isDandok){ const resMain=rows.filter(r=>r.ftype==="res").reduce((a,r)=>a+(+r.area||0),0);
+        const st3 = resMain>=331?"res_s2": resMain>=264?"res_s1": "res";
+        rows.forEach(r=>{ if(r.ftype==="res") r.ftype=st3; });
+        notes.push(`단독주택 주택 부분 ${resMain.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡ → 조정률Ⅲ ${st3==="res_s2"?"140":st3==="res_s1"?"120":"해당 없음(264㎡ 미만)"} (부속창고 등 부속 부분 제외, Ⅱ 미적용)`); }
       renderRows();
     } else notes.push("층별개요 없음"+(flrD&&flrD.err?": "+flrD.err:""));
     // 개별주택가격 (필드명이 서비스마다 달라 가격으로 보이는 값을 탐색)
