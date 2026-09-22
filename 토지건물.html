@@ -990,7 +990,7 @@ function searchPnu(query,key){
     if(!resp||resp.status!=='OK'||!resp.result||!resp.result.items||!resp.result.items.length)
       throw new Error('주소를 찾지 못했습니다: '+query+(resp&&resp.error?(' ('+resp.error.text+')'):''));
     var it=resp.result.items[0];
-    return {pnu:it.id,addr:(it.address&&(it.address.parcel||it.address.road))||it.title||query};
+    return {pnu:it.id,addr:(it.address&&(it.address.parcel||it.address.road))||it.title||query,road:(it.address&&it.address.road)||''};
   });
 }
 function nedUrl(op,pnu,key){return API_BASE+'/ned/data/'+op+'?key='+key+'&pnu='+pnu+'&format=json&numOfRows=100&pageNo=1';}
@@ -1306,6 +1306,8 @@ bindQuery('btnLand','landQuery','landStatus',function(v,out){
     이용상황:v.이용상황,도로교통:v.도로교통,형상:v.형상,지세:v.지세,공시지가:v.공시지가,비고:'-'});
   LANDS[i].pnu=(out&&out.pnu)||'';
   LANDS[i].fullAddr=(out&&out.addr)||'';   // 엑셀 복사 머리행에 쓰는 전체 대지위치
+  LANDS[i].roadAddr=(out&&out.road)||'';   // 도로명주소 — 명세표 건물란(대상물건개요 도로명주소 칸이 비면 이 값)
+  if(i===0&&LANDS[i].roadAddr&&!cgVal('bt_roadAddr').trim())document.getElementById('bt_roadAddr').value=LANDS[i].roadAddr;
   renderLands();saveForm();sd();
 });
 bindQuery('btnStd','stdQuery','stdStatus',function(v){
@@ -1346,6 +1348,12 @@ function fetchBuilding(){
       document.getElementById('bt_flrs').value=(t.grndFlrCnt||'0')+'/'+(t.ugrndFlrCnt||'0');
       document.getElementById('bt_useApr').value=dot(t.useAprDay||'');
       if(t.newPlatPlcy)document.getElementById('bt_roadAddr').value=String(t.newPlatPlcy).trim();   // 표제부 도로명 대지위치 → 명세표 [도로명주소]
+    }
+    // 표제부에 도로명이 없으면(또는 표제부 실패) 브이월드 주소검색의 도로명주소로 채운다 — 배경 작업, 실패해도 조용히
+    if(!document.getElementById('bt_roadAddr').value.trim()){
+      var q=String(first.fullAddr||((first['소재지']||'')+' '+(first['지번']||''))).trim();
+      if(first.roadAddr)document.getElementById('bt_roadAddr').value=first.roadAddr;
+      else if(q)searchPnu(q,getKey()).then(function(s){if(s.road&&!document.getElementById('bt_roadAddr').value.trim()){first.roadAddr=s.road;document.getElementById('bt_roadAddr').value=s.road;saveForm();}}).catch(function(e){console.warn('도로명주소 조회',e);});
     }
     // 층별개요
     var head=flrD&&flrD.response&&flrD.response.header,body=flrD&&flrD.response&&flrD.response.body;

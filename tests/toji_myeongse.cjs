@@ -60,11 +60,14 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     assert.equal(cells.J18,undefined,'머리행엔 금액 수식 없음');
     // 도로명주소는 머리행 4행을 넘긴 줄부터 층별 행 옆(22행~)으로 흘러내린다
     assert.deepEqual([cells.C22,cells.C23,cells.C24,cells.C25,cells.C26,cells.C27],['[도로명주소]','서울특별시','강남구','압구정로','165',undefined]);
-    // 층별 행: 2행씩, 기호·지번 없음, 용도/층/면적/단가/금액 수식/비고
+    // 층별 행: 3행씩(22·25·28·31·34), 기호·지번 없음, 용도/층/면적/단가/금액 수식/비고
     assert.equal(cells.B22,undefined);assert.equal(cells.D22,undefined);assert.equal(cells.E22,'일반음식점');assert.equal(cells.F22,'지하1층');assert.equal(cells.G22,'108.3');assert.equal(cells.J22,'=+I22*H22');
-    assert.equal(cells.K22,'800000');assert.equal(cells.K23,'× 31/50');
-    assert.equal(cells.E24,'일반음식점');assert.equal(cells.F24,'1층');assert.equal(cells.E30,'사무소');assert.equal(cells.F30,'4층');
-    assert.equal(cells.J32,undefined,'층별 행 뒤는 빈 행');
+    assert.equal(cells.K22,'800000');assert.equal(cells.K23,'× 31/50');assert.equal(cells.K24,undefined,'셋째 줄은 빈 줄');
+    assert.equal(cells.E25,'일반음식점');assert.equal(cells.F25,'1층');assert.equal(cells.E34,'사무소');assert.equal(cells.F34,'4층');
+    assert.equal(cells.J37,undefined,'층별 행 뒤는 빈 행');
+    // 도로명주소 칸을 비우면 토지 조회 때 받은 도로명주소(LANDS[0].roadAddr)를 쓴다
+    const fb=await page.evaluate(()=>{document.getElementById('bt_roadAddr').value='';LANDS[0].roadAddr='서울특별시 강남구 논현로 100';return ArapTojiDocuments.statementRows()[1]['명세_소재지'];});
+    assert.equal(fb,'서울특별시 강남구 신사동\n\n[도로명주소]\n서울특별시 강남구 논현로 100');
     const sum=Object.entries(cells).find(([k,v])=>typeof v==='string'&&v.startsWith('=SUM('));
     assert(sum,'합계 수식');console.log('합계',sum);
     assert.deepEqual(errors,[]);
