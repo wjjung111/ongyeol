@@ -2405,7 +2405,7 @@ function renderGjs(){
       +'<td class="calc-c">'+(res?'-':a2.toFixed(2))+(fa.f!==1?' × '+fa.f:'')+'</td><td class="calc-c">'+won(unitSJ)+'</td><td class="calc-c">'+(area?area.toLocaleString('ko-KR',{maximumFractionDigits:3}):'-')+'</td><td class="calc-c">'+won(vSJ)+'</td></tr>';
   });
   var rrTxt=Object.keys(rrs).map(function(g){return ['','Ⅰ','Ⅱ','Ⅲ','Ⅳ'][g]+'그룹 '+rrs[g];}).join(' / ');
-  var sum=year+'년 고시 · 기준액 '+won(base)+'원/㎡ · 위치지수 '+loc.idx+'(공시지가 '+won(price)+'원/㎡) · 잔가율 '+built+'년 신축 '+rrTxt+' · 조정률Ⅱ '+adj2+'(최고층수 '+top+'층·연면적 '+won(gongbuAll)+'㎡)'+(useSaj?' · 사정면적 기준':'');
+  var sum=year+'년 고시 · 기준액 '+won(base)+'원/㎡ · 위치지수 '+loc.idx+'(공시지가 '+won(price)+'원/㎡) · 잔가율 '+built+'년 신축 '+rrTxt+' · 조정률Ⅱ '+adj2+'(최고층수 '+top+'층·연면적 '+gongbuAll.toLocaleString('ko-KR',{maximumFractionDigits:2})+'㎡)'+(useSaj?' · 사정면적 기준':'');
   box.innerHTML='<div class="hint" style="margin-bottom:6px">'+sum+'</div>'
     +'<div class="tw"><table><tr><th>층 (용도)</th><th>구조</th><th>용도</th><th>잔가율</th><th>조정률</th><th>㎡당(절사)</th><th>면적(㎡)</th><th>기준시가(원)</th></tr>'+h
     +'<tr><td colspan="6" style="text-align:right;font-weight:700">건물 합계 (상속·증여용)</td><td class="calc-c">'+areaSum.toLocaleString('ko-KR',{maximumFractionDigits:3})+'</td><td class="calc-c" style="font-size:13px;font-weight:700">'+won(totSJ)+'</td></tr></table></div>'
