@@ -69,6 +69,41 @@ function tradeMap(c,n){
   var keys={건물단가:'bldUnit',건물금액:'bldAmt',토지금액:'landAmt',토지단가:'landUnit'};
   Object.keys(keys).forEach(function(k){m[prefix+k]=active?(cal[keys[k]]?money(cal[keys[k]]):'-'):'';});return m;
 }
+// 거래시점에 이미 내용연수를 넘긴 사례(경과연수 ≥ 내용연수) — 잔존연수를 관찰감가로 직접 정하게 되는 경우.
+// 의견서 거래사례 표에서 그 사례의 건물 감가 관련 칸을 빨간 글씨로 내보내 눈에 띄게 한다.
+function overAged(c){
+  if(!c)return false;
+  var life=num(c.life),cal=tradeCalc(c);
+  return life>0&&cal.elapsed!=null&&cal.elapsed>=life;
+}
+var AGED_FIELDS=['승인일','주구조','재조달','내용연수','잔존연수'];
+function markAgedCol(table,n){
+  var cells=descendants(table,'tc');
+  AGED_FIELDS.forEach(function(k){
+    var tok='{{거래'+n+'_'+k+'}}';
+    cells.forEach(function(tc){
+      if(tc.textContent.indexOf(tok)<0)return;
+      descendants(tc,'run').forEach(function(run){if(descendants(run,'t').length)markRun(run,'r');});
+    });
+  });
+}
+// 거래사례 표 아래 한 줄 메모 문단 — 양식의 '[출처 : …]' 줄을 복제해 글자모양을 빌리고,
+// 문단모양은 본문 줄(왼쪽부터 시작하는 산문)에서 가져온다.
+function makeNoteP(doc,note){
+  var ps=children(doc.documentElement,'p');
+  var src=ps.find(function(p){return p.textContent.indexOf('[출처 :')>=0;});
+  var body=ps.find(function(p){return /^본건은\s/.test(p.textContent.trim());});
+  if(!src&&!body)return null;
+  var p=(src||body).cloneNode(true);
+  children(p,'run').slice(1).forEach(function(r){r.remove();});
+  var run=children(p,'run')[0];if(!run)return null;
+  var ts=descendants(run,'t');
+  if(ts.length)ts.forEach(function(t,i){t.textContent=i?'':note;});
+  else{var t=doc.createElementNS(HP,'hp:t');t.textContent=note;run.appendChild(t);}
+  if(body)p.setAttribute('paraPrIDRef',body.getAttribute('paraPrIDRef'));
+  p.setAttribute('pageBreak','0');p.setAttribute('columnBreak','0');
+  clearLines(p);return p;
+}
 // 평가사례 소재지 칸은 늘 '동명' 줄 + '본번-부번' 줄 두 줄로 나눈다.
 // 지번 표기가 제각각이어도(붙여쓰기 '자양동634-19', 전각 숫자, 여러 모양의 붙임표, '번지', '산')
 // 뒷부분이 반드시 아랫줄로 가도록 address()보다 넓게 잡고, 그래도 못 찾으면 마지막 낱말을 내린다.
@@ -162,6 +197,8 @@ function opinionData(){
   return {global:m,detail:detail,parcels:parcels,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
+    // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
+    tradeNote:text(val('g_tradeNote')).trim(),
     // 그 밖의 사항(6항) — 첫 탭 목록. 화면이 없으면(null) 양식 문단을 그대로 둔다. 빈 항목은 뺀다.
     // user = 양식 기본 문구가 아닌 것(끼워 넣었거나 고친 것) → 한글에서 빨간 글씨로 나가 검토하기 쉽게
     etcItems:Array.isArray(window.ETC_ITEMS)?window.ETC_ITEMS.map(function(s){return {text:text(s).trim(),user:typeof etcIsUser==='function'&&etcIsUser(s)};}).filter(function(x){return x.text;}):null};
@@ -508,12 +545,17 @@ function opinionXml(xml,data){
       for(var c=0;c<cols;c++){
         var item=items[c];
         Object.assign(map,tradeMap(item&&item.data,c+1));
+        // 내용연수를 넘긴 사례는 값을 채우기 전(토큰이 남아 있을 때) 그 열의 감가 관련 칸을 빨강으로 표시
+        if(item&&overAged(item.data))markAgedCol(table,c+1);
         var t=descendants(children(children(table,'tr')[0],'tc')[c+1],'t')[0];t.textContent=item?'거래사례#'+(item.index+1):'';
       }
       scope(table,map,state);
       if(items.length)dropCols(table,items.length+1);   // 사례가 없는 뒤쪽 열은 빈칸으로 두지 않고 지운다
-      clearLines(target);target=target.nextSibling;
+      var next=target.nextSibling;
+      clearLines(target);target=next;
     }
+    // 화면에서 적은 한 줄 메모는 (여러 표로 나뉘었으면) 마지막 표 바로 아래에 붙인다
+    if(data.tradeNote){var np=makeNoteP(doc,data.tradeNote);if(np)last.parentNode.insertBefore(np,last.nextSibling);}
   });
   // 개별요인 비교항목 표 — 화면에서 고른 지대의 항목으로 바꾼다(템플릿 원본은 상업지대).
   var daegu=text(data.global['지대'])||'상업지대',items=FACTOR_ITEMS[daegu]||FACTOR_ITEMS['상업지대'];
