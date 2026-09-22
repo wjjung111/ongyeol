@@ -170,6 +170,61 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     for(const k of ['주구조','재조달원가(원/㎡)','내용연수','잔존연수','건물금액(원)'])
       assert.equal(dashes[k],'-',k+'는 0이 아니라 -여야 합니다: '+dashes[k]);
     assert.equal(dashes['총 거래금액(원)'],'950,000,000');
+    // 거래시점에 내용연수를 넘긴 사례 → 감가 관련 칸이 빨간 글씨, 화면에서 적은 한 줄 메모는 표 바로 아래에 그대로.
+    const agedNote='※ 거래사례#2는 거래시점 당시 내용연수가 초과한 바 관찰감가법을 적용하여 토지 단가를 배분하였음.';
+    const aged=await page.evaluate(async note=>{
+      TRADES=[{loc:'신원동 646',use:'1종일주',jimok:'대',landA:'87.78',bldA:'108.16',total:'720000000',date:'2024.10.15',
+               appr:'2022.04.20',struct:'철근콘크리트구조',reCost:'1,200,000',life:'50'},
+              // 1979년 준공 → 2026년 거래: 경과 47년 > 내용연수 45년 (잔존연수는 관찰감가로 직접 입력)
+              {loc:'신원동 236-6',use:'1종일주',jimok:'대',landA:'333',bldA:'144.24',total:'2465000000',date:'2026.07.17',
+               appr:'1979.06.14',struct:'벽돌구조',reCost:'900,000',life:'45',rest:'15'}];
+      ETC={type:'t',idx:0};GA={idx:0};
+      document.getElementById('g_tradeNote').value=note;
+      calcGongsi();
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const entries=await ArapCheonggu.parseZip(bytes.buffer);
+      const HP='http://www.hancom.co.kr/hwpml/2011/paragraph',HH='http://www.hancom.co.kr/hwpml/2011/head';
+      const head=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>e.name==='Contents/header.xml').data),'application/xml');
+      const list=head.getElementsByTagNameNS(HH,'charProperties')[0],prs=Array.from(list.getElementsByTagNameNS(HH,'charPr'));
+      if(prs.length!==Number(list.getAttribute('itemCnt')))throw Error('charPr itemCnt 불일치');
+      const red=new Set(prs.filter(p=>p.getAttribute('textColor')==='#FF0000').map(p=>p.getAttribute('id')));
+      const doc=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data),'application/xml');
+      if(doc.querySelector('parsererror'))throw Error('관찰감가 표 XML 깨짐');
+      const ps=Array.from(doc.documentElement.children).filter(n=>n.localName==='p');
+      const out={after:[],reds:[]};
+      ps.forEach((p,i)=>{
+        const tbl=Array.from(p.getElementsByTagNameNS(HP,'tbl')).find(t=>t.textContent.includes('거래사례#1')&&t.textContent.includes('잔존연수'));
+        if(!tbl)return;
+        out.after.push(ps[i+1].textContent.trim());
+        const map={};
+        Array.from(tbl.children).filter(n=>n.localName==='tr').forEach(tr=>{
+          const cells=Array.from(tr.children).filter(n=>n.localName==='tc');if(cells.length<3)return;
+          map[cells[0].textContent.trim()]=cells.slice(1).map(tc=>
+            Array.from(tc.getElementsByTagNameNS(HP,'run')).some(r=>red.has(r.getAttribute('charPrIDRef'))));
+        });
+        out.reds.push(map);
+      });
+      return out;
+    },agedNote);
+    assert.equal(aged.after.length,2);
+    for(const t of aged.after)assert.equal(t,agedNote,'표 바로 아래 줄이 메모여야 합니다: '+t);
+    for(const map of aged.reds){
+      for(const k of ['사용승인일','주구조','재조달원가(원/㎡)','내용연수','잔존연수'])
+        assert.deepEqual(map[k],[false,true],k+' 칸은 #2만 빨강이어야 합니다');
+      for(const k of ['소재지','토지면적(㎡)','건물 적용단가(원/㎡)','토지단가(원/㎡)'])
+        assert.deepEqual(map[k],[false,false],k+' 칸은 빨강이 아니어야 합니다');
+    }
+    // 메모를 비우면 표 아래 줄은 양식 그대로(메모 문단이 끼지 않는다)
+    const noNote=await page.evaluate(async()=>{
+      document.getElementById('g_tradeNote').value='';calcGongsi();
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const entries=await ArapCheonggu.parseZip(bytes.buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
+      const doc=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data),'application/xml');
+      const ps=Array.from(doc.documentElement.children).filter(n=>n.localName==='p'),after=[];
+      ps.forEach((p,i)=>{if(p.getElementsByTagNameNS(HP,'tbl').length&&p.textContent.includes('잔존연수'))after.push(ps[i+1].textContent.trim().slice(0,8));});
+      return after;
+    });
+    assert.deepEqual(noNote,['(4) 그 밖의','3) 토지단가의']);
     // 개별요인 비교항목 표는 화면에서 고른 지대의 항목으로 바뀐다(템플릿 원본은 상업지대).
     const daegu=await page.evaluate(async()=>{
       document.getElementById('g_daegu').value='주택지대';calcGongsi();

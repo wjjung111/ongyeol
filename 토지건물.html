@@ -141,6 +141,8 @@
   td.kp-c{padding:2px 3px;background:#fafbfc;}
   .kp{display:block;width:100%;height:22px;border:1px dashed #94a3b8;border-radius:3px;font-size:11px;font-family:inherit;padding:2px 4px;resize:none;overflow:hidden;white-space:nowrap;text-align:center;line-height:16px;color:#2563eb;background:#fff;}
   .kp::placeholder{color:#2563eb;opacity:.9;}
+  /* 거래사례 표 아래 한 줄 메모 — 안내 문구는 연한 회색으로만 보이고, 적은 내용만 한글로 나간다 */
+  #g_tradeNote::placeholder{color:#a8b0bb;opacity:1;}
   /* 평가사례 표의 kapa hub 칸 — '선정' 열만큼만 차지하게 좁힌다(붙여넣기 전용이라 넓을 필요가 없음) */
   td.kp-c.kp-narrow{width:38px;min-width:0;}
   td.kp-c.kp-narrow .kp{min-width:0;box-sizing:border-box;padding:2px 1px;}
@@ -523,7 +525,9 @@
                 <button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
               <div class="pst" id="pTradeMsg"></div>
               <div class="tw"><table id="tblTrade"></table></div>
-              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적(<b>원 미만 절사</b>) — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다. <b>사례 머리글(⠿ 거래사례 #1)을 끌어다 놓으면 열 자리가 바뀌고</b>(◀ ▶로 한 칸씩도 가능) 번호는 자리 순서대로 다시 매겨집니다 — 선정해 둔 사례도 따라갑니다. 선정 행은 둘로 나뉘어 <b>그밖의요인 선정</b>(「그 밖의 요인」 탭의 적용사례)과 <b>거래사례 선정</b>(「거래사례비교법」 탭의 채택 사례)을 각각 고릅니다 — 각 탭의 선택과 서로 연동됩니다. <b>시점수정치</b> 행은 <b>그밖의요인 선정</b>을 할 때 그 사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 조회해 채우고, 한 번 계산된 값은 저장돼 다른 사례로 옮겨도 계속 보입니다. 맨 아래 <b>비고</b> 행은 자유 메모(화면에만 남고 문서에는 나가지 않음)입니다.</div>
+              <!-- 표 아래 한 줄 메모 — 적은 그대로 한글 의견서의 거래사례 표 바로 아래에 나간다(비우면 아무것도 안 나감) -->
+              <div class="fld" style="margin-top:6px"><input class="box" id="g_tradeNote" title="여기에 적은 문구가 한글 의견서의 거래사례 표 바로 아래에 그대로 나옵니다" placeholder="※ 여기에 입력하면 한글에도 나옵니다 — 예: 거래사례#4는 거래시점 당시 내용연수가 초과한 바 관찰감가법을 적용하여 토지 단가를 배분하였음."></div>
+              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적(<b>원 미만 절사</b>) — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다. <b>사례 머리글(⠿ 거래사례 #1)을 끌어다 놓으면 열 자리가 바뀌고</b>(◀ ▶로 한 칸씩도 가능) 번호는 자리 순서대로 다시 매겨집니다 — 선정해 둔 사례도 따라갑니다. 선정 행은 둘로 나뉘어 <b>그밖의요인 선정</b>(「그 밖의 요인」 탭의 적용사례)과 <b>거래사례 선정</b>(「거래사례비교법」 탭의 채택 사례)을 각각 고릅니다 — 각 탭의 선택과 서로 연동됩니다. <b>시점수정치</b> 행은 <b>그밖의요인 선정</b>을 할 때 그 사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 조회해 채우고, 한 번 계산된 값은 저장돼 다른 사례로 옮겨도 계속 보입니다. 맨 아래 <b>비고</b> 행은 자유 메모(화면에만 남고 문서에는 나가지 않음)입니다. 표 바로 아래 <b>※ 한 줄 칸</b>에 적은 문구는 <b>한글 의견서의 거래사례 표 아래에 그대로</b> 나갑니다. 거래시점에 이미 <b>내용연수가 지난 사례</b>(관찰감가로 잔존연수를 직접 정한 사례)는 의견서에서 사용승인일·주구조·재조달원가·내용연수·잔존연수 칸이 <b>빨간 글씨</b>로 나갑니다.</div>
             </div>
 
             <!-- 평가사례 -->
@@ -2548,7 +2552,7 @@ function sub(i,btn){
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice'];   // 감정서번호 칸은 2026-09-16 삭제(접수번호와 같은 값) — 옛 저장값은 무시
 var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr'];
-var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
+var GONGSI_IDS=['g_daegu','g_opinion','g_tradeNote','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
