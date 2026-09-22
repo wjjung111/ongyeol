@@ -117,10 +117,21 @@ function splitJibun(s){
   var i=t.lastIndexOf(' ');
   return i>0?{loc:t.slice(0,i),lot:t.slice(i+1)}:{loc:t,lot:''};
 }
+// 금액 칸에 숫자 뒤로 '(평균단가)' 같은 메모를 같이 적어 두면, 숫자는 천단위 콤마로 다시 쓰고
+// 뒤에 적은 글자는 한글 문서에도 적은 그대로 내보낸다(2026-09-22 요청).
+// 숫자로 시작하지 않으면('-' 등) 손댄 적 없는 그대로.
+function moneyNote(v){
+  var s=text(v).trim();if(!s)return '';
+  var m=s.match(/^-?[0-9][0-9,\s]*(?:\.[0-9]+)?/);
+  if(!m)return s;
+  var head=m[0].replace(/\s+$/,''),n=num(head);if(!n)return s;
+  var rest=s.slice(head.length);
+  return money(n)+(rest.trim()?(/^\s/.test(rest)?' ':'')+rest.trim():'');
+}
 function appraisalMap(a){
   var ad=splitJibun(a.loc);return {'평사1_기호':text(a.no),'평사1_소재지':ad.loc,'평사1_지번':ad.lot,
     '평사1_지목':text(a.jimok),'평사1_용도지역':text(a.use),'평사1_이용상황':text(a.cond),
-    '평사1_단가':mark(a.unit)||(hasV(a.unit)?money(num(a.unit)):''),'평사1_목적':text(a.purp),'평사1_시점':docDot(a.base)};
+    '평사1_단가':moneyNote(a.unit),'평사1_목적':text(a.purp),'평사1_시점':docDot(a.base)};
 }
 function floorMap(r){
   // 면적 두 가지 — 재조달원가 표는 공부(연)면적, 건물가액 산출 표는 평가에 쓴 사정면적
@@ -176,7 +187,9 @@ function opinionData(){
     '그밖_비교치':fixed(etc.ratio,2),'그밖_표준지_시점':fixed(etc.stdTime,5),'그밖_표준지_개별':fixed(etc.stdIndividual,3),
     '그밖_표준지현재':money(etc.out2),'그밖개별_계':fixed(mul('.ef'),3),
     '그밖_시점설명':(tm?timeMetaLabel(tm):'')+') : '+fixed(etc.time,5),
-    '거래_채택기호':'#'+(GA.idx+1),'거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
+    // 「2) 거래사례의 선정 및 그 이유」 문장 — '#2'만 적으면 무엇의 2번인지 안 보여서
+    // 아래 표 머리(거래사례#1·#2·#3)와 같은 말로 '거래사례#2'로 내보낸다(2026-09-22 요청).
+    '거래_채택기호':'거래사례#'+(GA.idx+1),'거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
     '거래_시점률':gt.time==null?'':fixed((gt.time-1)*100,3)+'%','거래_시점':fixed(gt.time,5),
     '공시_시산가액':money(gs.total),'거래_시산가액':money(ga.total),'토지감정평가액':money(window.LAND_FINAL),
     '토지_면적':area(gs.gongbuSize||gs.size),'토지_사정면적':area(gs.size),   // 합계 자리 — 공부면적/사정면적 각각
