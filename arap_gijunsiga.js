@@ -168,7 +168,7 @@
   function compute(input){
     var year=noticeYear(input.year),base=BASE[year];
     var sNo=+input.structNo||4,sIdx=structIdx(year,sNo),sTxt=input.structText||"";
-    var group=(+input.group>=1&&+input.group<=4)?+input.group:structGroup(sNo,sTxt);
+    var gOvr=(+input.group>=1&&+input.group<=4)?+input.group:0,group=gOvr||structGroup(sNo,sTxt);   // 사용자가 고른 그룹이 대장 텍스트보다 우선
     var built=+input.built||0,remodel=+input.remodel||0,top=+input.top||0;
     var loc=locIdx(year,+input.landPrice),rr=residual(year,built,group,remodel),rrYD=residual(year,built,group,0);
     var roof=+input.roof||1,intel=+input.intel||0;
@@ -182,7 +182,7 @@
     rows.forEach(function(r,i){
       var f=ft(r.ftype),e=ex(r.extra),area=+r.area||0;
       var rsNo=r.strctNo||sNo,rsIdx=structIdx(year,rsNo);
-      var rgrp=(rsNo===sNo&&!r.strctText)?group:structGroup(rsNo,r.strctText!=null&&r.strctText!==""?r.strctText:(rsNo===sNo?sTxt:""));
+      var rgrp=(rsNo===sNo&&(gOvr||!r.strctText))?group:structGroup(rsNo,r.strctText!=null&&r.strctText!==""?r.strctText:(rsNo===sNo?sTxt:""));
       var rrr=residual(year,built,rgrp,remodel),rrrYD=residual(year,built,rgrp,0);
       var u=(r.useOvr!==""&&r.useOvr!=null&&!isNaN(+r.useOvr))?+r.useOvr:useIdx(year,r.use);
       var isRes=f[3],isAtt=f[4];

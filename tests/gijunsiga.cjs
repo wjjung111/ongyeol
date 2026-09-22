@@ -2,7 +2,8 @@
 // 해설서 파일: 02.하이테크/문서, 양식/2026년 건물 기준시가 계산방법 해설서_국세청.pdf
 // 사례는 해설서가 실제로 적용한 지수·조정률 그대로 입력한다. 해설서 사례가 고시 조문과 어긋나는 곳은 각 사례 주석에 적어 둠.
 // 실행: node tests/gijunsiga.cjs  (이 PC처럼 Node가 없으면 저장소 폴더를 로컬 서버로 열고 tests/run.html 을 브라우저로 — 같은 파일을 돌린다)
-// ※ 해설서 단순 사례(p.54~66)는 건물 전체를 한 줄로 계산하고 조정률Ⅳ(상가 1·2층)를 넣지 않는다 → ftype 'none'으로 입력.
+// ※ 해설서 단순 사례(p.54~66)는 건물 전체를 한 줄로 계산하고 조정률Ⅳ(상가 1·2층)를 넣지 않는다 → 산술 대조를 위해 ftype 'none'으로 입력.
+//   다만 1층 근생의 상가 1층 120은 고시 적용요령 (5)와 p.71 사례(1층 슈퍼 0.9×1.2)대로 엔진이 적용한다 — p.54 등은 해설서 누락으로 봄.
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),path=require('path');
 const root=path.join(__dirname,'..');
 const context={window:{}};vm.createContext(context);
@@ -21,6 +22,7 @@ const one=(use,area,ftype='none',extra={})=>[Object.assign({floor:'전체',use,u
 
 // ── 1. 2026년 개정사항 반영 사례 (p.54~58) ──
 // p.54 목구조 115(2026 하향). 패널지붕이지만 구조지수 100 이상이라 조정률Ⅰ 미적용.
+//   1층 근생인데 해설서는 상가 1층 120을 빠뜨림(고시 (5)·p.71과 불일치) → 산술 대조용으로 'none' 입력, 실제 엔진 매핑은 shop1(아래 대장 매핑 검사).
 check('p54 목구조','SJ',{structNo:2,built:2009,top:1,landPrice:964000,roof:'0.8',rows:one(41,95)},[598000],56810000);
 // p.55 직업훈련소 102. 해설서 표의 신축가격기준액 "850,000"은 오기 — 결과 350,000원은 860,000으로 계산한 값.
 check('p55 직업훈련소','YD',{structNo:6,built:1998,top:2,landPrice:3500000,rows:one(33,518.82)},[350000],181587000);
@@ -73,6 +75,13 @@ check('p73 복합건물(양도)','YD',{structNo:4,built:2000,top:3,landPrice:250
   const rows=one(2,265,'res');G.applyDandok(rows,'단독주택');assert.equal(rows[0].ftype,'res_s1');}
 { // 신원동 390-2: 주택 199.07 + 지하 부속창고 93.88 → 주택 부분 264㎡ 미만이라 Ⅲ 미적용
   const rows=[{ftype:'res',area:199.07},{ftype:'res_att',area:93.88}];G.applyDandok(rows,'단독주택');assert.equal(rows[0].ftype,'res');}
+{ // 1층·2층 근생은 상가 조정률 120/105 (적용요령 (5), p.71)
+  assert.equal(G.rowFromRegister({gb:'지상',no:1,name:'1층',purps:'제1종근린생활시설(소매점)',area:95},'제1종근린생활시설',1,95).ftype,'shop1');
+  assert.equal(G.rowFromRegister({gb:'지상',no:2,name:'2층',purps:'제2종근린생활시설(사무소)',area:95},'제2종근린생활시설',3,285).ftype,'shop2');}
+{ // 화면에서 고른 내용연수 그룹이 대장 행의 구조 텍스트보다 우선
+  const row=G.rowFromRegister({gb:'지상',no:1,name:'1층',purps:'공장',area:250,strct:'시멘트블록조'},'공장',1,250);
+  const r=G.compute({year:2026,structNo:6,group:2,built:1987,top:1,landPrice:1810900,rows:[row]});
+  assert.equal(r.lines[0].group,2);}
 assert.equal(G.structGroup(6,'시멘트블록조'),3);
 assert.equal(G.structGroup(6,'황토조'),3);
 assert.equal(G.structGroup(6,'시멘트벽돌조'),2);
