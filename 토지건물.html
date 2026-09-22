@@ -54,6 +54,7 @@
   .y-land .y-shape{width:8em;}
   .y-land .y-direction{width:6em;}
   .y-land .y-width{width:4em;}
+  .y-land .y-roadcnt{width:auto;min-width:7em;}
   .y-bld .y-struct{width:15em;}
   .y-bld .y-wall{width:12em;}
   .y-bld .y-window{width:7em;}
@@ -758,7 +759,8 @@
             <h4>2. 이용상황</h4>
             <p><input type="text" id="y_use" class="y-inline" aria-label="이용상황" placeholder="주상용 건부지">로 이용중임.</p>
             <h4>3. 접면도로 상황</h4>
-            <p>본건 <input type="text" id="y_road1dir" class="y-inline y-direction" aria-label="접면도로① 방위" placeholder="남서측">으로 노폭 약 <input type="text" id="y_road1w" class="y-inline y-width" aria-label="접면도로① 노폭(m)" placeholder="0">m, <input type="text" id="y_road2dir" class="y-inline y-direction" aria-label="접면도로② 방위" placeholder="북측">으로 노폭 약 <input type="text" id="y_road2w" class="y-inline y-width" aria-label="접면도로② 노폭(m)" placeholder="0">m 내외의 아스팔트 포장도로와 각각 접하고 있음.</p>
+            <!-- 접면도로 수: 한 면만 접하면 ② 문구("…m, 북측으로 노폭 약 0m")와 "각각"을 빼고 출력한다(2026-09-22) -->
+            <p><select id="y_roadCnt" class="y-inline y-roadcnt" aria-label="접면도로 수"><option value="2">두 면 접함</option><option value="1">한 면만 접함</option></select> 본건 <input type="text" id="y_road1dir" class="y-inline y-direction" aria-label="접면도로① 방위" placeholder="남서측">으로 노폭 약 <input type="text" id="y_road1w" class="y-inline y-width" aria-label="접면도로① 노폭(m)" placeholder="0">m<span id="y_road2wrap">, <input type="text" id="y_road2dir" class="y-inline y-direction" aria-label="접면도로② 방위" placeholder="북측">으로 노폭 약 <input type="text" id="y_road2w" class="y-inline y-width" aria-label="접면도로② 노폭(m)" placeholder="0">m</span> 내외의 아스팔트 포장도로와 <span id="y_roadEach">각각 </span>접하고 있음.</p>
           </div>
 
           <h3>Ⅲ. 건물의 개황</h3>
@@ -2401,7 +2403,7 @@ var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
-var Y_IDS=['y_dong','y_near','y_surroundings','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate'];
+var Y_IDS=['y_dong','y_near','y_surroundings','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_roadCnt','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_specialApplied','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_SPECIAL_MANUAL=false;  // 특별용역비 적용액(차액 × 배수)을 평가사가 직접 고쳤는지 — 고쳤으면 자동값으로 덮지 않는다
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
@@ -2550,8 +2552,24 @@ function fillYohangFromData(){
   if(use&&mainUse&&(!use.value.trim()||use.value===String(L['이용상황']||'')||use.value===use.dataset.autoUse)){
     use.value=mainUse;use.dataset.autoUse=mainUse;
   }else set('y_use',L['이용상황']);
-  set('y_struct',[cgVal('bt_strct'),cgVal('bt_flrs')?'지상 '+String(cgVal('bt_flrs')).split('/')[0]+'층':''].filter(Boolean).join(' '));
+  // 건물 구조 = 구조 + 층수(지하가 있으면 "지하 1층 지상 4층"). 옛 자동값(지상만)이 남아 있으면 새 자동값으로 바꾼다.
+  var st=document.getElementById('y_struct'),auto=yohangStructAuto();
+  if(st&&auto&&(!st.value.trim()||st.value===yohangStructAuto(true)||st.value===st.dataset.autoStruct)){st.value=auto;st.dataset.autoStruct=auto;}
   set('y_usestate',cgVal('bt_purps'));
+  applyRoadCnt();
+}
+// 대상물건개요의 구조·층수(지상/지하 = "4/1")로 만드는 건물 구조 자동 문구. groundOnly=true 면 예전 방식(지상만)
+function yohangStructAuto(groundOnly){
+  var f=String(cgVal('bt_flrs')||'').split('/'),up=(f[0]||'').trim(),dn=(f[1]||'').trim();
+  var floors=[(!groundOnly&&dn&&dn!=='0')?'지하 '+dn+'층':'',up&&up!=='0'?'지상 '+up+'층':''].filter(Boolean).join(' ');
+  return [cgVal('bt_strct'),floors].filter(Boolean).join(' ');
+}
+// 접면도로 수 — 한 면만 접하면 화면에서 ② 칸과 "각각"을 숨긴다(출력은 arap_toji_documents.js가 같은 값을 읽어 문구를 뺀다)
+function applyRoadCnt(){
+  var sel=document.getElementById('y_roadCnt');if(!sel)return;
+  if(sel.value!=='1')sel.value='2';
+  var one=sel.value==='1';
+  ['y_road2wrap','y_roadEach'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=one?'none':'';});
 }
 // ── 토지이용계획(토이계) 복붙 정리 — 집합건물(s3r86w8a.html)과 같은 로직 ──
 // 토지이음 머리문구 제거 + 줄바꿈 이어붙이기. <추가기재>만 별도 줄로 남긴다.
@@ -2927,6 +2945,8 @@ function applyForm(o){
   Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value=o.yohang&&o.yohang[id]!=null?o.yohang[id]:'';});
   document.getElementById('y_jise').value=yohangTerrain(cgVal('y_jise'));
   delete document.getElementById('y_use').dataset.autoUse;
+  delete document.getElementById('y_struct').dataset.autoStruct;
+  applyRoadCnt();
   TOICE=o.TOICE||{};
   if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
   // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.
@@ -2994,7 +3014,7 @@ function clearForm(){
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   CG_TRAVEL_MANUAL=false;CG_SPECIAL_MANUAL=false;
-  Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;}});TOICE={};
+  Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;delete el.dataset.autoStruct;}});TOICE={};applyRoadCnt();
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
   ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
 }
@@ -3182,6 +3202,7 @@ CG_IDS.forEach(function(id){
     renderCheonggu();saveForm();});});
 document.getElementById('cg_specialApplied').addEventListener('blur',function(){renderCheonggu();saveForm();});
 Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',saveForm);});
+document.getElementById('y_roadCnt').addEventListener('change',function(){applyRoadCnt();saveForm();});
 document.getElementById('cg_travel').addEventListener('blur',function(){renderCheonggu();saveForm();});
 if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});renderEtcItems();}
 applyOvDefaults();
