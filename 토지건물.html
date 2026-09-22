@@ -2337,7 +2337,7 @@ function renderGjs(){
     row.area=bldArea(r);row.label=String(r['층별']||'')+' '+String(r['용도']||'');return row;});
   G.applyDandok(erows,mainPurps);
   var roofTxt=document.getElementById('bt_roof')?document.getElementById('bt_roof').value:'';
-  var res=G.compute({year:year,structNo:G.mapStructure(strctTxt)[0],built:useApr?useApr.y:0,top:top,landPrice:price,roof:G.mapRoof(roofTxt),intel:0,rows:erows});
+  var res=G.compute({year:year,structNo:G.mapStructure(strctTxt)[0],structText:strctTxt,built:useApr?useApr.y:0,top:top,landPrice:price,roof:G.mapRoof(roofTxt),intel:0,rows:erows});
   if(!res.ready){box.innerHTML='<div class="hint">'+res.missing.join('·')+'이(가) 있어야 기준시가가 계산됩니다 (대상물건 탭).</div>';window.GJS_RESULT=null;return;}
   var rrs={};res.lines.forEach(function(l){rrs[l.group]=l.rr;});
   var rrTxt=Object.keys(rrs).map(function(g){return ['','Ⅰ','Ⅱ','Ⅲ','Ⅳ'][g]+'그룹 '+rrs[g];}).join(' / ');

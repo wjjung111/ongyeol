@@ -8,7 +8,10 @@
  *  - ㎡당 = 신축가격기준액 × 구조지수 × 용도지수 × 위치지수 × 경과연수별잔가율 × 개별건물특성조정률(상속·증여만) → 1,000원 미만 절사 → × 면적
  *  - 조정률Ⅱ(연면적)·Ⅲ(단독주택 면적)은 건물 전체가 아니라 해당 "부분"(비주거 본체 / 주택 본체 / 부속) 면적으로 판단 — 해설서 계산사례 p.68~69 방식
  *  - 부속부분(주차장·기계실·옥탑·부속창고 등)은 주용도의 용도지수를 적용한 뒤 조정률Ⅳ 60을 곱한다 — 적용요령 (6)
- *  - 주거용은 아파트에 한해 최고층수만 적용, 연면적·인텔리전트 조정률 미적용 — 적용요령 (3)(4)
+ *  - 주거용은 아파트에 한해 최고층수만 적용, 연면적·인텔리전트 조정률 미적용 — 적용요령 (3)(4). 통나무조는 조정률Ⅱ 적용 제외 (p.39 비고)
+ *  - 내용연수 그룹은 구조지수 번호가 아니라 구조 자체로 정한다 — 4번 중 목조·ALC·스틸하우스는 Ⅱ, 6번 중 시멘트블록·황토는 Ⅲ (p.34, 계산사례 p.66)
+ *  - 리모델링 할증 잔가율은 상속·증여에만, 양도는 신축연도 잔가율 그대로 (p.30 (3))
+ * 검증: tests/gijunsiga.cjs — 해설서 계산사례 p.54~74 원 단위 대조 (Node 없으면 tests/run.html을 브라우저로)
  */
 (function(root){
   var BASE={2025:850000,2026:860000};
@@ -66,8 +69,13 @@
   function useIdx(year,no){var o=USE_OVR[year]&&USE_OVR[year][no];if(o)return o;for(var g=0;g<USE.length;g++)for(var i=0;i<USE[g][1].length;i++)if(USE[g][1][i][0]===no)return USE[g][1][i][2];return 100;}
   function locIdx(year,price){if(!(price>0))return null;for(var i=0;i<LOC.length;i++){if(price<LOC[i][0]){var v=(LOC_OVR[year]&&LOC_OVR[year][i])||LOC[i][1];return {no:i+1,idx:v,lo:i?LOC[i-1][0]:0,hi:LOC[i][0]};}}return null;}
   function residual(year,built,group,remodel){var N=LIFE[group]||50;if(!(built>0))return null;var n=year-built;if(n<=0)return 1;
-    if(remodel>built&&remodel<=year){var nn=remodel-built,eff=n-0.3*nn;if(eff>N)return 0.1;return Math.max(0.1,1-0.9*eff/N);}
+    if(remodel>built&&remodel<=year){var nn=Math.min(remodel-built,N),eff=n-0.3*nn;if(eff>N)return 0.1;return Math.max(0.1,1-0.9*eff/N);}
     return n>=N?0.1:Math.round((1-0.9*n/N)*10000)/10000;}
+  // 내용연수 그룹: 기본은 구조번호, 4·6번은 한 번호 안에 그룹이 갈리므로 구조 텍스트로 가른다
+  function structGroup(no,text){var t=String(text||"");
+    if(no===4&&/목조|ALC|스틸하우스/i.test(t)&&!/철근|콘크리트|석조|라멘|PC/i.test(t))return 2;
+    if(no===6&&/블록|블럭|황토/.test(t))return 3;
+    return GROUP_OF[no]||1;}
   function floorK(x){return Math.floor(x/1000)*1000;}
   function areaIdx(a){return a<1000?0.9:a<5000?1:a<10000?1.1:a<50000?1.2:1.3;}
   function floorsIdx(top){return top<=0?null:top<=5?0.9:top<=10?1:top<=15?1.1:top<=20?1.2:1.3;}
@@ -77,8 +85,12 @@
     if(/통나무/.test(t))return [1,"통나무조 135"];
     if(/철골철근|철골.*콘크리트|SRC/i.test(t))return [3,"철골(철골철근)콘크리트조 110"];
     if(/경량철골/.test(t))return [9,"경량철골조 79"];
-    if(/철근콘크리트|철근콘트리트|RC|라멘|프리캐스트|PC조|석조|ALC|스틸하우스|목구조/i.test(t))return [4,"철근콘크리트조 등 100"];
-    if(/시멘트벽돌|시멘트블록|블록조|황토|와이어패널/.test(t))return [6,"시멘트벽돌·블록조 90"];
+    if(/목구조/.test(t))return [2,"목구조 120 (2026년 115)"];
+    if(/철근콘크리트|철근콘트리트|RC|라멘|프리캐스트|PC조|석조/i.test(t))return [4,"철근콘크리트조 등 100"];
+    if(/ALC|스틸하우스|목조/i.test(t))return [4,"목조·ALC·스틸하우스 100 (내용연수 Ⅱ그룹 40년)"];
+    if(/보강블록|보강콘크리트/.test(t))return [5,"보강블록·보강콘크리트조 95"];
+    if(/시멘트블록|시멘트블럭|블록조|블럭조|황토/.test(t))return [6,"시멘트블록·황토조 90 (내용연수 Ⅲ그룹 30년)"];
+    if(/시멘트벽돌|와이어패널/.test(t))return [6,"시멘트벽돌조 90"];
     if(/연와|벽돌|보강콘크리트|보강블록|철골|강구조/.test(t))return [5,"연와조·철골조 95"];
     if(/조립식|패널|판넬/.test(t))return [8,"조립식패널조 80"];
     if(/컨테이너|파이프/.test(t))return [11,"철파이프·컨테이너 59"];
@@ -134,7 +146,7 @@
     else if(ug)ftype=top<=5?(n<=1?"b1":"b2"):"none";
     else ftype=n===1?"shop1":n===2?"shop2":"none";
     var flag=/확인|미상|임시/.test(m.why);
-    return {floor:String(item.name||"")+(/부속/.test(String(item.attach||""))?"(부속)":""),use:m.use,useOvr:"",area:area,ftype:ftype,extra:"1",note:flag?m.why:"",why:m.why,strctNo:item.strct?mapStructure(item.strct)[0]:null};
+    return {floor:String(item.name||"")+(/부속/.test(String(item.attach||""))?"(부속)":""),use:m.use,useOvr:"",area:area,ftype:ftype,extra:"1",note:flag?m.why:"",why:m.why,strctNo:item.strct?mapStructure(item.strct)[0]:null,strctText:item.strct||""};
   }
   /** 단독주택(다가구·다중 제외)이면 주택 본체 면적으로 조정률Ⅲ(res_s1/res_s2) 자동 지정. 반환: 안내문 또는 null */
   function applyDandok(rows,mainPurps){
@@ -147,17 +159,18 @@
   }
 
   /**
-   * 계산. input: {year, structNo, built, remodel, top, landPrice, roof('1'|'0.8'|'0.6'), intel(0|1.1|1.2),
-   *              rows:[{floor,use,useOvr,area,ftype,extra,strctNo?}]}
-   * 반환: {ready, missing[], year, base, sIdx, group, rr, loc, fIdx, adjIInon, adjIIatt, nonArea, attArea, resArea, areaAll,
-   *        lines:[{floor,use,u,area,sIdx,group,rr,isRes,isAtt,adjI,adjII,ftAdj,exAdj,adj,unitSJ,unitYD,vSJ,vYD}],
+   * 계산. input: {year, structNo, structText?(대장 구조 텍스트 — 내용연수 그룹 판정), group?(그룹 직접 지정 1~4), built, remodel, top, landPrice, roof('1'|'0.8'|'0.6'), intel(0|1.1|1.2),
+   *              rows:[{floor,use,useOvr,area,ftype,extra,strctNo?,strctText?}]}
+   * 반환: {ready, missing[], year, base, sIdx, group, rr(상속·증여, 리모델링 할증 포함), rrYD(양도, 할증 없음), loc, fIdx, adjIInon, adjIIatt, nonArea, attArea, resArea, areaAll,
+   *        lines:[{floor,use,u,area,sIdx,group,rr,rrYD,isRes,isAtt,adjI,adjII,ftAdj,exAdj,adj,unitSJ,unitYD,vSJ,vYD}],
    *        totSJ,totYD,resSJ,resYD,nonresSJ,nonresYD}
    */
   function compute(input){
     var year=noticeYear(input.year),base=BASE[year];
-    var sNo=+input.structNo||4,sIdx=structIdx(year,sNo),group=GROUP_OF[sNo]||1;
+    var sNo=+input.structNo||4,sIdx=structIdx(year,sNo),sTxt=input.structText||"";
+    var group=(+input.group>=1&&+input.group<=4)?+input.group:structGroup(sNo,sTxt);
     var built=+input.built||0,remodel=+input.remodel||0,top=+input.top||0;
-    var loc=locIdx(year,+input.landPrice),rr=residual(year,built,group,remodel);
+    var loc=locIdx(year,+input.landPrice),rr=residual(year,built,group,remodel),rrYD=residual(year,built,group,0);
     var roof=+input.roof||1,intel=+input.intel||0;
     var rows=input.rows||[];
     var missing=[];if(!rows.length)missing.push("층별 면적");if(!built)missing.push("신축연도");if(!loc)missing.push("개별공시지가");
@@ -168,23 +181,25 @@
     var lines=[],totSJ=0,totYD=0,resSJ=0,resYD=0,nonresSJ=0,nonresYD=0;
     rows.forEach(function(r,i){
       var f=ft(r.ftype),e=ex(r.extra),area=+r.area||0;
-      var rsNo=r.strctNo||sNo,rsIdx=structIdx(year,rsNo),rgrp=GROUP_OF[rsNo]||1,rrr=(rsNo===sNo)?rr:residual(year,built,rgrp,remodel);
+      var rsNo=r.strctNo||sNo,rsIdx=structIdx(year,rsNo);
+      var rgrp=(rsNo===sNo&&!r.strctText)?group:structGroup(rsNo,r.strctText!=null&&r.strctText!==""?r.strctText:(rsNo===sNo?sTxt:""));
+      var rrr=residual(year,built,rgrp,remodel),rrrYD=residual(year,built,rgrp,0);
       var u=(r.useOvr!==""&&r.useOvr!=null&&!isNaN(+r.useOvr))?+r.useOvr:useIdx(year,r.use);
       var isRes=f[3],isAtt=f[4];
       var adjI=rsIdx<100?roof:1;
-      var adjII=isRes?(r.ftype==="apt"?(fIdx||1):1):(isAtt?adjIIatt:adjIInon);
+      var adjII=isRes?(r.ftype==="apt"?(fIdx||1):1):(rsNo===1?1:(isAtt?adjIIatt:adjIInon));   // 통나무조는 Ⅱ 제외
       var adj=adjI*adjII*f[2]*e[2];
-      var unitYD=ready?floorK(base*(rsIdx/100)*(u/100)*(loc.idx/100)*rrr):0;
+      var unitYD=ready?floorK(base*(rsIdx/100)*(u/100)*(loc.idx/100)*rrrYD):0;
       var unitSJ=ready?floorK(base*(rsIdx/100)*(u/100)*(loc.idx/100)*rrr*adj):0;
       var vSJ=unitSJ*area,vYD=unitYD*area;
       totSJ+=vSJ;totYD+=vYD;if(isRes){resSJ+=vSJ;resYD+=vYD;}else{nonresSJ+=vSJ;nonresYD+=vYD;}
-      lines.push({floor:r.floor||("행"+(i+1)),use:r.use,u:u,area:area,sIdx:rsIdx,group:rgrp,rr:rrr,isRes:isRes,isAtt:isAtt,adjI:adjI,adjII:adjII,ftAdj:f[2],exAdj:e[2],adj:adj,unitSJ:unitSJ,unitYD:unitYD,vSJ:vSJ,vYD:vYD,ftype:r.ftype});
+      lines.push({floor:r.floor||("행"+(i+1)),use:r.use,u:u,area:area,sIdx:rsIdx,group:rgrp,rr:rrr,rrYD:rrrYD,isRes:isRes,isAtt:isAtt,adjI:adjI,adjII:adjII,ftAdj:f[2],exAdj:e[2],adj:adj,unitSJ:unitSJ,unitYD:unitYD,vSJ:vSJ,vYD:vYD,ftype:r.ftype});
     });
-    return {ready:ready,missing:missing,year:year,base:base,sIdx:sIdx,group:group,rr:rr,loc:loc,fIdx:fIdx,top:top,adjIInon:adjIInon,adjIIatt:adjIIatt,
+    return {ready:ready,missing:missing,year:year,base:base,sIdx:sIdx,group:group,rr:rr,rrYD:rrYD,loc:loc,fIdx:fIdx,top:top,adjIInon:adjIInon,adjIIatt:adjIIatt,
       nonArea:nonArea,attArea:attArea,resArea:resArea,areaAll:areaAll,lines:lines,totSJ:totSJ,totYD:totYD,resSJ:resSJ,resYD:resYD,nonresSJ:nonresSJ,nonresYD:nonresYD};
   }
 
   root.ArapGijunsiga={BASE:BASE,STRUCT:STRUCT,STRUCT_OVR:STRUCT_OVR,GROUP_OF:GROUP_OF,LIFE:LIFE,USE:USE,USE_OVR:USE_OVR,LOC:LOC,LOC_OVR:LOC_OVR,FLOORTYPE:FLOORTYPE,EXTRA:EXTRA,
-    noticeYear:noticeYear,structIdx:structIdx,useIdx:useIdx,locIdx:locIdx,residual:residual,floorK:floorK,areaIdx:areaIdx,floorsIdx:floorsIdx,
+    noticeYear:noticeYear,structIdx:structIdx,useIdx:useIdx,locIdx:locIdx,residual:residual,structGroup:structGroup,floorK:floorK,areaIdx:areaIdx,floorsIdx:floorsIdx,
     mapStructure:mapStructure,mapRoof:mapRoof,mapUse:mapUse,isAttachedText:isAttachedText,rowFromRegister:rowFromRegister,applyDandok:applyDandok,compute:compute};
 })(typeof window!=="undefined"?window:this);
