@@ -141,7 +141,8 @@ function buildingMaps(rows){
     var land=LANDS[0]||{},first=(g.rows[0]&&g.rows[0].data)||{};
     return {'건물_번호':g.key,'건물_소재지':text(first['소재지'])||text(land['소재지']),'건물_지번':text(first['지번'])||text(land['지번']),
       '건물_구조':unique('구조')||val('bt_strct'),'건물_층수':groups.length===1?val('bt_flrs'):unique('층별'),
-      '건물_용도':unique('용도')||val('bt_purps'),
+      // 대상물건 개요의 건물 용도는 건축물대장 주용도 한 줄만(층별 용도를 다 붙이면 표가 너무 길어짐 — 상세는 요항표·명세표에)
+      '건물_용도':val('bt_purps')||unique('용도'),
       // 물건 표는 공부(연)면적과 사정면적을 나란히 적는다
       '건물_면적':area(g.rows.reduce(function(s,r){return s+(r.gongbu!=null?r.gongbu:r.size);},0)),
       '건물_사정면적':area(g.rows.reduce(function(s,r){return s+r.size;},0)),
