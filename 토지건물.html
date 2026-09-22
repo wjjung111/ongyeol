@@ -134,6 +134,10 @@
 
   /* 값의 성격은 색 두 가지로만 구분한다 —
      계산값(회색·굵게, 손댈 수 없음) / 평가사가 정하는 값(연한 노랑, 손대는 곳) */
+  /* 합계 행 — 위 층별 금액과 확실히 구분되게 굵은 윗선 + 진한 바탕 */
+  tr.sumrow td{border-top:3px double #1a2744;background:#dde5f0;color:#0f2547;font-weight:700;padding:7px 6px;}
+  tr.sumrow td.sum-label{text-align:right;font-size:12px;letter-spacing:.5px;}
+  tr.sumrow td.sum-amt{font-size:15px;font-weight:800;background:#c9d8ee;}
   .calc-c{background:#eef2f7;font-weight:700;color:#0f2547;}
   .jud-c{background:#fff9e6;}
   .calc-c input{color:#0f2547;font-weight:700;}
@@ -543,7 +547,7 @@
                     <td class="calc-c" id="eSrc"><input class="eo" data-k="src" onblur="calcGongsi()" oninput="etcOv('src',this.value)"></td>
                     <td class="jud-c"><input id="eSaj1" value="" placeholder="-" oninput="calcGongsi()"></td>
                     <td class="jud-c"><input id="eTime" value="" placeholder="1.00699" oninput="calcGongsi()"></td>
-                    <td class="jud-c"><input id="eArea" value="1.000" oninput="calcGongsi()"></td>
+                    <td class="jud-c"><input id="eArea" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
                     <td class="calc-c" id="eIndSum"><input class="eo" data-k="ind" onblur="calcGongsi()" oninput="etcOv('ind',this.value)"></td>
                     <td class="calc-c" id="eOut1"><input class="eo" data-k="out1" onblur="calcGongsi()" oninput="etcOv('out1',this.value)"></td>
                     <td class="calc-c" id="eRatio" rowspan="2"><input class="eo" data-k="ratio" style="font-size:14px" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td></tr>
@@ -551,7 +555,7 @@
                     <td class="calc-c" id="eStd"><input class="eo" data-k="std" onblur="calcGongsi()" oninput="etcOv('std',this.value)"></td>
                     <td class="jud-c"><input id="eSaj2" value="" placeholder="-" oninput="calcGongsi()"></td>
                     <td class="calc-c" id="eStdTime"><input class="eo" data-k="stdTime" onblur="calcGongsi()" oninput="etcOv('stdTime',this.value)"></td>
-                    <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()"></td>
+                    <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
                     <td class="jud-c"><input id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
                     <td class="calc-c" id="eOut2"><input class="eo" data-k="out2" onblur="calcGongsi()" oninput="etcOv('out2',this.value)"></td></tr>
               </table></div>
@@ -707,7 +711,7 @@
             <tr><th>구분</th><th>면적</th><th>적용단가</th><th>감정평가액(원)</th></tr>
             <tr><td>토지</td><td id="fn_landSize">-</td><td id="fn_landUnit">-</td><td class="calc-c" id="fn_landAmt">-</td></tr>
             <tr><td>건물</td><td id="fn_bldSize">-</td><td>-</td><td class="calc-c" id="fn_bldAmt">-</td></tr>
-            <tr><td colspan="3" style="text-align:right;font-weight:700">합계</td><td class="calc-c" id="fn_total" style="font-size:14px">-</td></tr>
+            <tr class="sumrow"><td colspan="3" class="sum-label">합계</td><td class="sum-amt" id="fn_total">-</td></tr>
           </table></div>
           <div class="fld" style="margin-top:8px"><label>결정의견</label><input class="box" id="fn_opinion" value="본건은 수요성·환가성·공시지가와 인근지역의 현지조사 가격수준, 토지 및 건물의 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음."></div>
         </div>
@@ -2159,7 +2163,7 @@ function calcGongsi(){
   // 자동계산된 값 그대로면 "1.00443 — 서울특별시 중랑구 (26.01.31~26.04.14) (주거)"처럼 근거를 같이 보여줌
   var tm=etcTimeMeta(),tl=(et&&tm&&tm.factor===et.toFixed(5))?(' — '+timeMetaLabel(tm)):'';
   document.getElementById('fnTime').textContent=(et?et.toFixed(5):'-')+tl;
-  document.getElementById('fnArea').textContent=ea.toFixed(2);
+  document.getElementById('fnArea').textContent=ea.toFixed(3);   // 의견서(공시_지역요인)와 같은 셋째 자리 표기
   // 화면의 결정치 입력값을 현재 표준지에 저장
   // 결정 보정치: 기본은 산출 비교치(절사값)를 그대로 채우고, 사용자가 다른 값을 치면 그 값을 표준지별 S.etcDecide에 보관(빨간 글씨). 비우거나 자동값과 같으면 자동으로.
   var dEl=document.getElementById('eDecide'),autoD=ratio?ratio.toFixed(2):'';
@@ -2192,8 +2196,8 @@ function calcGongsi(){
        areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
   if(LANDS.length>1)
-    h+='<tr><td colspan="9" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
-      +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
+    h+='<tr class="sumrow"><td colspan="9" class="sum-label">합계</td><td>'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
+      +'<td class="sum-amt">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblSisan',h);
   sisanHint(firstCalcG);
   document.getElementById('resGongsi').textContent=sumTotal?won(sumTotal)+' 원':'-';
@@ -2248,8 +2252,8 @@ function calcGeorae(){
        +areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
   if(LANDS.length>1)
-    hs+='<tr><td colspan="8" style="text-align:right;font-weight:700">합계</td><td class="calc-c">'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
-       +'<td class="calc-c" style="font-size:13px">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
+    hs+='<tr class="sumrow"><td colspan="8" class="sum-label">합계</td><td>'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
+       +'<td class="sum-amt">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblGaSisan',hs);
   sisanHint(firstCalc,'ga');
   document.getElementById('resGeorae').textContent=sumTotal?won(sumTotal)+' 원':'-';
@@ -2324,7 +2328,7 @@ function renderGjs(){
       +'<td class="calc-c">'+adjTxt+'</td><td class="calc-c">'+won(l.unitSJ)+'</td><td class="calc-c">'+(l.area?l.area.toLocaleString('ko-KR',{maximumFractionDigits:3}):'-')+'</td><td class="calc-c">'+won(l.vSJ)+'</td></tr>';});
   box.innerHTML='<div class="hint" style="margin-bottom:6px">'+sum+'</div>'
     +'<div class="tw"><table><tr><th>층 (용도)</th><th>구조</th><th>용도</th><th>잔가율</th><th>조정률</th><th>㎡당(절사)</th><th>면적(㎡)</th><th>기준시가(원)</th></tr>'+h
-    +'<tr><td colspan="6" style="text-align:right;font-weight:700">건물 합계 (상속·증여용)</td><td class="calc-c">'+res.areaAll.toLocaleString('ko-KR',{maximumFractionDigits:3})+'</td><td class="calc-c" style="font-size:13px;font-weight:700">'+won(res.totSJ)+'</td></tr></table></div>'
+    +'<tr class="sumrow"><td colspan="6" class="sum-label">건물 합계 (상속·증여용)</td><td>'+res.areaAll.toLocaleString('ko-KR',{maximumFractionDigits:3})+' ㎡</td><td class="sum-amt">'+won(res.totSJ)+'</td></tr></table></div>'
     +'<div class="hint" style="margin-top:6px">양도용(조정률 없음) '+won(res.totYD)+'원 · 주거용 층은 상속·증여 시 개별주택가격으로 평가되므로 참고값 · 위반건축물·용도변경 시점은 정부24 대장으로 확인</div>';
   window.GJS_RESULT={year:year,total:res.totSJ,totalYD:res.totYD,area:res.areaAll};
 }
@@ -2356,7 +2360,7 @@ function renderBldCalc(){
        '<td class="calc-c">'+(ec&&lf?Math.round(ratio*100)/100+' ('+Math.round(lf-ec)+'/'+lf+')':'-')+'</td>'+
        '<td class="calc-c">'+(applyUnit?won(applyUnit):'-')+'</td><td class="calc-c">'+(amt?won(amt):'-')+'</td></tr>';
   });
-  h+='<tr><td colspan="'+(multiDong?10:9)+'" style="text-align:right;font-weight:700">합계</td><td class="calc-c" style="font-size:13px">'+(total?won(total):'-')+'</td></tr>';
+  h+='<tr class="sumrow"><td colspan="'+(multiDong?10:9)+'" class="sum-label">건물가액 합계</td><td class="sum-amt">'+(total?won(total):'-')+'</td></tr>';
   setTableHtml('tblBldCalc',h);   // 재조달원가·내용연수 칸 입력 중 커서 유지
   window.BLD_RESULT={total:total,size:areaSum,gongbuSize:gongbuSum,rows:docRows};
   document.getElementById('resBld').textContent=total?won(total)+' 원':'-';
@@ -3093,7 +3097,12 @@ function clearForm(){
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
   ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
 }
-function refreshAfterLoad(){updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();renderToice();}
+// 그 밖의 요인 표의 지역요인 두 칸은 비워 두지 않고 항상 1.000으로 채운다(값은 언제든 고칠 수 있고, 지우면 다시 1.000)
+var ETC_AREA_IDS=['eArea','eArea2'];
+function fillEtcArea(){ETC_AREA_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&!hasV(el.value))el.value='1.000';});}
+function etcAreaBlur(el){if(!hasV(el.value)){el.value='1.000';calcGongsi();saveForm();}}
+
+function refreshAfterLoad(){fillEtcArea();updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();renderToice();}
 
 function newCase(){
   clearForm();applyOvDefaults();
