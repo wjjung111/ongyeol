@@ -112,12 +112,28 @@ function statementRows(){
   var gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{rows:[]};
   if(!gs.rows||!gs.total)throw Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
   if(bldRows().some(function(r){return num(r['연면적'])>0;})&&br.rows.some(function(r){return r.size>0&&!r.reCost;}))throw Error('건물평가 탭에서 모든 층의 재조달원가를 입력해 주세요.');
-  var rows=LANDS.map(function(l,i){var g=gs.rows[i];return {'명세_기호':String(i+1),'명세_소재지':l['소재지']||'','명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),'명세_사정면적':landArea(l),'명세_단가':g.apply,'명세_평가액':g.total,'명세_비고':l['비고']||''};});
+  var loc=function(L){return (typeof landLoc==='function')?landLoc(L):String((L||{})['소재지']||'');};
+  var rows=LANDS.map(function(l,i){var g=gs.rows[i];return {'명세_기호':String(i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),'명세_사정면적':landArea(l),'명세_단가':g.apply,'명세_평가액':g.total,'명세_비고':l['비고']||''};});
   var land=LANDS[0]||{};
-  // 건물 비고는 원가법 근거 두 줄: 재조달원가 / x 잔존연수·내용연수
-  br.rows.filter(function(r){return r.size>0;}).forEach(function(r){var d=r.data;
-    var note=d['비고']||[won(r.reCost),'x '+r.remaining+'/'+r.life].join('\n');
-    rows.push({'명세_기호':d['동']||'가','명세_소재지':d['소재지']||land['소재지']||'','명세_지번':d['지번']||land['지번']||'','명세_지목용도':[d['용도'],d['층별']].filter(Boolean).join('\n'),'명세_지역구조':d['구조']||cgVal('bt_strct'),'명세_공부면적':(r.gongbu||r.size),'명세_사정면적':r.size,'명세_단가':r.apply,'명세_평가액':r.total,'명세_비고':note});});
+  // 건물은 발송 양식대로: 「가」 머리행(소재지 + [도로명주소] / 지번은 필지와 같으면 '상동' / 주용도 / 구조·층수)
+  // 아래에 층별 행(용도·층·면적·단가·금액·비고)만 이어 붙인다. 동이 여럿이면 동마다 머리행.
+  var floors=(typeof floorsText==='function')?floorsText():'';
+  var road=cgVal('bt_roadAddr').trim();
+  var groups=[];br.rows.filter(function(r){return r.size>0;}).forEach(function(r){
+    var dong=String(r.data['동']||'').trim(),g=groups.find(function(x){return x.dong===dong;});
+    if(!g){g={dong:dong,rows:[]};groups.push(g);}g.rows.push(r);});
+  var marks='가나다라마바사아자차카타파하';
+  groups.forEach(function(g,gi){
+    var d0=g.rows[0].data,bLoc=(d0['소재지']||'').trim()||loc(land),bJb=(d0['지번']||'').trim()||land['지번']||'';
+    var same=bLoc===loc(land)&&String(bJb)===String(land['지번']||'');
+    rows.push({'명세_기호':g.dong||marks.charAt(gi)||String(gi+1),'명세_소재지':bLoc+(road?'\n\n[도로명주소]\n'+road:''),'명세_지번':same?'상동':bJb,
+      '명세_지목용도':cgVal('bt_purps').trim()||d0['용도']||'','명세_지역구조':[d0['구조']||cgVal('bt_strct'),floors].filter(Boolean).join('\n'),
+      '명세_공부면적':null,'명세_사정면적':null,'명세_단가':null,'명세_평가액':0,'명세_비고':'',header:true});
+    // 층별 비고는 원가법 근거 두 줄: 재조달원가 / × 잔존연수/내용연수
+    g.rows.forEach(function(r){var d=r.data;
+      var note=d['비고']||[won(r.reCost),'× '+r.remaining+'/'+r.life].join('\n');
+      rows.push({'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':d['용도']||'','명세_지역구조':d['층별']||'','명세_공부면적':(r.gongbu||r.size),'명세_사정면적':r.size,'명세_단가':r.apply,'명세_평가액':r.total,'명세_비고':note,minRows:2});});
+  });
   return rows;
 }
 var X='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -155,24 +171,33 @@ async function buildStatement(rows){
   var rowAttrs=['ht','customHeight','spans','x14ac:dyDescent'].map(function(a){return [a,sample.getAttribute(a)];}).filter(function(p){return p[1]!=null;});
   // B~K 열 순서. J(금액)는 값이 아니라 단가×사정면적 수식으로 넣는다(양식과 동일).
   var keys={B:'기호',C:'소재지',D:'지번',E:'지목용도',F:'지역구조',G:'공부면적',H:'사정면적',I:'단가',K:'비고'};
-  var wide={C:9,F:12,K:12},numeric={G:1,H:1,I:1},cols=['B','C','D','E','F','G','H','I','J','K'],r=start,total=0;
+  var wide={C:9,E:9,F:12,K:12},numeric={G:1,H:1,I:1},cols=['B','C','D','E','F','G','H','I','J','K'],r=start,total=0,carry=[];
+  // C열(소재지)은 "서울특별시 / 강남구 / 신사동"처럼 낱말마다 한 줄. 빈 줄('\n\n')은 그대로 빈 칸 한 줄.
+  var locLines=function(v){return String(v||'').split('\n').flatMap(function(line){return line.trim()?line.trim().split(/\s+/):[''];});};
   var newRow=function(n){var row=d.createElementNS(X,'row');row.setAttribute('r',n);rowAttrs.forEach(function(p){row.setAttribute(p[0],p[1]);});return row;};
   original.filter(function(row){var n=+row.getAttribute('r');return n>=start&&n<base;}).forEach(function(row){row.remove();});
   rows.forEach(function(item){
     var split={};cols.forEach(function(c){var k=keys[c];
       if(!k){split[c]=[];return;}
       if(numeric[c]){split[c]=[item['명세_'+k]];return;}
+      if(c==='C'){split.C=item['명세_소재지']===undefined?null:locLines(item['명세_소재지']);return;}   // null = 위 머리행 소재지가 흘러내리는 자리
       // 비고에 적은 재조달원가처럼 숫자만 있는 줄은 숫자로 넣어 양식의 천단위 서식을 그대로 받는다
       split[c]=chunks(item['명세_'+k],wide[c]||8).map(function(line){return c==='K'&&/^[\d,]+$/.test(line)?Number(line.replace(/,/g,'')):line;});
     });
-    var height=Math.max(4,...cols.map(function(c){return split[c].length;}));
+    // 블록 높이: 기본 4행(층별 행은 2행). 머리행 소재지가 그보다 길면 남는 줄은 아래 층별 행 옆으로 흘려보낸다(발송 양식과 같게).
+    var height=Math.max(item.minRows||4,...cols.filter(function(c){return c!=='C';}).map(function(c){return split[c].length;}));
+    if(split.C){carry=split.C.slice(height);split.C=split.C.slice(0,height);}
+    else split.C=carry.splice(0,height);
+    var hasUnit=item['명세_단가']!=null&&item['명세_단가']!=='';
     for(var j=0;j<height;j++){var row=newRow(r);
       (function(rr,first){cols.forEach(function(c){
-        row.append(c==='J'?cell(d,'J'+rr,style.J,null,first?'+I'+rr+'*H'+rr:null):cell(d,c+rr,style[c],split[c][j]));
+        row.append(c==='J'?cell(d,'J'+rr,style.J,null,(first&&hasUnit)?'+I'+rr+'*H'+rr:null):cell(d,c+rr,style[c],split[c][j]));
       });})(r,j===0);
       sd.insertBefore(row,footer);r++;}
-    total+=item['명세_평가액'];
+    total+=item['명세_평가액']||0;
   });
+  // 층별 행이 모자라 못 흘려보낸 소재지 줄은 빈 행에 이어 쓴다
+  while(carry.length){var row=newRow(r),line=carry.shift();cols.forEach(function(c){row.append(cell(d,c+r,style[c],c==='C'?line:null));});sd.insertBefore(row,footer);r++;}
   var end=Math.max(base,r+1),shift=end-base;
   for(var blank=r;blank<end;blank++){var empty=newRow(blank);cols.forEach(function(c){empty.append(cell(d,c+blank,style[c],null));});sd.insertBefore(empty,footer);}
   // Keep the full body and move totals/print area for additional parcels and floors.
