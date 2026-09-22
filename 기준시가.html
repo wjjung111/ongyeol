@@ -85,6 +85,25 @@ table.rows tr.res td{background:var(--surface2)}
 .btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
 .btn:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
 
+/* 간편 계산 (평가기준일 + 소재지 → 층별 결과) */
+.quick{max-width:1280px;margin:0 auto;padding:20px 24px 0}
+.quick .card{display:grid;gap:12px}
+.qrow{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.qrow .f.addr{flex:1;min-width:240px}
+.qrow .f.date{width:190px}
+.qres .sumline{font-size:12px;color:var(--ink2);margin:0 0 8px}
+.qres table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
+.qres th{background:var(--surface2);color:var(--ink2);font-weight:700;font-size:12px;padding:7px 8px;border:1px solid var(--line);white-space:nowrap}
+.qres td{padding:7px 8px;border:1px solid var(--line);text-align:center;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.qres td.lab{text-align:left;font-family:var(--body)}
+.qres tr.tot td{font-weight:700;background:var(--surface2)}
+.qres tr.tot td.big{color:var(--acc);font-size:14px}
+.qbasis{font-size:12px;color:var(--ink2);background:var(--surface2);border-radius:6px;padding:10px 12px;line-height:1.75;margin-top:10px}
+.qbasis b{color:var(--ink)}
+.qbasis ul{margin:4px 0 0;padding-left:18px}
+main[hidden]{display:none!important}
+@media (max-width:600px){.quick{padding:16px 16px 0}.qrow .f.date{width:100%}}
+
 .sum{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .sum .head{padding:14px 18px 12px;border-bottom:1px solid var(--line)}
 .sum .head h2{font-size:14px;font-weight:800}
@@ -146,7 +165,26 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
   </div>
 </header>
 
-<main>
+<section class="quick" id="quick">
+  <div class="card">
+    <h2>간편 계산 <span class="chip">평가기준일 + 소재지만 넣고 계산</span></h2>
+    <div class="qrow" id="qInputs">
+      <label class="f date"><span>상속·증여일 <small>(평가기준일)</small></span><input type="date" id="qDate"></label>
+      <label class="f addr"><span>소재지 <small>(지번 주소)</small></span><input type="text" id="qAddr" autocomplete="off" placeholder="서울특별시 서초구 신원동 390-2"></label>
+      <button type="button" class="btn primary" id="qGo" style="min-height:36px">기준시가 계산</button>
+    </div>
+    <div class="status" id="qStatus"></div>
+    <div class="paste" id="fallbackPanel" hidden>
+      공공데이터포털 응답이 지연되고 있습니다. <b>자동 재시도</b>를 누르거나, <a id="fbLink" href="#" target="_blank" rel="noopener">이 링크</a>를 새 탭에서 열어 내용 전체(Ctrl+A, Ctrl+C)를 아래에 붙여넣고 적용을 누르세요.
+      <textarea id="fbPaste"></textarea>
+      <div style="margin-top:6px;display:flex;gap:8px"><button type="button" class="btn primary" id="btnFbRetry">자동 재시도</button><button type="button" class="btn" id="btnFbApply">붙여넣은 내용 적용</button></div>
+    </div>
+    <div class="qres" id="qResult"></div>
+    <div id="qToggleRow"><button type="button" class="btn" id="toggleDetail">상세 입력·수정 열기 ▾</button> <span class="hint" style="margin-left:6px">자동으로 잡힌 용도·층 특성이 틀리면 여기서 고치면 위 표가 같이 바뀝니다</span></div>
+  </div>
+</section>
+
+<main id="detail" hidden>
 <div class="left" style="display:grid;gap:16px;min-width:0">
 
   <section class="card">
@@ -157,11 +195,6 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
     </div>
     <p class="hint">지번 주소(경기도 안산시 단원구 선부동 1017-11 형식)를 넣으면 토지특성(면적·개별공시지가)과 건축물대장(표제부·층별개요), 개별주택가격을 불러와 아래 칸을 채웁니다. 자동 매핑된 용도지수·층 특성에는 근거가 표시되니 반드시 검토하세요. 위반건축물·용도변경 시점은 대장 API에 없으므로 정부24 발급본으로 확인합니다.</p>
     <div class="status" id="apiStatus"></div>
-    <div class="paste" id="fallbackPanel" hidden>
-      공공데이터포털 응답이 지연되고 있습니다. <b>자동 재시도</b>를 누르거나, <a id="fbLink" href="#" target="_blank" rel="noopener">이 링크</a>를 새 탭에서 열어 내용 전체(Ctrl+A, Ctrl+C)를 아래에 붙여넣고 적용을 누르세요.
-      <textarea id="fbPaste"></textarea>
-      <div style="margin-top:6px;display:flex;gap:8px"><button type="button" class="btn primary" id="btnFbRetry">자동 재시도</button><button type="button" class="btn" id="btnFbApply">붙여넣은 내용 적용</button></div>
-    </div>
     <details class="ref" id="apiLog" hidden><summary>불러온 원본 데이터 · 매핑 근거</summary><pre class="raw" id="apiRaw"></pre></details>
   </section>
 
@@ -382,6 +415,53 @@ function calc(){
   verify(ready, landVal, totSJ, nonresSJ, resShare);
   save();
   window.__calc={year,base,sIdx,rr,loc,adjII:adjIInon,lines:lines.map(l=>Object.assign({res:l.isRes},l)),totSJ,totYD,landVal};
+  renderQuick(res);
+}
+
+// ---------- 간편 계산 결과 (토지건물 ARM 건물평가 탭 카드와 같은 모양) + 산출근거 ----------
+let basis = {};   // 대장에서 읽은 원문 (구조·지붕·공시지가 연도·단독주택 판정)
+const f2 = n => (+n).toLocaleString("ko-KR",{maximumFractionDigits:2});
+const GRP = ["","Ⅰ그룹 50년","Ⅱ그룹 40년","Ⅲ그룹 30년","Ⅳ그룹 20년"];
+const escH = t => String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function useName(no){ for(const g of USE) for(const u of g[1]) if(u[0]===no) return u[1].replace(/\s*\(.*\)\s*$/,""); return ""; }
+function adjWhy(l,i,res){
+  const p=[];
+  if(l.adjI!==1) p.push(`지붕 ${l.adjI}`);
+  if(l.isRes){ if(l.ftype==="apt") p.push(`아파트 최고층수 ${l.adjII}`); else p.push("주거용이라 Ⅱ 미적용"); }
+  else if(l.adjII===1&&l.sIdx===structIdx(res.year,1)) p.push("통나무조 Ⅱ 제외");
+  else { const a=l.isAtt?res.attArea:res.nonArea; p.push(`Ⅱ ${l.adjII.toFixed(2)} (층수 ${res.fIdx??"-"} · ${l.isAtt?"부속":"비주거"} ${f2(a)}㎡ → ${G.areaIdx(a)} 중 큰 값)`); }
+  if(l.ftAdj!==1){ const f=FLOORTYPE.find(x=>x[0]===l.ftype); p.push(f?f[1]:String(l.ftAdj)); }
+  if(l.exAdj!==1){ const e=EXTRA.find(x=>x[0]===(rows[i]&&rows[i].extra)); p.push(e?e[1]:String(l.exAdj)); }
+  return p.join(" · ");
+}
+function renderQuick(res){
+  const box=$("qResult"); if(!box) return;
+  if(!res.lines.some(l=>l.area>0)){ box.innerHTML=""; return; }
+  if(!res.ready){ box.innerHTML=`<p class="hint">${res.missing.join("·")}이(가) 없어 계산하지 못했습니다. 아래 「상세 입력·수정」에서 채워 주세요.</p>`; return; }
+  const isSJ=mode==="sj", year=res.year, built=+$("builtYear").value, remodel=+$("remodelYear").value||0, land=+$("landPrice").value;
+  const rrShow=isSJ?res.rr:res.rrYD;
+  const resMain=rows.filter(r=>/^res(_s\d)?$/.test(r.ftype)).reduce((a,r)=>a+(+r.area||0),0);
+  const dandok=rows.some(r=>/^res_s/.test(r.ftype))||basis.dandok;
+  let h=`<p class="sumline">${year}년 고시 · 기준액 ${fmt(res.base)}원/㎡ · 위치지수 ${res.loc.idx}(공시지가 ${fmt(land)}원/㎡) · 잔가율 ${built}년 신축 ${GRP[res.group].split(" ")[0]} ${rrShow} · 최고층수 ${res.top}층 · 연면적 ${f2(res.areaAll)}㎡`
+    +(dandok?` · 단독주택 주택 부분 ${f2(resMain)}㎡ → 조정률Ⅲ ${rows.some(r=>r.ftype==="res_s2")?"140":rows.some(r=>r.ftype==="res_s1")?"120":"해당 없음(264㎡ 미만)"}`:"")+`</p>`;
+  h+=`<div class="tablewrap"><table><tr><th>층 (용도)</th><th>구조</th><th>용도</th><th>잔가율</th><th>조정률</th><th>㎡당(절사)</th><th>면적(㎡)</th><th>기준시가(원)</th></tr>`;
+  res.lines.forEach((l,i)=>{
+    const r=rows[i]||{}, adj=isSJ&&l.adj!==1?+l.adj.toFixed(4):"-";
+    const lab=r.label||`${r.floor||l.floor} ${useName(l.use)}`;
+    h+=`<tr><td class="lab">${escH(lab)}${r.note?` <span class="tag" title="${escH(r.note)}">확인</span>`:""}</td><td>${l.sIdx}</td><td>${l.u}</td><td>${isSJ?l.rr:l.rrYD}</td><td>${adj}</td><td>${fmt(isSJ?l.unitSJ:l.unitYD)}</td><td>${f2(l.area)}</td><td>${fmt(isSJ?l.vSJ:l.vYD)}</td></tr>`;
+  });
+  h+=`<tr class="tot"><td colspan="6" style="text-align:right">건물 합계 (${isSJ?"상속·증여용":"양도용"})</td><td>${f2(res.areaAll)}</td><td class="big">${fmt(isSJ?res.totSJ:res.totYD)}</td></tr></table></div>`;
+  h+=`<p class="hint">${isSJ?"양도용(조정률 없음)":"상속·증여용(조정률 적용)"} ${won(isSJ?res.totYD:res.totSJ)} · 주거용 층은 상속·증여 시 개별주택가격으로 평가되므로 참고값 · 위반건축물·용도변경 시점은 정부24 대장으로 확인</p>`;
+  // 산출근거 (간략)
+  const sNo=+$("structure").value, st=STRUCT.find(x=>x[0]===sNo);
+  const b=[];
+  b.push(`<b>구조</b> ${basis.strct?`대장 "${escH(basis.strct)}" → `:""}${sNo}번 ${st?st[1]:""} = 지수 ${res.sIdx} · 내용연수 ${GRP[res.group]}`);
+  b.push(`<b>위치</b> 개별공시지가 ${fmt(land)}원/㎡${basis.landYear?` (${basis.landYear}년 공시)`:""} → ${res.loc.no}번 구간(${fmt(res.loc.lo)}~${res.loc.hi===Infinity?"":fmt(res.loc.hi)+"원 미만"}) = ${res.loc.idx}`);
+  b.push(`<b>잔가율</b> ${year} − ${built} = 경과 ${Math.max(0,year-built)}년 → 1 − 0.9 × 경과 ÷ 내용연수 = ${rrShow}${remodel?(isSJ?` (리모델링 ${remodel}년 할증 반영)`:" (양도는 리모델링 할증 없음)"):""}`);
+  if(res.sIdx<100) b.push(`<b>지붕</b> ${basis.roof?`대장 "${escH(basis.roof)}" → `:""}조정률Ⅰ ${$("roof").value} (구조지수 100 미만이라 적용)`);
+  const rowB=res.lines.map((l,i)=>{ const r=rows[i]||{}; return `<li><b>${escH(r.label||r.floor||l.floor)}</b>: 용도 ${l.use}번 ${useName(l.use)} = ${l.u}${r.why?` (${escH(r.why)})`:""}${isSJ?` · 조정률: ${adjWhy(l,i,res)}`:""}</li>`; }).join("");
+  h+=`<div class="qbasis"><b>산출근거</b> · ㎡당 = 기준액 × 구조 × 용도 × 위치 × 잔가율${isSJ?" × 조정률":""} → 천원 미만 절사 → × 면적<ul>${b.map(x=>`<li>${x}</li>`).join("")}${rowB}</ul></div>`;
+  box.innerHTML=h;
 }
 
 function verify(ready, landVal, totSJ, nonresSJ, resShare){
@@ -417,10 +497,10 @@ function renderRef(){
 }
 
 // ---------- 저장/프리셋 ----------
-function save(){ try{ localStorage.setItem("ongyeol-gijunsiga-v1", JSON.stringify({mode, rows, f:collectFields()})); }catch(e){} }
-function collectFields(){ const o={}; ["evalDate","noticeYear","siteName","structure","lifeGroup","builtYear","remodelYear","topFloor","landPrice","landArea","roof","intel","housePrice","housePlot","apprVal","similarVal","deposit","rentYear"].forEach(k=>o[k]=$(k).value); return o; }
+function save(){ try{ localStorage.setItem("ongyeol-gijunsiga-v1", JSON.stringify({mode, rows, basis, f:collectFields()})); }catch(e){} }
+function collectFields(){ const o={}; ["evalDate","qAddr","noticeYear","siteName","structure","lifeGroup","builtYear","remodelYear","topFloor","landPrice","landArea","roof","intel","housePrice","housePlot","apprVal","similarVal","deposit","rentYear"].forEach(k=>o[k]=$(k).value); return o; }
 function applyFields(o){ Object.entries(o||{}).forEach(([k,v])=>{ if($(k)) $(k).value=v; }); }
-function load(){ try{ const s=JSON.parse(localStorage.getItem("ongyeol-gijunsiga-v1")||"null"); if(s){ mode=s.mode||"sj"; rows=s.rows||[]; applyFields(s.f); return true; } }catch(e){} return false; }
+function load(){ try{ const s=JSON.parse(localStorage.getItem("ongyeol-gijunsiga-v1")||"null"); if(s){ mode=s.mode||"sj"; rows=s.rows||[]; basis=s.basis||{}; applyFields(s.f); return true; } }catch(e){} return false; }
 const PRESETS = {
   1:{f:{evalDate:"2025-12-15",noticeYear:"2025",siteName:"서울 강남구 신사동 581-6 (근생, 1984)",structure:"4",builtYear:"1984",remodelYear:"",topFloor:"4",landPrice:"43440000",landArea:"74",roof:"1",intel:"0"},
      rows:[newRow({floor:"지하1층",use:41,area:54.12,ftype:"b1"}),newRow({floor:"1층",use:41,area:54.12,ftype:"shop1"}),newRow({floor:"2층",use:41,area:54.12,ftype:"shop2"}),newRow({floor:"3층",use:41,area:54.12}),newRow({floor:"4층",use:41,area:54.12})]},
@@ -428,7 +508,7 @@ const PRESETS = {
      rows:[newRow({floor:"지하1층",use:41,area:296.06,ftype:"b1"}),newRow({floor:"1층",use:41,area:241.95,ftype:"shop1"}),newRow({floor:"1층 주차",use:41,area:28.05,ftype:"park"}),
            newRow({floor:"2층",use:40,area:127.99,ftype:"shop2"}),newRow({floor:"2층",use:41,area:143.63,ftype:"shop2"}),newRow({floor:"3층",use:40,area:244.48}),newRow({floor:"4층",use:2,area:207.34,ftype:"res"})]}
 };
-function loadPreset(n){ const p=PRESETS[n]; $("lifeGroup").value=""; applyFields(p.f); ["housePrice","housePlot","apprVal","similarVal","deposit","rentYear"].forEach(k=>$(k).value=""); rows=p.rows.map(r=>({...r})); renderRows(); renderRef(); }
+function loadPreset(n){ const p=PRESETS[n]; basis={}; $("lifeGroup").value=""; applyFields(p.f); ["housePrice","housePlot","apprVal","similarVal","deposit","rentYear"].forEach(k=>$(k).value=""); rows=p.rows.map(r=>({...r})); renderRows(); renderRef(); }
 
 // ---------- 이벤트 ----------
 document.querySelectorAll(".mode button").forEach(b=>b.addEventListener("click",()=>{
@@ -439,7 +519,9 @@ $("rowsBody").addEventListener("click",e=>{ const d=e.target.dataset.del; if(d!=
 $("addRow").addEventListener("click",()=>{ rows.push(newRow()); renderRows(); });
 $("clearAll").addEventListener("click",()=>{ rows=[]; renderRows(); });
 ["noticeYear","structure","lifeGroup","builtYear","remodelYear","topFloor","landPrice","landArea","roof","intel","housePrice","housePlot","apprVal","similarVal","deposit","rentYear","siteName"].forEach(k=>$(k).addEventListener("input",()=>{ if(k==="noticeYear"){renderRows();renderRef();} else calc(); }));
-$("evalDate").addEventListener("input",()=>{ syncYear(); renderRows(); renderRef(); });
+$("evalDate").addEventListener("input",()=>{ $("qDate").value=$("evalDate").value; syncYear(); renderRows(); renderRef(); });
+$("qDate").addEventListener("input",()=>{ $("evalDate").value=$("qDate").value; syncYear(); renderRows(); renderRef(); });
+$("toggleDetail").addEventListener("click",()=>{ const d=$("detail"); d.hidden=!d.hidden; $("toggleDetail").textContent=d.hidden?"상세 입력·수정 열기 ▾":"상세 입력·수정 닫기 ▴"; });
 $("printBtn").addEventListener("click",()=>window.print());
 $("copyBtn").addEventListener("click",async()=>{
   const c=window.__calc; if(!c||!c.lines.length) return;
@@ -454,6 +536,7 @@ $("copyBtn").addEventListener("click",async()=>{
 
 buildSelects();
 if(!load()){ rows=[newRow()]; renderRows(); renderRef(); } else { document.querySelectorAll(".mode button").forEach(x=>{x.classList.toggle("on",x.dataset.mode===mode);x.setAttribute("aria-selected",x.dataset.mode===mode);}); renderRows(); renderRef(); }
+$("qDate").value=$("evalDate").value;
 
 // ═══════════ 지번 조회 → 자동 채움 (토지건물.html과 같은 경로: V-World + 클라우드플레어 프록시) ═══════════
 const API_BASE='https://api.vworld.kr';
@@ -512,7 +595,7 @@ const mapStructure=G.mapStructure, mapRoof=G.mapRoof, mapUse=G.mapUse;
 
 async function importByAddress(q){
   const st=$("apiStatus"), btn=$("apiGo"), key=getKey(); btn.disabled=true; st.className="status"; st.textContent="주소 검색 중… "+q;
-  const raw={}; const notes=[]; let fl=[];
+  const raw={}; const notes=[]; let fl=[]; basis={};
   try{
     const s=await searchPnu(q,key); raw.pnu=s.pnu; raw.addr=s.addr;
     st.textContent="토지특성·건축물대장 조회 중… (PNU "+s.pnu+")";
@@ -528,11 +611,12 @@ async function importByAddress(q){
     const lf=(landD&&landD.landCharacteristicss&&landD.landCharacteristicss.field)||[];
     const lc=pickYear(lf,evalYear);
     if(lc){ if(lc.lndpclAr) $("landArea").value=lc.lndpclAr;
-      if(lc.pblntfPclnd){ $("landPrice").value=lc.pblntfPclnd; notes.push(`공시지가 ${lc.stdrYear}년 ${fmt(+lc.pblntfPclnd)}원/㎡ 적용`+(String(lc.stdrYear)!==String(evalYear)?` (평가기준일 연도 ${evalYear} 자료 없음 → 최신 사용)`:"")); } }
+      if(lc.pblntfPclnd){ $("landPrice").value=lc.pblntfPclnd; basis.landYear=lc.stdrYear; notes.push(`공시지가 ${lc.stdrYear}년 ${fmt(+lc.pblntfPclnd)}원/㎡ 적용`+(String(lc.stdrYear)!==String(evalYear)?` (평가기준일 연도 ${evalYear} 자료 없음 → 최신 사용)`:"")); } }
     else notes.push("토지특성 조회 실패"+(landD&&landD.err?": "+landD.err:""));
     // 표제부
     const t=apiItems(titleD)[0];
     if(t){
+      basis.strct=t.strctCdNm||""; basis.roof=t.roofCdNm||"";
       const [sNo,sWhy]=mapStructure(t.strctCdNm); $("structure").value=String(sNo); notes.push(`구조 "${t.strctCdNm||""}" → ${sWhy}`);
       const lg=G.structGroup(sNo,t.strctCdNm); $("lifeGroup").value=lg!==GROUP_OF[sNo]?String(lg):"";
       if(t.useAprDay){ $("builtYear").value=String(t.useAprDay).slice(0,4); notes.push(`사용승인일 ${t.useAprDay} → 신축연도 ${String(t.useAprDay).slice(0,4)}`); }
@@ -550,8 +634,9 @@ async function importByAddress(q){
       const mainTxt=(t&&[t.mainPurpsCdNm,t.etcPurps].filter(Boolean).join(" "))||"";
       rows=fl.map(it=>{ const row=G.rowFromRegister({gb:it.flrGbCdNm, no:it.flrNo, name:it.flrNoNm, purps:[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" "), area:it.area, attach:it.mainAtchGbCdNm, strct:it.strctCdNm}, mainTxt, top, +(t&&t.totArea)||0);
         notes.push(`${it.flrNoNm||""} ${[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ")} ${it.area}㎡ → 용도 ${row.use}번 (${row.why}) · 층 특성 ${FLOORTYPE.find(f=>f[0]===row.ftype)[1]}`);
+        row.label=`${it.flrNoNm||""} ${it.etcPurps||it.mainPurpsCdNm||""}`.trim();
         return newRow(row); });
-      const dn=G.applyDandok(rows, mainTxt); if(dn) notes.push(dn);
+      const dn=G.applyDandok(rows, mainTxt); if(dn){ notes.push(dn); basis.dandok=true; }
       renderRows();
     } else notes.push("층별개요 없음"+(flrD&&flrD.err?": "+flrD.err:""));
     // 개별주택가격 (필드명이 서비스마다 달라 가격으로 보이는 값을 탐색)
@@ -568,5 +653,16 @@ async function importByAddress(q){
 }
 $("apiGo").addEventListener("click",()=>{ const q=$("apiQuery").value.trim(); if(!q){ alert("지번 주소를 입력하세요"); return; } importByAddress(q); });
 $("apiQuery").addEventListener("keydown",e=>{ if(e.key==="Enter") $("apiGo").click(); });
+// 간편 계산: 평가기준일 + 소재지 → 지번 조회 → 결과 표
+$("qGo").addEventListener("click",async()=>{
+  const q=$("qAddr").value.trim(), st=$("qStatus");
+  if(!$("qDate").value){ alert("상속·증여일(평가기준일)을 넣어 주세요"); return; }
+  if(!q){ alert("소재지(지번 주소)를 넣어 주세요"); return; }
+  $("evalDate").value=$("qDate").value; syncYear(); renderRef();
+  $("apiQuery").value=q; st.className="status"; st.textContent="건축물대장·공시지가 불러오는 중…"; $("qGo").disabled=true;
+  try{ await importByAddress(q); const a=$("apiStatus"); st.className=a.className; st.textContent=a.textContent; }
+  finally{ $("qGo").disabled=false; }
+});
+$("qAddr").addEventListener("keydown",e=>{ if(e.key==="Enter") $("qGo").click(); });
 
 </script>
