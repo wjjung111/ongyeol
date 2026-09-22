@@ -47,7 +47,7 @@
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
   <script src="arap_jiphap_parcels.js"></script>
   <script src="arap_multi_hwpx.js"></script>
-  <script src="arap_multi_documents.js"></script>
+  <script src="arap_multi_myeongse.js"></script><!-- 여러 호수 명세표(xlsx, 시트 1개 한 장) — 단일호수 명세표 템플릿 서식을 빌려 씀 -->
   <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
   <style>
     /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
@@ -2355,20 +2355,19 @@ function insertSheetRows(xml,at,count,blankFn){
   const joined=arr.map(o=>o.x).join("");
   return xml.replace(/(<sheetData>)[\s\S]*?(<\/sheetData>)/,(m,a,b)=>a+joined+b);
 }
-async function downloadMyeongseXlsx(ov,totalAmount,options={}){
+async function downloadMyeongseXlsx(ov,totalAmount){
   // 시산가액 미결정 상태에서도 다운로드 허용 — 금액칸은 비거나 0으로 채워짐(평가사가 나중에 수기 입력)
-  if(!options.returnEntries&&!(ov.floorDetail||"").trim()){
+  if(!(ov.floorDetail||"").trim()){
     if(!confirm("층별면적(명세표용)이 비어 있습니다.\n등기 PDF를 다시 인식하거나 ① 물건정보에서 직접 입력하면 채워집니다.\n층별면적 없이 계속할까요?"))return;
   }
   {const st=(ov.regStructure||ov.structure||"").trim();
-    if(!options.returnEntries&&st&&!/지붕|슬래브|슬라브/.test(st)){
+    if(st&&!/지붕|슬래브|슬라브/.test(st)){
       if(!confirm(`명세표 구조란: "${st}"\n'지붕'(또는 슬래브) 단어가 없습니다 — 등기 표제부 건물내역에서 지붕 부분이 빠졌을 수 있습니다.\n① 물건정보의 '등기 표제부 건물내역' 칸을 확인해주세요.\n그대로 계속할까요?`))return;
     }
   }
   const fdLines=(ov.floorDetail||"").split("\n").map(s=>s.trim()).filter(Boolean);
   // 층별면적은 6줄 초과 시 자동으로 행이 추가됨(아래 floorOff 처리) — 묶지 않고 층별로 다 기입 가능
   const _mpN=(Array.isArray(ov.landParcels)?ov.landParcels.filter(p=>p&&p.jibun).length:0);
-  if(_mpN>12&&options.returnEntries)throw new Error("명세표는 호별 12필지까지 지원합니다.");
   if(_mpN>12&&!confirm("대지권 토지가 "+_mpN+"필지입니다. 명세표엔 12필지까지만 들어갑니다.\n앞 12필지만 표기하고 계속할까요? (나머지는 엑셀에서 수기 추가)"))return;
   const bin=atob(MYEONGSE_TPL_B64);
   const buf=new ArrayBuffer(bin.length);
@@ -2377,7 +2376,6 @@ async function downloadMyeongseXlsx(ov,totalAmount,options={}){
   const entries=await parseZip(buf);
   if(!entries.length){alert("명세표 템플릿 파싱 실패");return;}
   const {cells,parcels,annex}=buildMyeongseCellMap(ov,totalAmount);
-  Object.assign(cells,options.cells||{});
   const annexRows=annex?(annex.share?2:1):0;         // 부속면적 줄: 지분평가면 2행 끼움(분자 / "9.09 ×----", 분모는 기존 '공용면적' 줄에), 아니면 1행
   const nMS=Math.min(parcels.length,12);           // 명세표 필지수(행삽입으로 최대 12까지 수용)
   const deltaMS=nMS>3?2*(nMS-3)-1:0;               // 4필지 이상이면 건물란을 아래로 미는 행수(필지 사이 빈 행 유지)
@@ -2452,7 +2450,6 @@ async function downloadMyeongseXlsx(ov,totalAmount,options={}){
     }
     outEntries.push(e);
   }
-  if(options.returnEntries)return outEntries;
   const zipBuf=createZipStored(outEntries);
   const blob=new Blob([zipBuf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   const url=URL.createObjectURL(blob);
@@ -2884,7 +2881,7 @@ async function downloadYohangHwpx(ov){
     triggerDownload(createZipStored(entries),`3. 요항표_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('요항표 hwpx 생성 실패',e);alert("요항표 생성 실패: "+e.message);}
 }
-window.ArapSingleDocuments={downloadMyeongseXlsx,YOHANG_TPL_B64,buildYohangTokenMap,expandYohangPara};
+window.ArapSingleDocuments={MYEONGSE_TPL_B64};  // 여러호수 명세표(arap_multi_myeongse.js)가 같은 xlsx 템플릿을 쓴다
 try{window.buildEvalHwpxV2=buildEvalHwpxV2;window.buildV2TokenMap=buildV2TokenMap;window.buildCheongguTokenMap=buildCheongguTokenMap;window.buildTokenHwpx=buildTokenHwpx;window.V2CHEONGGU_TPL_B64=V2CHEONGGU_TPL_B64;window.V2CHEONGGU_BLUE2BLACK=V2CHEONGGU_BLUE2BLACK;}catch(e){console.error('v2 엔진 전역 노출 실패',e);}
 
 // [v2.0] 대표 샘플 건 — 압구정동 현대아파트 (처음 방문자에게 자동 로드되는 예시. 지수·사례 일부는 예시값)
@@ -4996,8 +4993,10 @@ function Step2({ov,setOv,propType,setPropType}){
       <F label="등기 표제부 건물내역" value={ov.regStructure||""} onChange={v=>u("regStructure",v)}/>
       <label>층별면적(명세표용)<textarea aria-label="층별면적(명세표용)" style={{...S.inp,width:"100%",minHeight:70}} value={ov.floorDetail||""} onChange={e=>u("floorDetail",e.target.value)} placeholder={"1층 100.00\n2층 100.00"}/></label>
       {(ov.landParcels||[]).map((p,i)=><F key={i} label={"필지 "+p.jibun+" 면적(㎡)"} value={p.area??""} onChange={v=>u("landParcels",ov.landParcels.map((x,j)=>j===i?{...x,area:v}:x))}/>)}
-      {(ov.units||[]).map((unit,i)=><details key={unit.id||i} style={{marginTop:8}}><summary>기호 {"가나다라마바사아자차카타파하"[i]||i+1} · 호별 명세표 정보</summary>
-        {[['regStructure','등기 표제부 건물내역'],['floorDetail','층별면적'],['landRatioDenom','대지권비율 분모']].map(([key,label])=><label key={key} style={{display:"block",marginTop:6}}>{label}<textarea aria-label={label+" "+(i+1)} style={{...S.inp,width:"100%"}} value={unit[key]||""} placeholder={key==="landRatioDenom"?"등기에 기재된 분모": "공통 입력값 사용"} onChange={e=>u("units",ov.units.map((x,j)=>j===i?{...x,[key]:e.target.value}:x))}/></label>)}
+      <F label="대지권비율 분모(등기)" value={ov.landRatioDenom||""} onChange={v=>u("landRatioDenom",v)} placeholder="예: 1064.5 — 비우면 대지권 토지 면적 합"/>
+      <div style={{fontSize:11,color:"#666",marginTop:6}}>※ 명세표는 시트 1개 한 장으로 나옵니다. 위 건물내역·층별면적·분모는 모든 호수에 공통. <b>동이 다른 호수</b>가 섞여 있을 때만 아래에서 그 호수의 동 값을 따로 적으세요(동마다 「1동의 건물 표시」를 다시 씁니다).</div>
+      {(ov.units||[]).map((unit,i)=><details key={unit.id||i} style={{marginTop:6}}><summary style={{fontSize:12,cursor:"pointer"}}>기호 {symbolFor(i)} {[unit.dong?`제${String(unit.dong).replace(/^제|동$/g,"")}동`:"",unit.ho?`${String(unit.ho).replace(/^제|호$/g,"")}호`:""].filter(Boolean).join(" ")} · 동이 다를 때 따로 입력</summary>
+        {[['regStructure','등기 표제부 건물내역'],['floorDetail','층별면적'],['landRatioDenom','대지권비율 분모']].map(([key,label])=><label key={key} style={{display:"block",marginTop:6,fontSize:12}}>{label}<textarea aria-label={label+" "+(i+1)} style={{...S.inp,width:"100%",minHeight:key==="floorDetail"?60:28}} value={unit[key]||""} placeholder="비우면 공통값" onChange={e=>u("units",ov.units.map((x,j)=>j===i?{...x,[key]:e.target.value}:x))}/></label>)}
       </details>)}
     </div>
     {/* 토지이용계획 (의견서 개황표 '토지이용계획 및 공법상 제한사항' 칸) */}
@@ -6547,12 +6546,17 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     const bm=String(ov.feeBasis||"").match(/하한|기준|상한/);if(bm)setFeeBasis(bm[0]);
   },[ov.feeDownPayment,ov.feeSpecial,ov.feeBasis]);
 
-  const doMultiDocument=async(kind)=>{
+  // 여러 호수 명세표(xlsx) — 시트 1개, 호수 블록이 아래로 이어지는 한 장 형식(arap_multi_myeongse.js)
+  const doMultiMyeongse=async()=>{
+    const grp=(ov.units||[]).filter(u=>u&&(u.dong||u.floor||u.ho||pNum(u.area)>0));
+    if(!(ov.floorDetail||"").trim()&&!grp.some(u=>(u.floorDetail||"").trim())){
+      if(!confirm("층별면적(명세표용)이 비어 있습니다.\n② 대상물건개요의 「요항표·명세표 입력」에서 등기 표제부 층별면적을 넣으면 채워집니다.\n층별면적 없이 계속할까요?"))return;
+    }
     setDownloading(true);
     try{
-      const result=await ArapMultiDocuments[kind]({ov,cases,uD,uM,tD,tM},{applyR,getUV,parseTimeAdjDetail,numberToKoreanMoney,assembleToice,parseZip,createZipStored});
-      triggerDownload(result.bytes,`${kind==="yohang"?"3. 요항표":"2. 명세표"}_${ov.client||"의뢰인"}.${kind==="yohang"?"hwpx":"xlsx"}`);
-    }catch(e){console.error(e);alert("파일 생성 실패: "+e.message);}finally{setDownloading(false);}
+      const result=await ArapMultiMyeongse.build({ov,cases,uD,uM,tD,tM},{applyR,getUV,parseZip,createZipStored});
+      triggerDownload(result.bytes,`2. 명세표_${ov.client||"의뢰인"}.xlsx`);
+    }catch(e){console.error(e);alert("명세표 생성 실패: "+e.message);}finally{setDownloading(false);}
   };
   const doMultiHwpx=async(mode)=>{
     if(propType!=="주거용"){alert("이 한글 템플릿은 주거용입니다. 비주거용은 워드 의견서를 이용하세요.");return;}
@@ -6616,8 +6620,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     {<>
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
       <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("full")}>표지/괄감/의견서</button>
-      <button style={{...S.btn,background:saved?"#0891b2":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading} onClick={()=>doMultiDocument("yohang")}>요항표</button>
-      <button style={{...S.btn,background:saved?"#64748b":"#cbd5e1",color:"#fff",fontSize:13,padding:"9px 16px"}} disabled={!saved||downloading} onClick={()=>doMultiDocument("myeongse")}>명세표(excel)</button>
+      <button style={{...S.btn,background:saved?"#64748b":"#cbd5e1",color:"#fff",fontSize:13,padding:"9px 16px"}} disabled={!saved||downloading} onClick={doMultiMyeongse} title="시트 1개 · 가·나·다… 호수 블록이 아래로 이어지는 한 장 명세표">명세표(excel)</button>
       {downloading&&<span role="status">파일 생성 중…</span>}
     </div>
     {/* 물건 유형 선택 (주거용/비주거용) */}
