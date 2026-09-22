@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>gjs test</title><pre id="o"></pre><script>
+<!-- 기준시가 엔진 테스트 러너: Node 없는 PC용. 저장소 폴더를 로컬 서버로 열고(python -m http.server) /tests/run.html 접속. ?soft 붙이면 실패해도 끝까지 돌며 FAIL 목록 출력 -->
+(async()=>{const o=document.getElementById('o');const log=(...a)=>o.textContent+=a.join(' ')+'\n';
+try{
+const files={};for(const f of ['arap_gijunsiga.js','tests/gijunsiga.cjs'])files[f]=await (await fetch('../'+f+'?'+Date.now())).text();
+function eq(a,b,m){if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((m||'')+' expected '+JSON.stringify(b)+' got '+JSON.stringify(a));}
+const assert={equal:(a,b,m)=>{if(a!==b)throw new Error((m||'')+' expected '+b+' got '+a)},deepEqual:eq,ok:(v,m)=>{if(!v)throw new Error(m)}};
+const mods={fs:{readFileSync:p=>files[p.replace(/^.*?(arap_gijunsiga\.js)$/,'$1')]},vm:{createContext:c=>c,runInContext:(src,c)=>{new Function('window',src)(c.window)}},'node:assert/strict':assert,path:{join:(...a)=>a.join('/')}};
+const soft=location.search.includes('soft');
+let src=files['tests/gijunsiga.cjs'];
+if(soft)src=src.replace(/^check\((.*)\);$/gm,'try{check($1);}catch(e){console.log("FAIL "+e.message)}').replace(/^assert\.equal\((.*)\);$/gm,'try{assert.equal($1);}catch(e){console.log("FAIL "+e.message)}');
+const console={log:log};
+new Function('require','__dirname','console',src)(n=>mods[n],'.',console);
+}catch(e){log('ERROR',e.message)}
+log('DONE');})();
+</script>
