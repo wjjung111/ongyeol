@@ -39,10 +39,10 @@ const u0=r5.unitRows[0].row;   // 첫 호수 블록: (내) / 기호행 / 구조2
 assert.equal(c['F'+(u0-1)],'(내)');
 assert.deepEqual([c['B'+u0],c['F'+u0],c['G'+u0],c['H'+u0],c['I'+u0],c['J'+u0]],['가','철근콘크리트구조','29.983','=+G'+u0,r5.model.amounts[0],'비준가액']);
 assert.deepEqual([c['F'+(u0+1)],c['J'+(u0+1)],c['F'+(u0+2)],c['J'+(u0+2)]],['(철근)콘크리트지붕','(공용면적','제3층 제302호','포함)']);
-assert.deepEqual([c['F'+(u0+3)],c['G'+(u0+3)],c['H'+(u0+3)],c['G'+(u0+4)]],['1,2 소유권/대지권','12.23',12.23,'/1064.5']);   // 분모 1064.5 = 토지 합 → 사정 대지권 = 분자
-assert.equal(r5.unitRows[1].row-u0,7);                      // 호수 블록 7행 간격
+assert.deepEqual([c['F'+(u0+3)],c['G'+(u0+3)],c['G'+(u0+4)],c['H'+(u0+4)],c['G'+(u0+5)]],['1, 2 소유권 대지권','12.23','=+G'+(u0+5)+'&" ×----"',12.23,'1064.5']);   // 단일호수 원본과 같은 3줄. 분모 1064.5 = 토지 합 → 사정 = 분자
+assert.equal(r5.unitRows[1].row-u0,8);                      // 호수 블록 8행 간격((내)·기호·구조2·층호·분자·산식·분모·빈줄)
 assert.equal(c['F'+(r5.unitRows[4].row+2)],'제8층 제801호');
-assert.equal(c['C'+r5.totalRow],'합  계');assert.equal(c['I'+r5.totalRow],'=SUM(I11:I'+(r5.totalRow-8)+')');
+assert.equal(c['C'+r5.totalRow],'합  계');assert.equal(c['I'+r5.totalRow],'=SUM(I11:I'+(r5.totalRow-8)+')');assert.equal(r5.totalRow-8,r5.unitRows[4].row+6);
 assert.equal(r5.model.total,r5.model.amounts.reduce((a,b)=>a+b,0));assert.ok(r5.model.amounts.every(a=>a>0));
 assert.equal(r5.braces,5);assert.equal(new Set(r5.ids).size,r5.ids.length);   // 중괄호 도형 호수마다 1개, 도형 id 중복 없음
 assert.equal(r5.printArea,'Sheet2!$B$3:$J$'+r5.last);assert.equal(r5.printTitles,'Sheet2!$3:$9');assert.equal(r5.dim,'B3:J'+r5.last);
@@ -56,9 +56,9 @@ const r2=await sheetOf(inp2);fs.writeFileSync(path.join(out,'mixed.xlsx'),Buffer
 assert.deepEqual([k.F23,k.G23],['7층','100.00']);                   // 7번째 층 행이 늘어남
 const v1=r2.unitRows[1].row;assert.equal(k['H'+v1],15);                // 사정면적 직접 값
 const v2=r2.unitRows[2].row;assert.equal(k['I'+v2],undefined);assert.equal(r2.model.amounts[2],null);assert.equal(r2.model.total,null); // 사례 없는 호는 금액 빈칸
-assert.equal(k['G'+(r2.unitRows[0].row+4)],'/1064.5');                 // 분모 없으면 토지 면적 합
+assert.equal(k['G'+(r2.unitRows[0].row+5)],'1064.5');                    // 분모 없으면 토지 면적 합
 const v3=r2.unitRows[3].row;assert.equal(k['F'+v3],'벽돌조');assert.equal(k['B'+v3],'라');
-assert.equal(k['G'+(v3+3)],undefined);assert.equal(r2.unitRows[4].row-v3,5); // 대지권 없는 호는 대지권 2행 생략
+assert.equal(k['G'+(v3+3)],undefined);assert.equal(r2.unitRows[4].row-v3,5); // 대지권 없는 호는 대지권 3행 생략
 const dongRows=Object.entries(k).filter(([ref,v])=>v==='제102동'||v==='제101동');assert.equal(dongRows.length,2); // 동 2개 → 1동 표시 2번
 assert.equal(r2.braces,4);   // 대지권 없는 '라'는 중괄호 없음
 console.log('PASS 혼합 입력(사정면적·분모 없음·미완료·동 2개·층 7줄): 행',r2.last);

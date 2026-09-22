@@ -2,7 +2,7 @@
  * 단일호수 명세표 템플릿(MYEONGSE_TPL_B64, s3r86w8a.html)의 행 서식을 그대로 빌려 아래 순서로 행을 쌓는다.
  *   [1동의 건물 표시] 소재지·지번(외 N필지·건물명·제N동)·용도·구조·층수 / [도로명주소]·층별면적
  *   [대지권의 목적인 토지] 필지마다 한 줄(한 줄 띄움) — F열에 용도지역
- *   [호수 블록 반복] (내) / 기호·구조·전유(공부·사정)·감정평가액·비준가액 / 층호·(공용면적 / 포함) / 1,2 소유권/대지권 분자·사정 / "/분모"
+ *   [호수 블록 반복] (내) / 기호·구조·전유(공부·사정)·감정평가액·비준가액 / 층호·(공용면적 / 포함) / 대지권 3줄(단일호수 원본과 같게: 「1 소유권 대지권」 분자 / 「분모 ×----」 산식·사정 / 분모)
  *   [합계] SUM / 이하여백
  * 동이 다른 호수가 섞이면 동마다 [1동의 건물 표시]+[토지]를 다시 쓴다.
  * 호별 금액은 화면·한글과 같은 ArapMultiHwpx.calculateUnit 결과(결정단가×사정면적, 반올림 설정 적용)를 쓴다. */
@@ -93,7 +93,7 @@ function render(entries,m,h){
   m.parcels.forEach((p,k)=>{if(k)push(26);push(25,{B:k+1,C:'동소',D:p.jibun,E:'대',F:txt(m.ov.zoning),G:p.area==null?'':p.area});});
   push(30);
   /* [호수 블록] */
-  const denom=gr.landRatioDenom,np=m.parcels.length,label=np?(np>=3?'1~'+np:Array.from({length:np},(_,k)=>k+1).join(','))+' 소유권/대지권':'소유권/대지권';
+  const denom=gr.landRatioDenom,np=m.parcels.length,label=np?(np>=3?'1~'+np:Array.from({length:np},(_,k)=>k+1).join(', '))+' 소유권 대지권':'소유권 대지권';   // 단일호수와 같은 표기(1 / 1, 2 / 1~N)
   for(const {u,i} of gr.units){
    const row=m.rows[i];
    push(31,{F:'(내)'});
@@ -105,11 +105,13 @@ function render(entries,m,h){
    if(row.landArea!=null){
     const dec_=Math.max(2,(String(u.landArea||'').split('.')[1]||'').length);
     const adj=denom&&m.landTot?roundArea(m.landTot*row.landArea/denom,dec_,m.ov.areaRound||'round'):row.landArea;
-    r4=push(37,{F:label,G:row.landText,H:adj});
-    push(39,{G:'/'+(denom||m.landTot||'')});
+    // 단일호수 템플릿 37~39행 그대로: 분자 / 「분모 ×----」(수식)·사정 / 분모
+    push(37,{F:label,G:row.landText});
+    r4=push(38,{G:'=+G'+(r+1)+'&" ×----"',H:adj});
+    push(39,{G:denom!=null?String(denom):m.landTot?String(Number(m.landTot.toFixed(4))):''});   // 문자열로 — 셀서식(#,##0)이 1064.5를 1,065로 보이게 하므로
    }
    push(40);
-   if(r4)braces.push([r1,r4]);unitRows.push({symbol:row.symbol,row:r1});   // 중괄호는 전유행~대지권행(대지권 없는 호는 생략)
+   if(r4)braces.push([r1,r4]);unitRows.push({symbol:row.symbol,row:r1});   // 중괄호는 전유행~대지권 산식행(원본과 같음, 대지권 없는 호는 생략)
   }
  }
  const lastAmount=r-1;for(let k=41;k<=47;k++)push(k);
