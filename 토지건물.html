@@ -142,7 +142,9 @@
   .jud-c{background:#fff9e6;}
   .calc-c input{color:#0f2547;font-weight:700;}
   /* 묶기(일단지) — 여러 필지의 사정면적을 한 칸으로 합쳐 보여주는 셀 */
-  td.grp-c{text-align:center;vertical-align:middle;border-left:3px solid #dc2626;}
+  td.grp-c{position:relative;text-align:center;vertical-align:middle;}
+  /* 필지들을 하나로 묶는 ] 꺾쇠 — 세로줄 + 위아래 팔이 공부면적 칸 쪽(왼쪽)으로 뻗는다 */
+  .grp-br{position:absolute;z-index:2;left:-18px;top:5px;bottom:5px;width:17px;border:3px solid #dc2626;border-left:none;border-radius:0 4px 4px 0;pointer-events:none;}
   .grp-lab{font-size:10px;color:#b91c1c;font-weight:700;margin-bottom:2px;}
   input.grp-in{width:78%;text-align:center;font-weight:700;font-size:13px;}
   /* 거래사례 열별 붙여넣기 칸 (kais붙여넣기) — 작게, 한 줄 */
@@ -1131,7 +1133,7 @@ function renderLands(){
         // 묶기(일단지) — 사정면적 칸을 필지 수만큼 세로로 합친 한 칸으로 (첫 행에서만 그린다)
         if(group)
           return gongbuCell+(i?'':'<td class="jud-c grp-c" rowspan="'+LANDS.length+'" title="'+GROUP_TITLE+'">'
-            +'<div class="grp-lab">일단지 묶음</div>'
+            +'<span class="grp-br"></span><div class="grp-lab">일단지 묶음</div>'
             +'<input class="grp-in" value="'+esc(GROUP_AREA)+'" placeholder="'+fmtArea(landGongbuSum())+'"'
             +' oninput="GROUP_AREA=this.value;landChanged();">㎡</td>');
         return gongbuCell
