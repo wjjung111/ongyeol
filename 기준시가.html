@@ -256,60 +256,12 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
   이 계산은 보충적 평가액(기준시가)이며, 시가(매매·감정·수용 등)가 있으면 시가가 우선합니다.
 </footer>
 
+<script src="arap_gijunsiga.js"></script>
 <script>
-// ---------- 고시 데이터 ----------
-const BASE = {2025: 850000, 2026: 860000};
-const STRUCT = [
-  [1,"통나무조",135],[2,"목구조",120],[3,"철골(철골철근)콘크리트조",110],
-  [4,"철근콘크리트조·석조·PC조·목조·라멘조·ALC조·스틸하우스조",100],
-  [5,"연와조·철골조·보강콘크리트조·보강블록조",95],[6,"시멘트벽돌조·황토조·시멘트블록조·와이어패널조",90],
-  [7,"철골조 중 조립식패널(EPS)",85],[8,"조립식패널조",80],[9,"경량철골조",79],
-  [10,"석회·흙벽돌조, 돌담·토담조",60],[11,"철파이프조·컨테이너건물",59]];
-const STRUCT_OVR = {2026:{2:115}};
-// 잔가율 그룹: 내용연수
-const GROUP_OF = {1:1,2:1,3:1,4:1,5:2,6:2,7:2,8:3,9:3,10:3,11:4};
-const LIFE = {1:50,2:40,3:30,4:20};
-// 목구조는 Ⅰ그룹, 목조는 Ⅱ그룹이나 구조지수 행 4에 함께 있어 여기서는 행4=Ⅰ그룹으로 둠(목조·ALC조·스틸하우스조 선택 시 아래 그룹 override)
-const USE = [
-  ["Ⅰ 주거용",[[1,"아파트",110],[2,"단독·다중·다가구·연립·다세대·기숙사·도시형생활주택",100]]],
-  ["숙박시설",[[3,"관광호텔(5성·4성)",140],[4,"호텔·관광호텔(3성이하)·가족호텔·호스텔·콘도·펜션·생활숙박시설",130],[5,"외국인관광 도시민박·한옥체험시설",120],[6,"여관(모텔 포함)",112],[7,"다중생활시설(근생 해당분 제외)",105],[8,"여인숙",100]]],
-  ["판매시설",[[9,"백화점",135],[10,"대형마트·전문점(3,000㎡↑)·쇼핑센터·복합쇼핑몰·기타 대규모점포",125],[11,"일반상점(1,000~3,000㎡)·기타 판매 및 영업시설",95],[12,"도매시장·전통시장·공판장·경매장",85]]],
-  ["운수·위락",[[13,"여객터미널·철도·공항·항만시설",120],[14,"무도장",140],[15,"유흥주점·카지노",130],[16,"유원시설업(테마파크) 시설",120],[17,"단란주점(풍속영업 제외)",115],[18,"무도학원",90]]],
-  ["문화·집회·종교·운동",[[19,"집회장(장외발매소·전화투표소)",130],[20,"예식장·공연장·집회장(근생 제외)",115],[21,"동물원·식물원·수족관·전시장",110],[22,"관람장(경마장·경기장 등 1,000㎡↑)",105],[23,"종교시설(근생 제외)",100],[24,"골프장·스키장·수영장·볼링장·종합체육시설",125],[25,"기타 체육시설",105]]],
-  ["의료·업무·방송·관광휴게",[[26,"종합병원",125],[27,"일반·치과·한방·정신·요양병원",110],[28,"오피스텔",135],[29,"사무소·금융업소 등 업무시설(근생 제외)",115],[30,"방송국·촬영소·전신전화국·통신용시설",110],[31,"야외음악당·휴게소·공원·관광지 부수시설",110]]],
-  ["교육·노유자·수련",[[32,"학원·교습소(근생 제외)",107],[33,"학교·교육원·직업훈련소·연구소·도서관",100],[34,"아동·노인복지·사회복지·근로복지시설",109],[35,"고아원·양로원·경로당 등",83],[36,"청소년수련시설",110]]],
-  ["근린생활시설",[[37,"목욕장 3,000㎡↑",130],[38,"목욕장 1,000~3,000㎡",115],[39,"목욕장 1,000㎡ 미만",110],[40,"풍속영업시설(단란주점150㎡↓·PC방500㎡↑·게임제공업·복합유통게임·노래연습장·안마시술소·비디오감상실)",105],[41,"제1종·제2종 근린생활시설 일반(소매점·음식점·의원·사무소·학원·PC방500㎡↓·기타)",95]]],
-  ["묘지·장례",[[42,"화장시설·봉안당·묘지 부속건축물",130],[43,"동물화장·동물납골시설",105],[44,"장례식장",115],[45,"동물 전용 장례식장",105]]],
-  ["Ⅲ 공장·발전·창고",[[46,"지식산업센터(아파트형공장)",115],[47,"냉동공장·반도체·평면디스플레이 공장",100],[48,"기타 공장",78],[49,"원자력 발전시설",300],[50,"발전소",90],[51,"냉동·냉장창고",105],[52,"일반창고·하역장·물류터미널·집배송시설",75]]],
-  ["위험물·자원순환·자동차·동식물",[[53,"주유소·가스충전소·위험물저장처리시설",90],[54,"하수처리·고물상·폐기물시설",80],[55,"자동차매매장·운전학원·정비학원",75],[56,"세차장·폐차장·검사장·정비공장·차고",67],[57,"주차장(자주식 주차전용빌딩)·전기차충전소(근생 제외)",60],[58,"가축용운동시설·관리사·동물검역소 등",70],[59,"축사·가축시설·도축장·작물재배사",55],[60,"온실·기타 식물관련시설",50]]]
-];
-const USE_OVR = {2026:{33:102,35:85}};
-const LOC = [
-  [20000,78],[30000,83],[50000,85],[70000,86],[100000,87],[130000,88],[150000,89],[180000,90],[200000,91],[300000,92],
-  [350000,93],[500000,94],[650000,97],[800000,100],[1000000,102],[1200000,105],[1600000,108],[2000000,111],[2500000,114],
-  [3000000,116],[3500000,118],[4000000,120],[4500000,122],[5000000,124],[5500000,126],[6000000,128],[7000000,130],[8000000,132],
-  [9000000,134],[10000000,137],[15000000,140],[20000000,143],[25000000,146],[30000000,149],[35000000,152],[40000000,155],
-  [45000000,158],[50000000,161],[55000000,164],[60000000,167],[65000000,170],[70000000,173],[75000000,176],[80000000,179],[Infinity,182]];
-const LOC_OVR = {2026:{15:104,16:106,17:108}}; // index in LOC array (0-based): 16번=15, 17번=16, 18번=17
-const FLOORTYPE = [
-  ["none","일반 (조정 없음)",1,false],
-  ["shop1","상가 1층 (120)",1.2,false],
-  ["shop2","상가 2층 (105)",1.05,false],
-  ["b1","지하1층 · 최고층수 5층 이하 (80)",0.8,false],
-  ["b2","지하2층 이상 · 최고층수 5층 이하 (70)",0.7,false],
-  ["park","부속 주차장·기계실·보일러실·옥탑·물탱크실 (60)",0.6,false],
-  ["res","주거용 · 다가구·다중·기숙사·도시형 (Ⅱ·Ⅲ 미적용)",1,true],
-  ["res_s1","주거용 · 단독주택 연면적 264~331㎡ (120)",1.2,true],
-  ["res_s2","주거용 · 단독주택 연면적 331㎡↑ (140)",1.4,true],
-  ["res_c1","주거용 · 공동주택 전유 149~215㎡ (120)",1.2,true],
-  ["res_c2","주거용 · 공동주택 전유 215㎡↑ (140)",1.4,true],
-  ["apt","주거용 · 아파트 (최고층수 조정만)",1,true],
-  ["res_att","주거용 부속 · 옥탑·계단실·기계실 (60)",0.6,true],
-  ["shed","주택 간이부속건물 · 창고·화장실 (60)",0.6,true]];
-const EXTRA = [
-  ["1","없음",1],["1.1","일부개축 1회 (110)",1.1],["1.2","일부개축 2회↑ (120)",1.2],
-  ["0.8","무벽 1/4~2/4 (80)",0.8],["0.7","무벽 2/4~3/4 (70)",0.7],["0.6","무벽 3/4↑ (60)",0.6],
-  ["0.9","안전진단 B급 (90)",0.9],["0.8b","안전진단 C급 (80)",0.8],["0.6b","안전진단 D급 (60)",0.6],["0.3","안전진단 E급·철거대상 사용중 (30)",0.3],["0","철거대상 미사용 (0)",0]];
+// ---------- 고시 데이터: arap_gijunsiga.js(단일 엔진)에서 가져옴 ----------
+const G = window.ArapGijunsiga;
+const {BASE, STRUCT, GROUP_OF, LIFE, USE, USE_OVR, LOC, LOC_OVR, FLOORTYPE, EXTRA} = G;
+const structIdx=G.structIdx, useIdx=G.useIdx, locIdx=G.locIdx, residual=G.residual, floorK=G.floorK;
 
 // ---------- 상태 ----------
 let mode = "sj";
@@ -317,20 +269,6 @@ let rows = [];
 const $ = id => document.getElementById(id);
 const fmt = n => Math.round(n).toLocaleString("ko-KR");
 const won = n => fmt(n) + "원";
-const floorK = x => Math.floor(x/1000)*1000;
-
-function structIdx(year, no){ return (STRUCT_OVR[year]&&STRUCT_OVR[year][no]) ?? STRUCT.find(s=>s[0]===no)[2]; }
-function useIdx(year, no){ for(const g of USE) for(const u of g[1]) if(u[0]===no) return (USE_OVR[year]&&USE_OVR[year][no]) ?? u[2]; return 100; }
-function locIdx(year, price){
-  if(!(price>0)) return null;
-  for(let i=0;i<LOC.length;i++){ if(price<LOC[i][0]){ const v=(LOC_OVR[year]&&LOC_OVR[year][i]) ?? LOC[i][1]; return {no:i+1, idx:v, lo:i?LOC[i-1][0]:0, hi:LOC[i][0]}; } }
-}
-function residual(year, built, group, remodel){
-  const N=LIFE[group]; if(!(built>0)) return null;
-  let n = year - built; if(n<=0) return 1;
-  if(remodel>built && remodel<=year){ const nn=remodel-built; const eff=n-0.3*nn; if(eff>N) return 0.1; return Math.max(0.1, 1-0.9*eff/N); }
-  return n>=N ? 0.1 : +(1-0.9*n/N).toFixed(4);
-}
 
 // ---------- 초기화 ----------
 function buildSelects(){
@@ -367,53 +305,18 @@ function renderRows(){
 // ---------- 계산 ----------
 function calc(){
   const year=+$("noticeYear").value;
-  const base=BASE[year];
-  const sNo=+$("structure").value; const sIdx=structIdx(year,sNo);
-  let group=GROUP_OF[sNo];
-  const built=+$("builtYear").value; const remodel=+$("remodelYear").value||0;
-  const top=+$("topFloor").value||0;
-  const land=+$("landPrice").value; const loc=locIdx(year,land);
-  const rr=residual(year,built,group,remodel);
-  const roof=+$("roof").value; const intel=+$("intel").value;
-
-  // 조정률 Ⅱ (건물 단위): 층수·연면적·인텔리전트 중 최고 하나
-  const areaAll = rows.reduce((a,r)=>a+(+r.area||0),0);
-  const fIdx = top<=0?null: top<=5?0.9: top<=10?1.0: top<=15?1.1: top<=20?1.2:1.3;
-  const areaIdx = a => a<1000?0.9: a<5000?1.0: a<10000?1.1: a<50000?1.2:1.3;
-  // 부분별 면적: 비주거 본체 / 부속(주차장·기계실 등) — 조정률Ⅱ 연면적은 해당 부분 면적으로 판단(국세청 해설서 계산사례 p.68~69 방식)
-  let nonArea=0, attArea=0;
-  rows.forEach(r=>{ const ft=FLOORTYPE.find(f=>f[0]===r.ftype); if(!ft||ft[3]) return; if(r.ftype==="park") attArea+=(+r.area||0); else nonArea+=(+r.area||0); });
-  const adjIInon = Math.max(fIdx??0, areaIdx(nonArea), intel||0);
-  const adjIIatt = Math.max(fIdx??0, areaIdx(attArea), intel||0);
-  const adjII = adjIInon;
-  const adjI = sIdx<100 ? roof : 1;
-
-  let ready = base && sIdx && loc && rr!==null;
-  let totSJ=0, totYD=0, resSJ=0, resYD=0, nonresSJ=0, nonresYD=0;
-  const lines=[];
-  rows.forEach((r,i)=>{
-    const u = r.useOvr!=="" && !isNaN(+r.useOvr) ? +r.useOvr : useIdx(year,r.use);
-    const area=+r.area||0;
-    const ft=FLOORTYPE.find(f=>f[0]===r.ftype); const ex=EXTRA.find(e=>e[0]===r.extra);
-    const unitYD = ready ? floorK(base*(sIdx/100)*(u/100)*(loc.idx/100)*rr) : 0;
-    let adj = 1;
-    if(ready){
-      const isRes = ft[3];
-      let ii = isRes ? (r.ftype==="apt" ? (fIdx??1) : 1) : (r.ftype==="park" ? adjIIatt : adjIInon);   // Ⅱ: 주거용은 아파트 최고층수만, 부속은 부속 부분 면적
-      adj = adjI * ii * ft[2] * ex[2];
-    }
-    const unitSJ = ready ? floorK(base*(sIdx/100)*(u/100)*(loc.idx/100)*rr*adj) : 0;
-    const vSJ=unitSJ*area, vYD=unitYD*area;
-    totSJ+=vSJ; totYD+=vYD;
-    if(ft[3]){resSJ+=vSJ;resYD+=vYD;} else {nonresSJ+=vSJ;nonresYD+=vYD;}
-    const unitShow = mode==="sj"?unitSJ:unitYD, valShow = mode==="sj"?vSJ:vYD;
+  const res = G.compute({year, structNo:+$("structure").value, built:+$("builtYear").value, remodel:+$("remodelYear").value||0, top:+$("topFloor").value||0,
+    landPrice:+$("landPrice").value, roof:$("roof").value, intel:+$("intel").value, rows});
+  const {base,sIdx,group,rr,loc,fIdx,adjIInon,adjIIatt,nonArea,attArea,resArea,areaAll,totSJ,totYD,resSJ,resYD,nonresSJ,nonresYD,lines}=res;
+  const ready=res.ready, built=+$("builtYear").value, remodel=+$("remodelYear").value||0, roof=+$("roof").value, land=+$("landPrice").value;
+  lines.forEach((l,i)=>{
+    const unitShow = mode==="sj"?l.unitSJ:l.unitYD, valShow = mode==="sj"?l.vSJ:l.vYD;
     const ue=document.querySelector(`[data-unit="${i}"]`), ve=document.querySelector(`[data-val="${i}"]`);
     if(ue){ue.textContent=ready?fmt(unitShow):"–"; ve.textContent=ready?fmt(valShow):"–";}
-    lines.push({floor:r.floor||`행${i+1}`, use:r.use, u, area, adj, unitSJ, unitYD, vSJ, vYD, res:ft[3]});
   });
   $("areaTot").textContent = areaAll.toLocaleString("ko-KR",{maximumFractionDigits:2});
   $("valTot").textContent = ready? fmt(mode==="sj"?totSJ:totYD) : "–";
-  $("footNote").textContent = ready ? `조정률Ⅱ 비주거 ${adjIInon.toFixed(2)} (층수 ${fIdx??"-"} / 연면적 ${nonArea.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡ → ${areaIdx(nonArea)})${attArea?` · 부속 ${adjIIatt.toFixed(2)} (${attArea.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡)`:""} · 부분별 면적 판단` : "";
+  $("footNote").textContent = ready ? `조정률Ⅱ 비주거 ${adjIInon.toFixed(2)} (층수 ${fIdx??"-"} / 연면적 ${nonArea.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡ → ${G.areaIdx(nonArea)})${attArea?` · 부속 ${adjIIatt.toFixed(2)} (${attArea.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡)`:""} · 부분별 면적 판단` : "";
 
   // 힌트
   $("yearHint").textContent = `${year}년 고시 적용 · 건물신축가격기준액 ${fmt(base)}원/㎡ · 잔가율표 기준연도 ${year} (신축 ${year}년 = 1.000)`;
@@ -436,7 +339,6 @@ function calc(){
   $("bigVal").textContent = ready? won(isSJ?totSJ:totYD) : "입력 대기";
   $("bigLabel").textContent = ready? `건물 합계 ${areaAll.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡ · ${year}년 고시` : "";
   const landVal = (land>0 && +$("landArea").value>0) ? land*(+$("landArea").value) : null;
-  const resArea = rows.filter(r=>FLOORTYPE.find(f=>f[0]===r.ftype)[3]).reduce((a,r)=>a+(+r.area||0),0);
   const hpArea=+$("housePlot").value, landA=+$("landArea").value;
   const byPlot = hpArea>0 && landA>0 && hpArea<=landA;
   const resShare = byPlot ? hpArea/landA : (areaAll>0 ? resArea/areaAll : 0);
@@ -477,7 +379,7 @@ function calc(){
 
   verify(ready, landVal, totSJ, nonresSJ, resShare);
   save();
-  window.__calc={year,base,sIdx,rr,loc,adjII,lines,totSJ,totYD,landVal};
+  window.__calc={year,base,sIdx,rr,loc,adjII:adjIInon,lines:lines.map(l=>Object.assign({res:l.isRes},l)),totSJ,totYD,landVal};
 }
 
 function verify(ready, landVal, totSJ, nonresSJ, resShare){
@@ -603,86 +505,8 @@ const apiItems=d=>{ const it=d&&d.response&&d.response.body&&d.response.body.ite
 function pickYear(fields,year){ if(!fields.length) return null; const y=fields.filter(f=>String(f.stdrYear)===String(year)); const pool=y.length?y:fields;
   return pool.reduce((b,f)=> !b||(f.stdrYear||"")>(b.stdrYear||"")||((f.stdrYear||"")===(b.stdrYear||"")&&(f.lastUpdtDt||"")>(b.lastUpdtDt||""))?f:b, null); }
 
-// ── 매핑 규칙 (대장 텍스트 → 고시 지수) ──
-function mapStructure(t){ t=t||"";
-  if(/통나무/.test(t)) return [1,"통나무조 135"];
-  if(/철골철근|철골.*콘크리트|SRC/i.test(t)) return [3,"철골(철골철근)콘크리트조 110"];
-  if(/경량철골/.test(t)) return [9,"경량철골조 79"];
-  if(/철근콘크리트|RC|라멘|프리캐스트|PC조|석조|ALC|스틸하우스|목구조/i.test(t)) return [4,"철근콘크리트조 등 100"];
-  if(/시멘트벽돌|시멘트블록|블록조|황토|와이어패널/.test(t)) return [6,"시멘트벽돌·블록조 90"];
-  if(/연와|벽돌|보강콘크리트|보강블록|철골|강구조/.test(t)) return [5,"연와조·철골조 95"];
-  if(/조립식|패널|판넬/.test(t)) return [8,"조립식패널조 80"];
-  if(/컨테이너|파이프/.test(t)) return [11,"철파이프·컨테이너 59"];
-  if(/흙|돌담|토담|석회/.test(t)) return [10,"흙벽돌·토담조 60"];
-  return [4,"구조 미상 → 100 임시 적용 (확인 필요)"];
-}
-function mapRoof(t){ t=t||""; if(/함석|천막|초가|썬라이트|너와/.test(t)) return "0.6"; if(/패널|판넬|유리|슬레이트|FRP|폴리카보/i.test(t)) return "0.8"; return "1"; }
-function mapUse(txt,area){
-  const t=(txt||"").replace(/\s/g,""); const near=/근린생활/.test(t);
-  const R=(no,why)=>({use:no,why});
-  if(/아파트/.test(t)) return R(1,"아파트 110");
-  if(/다가구|다세대|연립|단독주택|다중주택|기숙사|도시형생활|^주택$/.test(t)) return R(2,"주거용 100");
-  if(/관광호텔|호텔|콘도|펜션|생활숙박/.test(t)) return R(4,"호텔·생활숙박 130 (5·4성 관광호텔이면 3번 140)");
-  if(/여관|모텔/.test(t)) return R(6,"여관·모텔 112");
-  if(/여인숙/.test(t)) return R(8,"여인숙 100");
-  if(/민박|게스트하우스|한옥체험/.test(t)) return R(5,"도시민박·한옥체험 120");
-  if(/백화점/.test(t)) return R(9,"백화점 135");
-  if(/대형마트|쇼핑센터|복합쇼핑|대규모점포/.test(t)) return R(10,"대형점·쇼핑센터 125");
-  if(/도매시장|전통시장|재래시장|공판장|경매장/.test(t)) return R(12,"도매·전통시장 85");
-  if(/터미널|철도|공항|항만/.test(t)) return R(13,"운수시설 120");
-  if(/무도장/.test(t)) return R(14,"무도장 140");
-  if(/유흥주점|카지노/.test(t)) return R(15,"유흥주점·카지노 130");
-  if(/단란주점/.test(t)) return area<150?R(40,"단란주점 150㎡ 미만 → 풍속영업 105"):R(17,"단란주점 115");
-  if(/무도학원/.test(t)) return R(18,"무도학원 90");
-  if(/노래연습장|노래방|안마시술소|비디오물감상|게임제공업|복합유통|사행/.test(t)) return R(40,"풍속영업시설 105");
-  if(/인터넷컴퓨터게임|멀티미디어|PC방/i.test(t)) return area>=500?R(40,"PC방 500㎡ 이상 → 풍속영업 105"):R(41,"PC방 500㎡ 미만 → 근생 95");
-  if(/목욕장|사우나|찜질/.test(t)) return area>=3000?R(37,"목욕장 3천㎡↑ 130"):area>=1000?R(38,"목욕장 1천~3천㎡ 115"):R(39,"목욕장 1천㎡ 미만 110");
-  if(/종합병원/.test(t)) return R(26,"종합병원 125");
-  if(/병원/.test(t)) return R(27,"병원 110");
-  if(/의원|치과|한의원|산후조리|조산원|접골|침술/.test(t)) return R(41,"의원 등 근생 95");
-  if(/오피스텔/.test(t)) return R(28,"오피스텔 135");
-  if(/사무소|업무시설|금융|은행|출판사|신문사|소개업/.test(t)) return (near||area<500)?R(41,"사무소 500㎡ 미만 근생 95"):R(29,"업무시설 115");
-  if(/방송|촬영소|전신전화|통신용/.test(t)) return R(30,"방송통신 110");
-  if(/학원|교습소/.test(t)) return (near||area<500)?R(41,"학원 500㎡ 미만 근생 95"):R(32,"학원 107");
-  if(/학교|교육원|연수원|연구소|도서관|직업훈련/.test(t)) return R(33,"교육연구시설");
-  if(/경로당|양로|고아원/.test(t)) return R(35,"양로원·경로당");
-  if(/어린이집|노인|복지|아동/.test(t)) return near?R(41,"근생 해당 아동시설 95"):R(34,"노유자시설 109");
-  if(/수련|유스호스텔|청소년/.test(t)) return R(36,"수련시설 110");
-  if(/장례식장/.test(t)) return R(44,"장례식장 115");
-  if(/화장시설|봉안|납골/.test(t)) return R(42,"묘지관련 130");
-  if(/지식산업센터|아파트형공장/.test(t)) return R(46,"지식산업센터 115");
-  if(/냉동공장|반도체|디스플레이/.test(t)) return R(47,"냉동·반도체 공장 100");
-  if(/공장|제조|수리점/.test(t)) return (near||area<500)?R(41,"제조업소·수리점 근생 95"):R(48,"공장 78");
-  if(/발전/.test(t)) return R(50,"발전소 90");
-  if(/냉동창고|냉장창고/.test(t)) return R(51,"냉동·냉장창고 105");
-  if(/창고|물류|하역|집배송/.test(t)) return R(52,"창고 75");
-  if(/주유소|충전소|가스|위험물|석유/.test(t)) return near?R(41,"근생 해당 95"):R(53,"위험물저장처리 90");
-  if(/폐기물|고물상|하수/.test(t)) return R(54,"자원순환 80");
-  if(/자동차매매|운전학원|정비학원/.test(t)) return R(55,"자동차매매장·운전학원 75");
-  if(/세차|폐차|정비|검사장|차고/.test(t)) return R(56,"세차·정비·차고 67");
-  if(/축사|가축|도축|재배사|양돈|양계/.test(t)) return R(59,"축사 등 55");
-  if(/온실|식물/.test(t)) return R(60,"온실·식물관련 50");
-  if(/관리사|검역|마사/.test(t)) return R(58,"동물관련 70");
-  if(/종교|교회|성당|사찰|법당|기도원/.test(t)) return (near||area<500)?R(41,"종교집회장 500㎡ 미만 근생 95"):R(23,"종교시설 100");
-  if(/공연장|극장|영화관|집회장|예식장|회의장/.test(t)) return (near||area<500)?R(41,"공연·집회 500㎡ 미만 근생 95"):R(20,"공연장·집회장 115");
-  if(/전시장|박물관|미술관|동물원|식물원|수족관/.test(t)) return R(21,"전시·동식물원 110");
-  if(/경기장|관람장|경마|경륜/.test(t)) return R(22,"관람장 105");
-  if(/골프장|스키장|수영장|볼링장|승마|스케이트|종합체육/.test(t)) return R(24,"골프장 등 125");
-  if(/체육|운동|헬스|체력단련|당구|탁구|골프연습|테니스|에어로빅|낚시터/.test(t)) return (near||area<500)?R(41,"체육시설 500㎡ 미만 근생 95"):R(25,"운동시설 105");
-  if(/주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단실/.test(t)) return R(41,"부속부분 → 주용도(근생) 지수 적용 후 조정률 60");
-  if(near||/소매점|음식점|휴게음식|제과|이용원|미용|세탁|사진관|부동산|중개|기원|서점|독서실|동물병원|장의사|의약품|편의점|슈퍼|상점|판매/.test(t)) return R(41,"근생 일반 95");
-  return R(41,"매핑 실패 → 근생 95 임시 적용 (확인 필요)");
-}
-function mapFloorType(it,use,top){
-  const t=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ");
-  const roof = /옥탑/.test(it.flrGbCdNm||"")||/옥탑/.test(it.flrNoNm||"")||String(it.flrGbCd)==="30";
-  const att = roof || /부속|창고|주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/.test(t) && !/^창고$/.test(t.trim());
-  if(use===1||use===2) return att ? "res_att" : (use===1?"apt":"res");
-  if(att) return "park";
-  const ug = String(it.flrGbCd)==="10" || /지하/.test(it.flrGbCdNm||""); const n=Number(it.flrNo||0);
-  if(ug) return top<=5 ? (n<=1?"b1":"b2") : "none";
-  if(n===1) return "shop1"; if(n===2) return "shop2"; return "none";
-}
+// ── 매핑 규칙: 엔진(arap_gijunsiga.js) 사용 ──
+const mapStructure=G.mapStructure, mapRoof=G.mapRoof, mapUse=G.mapUse;
 
 async function importByAddress(q){
   const st=$("apiStatus"), btn=$("apiGo"), key=getKey(); btn.disabled=true; st.className="status"; st.textContent="주소 검색 중… "+q;
@@ -721,19 +545,10 @@ async function importByAddress(q){
       fl.sort((a,b)=>{ const ga=grp(a), gb=grp(b); if(ga!==gb) return ga-gb; const na=Number(a.flrNo||0), nb=Number(b.flrNo||0); return ga===0? nb-na : na-nb; });
       const top=+$("topFloor").value||0;
       const mainTxt=(t&&[t.mainPurpsCdNm,t.etcPurps].filter(Boolean).join(" "))||"";
-      const mainM=mapUse(mainTxt, +(t&&t.totArea)||0);
-      const ATT_RE=/부속|창고|주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/;
-      rows=fl.map(it=>{ const area=+it.area||0; const txt=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ");
-        const isAttTxt = (ATT_RE.test(txt)&&!/^창고$/.test(txt.trim())) || /옥탑/.test(it.flrGbCdNm||"") || String(it.flrGbCd)==="30";
-        const m = isAttTxt && mainTxt ? {use:mainM.use, why:"부속부분 → 주용도("+mainTxt+") 지수 "+mainM.use+"번 적용 후 조정률 60"} : mapUse(txt,area);
-        const ft=mapFloorType(it,m.use,top); const flag=/확인|미상|임시/.test(m.why);
-        notes.push(`${it.flrNoNm||""} ${txt} ${area}㎡ → 용도 ${m.use}번 (${m.why}) · 층 특성 ${FLOORTYPE.find(f=>f[0]===ft)[1]}`);
-        return newRow({floor:(it.flrNoNm||"")+(/부속/.test(it.mainAtchGbCdNm||"")?"(부속)":""), use:m.use, area:area, ftype:ft, note: flag?m.why:""}); });
-      const isDandok = /단독주택/.test(mainTxt) && !/다가구|다중|다세대|연립|기숙사/.test(mainTxt) && !rows.some(r=>r.use===2 && /다가구|다중|다세대|연립|기숙사/.test(r.floor));
-      if(isDandok){ const resMain=rows.filter(r=>r.ftype==="res").reduce((a,r)=>a+(+r.area||0),0);
-        const st3 = resMain>=331?"res_s2": resMain>=264?"res_s1": "res";
-        rows.forEach(r=>{ if(r.ftype==="res") r.ftype=st3; });
-        notes.push(`단독주택 주택 부분 ${resMain.toLocaleString("ko-KR",{maximumFractionDigits:2})}㎡ → 조정률Ⅲ ${st3==="res_s2"?"140":st3==="res_s1"?"120":"해당 없음(264㎡ 미만)"} (부속창고 등 부속 부분 제외, Ⅱ 미적용)`); }
+      rows=fl.map(it=>{ const row=G.rowFromRegister({gb:it.flrGbCdNm, no:it.flrNo, name:it.flrNoNm, purps:[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" "), area:it.area, attach:it.mainAtchGbCdNm, strct:it.strctCdNm}, mainTxt, top, +(t&&t.totArea)||0);
+        notes.push(`${it.flrNoNm||""} ${[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ")} ${it.area}㎡ → 용도 ${row.use}번 (${row.why}) · 층 특성 ${FLOORTYPE.find(f=>f[0]===row.ftype)[1]}`);
+        return newRow(row); });
+      const dn=G.applyDandok(rows, mainTxt); if(dn) notes.push(dn);
       renderRows();
     } else notes.push("층별개요 없음"+(flrD&&flrD.err?": "+flrD.err:""));
     // 개별주택가격 (필드명이 서비스마다 달라 가격으로 보이는 값을 탐색)
