@@ -404,6 +404,7 @@
             <span class="fld"><label>주용도</label><input type="text" id="bt_purps" placeholder="근린생활시설"></span>
             <span class="fld"><label>층수(지상/지하)</label><input type="text" id="bt_flrs" placeholder="6/1"></span>
             <span class="fld"><label>사용승인일</label><input type="text" id="bt_useApr" data-date placeholder="1993.10.09"></span>
+            <span class="fld" style="grid-column:1/-1"><label>도로명주소 (명세표 건물란)</label><input type="text" id="bt_roadAddr" placeholder="서울특별시 강남구 압구정로 165"></span>
           </div>
           <div class="tw" style="margin-top:8px">
             <table id="bldTbl">
@@ -1344,6 +1345,7 @@ function fetchBuilding(){
       document.getElementById('bt_purps').value=t.mainPurpsCdNm||'';
       document.getElementById('bt_flrs').value=(t.grndFlrCnt||'0')+'/'+(t.ugrndFlrCnt||'0');
       document.getElementById('bt_useApr').value=dot(t.useAprDay||'');
+      if(t.newPlatPlcy)document.getElementById('bt_roadAddr').value=String(t.newPlatPlcy).trim();   // 표제부 도로명 대지위치 → 명세표 [도로명주소]
     }
     // 층별개요
     var head=flrD&&flrD.response&&flrD.response.header,body=flrD&&flrD.response&&flrD.response.body;
@@ -2397,7 +2399,7 @@ function sub(i,btn){
 // ================= 저장/복원 =================
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice'];   // 감정서번호 칸은 2026-09-16 삭제(접수번호와 같은 값) — 옛 저장값은 무시
-var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr'];
+var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr'];
 var GONGSI_IDS=['g_daegu','g_opinion','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
@@ -2409,6 +2411,12 @@ var CG_SPECIAL_MANUAL=false;  // 특별용역비 적용액(차액 × 배수)을 
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
 
 // ================= 청구서 (한글 hwpx) — 엔진은 arap_cheonggu.js(집합건물 청구서와 동일 양식·계산) =================
+// 필지의 시군구 포함 소재지("서울특별시 강남구 신사동") — 토지 조회 결과(fullAddr)에서 지번을 떼어 쓰고, 없으면 적힌 소재지(동)만
+function landLoc(L){
+  L=L||{};var full=String(L.fullAddr||'').trim(),jb=String(L['지번']||'').trim();
+  if(full){if(jb&&full.endsWith(jb))full=full.slice(0,-jb.length).trim();var dong=String(L['소재지']||'').trim();if(!dong||full.indexOf(dong)>=0)return full;}
+  return String(L['소재지']||'').trim();
+}
 function cgVal(id){var el=document.getElementById(id);return el?el.value:'';}
 function cgEmptyNull(id){var v=cgVal(id);return String(v).trim()===''?null:v;}
 // 청구서 건명: 본건 소재지(+외 N필지) + 토지/토지 및 건물
@@ -2559,10 +2567,13 @@ function fillYohangFromData(){
   applyRoadCnt();
 }
 // 대상물건개요의 구조·층수(지상/지하 = "4/1")로 만드는 건물 구조 자동 문구. groundOnly=true 면 예전 방식(지상만)
-function yohangStructAuto(groundOnly){
+// 층수(지상/지하 "4/1") → "지하 1층 지상 4층" (명세표 건물란·요항표 건물 구조가 같이 쓴다)
+function floorsText(groundOnly){
   var f=String(cgVal('bt_flrs')||'').split('/'),up=(f[0]||'').trim(),dn=(f[1]||'').trim();
-  var floors=[(!groundOnly&&dn&&dn!=='0')?'지하 '+dn+'층':'',up&&up!=='0'?'지상 '+up+'층':''].filter(Boolean).join(' ');
-  return [cgVal('bt_strct'),floors].filter(Boolean).join(' ');
+  return [(!groundOnly&&dn&&dn!=='0')?'지하 '+dn+'층':'',up&&up!=='0'?'지상 '+up+'층':''].filter(Boolean).join(' ');
+}
+function yohangStructAuto(groundOnly){
+  return [cgVal('bt_strct'),floorsText(groundOnly)].filter(Boolean).join(' ');
 }
 // 접면도로 수 — 한 면만 접하면 화면에서 ② 칸과 "각각"을 숨긴다(출력은 arap_toji_documents.js가 같은 값을 읽어 문구를 뺀다)
 function applyRoadCnt(){
