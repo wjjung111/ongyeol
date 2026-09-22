@@ -88,6 +88,25 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   assert.equal(st.unit[0],st.unit[1]);
   near(st.sum,st.total,1);
 
+  // ④-2 일단지 체크 — 위치도는 본건 이름표 하나(labelGroup)로 필지 테두리를 함께 가리킨다
+  const before_map=await page.evaluate(()=>mapItems().filter(it=>it.kind==='본건').map(it=>({label:it.label,g:it.labelGroup})));
+  console.log('④-2 일단지 체크 전 지도 항목',before_map);
+  assert.deepEqual(before_map,[{label:'본건 1',g:''},{label:'본건 2',g:''}]);
+  const ildanji=await page.evaluate(()=>{
+    const box=document.getElementById('ov_ildanji');
+    const shown=getComputedStyle(document.getElementById('ildanjiWrap')).display;
+    box.checked=true;box.dispatchEvent(new Event('change'));
+    return {shown,on:ILDANJI,
+      map:mapItems().filter(it=>it.kind==='본건').map(it=>({label:it.label,g:it.labelGroup,poly:it.poly})),
+      row:document.querySelectorAll('#tblSisan tr')[1].cells[0].textContent,
+      lab:document.querySelector('#landTbl .grp-lab').textContent};
+  });
+  console.log('④-2 일단지 체크',ildanji);
+  assert.notEqual(ildanji.shown,'none');            // 필지 2개 이상이면 체크박스가 보인다
+  assert.deepEqual(ildanji.map,[{label:'본건',g:'본건',poly:true},{label:'본건',g:'본건',poly:true}]);
+  assert.equal(ildanji.row,'일단지');                // 표의 묶음 이름도 '일단지'로
+  assert.equal(ildanji.lab,'일단지 묶음');
+
   // ⑤ 의견서 데이터 — 일단지는 한 줄(「565-18 외 1필지」, 사정면적 900㎡, 시산가액 전체)
   const op=await page.evaluate(()=>{
     const d=ArapTojiOpinion.data();
@@ -104,12 +123,13 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   const round=await page.evaluate(()=>{
     doSave();const o=JSON.parse(localStorage.getItem(FORM_STORAGE));
     clearForm();applyForm(o);refreshAfterLoad();
-    return {mode:SAJ_MODE.land,area:GROUP_AREA,sel:document.getElementById('landSajMode').value,
+    return {mode:SAJ_MODE.land,area:GROUP_AREA,ildanji:ILDANJI,box:document.getElementById('ov_ildanji').checked,sel:document.getElementById('landSajMode').value,
       size:GONGSI_RESULT.size,rowspan:(document.querySelector('#landTbl td.grp-c')||{}).rowSpan,
       sisanRows:document.querySelectorAll('#tblSisan tr').length};
   });
   console.log('⑥ 저장·복원',round);
   assert.equal(round.mode,'group');assert.equal(round.area,'900');assert.equal(round.sel,'group');
+  assert.equal(round.ildanji,true);assert.equal(round.box,true);
   near(round.size,900);assert.equal(round.rowspan,2);assert.equal(round.sisanRows,2);
 
   // ⑦ 직접입력으로 되돌리면 예전 동작(필지별 행·공부면적) 그대로

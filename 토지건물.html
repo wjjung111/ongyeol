@@ -141,7 +141,7 @@
   .calc-c{background:#eef2f7;font-weight:700;color:#0f2547;}
   .jud-c{background:#fff9e6;}
   .calc-c input{color:#0f2547;font-weight:700;}
-  /* 묶기(일단지) — 여러 필지의 사정면적을 한 칸으로 합쳐 보여주는 셀 */
+  /* 묶기 — 여러 필지의 사정면적을 한 칸으로 합쳐 보여주는 셀 */
   td.grp-c{position:relative;text-align:center;vertical-align:middle;}
   /* 필지들을 하나로 묶는 ] 꺾쇠 — 세로줄 + 위아래 팔이 공부면적 칸 쪽(왼쪽)으로 뻗는다 */
   .grp-br{position:absolute;z-index:2;left:-18px;top:5px;bottom:5px;width:17px;border:3px solid #dc2626;border-left:none;border-radius:0 4px 4px 0;pointer-events:none;}
@@ -391,6 +391,9 @@
           <div class="row" style="margin-top:8px">
             <button class="btn gh sm" onclick="addLand()">+ 필지 추가</button>
             <button class="btn gh sm" onclick="copyLandExcel()">📋 엑셀 복사</button>
+            <label id="ildanjiWrap" style="display:none;align-items:center;gap:4px;font-size:12px;color:#0f2547;font-weight:600;cursor:pointer"
+                   title="본건 여러 필지가 하나의 일단지로 이용 중일 때 체크하세요. ⑤ 위치도에서 「본건 1·2」가 아니라 「본건」 이름표 하나가 두 필지 테두리를 함께 가리킵니다.">
+              <input type="checkbox" id="ov_ildanji" onchange="setIldanji(this.checked)">일단지</label>
             <span class="hint">공부면적 합계: <b id="landSum">0</b> ㎡</span>
             <span class="hint" id="landSajWrap" style="display:none">사정면적 합계: <b id="landSajSum">0</b> ㎡</span>
             <span class="hint" id="landCopyMsg" style="margin-left:auto"></span>
@@ -1033,11 +1036,20 @@ function shareLabel(L){
   for(var d=1;d<=1000;d++){var n=p*d/100;if(Math.abs(n-Math.round(n))<1e-9)return Math.round(n)+'/'+d;}
   return (Math.round(p*10000)/10000)+'%';
 }
-// ── 묶기(일단지) ──
-// 여러 필지가 하나의 일단지로 이용되는 경우, 사정면적 칸을 한 칸으로 묶어 전체 면적(예: 965.8㎡)으로 평가한다.
+// ── 묶기 ──
+// 여러 필지를 한 덩어리로 보고 평가할 때, 사정면적 칸을 한 칸으로 묶어 전체 면적(예: 965.8㎡)으로 평가한다.
 // 화면의 시산가액 표는 한 줄(개별요인·단가도 한 세트)로 계산하고, 명세표는 필지별 행을 그대로 두되
 // 각 필지 면적은 묶은 면적을 공부면적 비율로 안분해 합계가 묶은 면적과 정확히 맞게 한다(2026-09-22 결정).
+// 「일단지」는 묶기와 별개의 체크 — 일단지로 이용 중인 건이면 켠다(위치도에서 본건 이름표 하나로,
+// 표·문서의 묶음 이름도 '일단지'로 나간다). 묶지 않고 일단지만 체크하는 경우도 있다(2026-09-22 결정).
 var GROUP_AREA='';   // 묶은 면적 — 자동으로 공부면적 합계가 채워지고, 자유 수정 가능
+var ILDANJI=false;   // 일단지 여부(체크박스)
+function groupWord(){return ILDANJI?'일단지':'묶음';}
+function setIldanji(v){
+  ILDANJI=!!v;
+  renderLands();calcGongsi();saveForm();
+  if(MAPV)mapOpen();   // 위치도를 이미 열었으면 본건 이름표(하나/여럿)를 바로 다시 그린다
+}
 function isLandGroup(){return SAJ_MODE.land==='group';}
 function landGongbuSum(){var s=0;LANDS.forEach(function(L){s+=num(L['면적'])||0;});return roundArea(s);}
 function recalcGroupArea(){var s=landGongbuSum();GROUP_AREA=s?String(s):'';}
@@ -1073,14 +1085,14 @@ function bldArea(r){var s=num(r&&r['사정면적']);return s?s:num(r&&r['연면�
 // 사정면적 열 머리 — 위에 직접입력/지분입력 드롭다운
 function sajHead(kind){
   return '사정면적(㎡)<br><select id="'+(kind==='land'?'landSajMode':'bldSajMode')+'" onchange="setSajMode(\''+kind+'\',this.value)"'
-    +' title="직접입력=사정면적을 칸에 직접 / 지분입력=지분(%)으로 자동 계산'+(kind==='land'?' / 묶기(일단지)=필지를 한 덩어리 면적으로 평가(명세표는 필지별 안분)':'')+'"'
+    +' title="직접입력=사정면적을 칸에 직접 / 지분입력=지분(%)으로 자동 계산'+(kind==='land'?' / 묶기=여러 필지를 한 덩어리 면적으로 평가(명세표는 필지별 안분)':'')+'"'
     +' style="width:100%;border:1px solid #cbd5e1;border-radius:4px;font:inherit;font-size:11px;background:#fff">'
     +'<option value="direct"'+(SAJ_MODE[kind]==='direct'?' selected':'')+'>직접입력</option>'
     +'<option value="share"'+(SAJ_MODE[kind]==='share'?' selected':'')+'>지분입력</option>'
-    +(kind==='land'?'<option value="group"'+(SAJ_MODE.land==='group'?' selected':'')+'>묶기(일단지)</option>':'')+'</select>';
+    +(kind==='land'?'<option value="group"'+(SAJ_MODE.land==='group'?' selected':'')+'>묶기</option>':'')+'</select>';
 }
 var SAJ_TITLE='사정면적 — 값이 있으면 이 면적으로 평가액이 계산됩니다(비우면 공부면적). 지분입력으로 자동 채운 값도 자유롭게 고칠 수 있습니다.';
-var GROUP_TITLE='일단지 묶음 면적 — 필지 전체를 한 덩어리로 보고 이 면적으로 평가액이 계산됩니다. 공부면적 합계가 자동으로 채워지고 자유롭게 고칠 수 있습니다(명세표는 필지별로 안분).';
+var GROUP_TITLE='묶은 면적 — 필지 전체를 한 덩어리로 보고 이 면적으로 평가액이 계산됩니다. 공부면적 합계가 자동으로 채워지고 자유롭게 고칠 수 있습니다(명세표는 필지별로 안분).';
 var SHARE_TITLE='지분 — 퍼센트(50, 33.33)도 되고 분수(1/2, 3/10)도 됩니다. 넣으면 공부면적 × 지분으로 사정면적이 자동 채워지고, 「그 밖의 사항」에 지분 평가 문구(본 평가는 귀 제시 지분(1/2)만의 평가로서 …)가 자동으로 들어갑니다.';
 function setSajMode(kind,v){
   SAJ_MODE[kind]=(v==='share')?'share':(kind==='land'&&v==='group')?'group':'direct';
@@ -1130,10 +1142,10 @@ function renderLands(){
     h+='<tr><td>'+(i+1)+'</td>'+LAND_COLS.map(function(c){
       if(c==='면적'){
         var gongbuCell='<td><input value="'+esc(L['면적'])+'" oninput="LANDS['+i+'][\'면적\']=this.value;landAreaChanged('+i+');"></td>';
-        // 묶기(일단지) — 사정면적 칸을 필지 수만큼 세로로 합친 한 칸으로 (첫 행에서만 그린다)
+        // 묶기 — 사정면적 칸을 필지 수만큼 세로로 합친 한 칸으로 (첫 행에서만 그린다)
         if(group)
           return gongbuCell+(i?'':'<td class="jud-c grp-c" rowspan="'+LANDS.length+'" title="'+GROUP_TITLE+'">'
-            +'<span class="grp-br"></span><div class="grp-lab">일단지 묶음</div>'
+            +'<span class="grp-br"></span><div class="grp-lab">'+groupWord()+' 묶음</div>'
             +'<input class="grp-in" value="'+esc(GROUP_AREA)+'" placeholder="'+fmtArea(landGongbuSum())+'"'
             +' oninput="GROUP_AREA=this.value;landChanged();">㎡</td>');
         return gongbuCell
@@ -1149,12 +1161,15 @@ function renderLands(){
     h+='<td><span class="del" title="필지 삭제" onclick="delLand('+i+')">✕</span></td></tr>';
   });
   setTableHtml('landTbl',h);   // 면적·사정면적 칸 입력 중 커서 유지
+  // 일단지 체크는 필지가 둘 이상일 때만 뜬다(한 필지면 뜻이 없다)
+  var iw=document.getElementById('ildanjiWrap'),ib=document.getElementById('ov_ildanji');
+  if(iw){iw.style.display=LANDS.length>1?'inline-flex':'none';if(ib)ib.checked=ILDANJI;}
   var s=0,j=0,anySaj=false;
   LANDS.forEach(function(L){var g=num(L['면적']),sa=num(L['사정면적']);s+=g;if(sa)anySaj=true;j+=sa||g;});
   document.getElementById('landSum').textContent=fmtArea(s);
   var w=document.getElementById('landSajWrap');
   if(w){
-    if(group){w.style.display='';w.firstChild.textContent='일단지 묶음 면적: ';
+    if(group){w.style.display='';w.firstChild.textContent=groupWord()+' 묶은 면적: ';
       document.getElementById('landSajSum').textContent=fmtArea(groupTotal());}
     else{w.style.display=anySaj?'':'none';w.firstChild.textContent='사정면적 합계: ';
       document.getElementById('landSajSum').textContent=fmtArea(roundArea(j));}}
@@ -1291,7 +1306,7 @@ function copyLandExcel(){
     var cells=[String(i+1)];
     cols.forEach(function(c){
       if(c==='면적'||c==='사정면적'){
-        // 묶기(일단지)면 사정면적 칸에는 묶은 면적을 필지별로 안분한 값을 적는다(합계 = 묶은 면적)
+        // 묶기면 사정면적 칸에는 묶은 면적을 필지별로 안분한 값을 적는다(합계 = 묶은 면적)
         var a=(group&&c==='사정면적')?landArea(L):num(L[c]);
         if(a){if(c==='면적')sum+=a;else sajSum+=a;}
         cells.push((group&&c==='사정면적')?(a||''):(hasV(L[c])?a:''));}
@@ -2188,9 +2203,9 @@ function pickEtc(type,idx){
 // 표준지별 그밖의요인 결정치를 STDS[j].etcDecide에 보관 — 표준지가 1개면 지금과 동일하게 동작
 function renderGaebyeol(){
   var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>';
-  if(isLandGroup()){   // 묶기 — 일단지 전체에 대해 한 세트만 입력
+  if(isLandGroup()){   // 묶기 — 묶은 필지 전체에 대해 한 세트만 입력
     var L0=LANDS[0]||{},f0=landFactors(L0);
-    h+='<tr><td style="white-space:nowrap" title="일단지 — 필지 '+LANDS.length+'개 공통">일단지</td><td>'+String.fromCharCode(65+(L0.stdIdx||0))+'</td>'+
+    h+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td><td>'+String.fromCharCode(65+(L0.stdIdx||0))+'</td>'+
       f0.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="setGroupFac(\'\','+k+',this.value);calcGongsi();saveForm();"></td>';}).join('')+
       '<td class="calc-c">'+facProduct(f0).toFixed(3)+'</td></tr>';
   }
@@ -2262,10 +2277,10 @@ function calcGongsi(){
        applyCell(L.apply,autoApply,'LANDS['+i+'].apply=this.value;calcGongsi();saveForm();')+
        areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
-  // 묶기(일단지) — 필지 전체를 한 줄로: 개별요인·결정단가 한 세트, 면적은 묶은 면적
+  // 묶기 — 필지 전체를 한 줄로: 개별요인·결정단가 한 세트, 면적은 묶은 면적
   if(group){
     var L0=LANDS[0]||{},g0=docRows[0]||{};
-    h+='<tr><td style="white-space:nowrap" title="일단지 — 필지 '+LANDS.length+'개를 한 덩어리로 평가">일단지</td><td>'+String.fromCharCode(65+(g0.stdIdx||0))+'</td>'+
+    h+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개를 한 덩어리로 평가">'+groupWord()+'</td><td>'+String.fromCharCode(65+(g0.stdIdx||0))+'</td>'+
        '<td>'+(g0.price?won(g0.price):'-')+'</td><td>'+stf.toFixed(5)+'</td><td>1.000</td>'+
        '<td>'+(g0.individual||0).toFixed(3)+'</td><td>'+(g0.etc?g0.etc.toFixed(2):'-')+'</td>'+
        '<td class="calc-c">'+(g0.calculated?won(g0.calculated):'-')+'</td>'+
@@ -2299,9 +2314,9 @@ function calcGeorae(){
 
   // 개별요인 — 필지별
   var hf='<tr><th>일련<br>번호</th><th>사례</th><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>';
-  if(isLandGroup()){   // 묶기 — 일단지 전체에 대해 한 세트만 입력
+  if(isLandGroup()){   // 묶기 — 묶은 필지 전체에 대해 한 세트만 입력
     var Lg=LANDS[0]||{},fg=landGaFactors(Lg);
-    hf+='<tr><td style="white-space:nowrap" title="일단지 — 필지 '+LANDS.length+'개 공통">일단지</td><td>#'+(GA.idx+1)+'</td>'+
+    hf+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td><td>#'+(GA.idx+1)+'</td>'+
       fg.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="setGroupFac(\'ga\','+k+',this.value);calcGeorae();saveForm();"></td>';}).join('')+
       '<td class="calc-c">'+facProduct(fg).toFixed(3)+'</td></tr>';
   }
@@ -2337,10 +2352,10 @@ function calcGeorae(){
        +applyCell(L.gaApply,autoApply,'LANDS['+i+'].gaApply=this.value;calcGeorae();saveForm();')
        +areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
-  // 묶기(일단지) — 한 줄로: 개별요인·적용단가 한 세트, 면적은 묶은 면적
+  // 묶기 — 한 줄로: 개별요인·적용단가 한 세트, 면적은 묶은 면적
   if(group){
     var Lg0=LANDS[0]||{},a0=docRows[0]||{};
-    hs+='<tr><td style="white-space:nowrap" title="일단지 — 필지 '+LANDS.length+'개를 한 덩어리로 평가">일단지</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td>'
+    hs+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개를 한 덩어리로 평가">'+groupWord()+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td>'
        +facCell(sajRaw,'ga_sajeong','1.000')+facCell(timeRaw,'ga_time','자동')+facCell(areaRaw,'ga_area','1.000')
        +'<td>'+(a0.individual||0).toFixed(3)+'</td>'
        +'<td class="calc-c">'+(a0.calculated?won(a0.calculated):'-')+'</td>'
@@ -2989,7 +3004,7 @@ function collect(){
   CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el)o.cg[id]=el.value;});
   o.cgTravelManual=CG_TRAVEL_MANUAL;o.cgSpecialManual=CG_SPECIAL_MANUAL;
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
-  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;
+  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;
   return o;
 }
 var saveTimer=null;
@@ -3108,6 +3123,7 @@ function applyForm(o){
   SAJ_MODE={land:(lm==='share'||lm==='group')?lm:'direct',
             bld:(o.SAJ_MODE&&o.SAJ_MODE.bld==='share')?'share':'direct'};
   GROUP_AREA=(o.GROUP_AREA!=null)?String(o.GROUP_AREA):'';
+  ILDANJI=!!o.ILDANJI;
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
   STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
   renderStds();renderLands();
@@ -3185,7 +3201,7 @@ function clearForm(){
   ['base_gongsi','base_gijun','base_josa'].forEach(function(id){document.getElementById(id).value='';});
   OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
   BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';
+  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
@@ -3479,7 +3495,9 @@ function mapItems(){
   LANDS.forEach(function(L,i){
     var loc=String(L.fullAddr||'').trim()||((L['소재지']||'')+' '+(L['지번']||'')).trim();
     var row=gs.rows&&gs.rows[i];
-    if(loc)out.push({o:L,kind:'본건',label:LANDS.length>1?('본건 '+(i+1)):'본건',color:'#dc2626',loc:loc,region:region,pick:true,poly:true,
+    // 일단지면 「본건 1·2」로 나누지 않고 이름표 하나(labelGroup)가 필지 테두리 전부를 가리킨다
+    if(loc)out.push({o:L,kind:'본건',label:(ILDANJI||LANDS.length<2)?'본건':('본건 '+(i+1)),color:'#dc2626',loc:loc,region:region,pick:true,poly:true,
+      labelGroup:ILDANJI?'본건':'',
       info:mapInfo([mapUnit(row?row.apply:0,'적용단가'),mapDate(gijun,'기준시점')])});
   });
   STDS.forEach(function(S,i){
