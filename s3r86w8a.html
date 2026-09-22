@@ -1592,7 +1592,6 @@ function Step2({ov,setOv,propType,setPropType}){
     <div style={{...S.card,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
       <span style={{...S.lbl,minWidth:70}}>물건 유형</span>
       {["주거용","비주거용"].map(t=>(<button key={t} style={{...S.btn,background:propType===t?C.pri:"#e2e8f0",color:propType===t?"#fff":"#666"}} onClick={()=>setPropType(t)}>{t}</button>))}
-      <span style={{fontSize:11,color:"#888"}}>비주거용 선택 시 시점수정이 자본수익률(상업용 임대동향) 방식으로 전환됩니다</span>
     </div>
     {/* PDF 업로드 영역 */}
     <div onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
@@ -1607,7 +1606,6 @@ function Step2({ov,setOv,propType,setPropType}){
         <button style={{...S.btn,background:"#e2e8f0",color:"#555",fontSize:11,padding:"4px 8px"}} onClick={()=>setShowKey(!showKey)}>{showKey?"숨김":"보기"}</button>
         {apiKey?<span style={{fontSize:11,color:"#059669"}}>✅</span>:<span style={{fontSize:11,color:"#f59e0b"}}>⚠️ 필요</span>}
       </div>
-      <div style={{fontSize:12,color:"#666",marginBottom:8}}>등기, 전유부, 총괄표제부, 표제부, 토이계 등 PDF를 업로드하면 자동으로 데이터를 인식합니다. 건축물대장은 PDF 없이 아래 「건축물대장 불러오기」로 채울 수 있습니다.</div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
         <label style={{...S.btn,background:C.acc,color:"#fff",cursor:"pointer"}}>
           + PDF 추가
@@ -1676,7 +1674,7 @@ function Step2({ov,setOv,propType,setPropType}){
     {/* 토지이용계획 (의견서 개황표 '토지이용계획 및 공법상 제한사항' 칸) */}
     <div style={S.card}>
       <div style={S.h2}>토지이용계획 (의견서용)</div>
-      <div style={{fontSize:11,color:"#666",marginBottom:8}}><a href="https://www.eum.go.kr/" target="_blank" rel="noopener noreferrer" style={{color:C.acc,textDecoration:"underline"}}>토지이음(eum.go.kr)</a>에서 「지역·지구등 지정여부」 내용을 복사해 필지별로 붙여넣으세요. 불필요 머리문구·줄바꿈은 자동 정리되어 개황표에 삽입됩니다.</div>
+      <div style={{fontSize:11,color:"#666",marginBottom:8}}><a href="https://www.eum.go.kr/" target="_blank" rel="noopener noreferrer" style={{color:C.acc,textDecoration:"underline"}}>토지이음(eum.go.kr)</a> 「지역·지구등 지정여부」를 필지별로 붙여넣으세요.</div>
       {_toiceParcels(ov).map((p,i,arr)=>(
         <div key={(p.jibun||"")+i} style={{marginBottom:8}}>
           <div style={{fontSize:12,fontWeight:600,color:C.pri,marginBottom:2}}>{arr.length>1?`${i+1}) `:""}{_toiceDong(ov)} {p.jibun||"(지번)"}</div>
@@ -1887,7 +1885,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table>
-      <div style={{marginTop:4,fontSize:11,color:"#666"}}>⠿ 드래그로 순서 변경 | 시점수정치 클릭→붙여넣기</div>
     </div>)}
 
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
@@ -1954,7 +1951,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
         </div>}
       </div>}
     </div>
-    <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>가격·면적 입력 → 단가 자동계산 / 면적·단가 입력 → 가격 자동계산. 면적 수정 시 마지막으로 입력한 가격 또는 단가를 기준으로 계산합니다.</div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
       <table style={S.tbl}><thead><tr>
         <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={S.th}>기호</th>
@@ -3559,7 +3555,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <td style={{...S.td,cursor:"pointer",fontWeight:700,color:c.timeAdj?C.acc:"#999"}} title="클릭해서 시점수정치 입력"
           onClick={()=>setEditTimeId(c.id)}>{c.timeAdj?fmtDec(c.timeAdj,5):"미입력 (클릭)"}</td>
       </tr>))}</tbody></table>
-      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 선정된 사례: {sel.length}건{!sel.length?(allCases.length?" — 위 체크박스에서 사례를 선정하세요.":" — 사례를 선정하지 않아도 아래에서 명세표·괄호감정표는 받을 수 있어요. (③에서 사례를 추가하면 의견서·산출표도 생성)"):""} | 시점수정치 클릭 → 바로 입력</div>
+      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 선정된 사례: {sel.length}건{!sel.length&&allCases.length?" — 위 체크박스에서 선정":""}</div>
     </div>
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
       return <SijeomModal c={c} ov={ov} propType={propType} onApply={t=>applySijeom(editTimeId,t)} onClose={()=>setEditTimeId(null)}/>;})()}
@@ -3773,9 +3769,6 @@ function StepMap({ov,sfx,active}){
       <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155"}}
         title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
         onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
-    </div>
-    <div style={{fontSize:11.5,color:"#475569",background:"#f8fafc",borderLeft:`3px solid ${C.pri}`,padding:"6px 9px",borderRadius:"0 4px 4px 0",marginBottom:7}}>
-      ② 대상물건개요의 <b>지번주소</b>와 공부에서 인식한 필지 목록을 사용합니다. 여러 지번은 콤마로 구분해 입력하세요. 각 필지의 경계와 지번을 표시하고 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직입니다(두 번 누르면 원위치).
     </div>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
     <div id={"mapStatus"+sfx} className="arapmapstatus"/>
@@ -4944,7 +4937,6 @@ function Step2({ov,setOv,propType,setPropType}){
     <div style={{...S.card,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
       <span style={{...S.lbl,minWidth:70}}>물건 유형</span>
       {["주거용","비주거용"].map(t=>(<button key={t} style={{...S.btn,background:propType===t?C.pri:"#e2e8f0",color:propType===t?"#fff":"#666"}} onClick={()=>setPropType(t)}>{t}</button>))}
-      <span style={{fontSize:11,color:"#888"}}>비주거용 선택 시 시점수정이 자본수익률(상업용 임대동향) 방식으로 전환됩니다</span>
     </div>
     {/* PDF 업로드 영역 */}
     <div onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
@@ -4959,7 +4951,6 @@ function Step2({ov,setOv,propType,setPropType}){
         <button style={{...S.btn,background:"#e2e8f0",color:"#555",fontSize:11,padding:"4px 8px"}} onClick={()=>setShowKey(!showKey)}>{showKey?"숨김":"보기"}</button>
         {apiKey?<span style={{fontSize:11,color:"#059669"}}>✅</span>:<span style={{fontSize:11,color:"#f59e0b"}}>⚠️ 필요</span>}
       </div>
-      <div style={{fontSize:12,color:"#666",marginBottom:8}}>등기, 전유부, 총괄표제부, 표제부, 토이계 등 PDF를 업로드하면 자동으로 데이터를 인식합니다. 건축물대장은 PDF 없이 아래 「건축물대장 불러오기」로 채울 수 있습니다.</div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
         <label style={{...S.btn,background:C.acc,color:"#fff",cursor:"pointer"}}>
           + PDF 추가
@@ -5015,7 +5006,7 @@ function Step2({ov,setOv,propType,setPropType}){
     {/* 토지이용계획 (의견서 개황표 '토지이용계획 및 공법상 제한사항' 칸) */}
     <div style={S.card}>
       <div style={S.h2}>토지이용계획 (의견서용)</div>
-      <div style={{fontSize:11,color:"#666",marginBottom:8}}><a href="https://www.eum.go.kr/" target="_blank" rel="noopener noreferrer" style={{color:C.acc,textDecoration:"underline"}}>토지이음(eum.go.kr)</a>에서 「지역·지구등 지정여부」 내용을 복사해 필지별로 붙여넣으세요. 불필요 머리문구·줄바꿈은 자동 정리되어 개황표에 삽입됩니다.</div>
+      <div style={{fontSize:11,color:"#666",marginBottom:8}}><a href="https://www.eum.go.kr/" target="_blank" rel="noopener noreferrer" style={{color:C.acc,textDecoration:"underline"}}>토지이음(eum.go.kr)</a> 「지역·지구등 지정여부」를 필지별로 붙여넣으세요.</div>
       {_toiceParcels(ov).map((p,i,arr)=>(
         <div key={(p.jibun||"")+i} style={{marginBottom:8}}>
           <div style={{fontSize:12,fontWeight:600,color:C.pri,marginBottom:2}}>{arr.length>1?`${i+1}) `:""}{_toiceDong(ov)} {p.jibun||"(지번)"}</div>
@@ -5292,7 +5283,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table>
-      <div style={{marginTop:4,fontSize:11,color:"#666"}}>⠿ 드래그로 순서 변경 | 시점수정치 클릭→붙여넣기</div>
     </div>)}
 
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
@@ -5363,7 +5353,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
         </div>}
       </div>}
     </div>
-    <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>가격·면적 입력 → 단가 자동계산 / 면적·단가 입력 → 가격 자동계산. 면적 수정 시 마지막으로 입력한 가격 또는 단가를 기준으로 계산합니다.</div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
       <table style={S.tbl}><thead><tr>
         <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={S.th}>기호</th>
@@ -6625,7 +6614,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <td style={S.td}>{fmtDate(c.tradeDate)}</td>
         <td style={{...S.td,cursor:"pointer",fontWeight:700,color:c.timeAdj?C.acc:"#999"}} title="클릭해서 시점수정치 입력" onClick={()=>setEditTimeId(c.id)}>{c.timeAdj?fmtDec(c.timeAdj,5):"미입력 (클릭)"}</td>
       </tr>))}</tbody></table>
-      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 선정된 사례: {sel.length}건{!sel.length?" — 아래 체크박스에서 사례를 선정해주세요.":""} | 시점수정치 클릭 → 바로 입력</div>
+      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 선정된 사례: {sel.length}건{!sel.length?" — 아래 체크박스에서 선정":""}</div>
     </div>
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
       return <SijeomModal c={c} ov={ov} propType={propType} onApply={t=>applySijeom(editTimeId,t)} onClose={()=>setEditTimeId(null)}/>;})()}
@@ -6875,9 +6864,6 @@ function StepMap({ov,sfx,active}){
       <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155"}}
         title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
         onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
-    </div>
-    <div style={{fontSize:11.5,color:"#475569",background:"#f8fafc",borderLeft:`3px solid ${C.pri}`,padding:"6px 9px",borderRadius:"0 4px 4px 0",marginBottom:7}}>
-      ② 대상물건개요의 <b>지번주소</b>와 공부에서 인식한 필지 목록을 사용합니다. 여러 지번은 콤마로 구분해 입력하세요. 각 필지의 경계와 지번을 표시하고 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직입니다(두 번 누르면 원위치).
     </div>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
     <div id={"mapStatus"+sfx} className="arapmapstatus"/>
