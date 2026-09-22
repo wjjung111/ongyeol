@@ -366,7 +366,6 @@
           <span class="fld"><label>공시기준일</label><input type="text" id="base_gongsi" data-date value="2026.01.01" placeholder="2026.01.01"></span>
           <span class="fld"><label>탁상가격</label><input type="text" id="ov_deskPrice" placeholder="4,625,000,000"></span>
         </div>
-        <div class="hint" style="margin-top:8px">공시기준일~기준시점은 <b>공시지가기준법</b>의 지가변동률 기간으로 자동 반영됩니다.</div>
       </div>
 
       <!-- 우: 대상물건(토지+건물) -->
@@ -376,18 +375,16 @@
           <div class="row">
             <input type="text" id="landQuery" size="40" placeholder="예: 안양시 동안구 관양동 1443-5">
             <button class="btn" id="btnLand">조회</button>
-            <span class="hint">구·동까지 쓰면 정확합니다.</span>
           </div>
           <div class="status" id="landStatus"></div>
           <div class="tw" style="margin-top:8px"><table id="landTbl"></table></div>
           <div class="row" style="margin-top:8px">
             <button class="btn gh sm" onclick="addLand()">+ 필지 추가</button>
             <button class="btn gh sm" onclick="copyLandExcel()">📋 엑셀 복사</button>
-            <span class="hint">여러 필지면 조회를 반복하면 행이 쌓입니다. 모든 칸은 클릭해서 수정 가능. 공부면적 합계: <b id="landSum">0</b> ㎡</span>
+            <span class="hint">공부면적 합계: <b id="landSum">0</b> ㎡</span>
             <span class="hint" id="landSajWrap" style="display:none">사정면적 합계: <b id="landSajSum">0</b> ㎡</span>
             <span class="hint" id="landCopyMsg" style="margin-left:auto"></span>
           </div>
-          <div class="hint" style="margin-top:4px">지분평가는 <b>사정면적</b> 칸에 값을 넣으면 그 면적으로 평가액·명세표·감정평가표가 계산됩니다(비우면 공부면적). 열 머리 드롭다운을 <b>지분입력</b>으로 바꾸면 지분(%)을 넣어 자동 계산하고, 자동 채운 값도 그대로 고칠 수 있습니다.</div>
           <div class="fld" style="margin-top:12px"><label for="op_location">인근 위치 설명</label>
             <span style="display:flex;align-items:center;gap:6px;flex:1">
               <input class="box" id="op_location" style="max-width:320px" placeholder="예: 달서초등학교 북동측">
@@ -424,7 +421,6 @@
             <span class="hint" id="bldSajWrap" style="display:none">사정면적 합계: <b id="bldSajSum">0</b> ㎡</span>
             <span class="hint" id="bldCopyMsg" style="margin-left:auto"></span>
           </div>
-          <div class="hint" style="margin-top:4px">건물도 <b>사정면적</b>을 넣으면 그 면적으로 건물가액이 계산됩니다(비우면 연면적). 열 머리 드롭다운 <b>지분입력</b> + 지분(%)으로 자동 계산.</div>
         </div>
       </div>
 
@@ -432,13 +428,11 @@
 
      <!-- 그 밖의 사항 — 의견서 「Ⅰ. 6. 그 밖의 사항」의 가·나·다 문단. 양식의 고정 문구를 여기서 보여 주고, 항목을 끼워 넣거나 고치면 순서대로 가나다… 다시 매겨 의견서에 그대로 내보낸다 -->
      <div class="card" id="etcItemsCard">
-       <h2>그 밖의 사항 <span class="hint" style="font-weight:400">— 의견서 Ⅰ. 6. 그 밖의 사항</span></h2>
-       <div class="note">양식에 있는 기본 문구 세 개가 미리 들어 있습니다. <b>＋ 아래에 추가</b>로 그 사이에 문구를 끼워 넣으면 <b>가·나·다·라…</b> 번호가 자동으로 다시 매겨지고, 의견서(산출근거)에 화면 그대로 나갑니다. 한 항목 안에서 줄을 바꾸면 번호 없이 이어지는 문단이 됩니다. 토지 표에서 <b>지분입력</b>으로 지분을 넣으면 「본 평가는 귀 제시 지분(1/2)만의 평가로서 …」 문구가 첫 항목 다음에 자동으로 끼고(지분을 지우면 빠짐), 손으로 고친 뒤에는 자동으로 바꾸지 않습니다.</div>
+       <h2>그 밖의 사항</h2>
        <div id="etcItemsBox"></div>
        <div class="row" style="margin-top:6px">
          <button class="btn gh sm" onclick="etcItemAdd()">＋ 항목 추가</button>
          <button class="btn gh sm" onclick="etcItemsReset()">↺ 기본 문구로 되돌리기</button>
-         <span class="hint">항목을 모두 지우면 의견서에는 「6. 그 밖의 사항」 제목만 남습니다.</span>
        </div>
      </div>
     </div>
@@ -455,13 +449,11 @@
             <div class="row">
               <input type="text" id="stdQuery" size="34" placeholder="예: 안양시 동안구 관양동 1445-1">
               <button class="btn" id="btnStd">조회</button>
-              <span class="hint">공시기준일 기준 표준지 지번</span>
             </div>
             <div class="status" id="stdStatus"></div>
             <div class="tw" style="margin-top:8px"><table id="stdTbl"></table></div>
             <div class="row" style="margin-top:8px">
               <button class="btn gh sm" onclick="addStd()">+ 표준지 추가</button>
-              <span class="hint">필지마다 다른 표준지를 쓰면 추가하세요.</span>
             </div>
           </div>
 
@@ -485,7 +477,6 @@
                 </tr></tbody>
               </table>
             </div>
-            <div class="note">부동산원 지가변동률 조회 화면과 같은 규칙 — 그 해 1월 1일부터 포함되는 해는 <b>연도 누계</b>, 미발표 기간은 <b>마지막 발표월 변동률 × 경과일수/발표월 일수</b>. 값은 언제든 직접 수정 가능.</div>
           </div>
 
           <div class="card">
@@ -505,7 +496,6 @@
               <span id="sisan_hint" style="font-size:11px;color:#626b78"></span>
             </div>
             <div class="tw"><table id="tblSisan"></table></div>
-            <div class="note">산출단가까지 자동 계산되고, <b>결정단가</b>는 위에서 고른 단위·방식으로 자동으로 채워집니다(기본 "자동·반올림" = 집합건물과 같은 규칙: 백만원대 단가는 천원 단위, 천만원대는 만원 단위). 결정단가 칸을 직접 고치면 그 값을 쓰고(<span style="color:#dc2626;font-weight:700">빨간 글씨</span>), 비우면 다시 자동. 거래사례비교법 적용단가는 그 탭의 드롭다운으로 따로 정합니다. 필지가 여러 개면 행이 자동으로 늘어나고 합계가 나옵니다.</div>
           </div>
         </div>
 
@@ -521,25 +511,21 @@
             <!-- 거래사례 (세로 표) -->
             <div class="sub active">
               <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 거래사례</b>
-                <span class="hint">국토부 실거래가·KAIS 엑셀에서 머리글째 복사 → 열마다 있는 <b>토지 kais</b>(토지 행) · <b>건물 kais</b>(건물 행) 칸에 각각 Ctrl+V → 같은 열에 합쳐짐</span>
                 <button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
               <div class="pst" id="pTradeMsg"></div>
               <div class="tw"><table id="tblTrade"></table></div>
               <!-- 표 아래 한 줄 메모 — 적은 그대로 한글 의견서의 거래사례 표 바로 아래에 나간다(비우면 아무것도 안 나감) -->
               <div class="fld" style="margin-top:6px"><input class="box" id="g_tradeNote" title="여기에 적은 문구가 한글 의견서의 거래사례 표 바로 아래에 그대로 나옵니다" placeholder="※ 여기에 입력하면 한글에도 나옵니다 — 예: 거래사례#4는 거래시점 당시 내용연수가 초과한 바 관찰감가법을 적용하여 토지 단가를 배분하였음."></div>
-              <div class="note">잔존연수 = 내용연수 − 경과연수(사용승인일→거래일자), 건물 적용단가 = 재조달원가 × 잔존연수 ÷ 내용연수, 건물금액 = 단가 × 건물면적, 토지금액 = 총 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적(<b>원 미만 절사</b>) — <b>회색 칸은 자동 계산이지만 직접 고칠 수 있고</b>(고친 값은 파란 글씨, 비우면 다시 자동), 노란 칸(주구조·재조달원가·내용연수)만 채우면 됩니다. 붙여넣기는 열마다 있는 <b>토지 kais</b>·<b>건물 kais</b> 칸에 — 토지 행은 토지 kais, 건물 행은 건물 kais에 붙이면 같은 열에 합쳐집니다(두 행을 한꺼번에 붙여도 됨). ✕는 3열까지는 비우기, 4열부터는 삭제입니다. <b>사례 머리글(⠿ 거래사례 #1)을 끌어다 놓으면 열 자리가 바뀌고</b>(◀ ▶로 한 칸씩도 가능) 번호는 자리 순서대로 다시 매겨집니다 — 선정해 둔 사례도 따라갑니다. 선정 행은 둘로 나뉘어 <b>그밖의요인 선정</b>(「그 밖의 요인」 탭의 적용사례)과 <b>거래사례 선정</b>(「거래사례비교법」 탭의 채택 사례)을 각각 고릅니다 — 각 탭의 선택과 서로 연동됩니다. <b>시점수정치</b> 행은 <b>그밖의요인 선정</b>을 할 때 그 사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 조회해 채우고, 한 번 계산된 값은 저장돼 다른 사례로 옮겨도 계속 보입니다. 맨 아래 <b>비고</b> 행은 자유 메모(화면에만 남고 문서에는 나가지 않음)입니다. 표 바로 아래 <b>※ 한 줄 칸</b>에 적은 문구는 <b>한글 의견서의 거래사례 표 아래에 그대로</b> 나갑니다. 거래시점에 이미 <b>내용연수가 지난 사례</b>(관찰감가로 잔존연수를 직접 정한 사례)는 의견서에서 사용승인일·주구조·재조달원가·내용연수·잔존연수 칸이 <b>빨간 글씨</b>로 나갑니다.</div>
             </div>
 
             <!-- 평가사례 -->
             <div class="sub">
               <div class="paste">
                 <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 평가사례</b>
-                  <span class="hint">감정평가정보센터(KAPA HUB)에서 머리글째 복사 → 행마다 있는 <b>kapa hub</b> 칸에 Ctrl+V → 그 행부터 채워짐(여러 건이면 아래 행으로 이어짐)</span>
                   <button class="btn gh sm" style="margin-left:auto" onclick="addAppr()">+ 사례 추가</button></div>
                 <div class="pst" id="pApprMsg"></div>
               </div>
               <div class="tw"><table id="tblAppr"></table></div>
-              <div class="note">행마다 있는 <b>kapa hub</b> 칸에 붙여넣으면 필요한 항목(소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적)만 골라 그 행에 채웁니다. 여러 건을 한꺼번에 붙이면 아래 행으로 이어지고(모자라면 행 추가), 모든 칸은 직접 수정할 수 있습니다. ✕는 3행까지는 비우기, 4행부터는 삭제입니다. <b>왼쪽 ⠿ 손잡이를 끌면 행을 위아래로 옮길 수 있고</b>, 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다(기호를 직접 고쳐 두셨으면 그대로 둡니다). 맨 끝 <b>비고</b> 칸은 자유 메모로 화면에만 남고 문서에는 나가지 않습니다(붙여넣기를 해도 지워지지 않음).</div>
             </div>
 
             <!-- 그 밖의 요인 -->
@@ -594,8 +580,6 @@
                 <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
                 <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="calc-c"><input id="eDecide" placeholder="-" oninput="calcGongsi();saveForm();"></td><td>1</td></tr>
               </table></div>
-              <div class="note">산출 비교치는 <b>자동(셋째 자리에서 절사, 둘째 자리까지)</b>이고, <b>결정 보정치</b>에는 그 값이 그대로 채워집니다. 다른 값으로 고치면 <span style="color:#dc2626;font-weight:700">빨간 글씨</span>, 비우면 자동값으로. 결정치가 아래 시산가액 패널에 즉시 반영됩니다.<br>
-                <b>회색 칸(적용사례단가·개별요인·산출단가·비교치·공시지가·시점수정)은 자동 계산이지만 직접 고칠 수 있습니다.</b> 고친 값이 자동계산값과 다르면 <span style="color:#dc2626;font-weight:700">빨간 글씨</span>로 표시되고 뒤 칸(산출단가·비교치·시산가액)에 그대로 이어집니다. 칸을 비우거나 <b>↺ 원래대로 복원</b>을 누르면 자동계산값으로 돌아갑니다.</div>
             </div>
           </div>
         </div>
@@ -609,7 +593,6 @@
       <div class="cols5050" id="georae_layout">
         <div class="card">
           <h2>비교 거래사례 채택</h2>
-          <div class="note">거래사례는 <b>공시지가기준법 탭에서 한 번만 입력</b>하고, 여기서는 그 중 하나를 골라 씁니다. 거래사례 표의 <b>거래사례 선정</b> 행과 같은 선택이라 어느 쪽에서 골라도 함께 바뀝니다.</div>
           <div class="tw" style="margin-top:7px"><table id="tblTradePick"></table></div>
         </div>
         <div class="card">
@@ -649,7 +632,6 @@
           </select>
           <button class="btn gh sm" onclick="mapRefresh(true)" title="소재지 칸의 주소를 다시 조회해 핀을 새로 찍습니다(직접 옮긴 핀도 초기화)">↻ 주소 다시 찾기</button>
         </div>
-        <div class="note">각 탭의 <b>소재지 칸에 적힌 주소</b>를 좌표로 바꿔 지도에 찍습니다. 시·군·구가 없는 사례 주소(예 “자양동 617-33”)는 <b>본건과 같은 시군구</b>에서 먼저 찾습니다. 토지는 <b>필지 테두리</b>로 그리고(속은 비워 둡니다 — <b>본건·선정한 비교표준지·채택된 사례만</b> 옅게 칠합니다) 이름표가 화살표로 가리킵니다 — <b>이름표를 끌면 이름표만</b> 움직이고(화살촉·필지는 제자리, 두 번 누르면 원위치), 옮긴 자리는 저장됩니다. <b>이름표(또는 필지)를 누르면</b> 소재지와 함께 <b>계산된 단가·시점</b>이 뜹니다 — 거래사례는 토지단가·거래시점, 평가사례는 사례단가·기준시점, 비교표준지는 공시지가·공시기준일, 본건은 적용단가·기준시점(본건에서의 직선거리도 함께). 필지가 엉뚱하면 소재지 칸을 고치거나 「주소 다시 찾기」를 누르세요. 아래 <b>범례의 체크박스</b>로 본건·비교표준지·거래사례·평가사례를 <b>종류별로 켜고 끌 수 있습니다</b>(「모두 체크」·「모두 체크해제」) — 끄면 지도에서만 감춰지고 값·이름표 자리는 그대로라 다시 켜면 있던 대로 돌아옵니다. 지적선·용도지역은 브이월드 도면입니다.</div>
         <div id="mapLegend" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:8px 0 6px;font-size:12px;font-weight:600">
           <label class="mapchk kindchk" title="체크를 끄면 지도에서 감춥니다(값은 그대로)"><i class="lgd" style="background:#dc2626"></i>본건<input type="checkbox" class="kindbox" data-kind="본건" checked onchange="mapToggleKind()"></label>
           <label class="mapchk kindchk" title="체크를 끄면 지도에서 감춥니다(값은 그대로)"><i class="lgd" style="background:#2563eb"></i>비교표준지<input type="checkbox" class="kindbox" data-kind="비교표준지" checked onchange="mapToggleKind()"></label>
@@ -657,7 +639,6 @@
           <label class="mapchk kindchk" title="체크를 끄면 지도에서 감춥니다(값은 그대로)"><i class="lgd" style="background:#ea580c"></i>평가사례<input type="checkbox" class="kindbox" data-kind="평가사례" checked onchange="mapToggleKind()"></label>
           <button class="btn gh sm" onclick="mapCheckKinds(true)">모두 체크</button>
           <button class="btn gh sm" onclick="mapCheckKinds(false)">모두 체크해제</button>
-          <span style="color:#626b78;font-weight:400">테두리가 굵고 속이 옅게 칠해진 것 = 본건·선정한 비교표준지·지금 채택된 사례 (나머지는 테두리만)</span>
         </div>
         <!-- 지도 높이: 화면이 큰 모니터에선 세로로 더 길게(85vh), 노트북처럼 낮은 화면에서도 최소 760px -->
         <div id="mapBox" style="height:max(760px,85vh);border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5"></div>
@@ -686,7 +667,6 @@
       <div class="cols5050" id="bld_layout">
       <div class="card">
         <h2>건물표준단가 선택 · 2025년</h2>
-        <div class="note">단독주택부터 판매용까지 381개 사례 중 용도·구조·급수를 선택하세요. 의견서의 건물신축단가표에 여러 사례를 추가할 수 있습니다.</div>
         <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0">
           <select class="box" id="bc_category" aria-label="단가 대분류" style="width:auto"><option value="">대분류 선택</option></select>
           <select class="box" id="bc_usage" aria-label="단가 용도" style="width:auto"><option value="">용도 선택</option></select>
@@ -700,21 +680,19 @@
         <h3>의견서에 포함할 단가표 <span class="hint" id="bc_count"></span></h3>
         <div class="tw"><table><thead><tr><th>분류기호</th><th>용도</th><th>구조</th><th>급수</th><th>표준단가(원/㎡)</th><th>내용연수</th><th></th></tr></thead><tbody id="bc_selected"></tbody></table></div>
         <div class="row" style="margin-top:10px"><button class="btn" type="button" id="bc_download">📄 3. 의견서(산출근거) 다운로드</button></div>
-        <div class="hint">출처: <a href="https://member.kapanet.or.kr/standard/contents/ebook/objects/20260317/" target="_blank" rel="noopener">2025년도 적용 건축물 재조달원가 자료집</a>. 선택 내용은 사건에 저장됩니다. 의견서 다운로드에는 기존 토지 평가 계산도 필요합니다.</div>
+        <div class="hint">출처: <a href="https://member.kapanet.or.kr/standard/contents/ebook/objects/20260317/" target="_blank" rel="noopener">2025년도 적용 건축물 재조달원가 자료집</a></div>
       </div>
       <div>
       <div class="res"><span>건물가액</span><span class="n" id="resBld">-</span></div>
       <div class="card">
         <h2>재조달원가·감가수정</h2>
-        <div class="row" style="margin-bottom:8px"><button class="btn gh sm" onclick="addBldRow({});renderBldCalc();">+ 층 추가</button><span class="hint">여기서 추가한 층은 대상물건 탭 건물 표에도 함께 반영됩니다.</span></div>
+        <div class="row" style="margin-bottom:8px"><button class="btn gh sm" onclick="addBldRow({});renderBldCalc();">+ 층 추가</button></div>
         <div class="tw"><table id="tblBldCalc"></table></div>
-        <div class="note">재조달원가(원/㎡)와 내용연수는 평가 판단에 따라 직접 입력하세요. 왼쪽에서 조회·선택한 사례는 의견서 참고표에만 반영됩니다.
-          경과연수 = 기준시점 − 사용승인일(<b>대상물건 탭</b>) <b>자동</b>. 내용연수는 기본 50년, 필요시 수정. 층 삭제는 대상물건 탭에서 할 수 있습니다.</div>
       </div>
       </div>
       </div>
       <div class="card" id="gjsCard">
-        <h2>국세청 건물 기준시가 <span class="hint">상속·증여 보충적 평가액 · 감정평가액과 비교용</span></h2>
+        <h2>국세청 건물 기준시가</h2>
         <div id="gjsBox"><div class="hint">계산 중…</div></div>
       </div>
     </div>
@@ -732,7 +710,6 @@
             <tr><td colspan="3" style="text-align:right;font-weight:700">합계</td><td class="calc-c" id="fn_total" style="font-size:14px">-</td></tr>
           </table></div>
           <div class="fld" style="margin-top:8px"><label>결정의견</label><input class="box" id="fn_opinion" value="본건은 수요성·환가성·공시지가와 인근지역의 현지조사 가격수준, 토지 및 건물의 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음."></div>
-          <div class="note">문서(표지·괄감·의견서·명세표·요항표)는 <b>7. 감정평가서 다운로드</b> 탭에서 받습니다.</div>
         </div>
         <div class="card">
           <h2>검산 패널</h2>
@@ -746,8 +723,7 @@
       <div class="cols5050">
         <div class="card">
           <h2>요항표 입력</h2>
-          <div class="note">문장 속 빈칸을 채우면 그대로 한글파일에 들어갑니다. 부근상황·기타사항을 비워 두면 기본 문구가 출력됩니다. 다른 빈칸은 양식 표시가 남습니다.</div>
-          <div class="row" style="margin:8px 0"><button class="btn gh sm" onclick="fillYohangFromData()">대상물건 값으로 채우기</button><span class="hint">빈 칸만 채웁니다 — 이미 쓴 내용은 그대로 둡니다</span></div>
+          <div class="row" style="margin:8px 0"><button class="btn gh sm" onclick="fillYohangFromData()">대상물건 값으로 채우기</button></div>
 
           <h3>Ⅰ. 입지조건</h3>
           <div class="y-location">
@@ -788,7 +764,7 @@
 
         <div class="card">
           <h2>토지이용계획 (요항표 4번 칸)</h2>
-          <div class="note"><a href="https://www.eum.go.kr/web/am/amMain.jsp" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">토지이음(eum.go.kr)</a>에서 「지역·지구등 지정여부」 내용을 복사해 필지별로 붙여넣으세요. 머리문구·줄바꿈은 자동으로 정리되어 요항표에 들어갑니다.</div>
+          <div class="note"><a href="https://www.eum.go.kr/web/am/amMain.jsp" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">토지이음(eum.go.kr)</a> 「지역·지구등 지정여부」를 필지별로 붙여넣으세요.</div>
           <div id="toiceBox"></div>
           <div style="margin-top:10px">
             <div class="hint" style="margin-bottom:4px">요항표에 들어갈 모습</div>
@@ -803,18 +779,16 @@
       <div class="res"><span>감정평가액</span><span class="n" id="resFinalDoc">-</span></div>
       <div class="card">
         <h2>문서 생성</h2>
-        <div class="note">앞 탭에서 입력·계산한 값이 그대로 들어갑니다. 받은 한글파일은 한글에서 열어 확인하세요.<br>
-          파일 이름에 <b>번호가 붙어</b> 폴더에서 감정평가서 순서대로 정렬됩니다 — <b>1</b> 표지 · <b>2</b> 괄호감정표 · <b>3</b> 의견서 · <b>4</b> 명세표 · <b>5</b> 요항표, 청구서는 맨 뒤 <b>99</b>번(「8. 청구서 다운로드」 탭).</div>
-        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 1. 표지</button><span class="hint">의뢰인·본건 소재지·접수번호 자동</span></div>
-        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 2. 괄호감정표</button><span class="hint">감정평가액·면적·단가 자동</span></div>
-        <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 3. 의견서(산출근거)</button><span class="hint">입력값·계산 결과를 한글파일로 받기</span></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadPyoji()">📄 1. 표지</button></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" onclick="downloadGwal()">📄 2. 괄호감정표</button></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn" id="btnOpinion" onclick="downloadOpinion()">📄 3. 의견서(산출근거)</button></div>
         <input type="hidden" id="op_costSource">
         <textarea id="op_costRows" hidden></textarea>
         <div class="status" id="op_status" role="status"></div>
-        <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 4. 명세표 (.xlsx)</button><span class="hint">필지·층별 면적과 평가액 자동</span></div>
-        <div class="row"><button class="btn gh" id="btnYohang">📄 5. 요항표 (.hwpx)</button><span class="hint">대상물건 정보 자동 · 추가 문구는 <b>6. 요항표</b> 탭에서 채웁니다</span></div>
+        <div class="row" style="margin-bottom:7px"><button class="btn gh" id="btnMyeongse">📄 4. 명세표 (.xlsx)</button></div>
+        <div class="row"><button class="btn gh" id="btnYohang">📄 5. 요항표 (.hwpx)</button></div>
         <input type="hidden" id="doc_yohang">
-        <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px dashed #e2e5ea"><button class="btn" id="btnAllDocs" onclick="downloadAllDocs()">📦 1~5 일괄 받기</button><span class="hint">표지·괄호감정표·의견서·명세표·요항표 다섯 파일을 한 번에 받습니다. 브라우저가 「여러 파일 다운로드 허용」을 물으면 <b>허용</b>을 누르세요(처음 한 번). 청구서(99)는 「8. 청구서 다운로드」 탭에서 따로.</span></div>
+        <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px dashed #e2e5ea"><button class="btn" id="btnAllDocs" onclick="downloadAllDocs()">📦 1~5 일괄 받기</button></div>
 
         <div id="doc_status" class="status" role="status"></div>
       </div>
@@ -862,8 +836,6 @@
           <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
         </table></div>
         <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
-        <div class="note" style="margin-top:8px">평가수수료 = 요율 기준 수수료 <b>× 배수</b>를 <b>천원 미만 절사</b>(배수 칸이 비면 1배). 특별용역비는 <b>직접입력이면 적은 금액이 그대로</b> 나가고(배수 없음), <b>상한-하한·기준-하한·상한-기준이면 차액 × 배수</b>가 칸 아래 <b>적용액</b>에 채워집니다 — 적용액은 그대로 고칠 수 있고(예: 351,223 → 351,000), 차액·배수를 다시 고치면 자동값으로 돌아갑니다. 수수료 옆 배수를 고치면 특별용역비 배수도 같은 값으로 따라옵니다. 합계 = (평가수수료 + 실비소계)를 천원 미만 절사, 부가가치세 10%. 정산청구액 = 총계 − 기납부착수금. <b>집합건물 청구서와 동일한 양식·계산</b>입니다.
-          여비는 본건 소재지 기준으로 자동 입력되고, 물건조사비·공부발급비는 기본 15,000원이며 모든 칸은 직접 고칠 수 있습니다.</div>
       </div>
     </div>
   </div>
@@ -1846,7 +1818,7 @@ function moveTrade(f,t){
   });
   renderTrade();syncPick();calcGongsi();saveForm();
   var msg=document.getElementById('pTradeMsg');
-  if(msg){msg.className='pst ok';msg.textContent='✅ 거래사례를 #'+(f+1)+' → #'+(t+1)+' 자리로 옮겼습니다 (번호는 자리 순서대로 다시 매겨집니다).';}
+  if(msg){msg.className='pst ok';msg.textContent='✅ 거래사례 #'+(f+1)+' → #'+(t+1);}
 }
 var TRADE_DRAG=-1;
 function tradeDragStart(e,i){TRADE_DRAG=i;e.currentTarget.classList.add('dragging');
@@ -1929,8 +1901,7 @@ function moveAppr(f,t){
   renderAppr();syncPick();calcGongsi();saveForm();
   var msg=document.getElementById('pApprMsg');
   if(msg){msg.className='pst ok';
-    msg.textContent='✅ 평가사례를 '+(f+1)+'행 → '+(t+1)+'행으로 옮겼습니다'
-      +(auto?' (기호는 자리 순서대로 다시 매겼습니다).':' — 기호는 직접 적어 두신 값이라 그대로 뒀습니다.');}
+    msg.textContent='✅ 평가사례 '+(f+1)+'행 → '+(t+1)+'행';}
 }
 var APPR_DRAG=-1;
 function apprDragStart(e,i){APPR_DRAG=i;
@@ -1966,7 +1937,7 @@ function apprPaste(e,i){
     a.no=apprSym(j);a.memo=(APPRS[j]||{}).memo||'';   // 직접 적어 둔 비고는 붙여넣기로 지우지 않는다
     APPRS[j]=a;});
   renderAppr();syncPick();calcGongsi();saveForm();
-  msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 반영(행 '+(i+1)+(res.out.length>1?'~'+(i+res.out.length):'')+') — 소재지·용도지역·지목·이용상황·사례단가·기준시점·평가목적 자동';
+  msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 반영(행 '+(i+1)+(res.out.length>1?'~'+(i+res.out.length):'')+')';
 }
 
 // 붙여넣은 텍스트 → 사례 목록. 머리글은 여러 번 나올 수 있고(토지+건물 일괄 거래를 블록별로 복사),
