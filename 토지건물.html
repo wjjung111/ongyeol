@@ -2366,7 +2366,7 @@ function gjsFloorK(x){return Math.floor(x/1000)*1000;}
 function gjsFloorAdj(r,useNo,top){
   var t=String(r['용도']||''),gb=String(r['층구분']||''),nm=String(r['층별']||'');
   var roof=/옥탑/.test(gb)||/옥탑/.test(nm);
-  var att=roof||/주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/.test(t);
+  var att=roof||/부속|창고|주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터/.test(t);
   var res=(useNo===1||useNo===2);
   if(res)return att?{f:0.6,l:'주거 부속 60'}:{f:1,l:'주거용'};
   if(att)return {f:0.6,l:'부속 60'};
@@ -2393,23 +2393,30 @@ function renderGjs(){
   // 조정률Ⅱ(건물 단위, 비주거): 층수·연면적(공부 연면적 기준) 중 높은 지수 하나
   var fIdx=top<=5?0.9:top<=10?1:top<=15?1.1:top<=20?1.2:1.3, aIdx=gongbuAll<1000?0.9:gongbuAll<5000?1:gongbuAll<10000?1.1:gongbuAll<50000?1.2:1.3, adj2=Math.max(fIdx,aIdx);
   var roofTxt=document.getElementById('bt_roof')?document.getElementById('bt_roof').value:'';
+  var mainPurps=document.getElementById('bt_purps').value||'';
+  var mainUse=gjsUse(mainPurps,gongbuAll);
+  var ATT_RE=/부속|주차장|기계실|보일러|옥탑|물탱크|대피소|전기실|펌프실|계단|승강기|엘리베이터|창고/;
+  // 조정률Ⅲ: 단독주택(다가구·다중 제외) 연면적 264㎡↑ 120, 331㎡↑ 140 — 건물 전체에 적용
+  var isDandok=/단독주택/.test(mainPurps)&&!/다가구|다중|다세대|연립|기숙사/.test(mainPurps)&&!rows.some(function(r){return /다가구|다중|다세대|연립|기숙사/.test(String(r['용도']||''));});
+  var adj3=isDandok?(gongbuAll>=331?1.4:gongbuAll>=264?1.2:1):1;
   var totSJ=0,totYD=0,areaSum=0,h='',structs={},rrs={};
   rows.forEach(function(r){
     var area=bldArea(r),sNo=gjsStruct(r['구조']||document.getElementById('bt_strct').value),sIdx=(GJS_STRUCT_OVR[year]&&GJS_STRUCT_OVR[year][sNo])||GJS_STRUCT_IDX[sNo];
     var grp=GJS_GROUP[sNo],rr=gjsResidual(year,built,grp);
-    var uNo=gjsUse(r['용도'],num(r['연면적'])),uIdx=(GJS_USE_OVR[year]&&GJS_USE_OVR[year][uNo])||GJS_USE_IDX[uNo];
+    var isAtt=ATT_RE.test(String(r['용도']||''))&&!/^창고$/.test(String(r['용도']||'').trim())||( /창고/.test(String(r['용도']||''))&&(mainUse===1||mainUse===2) );
+    var uNo=isAtt?mainUse:gjsUse(r['용도'],num(r['연면적'])),uIdx=(GJS_USE_OVR[year]&&GJS_USE_OVR[year][uNo])||GJS_USE_IDX[uNo];
     var fa=gjsFloorAdj(r,uNo,top),res=(uNo===1||uNo===2);
     var adj1=(sIdx<100&&/함석|천막|초가|썬라이트|너와/.test(roofTxt))?0.6:(sIdx<100&&/패널|판넬|유리|슬레이트/.test(roofTxt))?0.8:1;
-    var a2=res?1:adj2;
+    var a2=res?adj3:adj2;
     var unitYD=gjsFloorK(base*(sIdx/100)*(uIdx/100)*(loc.idx/100)*rr);
     var unitSJ=gjsFloorK(base*(sIdx/100)*(uIdx/100)*(loc.idx/100)*rr*adj1*a2*fa.f);
     var vSJ=unitSJ*area,vYD=unitYD*area;totSJ+=vSJ;totYD+=vYD;areaSum+=area;
     structs[sIdx]=1;rrs[grp]=rr;
     h+='<tr><td>'+esc(r['층별']||'')+' '+esc(r['용도']||'')+'</td><td class="calc-c">'+sIdx+'</td><td class="calc-c">'+uIdx+'</td><td class="calc-c">'+rr.toFixed(4).replace(/0+$/,'').replace(/\.$/,'')+'</td>'
-      +'<td class="calc-c">'+(res?'-':a2.toFixed(2))+(fa.f!==1?' × '+fa.f:'')+'</td><td class="calc-c">'+won(unitSJ)+'</td><td class="calc-c">'+(area?area.toLocaleString('ko-KR',{maximumFractionDigits:3}):'-')+'</td><td class="calc-c">'+won(vSJ)+'</td></tr>';
+      +'<td class="calc-c">'+(res?(adj3!==1?adj3.toFixed(2):'-'):a2.toFixed(2))+(fa.f!==1?' × '+fa.f:'')+'</td><td class="calc-c">'+won(unitSJ)+'</td><td class="calc-c">'+(area?area.toLocaleString('ko-KR',{maximumFractionDigits:3}):'-')+'</td><td class="calc-c">'+won(vSJ)+'</td></tr>';
   });
   var rrTxt=Object.keys(rrs).map(function(g){return ['','Ⅰ','Ⅱ','Ⅲ','Ⅳ'][g]+'그룹 '+rrs[g];}).join(' / ');
-  var sum=year+'년 고시 · 기준액 '+won(base)+'원/㎡ · 위치지수 '+loc.idx+'(공시지가 '+won(price)+'원/㎡) · 잔가율 '+built+'년 신축 '+rrTxt+' · 조정률Ⅱ '+adj2+'(최고층수 '+top+'층·연면적 '+gongbuAll.toLocaleString('ko-KR',{maximumFractionDigits:2})+'㎡)'+(useSaj?' · 사정면적 기준':'');
+  var sum=year+'년 고시 · 기준액 '+won(base)+'원/㎡ · 위치지수 '+loc.idx+'(공시지가 '+won(price)+'원/㎡) · 잔가율 '+built+'년 신축 '+rrTxt+' · 조정률Ⅱ '+adj2+'(최고층수 '+top+'층·연면적 '+gongbuAll.toLocaleString('ko-KR',{maximumFractionDigits:2})+'㎡)'+(isDandok?' · 단독주택 조정률Ⅲ '+adj3+'(주거용은 Ⅱ 미적용)':'')+(useSaj?' · 사정면적 기준':'');
   box.innerHTML='<div class="hint" style="margin-bottom:6px">'+sum+'</div>'
     +'<div class="tw"><table><tr><th>층 (용도)</th><th>구조</th><th>용도</th><th>잔가율</th><th>조정률</th><th>㎡당(절사)</th><th>면적(㎡)</th><th>기준시가(원)</th></tr>'+h
     +'<tr><td colspan="6" style="text-align:right;font-weight:700">건물 합계 (상속·증여용)</td><td class="calc-c">'+areaSum.toLocaleString('ko-KR',{maximumFractionDigits:3})+'</td><td class="calc-c" style="font-size:13px;font-weight:700">'+won(totSJ)+'</td></tr></table></div>'
