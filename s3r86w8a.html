@@ -4663,6 +4663,9 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
   "approvalDate": "사용승인일 (YYYY.MM.DD)",
   "zoning": "용도지역 (토지이용계획확인서 기준, 예: 제2종일반주거지역)",
   "structure": "주구조 + 지붕 (예: 철근콘크리트구조 (철근)콘크리트평지붕)",
+  "regStructure": "명세표용 구조 — 반드시 등기사항전부증명서 표제부(1동의 건물의 표시) '건물내역'의 맨 앞 구조+지붕 전체를 빠짐없이 (예: 철근콘크리트조 (철근)콘크리트지붕). 건축물대장 주구조가 아님",
+  "floorDetail": "본건 동의 층별 면적 내역 — 반드시 등기사항전부증명서 표제부(1동의 건물의 표시) '건물내역'에서만 추출. 건축물대장 층별현황은 절대 사용 금지. 한 줄에 '층 면적' 형식으로 줄바꿈(\\n) 구분 (예: '1층 16.146\\n2~10층 (각) 148.339\\n옥탑1층(연면적제외) 15.951'). 등기 표기 그대로, 면적 소수점 자릿수 보존",
+  "landRatioDenom": "대지권비율의 분모 (예: '1064.5분의 12.23'이면 1064.5 — 숫자만). 대지권 표시가 없으면 빈 문자열",
   "complexScale": "단지규모 동수/세대수. 오피스텔 등 세대수가 없으면 대장 호수 사용. 총괄표제부 우선, 없으면 주건축물 표제부 합계. 수치를 추측하지 말 것",
   "totalFloorArea": "연면적 (㎡, 표제부)",
   "landAreaTotal": "대지면적 (㎡, 표제부 또는 총괄표제부)",
@@ -4687,7 +4690,10 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
       "area": "전유면적 (㎡, 숫자만, 소수점 포함)",
       "commonArea": "공용면적 합계 (㎡, 전유부 공용부분 모든 면적 합산)",
       "landArea": "대지권비율/대지지분 면적 (㎡, 분자값)",
-      "mainUseJeonyu": "주용도 - 전유부 기준 (예: 다세대주택, 아파트, 오피스텔)"
+      "mainUseJeonyu": "주용도 - 전유부 기준 (예: 다세대주택, 아파트, 오피스텔)",
+      "landRatioDenom": "이 호 대지권비율의 분모 (숫자만). 건물 공통 분모와 같으면 빈 문자열",
+      "regStructure": "이 호가 속한 동의 등기 표제부 '건물내역' 구조+지붕 — 건물 공통(regStructure)과 다른 동일 때만, 같으면 빈 문자열",
+      "floorDetail": "이 호가 속한 동의 등기 표제부 층별 면적 내역(위 floorDetail과 같은 형식) — 건물 공통과 다른 동일 때만, 같으면 빈 문자열"
     }
   ]
 }
@@ -4698,7 +4704,8 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
 - 호 순서는 호 번호 오름차순 (201, 301, 401 ...)
 - 공용면적은 전유부의 공용부분에 나열된 모든 면적(지하주차장, 계단실, 벽체 등)을 합산
 - 용도지역은 토지이용계획확인서(토이계)를 우선 참조
-- 대지지분은 등기사항전부증명서의 대지권비율에서 추출 (분자 값만)
+- 대지지분은 등기사항전부증명서의 대지권비율에서 추출 (분자 값만). landRatioDenom은 그 분모 — 분모는 대지면적과 다를 수 있으니 등기 원문 숫자를 그대로
+- regStructure·floorDetail(명세표용 구조·층별면적)은 반드시 등기 표제부(1동의 건물의 표시) '건물내역' 기준 — 건축물대장과 값이 다르면 등기가 정답. 호수들이 같은 동이면 건물 공통 칸에만 넣고 호별 칸은 빈 문자열
 - 연면적, 대지면적, 사용승인일은 표제부/총괄표제부에서 (모든 호 공통)
 - mainUse는 표제부의 주용도, mainUseJeonyu는 각 호 전유부의 주용도
 - PDF가 단일 호만 포함되어 있으면 units 배열에 1개 객체만 넣기`});
@@ -4828,7 +4835,7 @@ function Step2({ov,setOv,propType,setPropType}){
       setOv(prev=>{
         const next={...prev};
         // 건물단위 필드 (단일)
-        const bldgFields=["jibun","road","buildingName","approvalDate","zoning","structure","complexScale","totalFloorArea","landAreaTotal","floors","owner","mainUse","feeDownPayment","feeSpecial","feeBasis"];
+        const bldgFields=["jibun","road","buildingName","approvalDate","zoning","structure","regStructure","floorDetail","landRatioDenom","complexScale","totalFloorArea","landAreaTotal","floors","owner","mainUse","feeDownPayment","feeSpecial","feeBasis"];   // regStructure·floorDetail·landRatioDenom = 명세표용(등기 표제부)
         for(const k of bldgFields){
           if(result[k]!=null&&String(result[k]).trim()){
             next[k]=String(result[k]).trim();
@@ -4859,14 +4866,16 @@ function Step2({ov,setOv,propType,setPropType}){
         }
         // 호단위 배열 (units) — Claude가 새 포맷으로 응답한 경우
         const unitFields=["dong","floor","ho","area","commonArea","landArea","mainUseJeonyu"];
+        const unitMsFields=["landRatioDenom","regStructure","floorDetail"];   // 호별 명세표 칸(동이 공통과 다를 때만) — 건물 공통 칸으로 복사하지 않는다
         let unitsArr=null;
         if(Array.isArray(result.units)&&result.units.length>0){
           unitsArr=result.units.map((u,i)=>{
             const obj={id:Date.now()+i+Math.random()};
-            for(const k of unitFields){
+            for(const k of unitFields.concat(unitMsFields)){
               const v=u[k];
               obj[k]=(v!=null&&String(v).trim())?String(v).trim():"";
             }
+            for(const k of unitMsFields)if(obj[k]&&obj[k]===String(next[k]||"").trim())obj[k]="";   // 공통값과 같으면 호별 칸은 비워 둔다
             obj.evalArea="";
             return obj;
           });
@@ -4890,7 +4899,7 @@ function Step2({ov,setOv,propType,setPropType}){
             incoming.dong=norm(incoming.dong,"동");incoming.ho=norm(incoming.ho,"호");
             const idx=merged.findIndex(u=>incoming.ho&&norm(u.dong,"동")===incoming.dong&&norm(u.ho,"호")===incoming.ho);
             if(idx<0)merged.push(incoming);
-            else{const updated={...merged[idx]};for(const k of unitFields)if(incoming[k]!=="")updated[k]=incoming[k];merged[idx]=updated;}
+            else{const updated={...merged[idx]};for(const k of unitFields.concat(unitMsFields))if(incoming[k])updated[k]=incoming[k];merged[idx]=updated;}
           }
           merged.sort((a,b)=>String(a.dong||"").localeCompare(String(b.dong||""),"ko",{numeric:true})||String(a.ho||"").localeCompare(String(b.ho||""),"ko",{numeric:true}));
           unitsArr=merged;next.units=merged;
