@@ -186,11 +186,22 @@ function opinionData(){
   Object.assign(m,factors('그밖개별',[1,2,3,4,5,6].map(function(i){return val('e_f'+i);})),standardMap(STDS[etc.stdIdx]||{},etc.stdIdx));
   // 계산표의 수동 공시지가 수정은 그 밖의 요인 표에만 적용한다.
   var detail=Object.assign({},m,{'표준지_공시지가':money(etc.price)});
-  var parcels=LANDS.map(function(L,i){return parcelMap(L,i,gs,ga);});
+  // 묶기(일단지)면 필지들을 한 줄로 합쳐 내보낸다 — 지번은 「565-18 외 1필지」, 면적은 공부면적 합계/묶은 면적,
+  // 단가·시산가액은 일단지 전체 값(화면 시산가액 표와 같은 한 줄). 명세표는 이와 달리 필지별 행을 유지한다.
+  var group=(typeof isLandGroup==='function')&&isLandGroup()&&LANDS.length>1;
+  var parcels=group?[(function(){
+      var L0=LANDS[0]||{},m=parcelMap(L0,0,gs,ga);
+      m['토지_지번']=text(L0['지번'])+' 외 '+(LANDS.length-1)+'필지';
+      m['토지_면적']=area(gs.gongbuSize||gs.size);
+      m['토지_사정면적']=area(gs.size);
+      m['공시_시산가액']=money(gs.total);
+      if(ga&&ga.total)m['거래_시산가액']=money(ga.total);
+      return m;})()]
+    :LANDS.map(function(L,i){return parcelMap(L,i,gs,ga);});
   // _selected = 본건 필지 중 하나라도 이 표준지를 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)
   var standards=STDS.map(function(S,i){var used=gs.rows.map(function(r,j){return r.stdIdx===i?j+1:null;}).filter(Boolean);
     return Object.assign(standardMap(S,i),{
-    '필지_번호':used.join(', '),
+    '필지_번호':(group&&used.length)?'일단지':used.join(', '),
     '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2),
     _selected:used.length>0
   });});
