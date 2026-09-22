@@ -38,6 +38,16 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     const auto=await page.evaluate(()=>Object.fromEntries(Y_IDS.map(id=>[id,document.getElementById(id).value])));
     assert.equal(auto.y_dong,'여수동');assert.equal(auto.y_jise,'평탄한');assert.equal(auto.y_shape,'세장형');
     assert.equal(auto.y_struct,'철근콘크리트구조 지상 4층');assert.equal(auto.y_near,'성남여수초등학교 북서측');
+    assert.equal(auto.y_roadCnt,'2','접면도로 수 기본값 두 면');
+    // 지하층이 있으면 건물 구조에 "지하 N층"도 넣고, 지상만 적힌 옛 자동값은 새 자동값으로 바꾼다. 직접 쓴 값은 보존.
+    await page.evaluate(()=>{document.getElementById('bt_flrs').value='4/1';fillYohangFromData();});
+    assert.equal(await page.locator('#y_struct').inputValue(),'철근콘크리트구조 지하 1층 지상 4층','지하층 포함');
+    await page.locator('#y_struct').fill('벽돌조 지상 2층');
+    await page.evaluate(()=>fillYohangFromData());
+    assert.equal(await page.locator('#y_struct').inputValue(),'벽돌조 지상 2층','직접 입력한 구조는 보존');
+    await page.locator('#y_struct').fill('');
+    await page.evaluate(()=>{document.getElementById('bt_flrs').value='4/0';fillYohangFromData();});
+    assert.equal(await page.locator('#y_struct').inputValue(),'철근콘크리트구조 지상 4층');
     assert.equal(auto.y_use,'제2종근린생활시설 및 다가구주택','건물 주용도 자동 입력');
     await page.evaluate(()=>{
       document.getElementById('bt_purps').value='제1종근린생활시설';
@@ -172,6 +182,21 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     assert(res.text.includes('대비 등고평탄한 정방형의 토지임.'));
     assert(!res.text.includes('등고평탄한한'));
     assert(res.text.includes('본건 남서측으로 노폭 약 0m, 북측으로 노폭 약 0m 내외의 아스팔트 포장도로와 각각 접하고 있음.'));
+    // 한 면만 접함 → ② 문구·"각각" 없이 출력, 화면에서도 ② 칸이 숨는다. 저장·복원 후에도 유지.
+    await page.locator('#y_roadCnt').selectOption('1');
+    assert(await page.locator('#y_road2wrap').isHidden()&&await page.locator('#y_roadEach').isHidden(),'한 면이면 ② 칸 숨김');
+    await page.evaluate(()=>doSave());
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>window.ArapTojiDocuments);
+    await page.evaluate(()=>showTab('yohang'));
+    assert.equal(await page.locator('#y_roadCnt').inputValue(),'1','접면도로 수 저장·복원');
+    assert(await page.locator('#y_road2wrap').isHidden(),'복원 뒤에도 ② 칸 숨김');
+    const one=await outputParagraphs();
+    assert(one.includes('본건 남서측으로 노폭 약 0m 내외의 아스팔트 포장도로와 접하고 있음.'),'한 면 문장: '+one.filter(t=>t.includes('노폭')).join(' | '));
+    assert(!one.some(t=>t.includes('북측')||t.includes('각각')),'② 문구 제거');
+    await page.locator('#y_roadCnt').selectOption('2');
+    assert(await page.locator('#y_road2wrap').isVisible(),'두 면으로 되돌리면 ② 칸 다시 보임');
+    assert((await outputParagraphs()).includes('본건 남서측으로 노폭 약 0m, 북측으로 노폭 약 0m 내외의 아스팔트 포장도로와 각각 접하고 있음.'));
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({status:'PASS',auto},null,1));
   }finally{await browser.close();server.close();}

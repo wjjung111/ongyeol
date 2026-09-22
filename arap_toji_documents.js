@@ -26,6 +26,25 @@ function expandPara(xmlText,token,value,recolor){
   var clones=String(value).split('\n').map(function(line){return tpl.split(token).join(esc(line));}).join('');
   return xmlText.slice(0,ps)+clones+xmlText.slice(pe);
 }
+// 접면도로가 한 면뿐이면(요항표 탭 「한 면만 접함」) 양식 문장
+//   "본건 ①으로 노폭 약 Nm, ②으로 노폭 약 Mm 내외의 아스팔트 포장도로와 각각 접하고 있음."
+// 에서 ", ②으로 노폭 약 Mm" 런 네 개("m, "·②방위·"으로 노폭 약 "·②노폭)를 빼고 "각각 "을 지워
+//   "본건 ①으로 노폭 약 Nm 내외의 아스팔트 포장도로와 접하고 있음." 으로 만든다. 줄배치 캐시는 지워 한글이 다시 배치.
+function dropSecondRoad(doc){
+  if(cgVal('y_roadCnt')!=='1')return;
+  var t=Array.from(doc.getElementsByTagNameNS('*','t')).find(function(n){return n.textContent.indexOf('{{요항_도로2방위}}')>=0;});
+  if(!t)return;
+  var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
+  if(!p)return;
+  var runs=Array.from(p.children).filter(function(n){return n.localName==='run';});
+  var i=runs.findIndex(function(r){return r.textContent.indexOf('{{요항_도로2방위}}')>=0;});
+  var w=runs.findIndex(function(r){return r.textContent.indexOf('{{요항_도로2노폭}}')>=0;});
+  if(i<1||w<i)return;
+  // ②방위 바로 앞 런("m, ")부터 ②노폭 런까지 제거. 앞 런의 "m"은 뒤 런("m 내외의…")이 이미 갖고 있다.
+  runs.slice(i-1,w+1).forEach(function(r){r.remove();});
+  runs.slice(w+1).forEach(function(r){Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(n){n.textContent=n.textContent.replace('각각 ','');});});
+  Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+}
 // 원본 양식은 보존하고 입지조건의 고정 문구 두 곳만 출력 시 바꾼다.
 // 비어 있으면 원래 문단 유지. 여러 줄은 같은 서식의 문단으로 나눠 한글에서도 줄바꿈을 보존한다.
 function fillLocationNarrative(doc){
@@ -70,6 +89,7 @@ async function buildYohang(){
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
     fillLocationNarrative(d);
+    dropSecondRoad(d);
     Array.from(d.getElementsByTagNameNS('*','run')).filter(function(r){return red.has(r.getAttribute('charPrIDRef'));}).forEach(function(r){
       Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){
         t.textContent=t.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
