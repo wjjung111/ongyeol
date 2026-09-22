@@ -115,6 +115,18 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   });
   console.log('⑤ 의견서',op);
   assert.equal(op.n,1);
+  // 대상물건 개요 표는 필지별 두 줄(소재지·지목·공부면적) + 합친 칸(사정면적 = 묶은 면적 전체)
+  const sub=await page.evaluate(()=>{
+    const d=ArapTojiOpinion.data();
+    return {n:d.subject.length,group:d.landGroup,
+      jibun:d.subject.map(m=>m['토지_지번']),gongbu:d.subject.map(m=>m['토지_면적']),
+      saj:d.subject.map(m=>m['토지_사정면적'])};
+  });
+  console.log('⑤-2 대상물건 개요 표',sub);
+  assert.equal(sub.group,true);
+  assert.equal(sub.n,2);
+  assert.deepEqual(sub.jibun,['565-18','565-25']);
+  assert.equal(sub.saj[0],'900');            // 합친 칸에는 묶은 면적 전체
   assert.equal(op.jibun,'565-18 외 1필지');
   assert.equal(op.sisan,op.total);
   assert.equal(op.pilji,'일단지');

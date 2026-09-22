@@ -203,6 +203,7 @@ function opinionData(){
   // 묶기(일단지)면 필지들을 한 줄로 합쳐 내보낸다 — 지번은 「565-18 외 1필지」, 면적은 공부면적 합계/묶은 면적,
   // 단가·시산가액은 일단지 전체 값(화면 시산가액 표와 같은 한 줄). 명세표는 이와 달리 필지별 행을 유지한다.
   var group=(typeof isLandGroup==='function')&&isLandGroup()&&LANDS.length>1;
+  var perParcel=LANDS.map(function(L,i){return parcelMap(L,i,gs,ga);});
   var parcels=group?[(function(){
       var L0=LANDS[0]||{},m=parcelMap(L0,0,gs,ga);
       m['토지_지번']=text(L0['지번'])+' 외 '+(LANDS.length-1)+'필지';
@@ -211,7 +212,15 @@ function opinionData(){
       m['공시_시산가액']=money(gs.total);
       if(ga&&ga.total)m['거래_시산가액']=money(ga.total);
       return m;})()]
-    :LANDS.map(function(L,i){return parcelMap(L,i,gs,ga);});
+    :perParcel;
+  // 「대상물건 개요 - 평가대상 토지」 표만은 일단지라도 **필지별 줄**로 나간다 —
+  // 소재지·지번·지목·공부면적은 필지마다, 나머지(일련번호·사정면적·용도지역·도로교통·형상지세·공시지가·비고)는
+  // 세로로 합친 한 칸(사정면적은 묶은 면적 전체). 산출근거 표들은 위 parcels대로 한 줄이다(2026-09-22 요청).
+  var subject=group?perParcel.map(function(m,i){
+      var o=Object.assign({},m);
+      if(!i)o['토지_사정면적']=area(gs.size);   // 합친 칸에 들어갈 값 = 묶은 면적 전체
+      return o;})
+    :perParcel;
   // _selected = 본건 필지 중 하나라도 이 표준지를 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)
   var standards=STDS.map(function(S,i){var used=gs.rows.map(function(r,j){return r.stdIdx===i?j+1:null;}).filter(Boolean);
     return Object.assign(standardMap(S,i),{
@@ -219,7 +228,7 @@ function opinionData(){
     '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2),
     _selected:used.length>0
   });});
-  return {global:m,detail:detail,parcels:parcels,standards:standards,buildings:buildingMaps(br.rows||[]),
+  return {global:m,detail:detail,parcels:parcels,subject:subject,landGroup:group,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
@@ -514,6 +523,29 @@ function resizeRows(tbl,start,count,blockSize,maps,state){
   var host=tbl.parentNode;while(host&&!(host.namespaceURI===HP&&host.localName==='p'))host=host.parentNode;
   if(host)children(host,'linesegarray').forEach(function(n){n.remove();});
 }
+// 일단지 — 늘어난 필지 행들에서 '공통' 열을 세로로 합친다.
+// 한글 표는 합친 칸만 남기고(rowSpan=N) 아래 행의 같은 열 칸은 아예 없앤다(양식의 표준지 표와 같은 모양).
+function mergeRows(tbl,start,n,keepCols){
+  if(!(n>1))return;
+  var rows=children(tbl,'tr').slice(start,start+n);
+  if(rows.length<n)return;
+  children(rows[0],'tc').forEach(function(tc){
+    var col=children(tc,'cellAddr')[0].getAttribute('colAddr');
+    if(keepCols[col])return;
+    var span=children(tc,'cellSpan')[0],size=children(tc,'cellSz')[0];
+    var h=Number(size.getAttribute('height'));
+    rows.slice(1).forEach(function(r){
+      children(r,'tc').forEach(function(c){
+        if(children(c,'cellAddr')[0].getAttribute('colAddr')!==col)return;
+        h+=Number(children(c,'cellSz')[0].getAttribute('height'));
+        c.remove();
+      });
+    });
+    span.setAttribute('rowSpan',String(n));
+    size.setAttribute('height',String(h));
+  });
+  clearLines(tbl);
+}
 function blankMap(el){var m={};(el.textContent.match(tokenRE)||[]).forEach(function(s){m[s.slice(2,-2)]='';});return m;}
 function replacePlain(root,from,to){descendants(root,'t').forEach(function(t){if(t.textContent.indexOf(from)>=0)t.textContent=t.textContent.split(from).join(to);});}
 function opinionXml(xml,data){
@@ -524,7 +556,18 @@ function opinionXml(xml,data){
   tables.forEach(function(tbl){
     var rows=children(tbl,'tr');
     var picked=data.standards.filter(function(x){return x._selected;});
-    if(hasToken(tbl,'토지_소재지'))resizeRows(tbl,1,1,1,data.parcels,state);
+    if(hasToken(tbl,'토지_소재지')){
+      // 일단지 — 필지별로 남길 열(소재지·지번·지목·공부면적)을 먼저 가려 두고, 행을 늘린 뒤 나머지 열을 합친다
+      var keepCols=null,rowsNow=data.subject||data.parcels;
+      if(data.landGroup&&rowsNow.length>1){
+        keepCols={};
+        children(children(tbl,'tr')[1],'tc').forEach(function(tc){
+          keepCols[children(tc,'cellAddr')[0].getAttribute('colAddr')]=/\{\{토지_(소재지|지번|지목|면적)\}\}/.test(tc.textContent);
+        });
+      }
+      resizeRows(tbl,1,1,1,rowsNow,state);
+      if(keepCols)mergeRows(tbl,1,rowsNow.length,keepCols);
+    }
     else if(hasToken(tbl,'표준지_소재지')){
       resizeRows(tbl,2,2,2,data.standards,state);
       // 표준지가 둘 이상이면 선정한 표준지 행(2행씩)은 굵게 — 어느 것을 썼는지 표에서 바로 보이게

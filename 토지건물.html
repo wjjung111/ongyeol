@@ -146,6 +146,12 @@
   /* 필지들을 하나로 묶는 ] 꺾쇠 — 세로줄 + 위아래 팔이 공부면적 칸 쪽(왼쪽)으로 뻗는다 */
   .grp-br{position:absolute;z-index:2;left:-18px;top:5px;bottom:5px;width:17px;border:3px solid #dc2626;border-left:none;border-radius:0 4px 4px 0;pointer-events:none;}
   .grp-lab{font-size:10px;color:#b91c1c;font-weight:700;margin-bottom:2px;}
+  /* 건물 층 묶기 — 같은 글자끼리 재조달원가·내용연수를 공유. 묶음마다 왼쪽 색 띠 */
+  td.grpsel{padding:2px;width:46px;}
+  td.grpsel select{width:100%;border:1px solid #cbd5e1;border-radius:4px;font:inherit;font-size:12px;background:#fff;text-align:center;}
+  td.bgrp-a{box-shadow:inset 3px 0 0 #dc2626;} td.bgrp-b{box-shadow:inset 3px 0 0 #2563eb;}
+  td.bgrp-c{box-shadow:inset 3px 0 0 #16a34a;} td.bgrp-d{box-shadow:inset 3px 0 0 #ea580c;}
+  td.bgrp-e{box-shadow:inset 3px 0 0 #7c3aed;}
   input.grp-in{width:78%;text-align:center;font-weight:700;font-size:13px;}
   /* 거래사례 열별 붙여넣기 칸 (kais붙여넣기) — 작게, 한 줄 */
   td.kp-c{padding:2px 3px;background:#fafbfc;}
@@ -2453,13 +2459,14 @@ function renderBldCalc(){
   var yrs=(useApr&&gijun)?((gijun.y*10000+gijun.mo*100+gijun.d)-(useApr.y*10000+useApr.mo*100+useApr.d))/10000:null;
   var elapsed=yrs!=null?Math.floor(yrs):'';
   var multiDong=rows.some(function(r){return String(r['동']||'').trim();});
-  var h='<tr>'+(multiDong?'<th>동</th>':'')+'<th>해당층</th><th title="사정면적이 있으면 사정면적, 없으면 연면적">면적(㎡)</th><th>이용상황</th><th>구조</th><th>재조달원가<br>(원/㎡)</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가<br>(원/㎡)</th><th>금액(원)</th></tr>';
+  var h='<tr>'+(multiDong?'<th>동</th>':'')+'<th>해당층</th><th title="사정면적이 있으면 사정면적, 없으면 연면적">면적(㎡)</th><th>이용상황</th><th>구조</th><th style="width:46px" title="같은 글자끼리 묶으면 재조달원가·내용연수를 같이 씁니다 — 한 칸만 고치면 그 묶음 전체가 바뀝니다">묶음</th><th>재조달원가<br>(원/㎡)</th><th>내용연수</th><th>경과연수</th><th>잔가율</th><th>적용단가<br>(원/㎡)</th><th>금액(원)</th></tr>';
   var total=0,areaSum=0,gongbuSum=0,docRows=[];
   rows.forEach(function(r,i){
     var key='bld_re_'+i,lifeKey='bld_life_'+i;
     var saved=window.BLD_STATE&&window.BLD_STATE[i]||{};
     var reCost=saved.reCost!=null?saved.reCost:'';
     var life=saved.life!=null?saved.life:'50';
+    var grpCls=bldGrp(i)?(' bgrp-'+bldGrp(i).toLowerCase()):'';
     var lf=num(life)||50,ec=(elapsed!==''?Math.min(elapsed,lf):0);
     var ratio=lf>0?Math.max(0,(lf-ec))/lf:0;
     var size=bldArea(r),gongbu=num(r['연면적']);   // 사정면적이 있으면 그 면적으로 평가
@@ -2468,13 +2475,14 @@ function renderBldCalc(){
     docRows.push({data:r,reCost:num(reCost),life:lf,elapsed:elapsed,remaining:Math.max(0,lf-ec),ratio:ratio,apply:applyUnit,size:size,gongbu:gongbu,total:amt});
     h+='<tr>'+(multiDong?('<td>'+(r['동']||'')+'</td>'):'')+
        '<td>'+(r['층별']||'')+'</td>'+areaCell(size,gongbu)+'<td>'+(r['용도']||'')+'</td><td>'+(r['구조']||'')+'</td>'+
-       '<td class="jud-c"><input id="'+key+'" value="'+reCost+'" placeholder="예 1,200,000" oninput="bldSet('+i+',\'reCost\',this.value)"></td>'+
-       '<td class="jud-c"><input id="'+lifeKey+'" value="'+life+'" oninput="bldSet('+i+',\'life\',this.value)"></td>'+
+       bldGrpCell(i)+
+       '<td class="jud-c'+grpCls+'"><input id="'+key+'" value="'+reCost+'" placeholder="예 1,200,000" oninput="bldSet('+i+',\'reCost\',this.value)"></td>'+
+       '<td class="jud-c'+grpCls+'"><input id="'+lifeKey+'" value="'+life+'" oninput="bldSet('+i+',\'life\',this.value)"></td>'+
        '<td class="calc-c">'+(elapsed!==''?elapsed:'-')+'</td>'+
        '<td class="calc-c">'+(ec&&lf?Math.round(ratio*100)/100+' ('+Math.round(lf-ec)+'/'+lf+')':'-')+'</td>'+
        '<td class="calc-c">'+(applyUnit?won(applyUnit):'-')+'</td><td class="calc-c">'+(amt?won(amt):'-')+'</td></tr>';
   });
-  h+='<tr class="sumrow"><td colspan="'+(multiDong?10:9)+'" class="sum-label">건물가액 합계</td><td class="sum-amt">'+(total?won(total):'-')+'</td></tr>';
+  h+='<tr class="sumrow"><td colspan="'+(multiDong?11:10)+'" class="sum-label">건물가액 합계</td><td class="sum-amt">'+(total?won(total):'-')+'</td></tr>';
   setTableHtml('tblBldCalc',h);   // 재조달원가·내용연수 칸 입력 중 커서 유지
   window.BLD_RESULT={total:total,size:areaSum,gongbuSize:gongbuSum,rows:docRows};
   document.getElementById('resBld').textContent=total?won(total)+' 원':'-';
@@ -2483,7 +2491,42 @@ function renderBldCalc(){
 }
 function bldSet(i,key,val){
   if(key==='reCost'){var d=String(val).replace(/[^\d]/g,'');val=d?Number(d).toLocaleString('ko-KR'):'';}   // 재조달원가: 천원 단위 콤마 자동
-  window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[i]=window.BLD_STATE[i]||{};window.BLD_STATE[i][key]=val;saveForm();renderBldCalc();}
+  window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[i]=window.BLD_STATE[i]||{};window.BLD_STATE[i][key]=val;
+  // 묶인 층은 재조달원가·내용연수를 같이 쓴다 — 한 칸만 고쳐도 그 묶음 전체가 같은 값
+  bldGrpMates(i).forEach(function(j){window.BLD_STATE[j]=window.BLD_STATE[j]||{};window.BLD_STATE[j][key]=val;});
+  saveForm();renderBldCalc();}
+
+// ── 층 묶기(A·B·C) ──
+// 같은 글자를 고른 층끼리 한 묶음 — 재조달원가·내용연수를 공유한다(2026-09-22 요청:
+// "재조달원가 한 번만 입력하면 편하다"). 묶음은 건별 저장(BLD_STATE)에 같이 들어간다.
+var BLD_GRPS=['A','B','C','D','E'];
+function bldGrp(i){var s=window.BLD_STATE&&window.BLD_STATE[i];return (s&&s.grp)||'';}
+function bldGrpMates(i){   // 나(i)를 뺀 같은 묶음의 층 번호들
+  var g=bldGrp(i);if(!g)return [];
+  var out=[];document.querySelectorAll('#bldBody tr').forEach(function(_,j){if(j!==i&&bldGrp(j)===g)out.push(j);});
+  return out;
+}
+function bldSetGrp(i,g){
+  window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[i]=window.BLD_STATE[i]||{};
+  window.BLD_STATE[i].grp=g||'';
+  // 이미 값이 들어 있는 묶음에 들어가면 그 값을 그대로 받아 온다(빈 묶음이면 내 값을 유지)
+  if(g){
+    var src=bldGrpMates(i).filter(function(j){var s=window.BLD_STATE[j]||{};return hasV(s.reCost);})[0];
+    if(src!=null){['reCost','life'].forEach(function(k){window.BLD_STATE[i][k]=(window.BLD_STATE[src]||{})[k];});}
+    else bldGrpMates(i).forEach(function(j){   // 빈 묶음이면 내 값을 묶음 전체에 퍼뜨린다
+      window.BLD_STATE[j]=window.BLD_STATE[j]||{};
+      ['reCost','life'].forEach(function(k){window.BLD_STATE[j][k]=window.BLD_STATE[i][k];});});
+  }
+  saveForm();renderBldCalc();
+}
+function bldGrpCell(i){
+  var g=bldGrp(i);
+  return '<td class="jud-c grpsel'+(g?(' bgrp-'+g.toLowerCase()):'')+'">'
+    +'<select title="같은 글자끼리 묶여 재조달원가·내용연수를 같이 씁니다" onchange="bldSetGrp('+i+',this.value)">'
+    +'<option value="">-</option>'
+    +BLD_GRPS.map(function(x){return '<option value="'+x+'"'+(g===x?' selected':'')+'>'+x+'</option>';}).join('')
+    +'</select></td>';
+}
 
 // ================= 4. 토지건물 평가액 결정(최종) =================
 function calcFinal(){
