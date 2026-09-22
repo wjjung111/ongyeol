@@ -904,6 +904,9 @@ var FORM_STORAGE='tojigeonmul-v0.2';
 function getOverride(){try{return localStorage.getItem(KEY_STORAGE)||'';}catch(e){return '';}}
 function getKey(){return getOverride()||DEFAULT_VKEY;}
 var num=function(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;};
+// 금액 칸에 '34,705,000(평균단가)'처럼 숫자 뒤로 메모를 같이 적어 두는 경우 — 계산에는 **앞쪽 숫자만** 쓴다.
+// (메모에 숫자가 섞여 있어도 단가가 어그러지지 않게. 숫자로 시작하지 않으면 종전대로 num()으로 읽는다.)
+var leadNum=function(v){var m=String(v==null?'':v).trim().match(/^-?[0-9][0-9,\s]*(?:\.[0-9]+)?/);return m?num(m[0]):num(v);};
 var won=function(n){return Math.round(n).toLocaleString('ko-KR');};
 // 결정단가(공시지가기준법)·적용단가(거래사례비교법) 자동값: 시산가액 카드의 단위·방식 드롭다운대로. '그대로'는 원 단위로 반올림만
 // 단위 '자동' = 집합건물 앱과 같은 규칙(유효숫자 3자리) — 백만원대 단가 → 천원 단위, 천만원대 → 만원 단위, 십만원대 → 백원 단위 …
@@ -2099,7 +2102,7 @@ function parseApprText(text){
     out.push({no:'',loc:(loc+' '+jib).trim(),use:pick(head,r,['(개별)용도지역','용도지역/구조','용도지역']),
       jimok:pick(head,r,['(개별)지목','지목/건물용도','지목']),cond:pick(head,r,['(개별)이용상황','이용상황']),
       unit:pick(head,r,['단가']),base:pick(head,r,['기준시점']),purp:pick(head,r,['평가목적'])});}
-  out=out.filter(function(a){return a.loc.trim()||num(a.unit);});
+  out=out.filter(function(a){return a.loc.trim()||leadNum(a.unit);});
   if(!out.length)return {err:'데이터 행을 읽지 못했습니다. 머리글째 다시 복사해보세요.'};
   return {out:out};
 }
@@ -2113,7 +2116,7 @@ function syncPick(){
   sel.innerHTML=h;
   sel.onchange=function(){pickEtc(this.value[0],+this.value.slice(1));};
 }
-function srcUnit(){if(ETC.type==='t'){var c=TRADES[ETC.idx];return c?tradeCalc(c).landUnit:0;}var a=APPRS[ETC.idx];return a?num(a.unit):0;}
+function srcUnit(){if(ETC.type==='t'){var c=TRADES[ETC.idx];return c?tradeCalc(c).landUnit:0;}var a=APPRS[ETC.idx];return a?leadNum(a.unit):0;}
 
 // ── 그 밖의 요인 표의 회색(자동) 칸 직접 수정 ──
 // 값은 현재 표준지 STDS[sj].etcOvr[k]에 보관(건 저장에 같이 들어감). 비우면 자동값, 자동값과 다르면 빨간 글씨 + 경고띠 + 복원 버튼.
@@ -3517,7 +3520,7 @@ function mapItems(){
   APPRS.forEach(function(a,i){
     if(hasV(a.loc))out.push({o:a,kind:'평가사례',label:'평가 '+(a.no||(i+1)),color:'#ea580c',loc:a.loc,region:region,poly:true,
       pick:ETC.type==='a'&&ETC.idx===i,
-      info:mapInfo([mapUnit(num(a.unit),'사례단가'),mapDate(a.base,'기준시점')])});
+      info:mapInfo([mapUnit(leadNum(a.unit),'사례단가'),mapDate(a.base,'기준시점')])});
   });
   return out;
 }
