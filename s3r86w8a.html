@@ -4652,7 +4652,8 @@ async function recognizePDFs(files){
   }
   contents.push({type:"text",text:`아래 PDF 문서들은 한국 감정평가에 사용되는 공부서류입니다 (집합건물 - 다중 호 가능).
 PDF들은 (a) 건물 단위 자료(표제부/총괄표제부/토이계)와 (b) 호 단위 자료(전유부/등기) 가 섞여 있습니다.
-각 호(예: 201호, 301호)마다 별도의 등기 PDF, 전유부 PDF가 있을 수 있으니, **호별로 그룹지어 units 배열로 반환**하세요.
+각 호(예: 201호, 301호)마다 별도의 등기 PDF, 전유부 PDF가 있을 수 있고, **여러 호의 등기가 한 PDF에 이어 붙어 있을 수도 있습니다**(각 등기는 '[집합건물] … 제N층 제N호' 머리글과 '표제부'로 시작). 어느 쪽이든 **호별로 그룹지어 units 배열로 반환**하세요.
+건물 공통 항목(regStructure·floorDetail·landRatioDenom·landParcels 등)은 어느 호의 등기든 표제부(1동의 건물의 표시·대지권의 목적인 토지·대지권의 표시)에서 반드시 채우세요 — 호마다 표제부가 반복되어도 값은 같으니 한 번만.
 JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
 
 {
@@ -4915,6 +4916,9 @@ function Step2({ov,setOv,propType,setPropType}){
       {const m=String(result.jibun||"").match(/외\s*(\d+)\s*필지/);
        const nP=Array.isArray(result.landParcels)?result.landParcels.filter(p=>p&&String(p.jibun||"").trim()).length:0;
        if(m&&nP&&nP!==parseInt(m[1],10)+1)alert(`⚠️ 필지 수 불일치: 소재지는 '외 ${m[1]}필지'(총 ${parseInt(m[1],10)+1}개)인데 인식된 지번은 ${nP}개입니다.\n등기 PDF를 다시 인식하거나, 토지이용계획·명세표의 필지 목록을 확인하세요.`);}
+      // 명세표용 항목(등기 표제부)이 응답에 없으면 알려 준다 — 앱이 못 채운 게 아니라 인식 결과에 없는 것임을 사용자가 알 수 있게
+      {const miss=[["regStructure","등기 표제부 건물내역"],["floorDetail","층별면적"],["landRatioDenom","대지권비율 분모"]].filter(([k])=>!(result[k]!=null&&String(result[k]).trim())&&!(Array.isArray(result.units)&&result.units.some(u=>u&&u[k]!=null&&String(u[k]).trim()))).map(([,l])=>l);
+       if(miss.length)alert(`ℹ️ 인식 결과에 명세표용 항목이 없습니다: ${miss.join(", ")}\n등기사항전부증명서(표제부 포함) PDF가 들어 있는지 확인하고 다시 인식하거나, ② 「요항표·명세표 입력」에 직접 적어 주세요.`);}
       setRecognized(true);
     }catch(e){
       setError("인식 실패: "+e.message);
