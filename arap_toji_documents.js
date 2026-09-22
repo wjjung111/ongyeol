@@ -116,9 +116,9 @@ function statementRows(){
   var rows=LANDS.map(function(l,i){var g=gs.rows[i];return {'명세_기호':String(i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),'명세_사정면적':landArea(l),'명세_단가':g.apply,'명세_평가액':g.total,'명세_비고':l['비고']||''};});
   var land=LANDS[0]||{};
   // 건물은 발송 양식대로: 「가」 머리행(소재지 + [도로명주소] / 지번은 필지와 같으면 '상동' / 주용도 / 구조·층수)
-  // 아래에 층별 행(용도·층·면적·단가·금액·비고)만 이어 붙인다. 동이 여럿이면 동마다 머리행.
+  // 아래에 층별 행(용도·층·면적·단가·금액·비고, 3행씩)만 이어 붙인다. 동이 여럿이면 동마다 머리행.
   var floors=(typeof floorsText==='function')?floorsText():'';
-  var road=cgVal('bt_roadAddr').trim();
+  var road=cgVal('bt_roadAddr').trim()||String(land.roadAddr||'').trim();   // 칸이 비면 토지 조회 때 받은 도로명주소
   var groups=[];br.rows.filter(function(r){return r.size>0;}).forEach(function(r){
     var dong=String(r.data['동']||'').trim(),g=groups.find(function(x){return x.dong===dong;});
     if(!g){g={dong:dong,rows:[]};groups.push(g);}g.rows.push(r);});
@@ -132,7 +132,7 @@ function statementRows(){
     // 층별 비고는 원가법 근거 두 줄: 재조달원가 / × 잔존연수/내용연수
     g.rows.forEach(function(r){var d=r.data;
       var note=d['비고']||[won(r.reCost),'× '+r.remaining+'/'+r.life].join('\n');
-      rows.push({'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':d['용도']||'','명세_지역구조':d['층별']||'','명세_공부면적':(r.gongbu||r.size),'명세_사정면적':r.size,'명세_단가':r.apply,'명세_평가액':r.total,'명세_비고':note,minRows:2});});
+      rows.push({'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':d['용도']||'','명세_지역구조':d['층별']||'','명세_공부면적':(r.gongbu||r.size),'명세_사정면적':r.size,'명세_단가':r.apply,'명세_평가액':r.total,'명세_비고':note,minRows:3});});   // 층별 행은 3행씩(값·비고 둘째 줄·빈 줄) — 발송 양식 간격
   });
   return rows;
 }
