@@ -10,7 +10,9 @@
       box:'mapBox',              // 지도가 들어갈 빈 div의 id (높이를 CSS로 줘야 함)
       status:'mapStatus',        // (선택) 상태줄 element id
       miss:'mapMiss',            // (선택) 못 찾은 항목 안내 element id
-      baseSel:'mapBaseSel',      // (선택) 바탕지도 <select> id — 값 Base/Satellite/Hybrid/osm
+      baseSel:'mapBaseSel',      // (선택) 바탕지도 <select> id — 값 kakao/kakaoSky/Base/Satellite/Hybrid/osm
+                                 //   kakao·kakaoSky = 카카오맵(지적선 체크 → 카카오 지적편집도, 용도지역 도면은 브이월드에서만)
+      kakaoKey:'...',            // (선택) 카카오 JavaScript 키 — 없으면 기본 키
       cadastre:'mapCadastre',    // (선택) 지적선 체크박스 id
       zoning:'mapZoning',        // (선택) 용도지역 체크박스 id
       key:function(){...},       // 브이월드 키를 주는 함수
@@ -41,7 +43,11 @@ var LEAFLET_JS='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 var LEAFLET_CSS='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 var SEARCH_BASE='https://api.vworld.kr/req/search';
 var DATA_BASE='https://api.vworld.kr/req/data';
-var loading=null;
+// 카카오맵 — 바탕지도 선택지 'kakao'(일반)·'kakaoSky'(스카이뷰). JavaScript 키는 원래 공개용이고
+// 카카오 개발자 사이트에 등록한 도메인에서만 동작한다(2026-09-27 사용자 발급). opt.kakaoKey로 바꿀 수 있다.
+var KAKAO_KEY='e87432a91ba0c8c347a82ea98805c1b5';
+var KAKAO_SDK='https://dapi.kakao.com/v2/maps/sdk.js';
+var loading=null,kloading=null;
 
 // 핀 모양 — 필지 도형이 있으면 테두리 + 화살표 이름표, 없으면 색 원 + 이름표.
 // 지도 위에서 글자가 묻히지 않게 흰 바탕을 깐다.
@@ -75,6 +81,37 @@ function load(){
     document.head.appendChild(s);
   });
   return loading;
+}
+// 카카오맵 SDK도 카카오를 처음 고를 때만 내려받는다. 도메인이 등록 안 된 키면 load 콜백이 안 오므로 시간 제한을 둔다.
+function loadKakao(key){
+  if(window.kakao&&window.kakao.maps&&window.kakao.maps.Map)return Promise.resolve();
+  if(kloading)return kloading;
+  kloading=new Promise(function(res,rej){
+    var t=null,fail=function(msg){clearTimeout(t);kloading=null;rej(new Error(msg));};
+    t=setTimeout(function(){fail('카카오맵을 불러오지 못했습니다 — 카카오 개발자 사이트에 이 사이트 주소(도메인)가 등록돼 있는지 확인이 필요합니다.');},12000);
+    var s=document.createElement('script');
+    s.src=KAKAO_SDK+'?appkey='+encodeURIComponent(key)+'&autoload=false';
+    s.onload=function(){
+      if(!(window.kakao&&window.kakao.maps&&window.kakao.maps.load))return fail('카카오맵 키가 거부됐습니다 — 키와 등록 도메인을 확인해 주세요.');
+      window.kakao.maps.load(function(){clearTimeout(t);res();});
+    };
+    s.onerror=function(){fail('카카오맵 스크립트를 내려받지 못했습니다 — 인터넷 연결을 확인해 주세요.');};
+    document.head.appendChild(s);
+  });
+  return kloading;
+}
+function isKakao(v){return v==='kakao'||v==='kakaoSky';}
+// 확대 단계 맞바꾸기 — 카카오 레벨 3 ≈ Leaflet 줌 17(한 단계마다 2배)
+function toLevel(z){return Math.max(1,Math.min(14,Math.round(20-z)));}
+function toZoom(l){return Math.max(6,Math.min(19,20-l));}
+// GeoJSON 도형들의 바깥 고리 좌표를 하나씩 넘겨준다([경도,위도])
+function eachRing(g,fn){
+  if(!g)return;
+  if(g.type==='FeatureCollection')g.features.forEach(function(f){eachRing(f,fn);});
+  else if(g.type==='Feature')eachRing(g.geometry,fn);
+  else if(g.type==='GeometryCollection')g.geometries.forEach(function(x){eachRing(x,fn);});
+  else if(g.type==='Polygon')fn(g.coordinates[0]);
+  else if(g.type==='MultiPolygon')g.coordinates.forEach(function(p){fn(p[0]);});
 }
 
 function el(id){return id?document.getElementById(id):null;}
@@ -165,6 +202,9 @@ function create(opt){
   var getKey=opt.key||function(){return '';};
   var onSave=opt.onSave||function(){};
   var map=null,layers={},markers=[],shapes=[],tileFail=0,wmsWarned=false,items=[];
+  var userChose=false;               // 사용자가 바탕지도를 직접 고른 뒤로는 멋대로 OSM으로 바꾸지 않는다
+  var kmap=null,kdiv=null,kobjs=[],kinfo=null,kcad=false;   // 카카오맵(고를 때만 만든다)
+  var getKakaoKey=function(){return opt.kakaoKey||KAKAO_KEY;};
   var hidden={};   // 분류(kind) → true면 지도에서 감춘다. 항목·좌표는 그대로 두고 그리기만 건너뛴다.
 
   function status(msg,err){
@@ -184,12 +224,17 @@ function create(opt){
       {layers:layer,styles:layer,format:'image/png',transparent:true,version:'1.3.0',
        key:getKey(),domain:location.origin,maxZoom:19,opacity:opacity});
   }
-  // 브이월드 타일이 여러 장 연달아 실패하면 바탕지도를 OSM으로 바꾼다(핀은 그대로 보이게)
+  // 브이월드 타일이 여러 장 연달아 실패하면 바탕지도를 OSM으로 바꾼다(핀은 그대로 보이게).
+  // 단, 사용자가 직접 고른 바탕지도는 바꾸지 않고 알리기만 한다 — 골라도 자꾸 OSM으로 되돌아가던 문제.
   function onTileError(){
     if(++tileFail!==8)return;
     var sel=el(opt.baseSel);
     if(!sel||sel.value==='osm')return;
-    sel.value='osm';setBase();
+    if(userChose){
+      status('브이월드 바탕지도를 불러오지 못했습니다 — 브이월드 키에 이 사이트 주소와 2D지도 사용이 등록돼 있는지 확인이 필요합니다. 「카카오맵」을 고르면 바로 볼 수 있습니다.',true);
+      return;
+    }
+    sel.value='osm';applyBase();
     status('브이월드 바탕지도를 불러오지 못해 OSM 지도로 바꿨습니다(핀 위치는 그대로). 지적선도 안 보이면 브이월드 키에 이 주소가 등록돼 있는지 확인이 필요합니다.',true);
   }
   // 도면(WMS)이 막히면 조용히 안 그려지기만 하므로 한 번 알려 준다
@@ -198,23 +243,85 @@ function create(opt){
       if(wmsWarned)return;
       if((this._arapFail=(this._arapFail||0)+1)<6)return;
       wmsWarned=true;
-      status(name+' 도면을 불러오지 못했습니다 — 브이월드 키에 이 주소와 2D지도(WMS) 사용이 등록돼 있는지 확인이 필요합니다. 핀 위치는 그대로입니다.',true);
+      status(name+' 도면을 불러오지 못했습니다 — 브이월드 키에 이 주소와 2D지도(WMS) 사용이 등록돼 있는지 확인이 필요합니다. 핀 위치는 그대로입니다. 「카카오맵」을 고르면 지적편집도로 볼 수 있습니다.',true);
     };
   }
-  function setBase(){
+  function baseVal(){var sel=el(opt.baseSel);return (sel&&sel.value)||'Base';}
+  function kakaoOn(){return !!(kmap&&kdiv&&kdiv.style.display!=='none'&&isKakao(baseVal()));}
+  // 화면의 선택 상자에서 고른 것 — 사용자 선택으로 기억한다
+  function setBase(){userChose=true;applyBase();}
+  function applyBase(){
     if(!map)return;
-    var sel=el(opt.baseSel),v=(sel&&sel.value)||'Base';
-    if(layers.base)map.removeLayer(layers.base);
+    var v=baseVal();
+    if(layers.base){map.removeLayer(layers.base);layers.base=null;}
     tileFail=0;
+    if(isKakao(v)){showKakao(v);toggleOverlay();return;}
+    hideKakao();
     layers.base=(v==='osm')?osmTile():vworldTile(v);
     layers.base.on('tileerror',onTileError);
     layers.base.addTo(map);layers.base.bringToBack();
+    toggleOverlay();
+  }
+
+  // ── 카카오맵 ──
+  // Leaflet 지도 위에 카카오 지도를 한 장 덮어 쓴다. 필지 테두리·화살표 이름표·설명창은 카카오 쪽에 따로 그린다
+  // (카카오는 자체 좌표계라 브이월드 도면·Leaflet 도형을 그 위에 겹칠 수 없다). 지적선은 카카오 「지적편집도」.
+  function showKakao(v){
+    if(!kdiv){
+      kdiv=document.createElement('div');
+      kdiv.className='arap-kmap';
+      kdiv.style.cssText='position:absolute;left:0;top:0;right:0;bottom:0;z-index:1001;background:#eef1f5;';
+      map.getContainer().appendChild(kdiv);
+      L.DomEvent.disableClickPropagation(kdiv);L.DomEvent.disableScrollPropagation(kdiv);
+    }
+    kdiv.style.display='block';
+    status('카카오맵 불러오는 중…');
+    return loadKakao(getKakaoKey()).then(function(){
+      if(!isKakao(baseVal()))return;            // 기다리는 사이 다른 지도로 바꿨다
+      var K=window.kakao.maps,c=map.getCenter(),ll=new K.LatLng(c.lat,c.lng);
+      if(!kmap){
+        kmap=new K.Map(kdiv,{center:ll,level:toLevel(map.getZoom())});
+        kmap.addControl(new K.ZoomControl(),K.ControlPosition.RIGHT);
+        K.event.addListener(kmap,'zoom_changed',function(){kdraw();});   // 확대하면 이름표를 필지 바깥으로 다시 민다
+      }else{
+        kmap.relayout();kmap.setCenter(ll);kmap.setLevel(toLevel(map.getZoom()));
+      }
+      kmap.setMapTypeId(v==='kakaoSky'?K.MapTypeId.HYBRID:K.MapTypeId.ROADMAP);
+      kcad=null;kOverlay();kdraw();
+      status('✅ 카카오맵'+(v==='kakaoSky'?' 스카이뷰':'')+'로 표시 중 — 이름표는 끌어서 옮길 수 있습니다.');
+    }).catch(function(e){
+      console.error('카카오맵',e);
+      hideKakao();
+      var sel=el(opt.baseSel);if(sel)sel.value='Base';
+      userChose=false;applyBase();                // 브이월드로 돌아가고, 그것도 안 되면 OSM으로
+      status(e.message+' 브이월드 지도로 바꿨습니다.',true);
+    });
+  }
+  function hideKakao(){
+    if(!kdiv||kdiv.style.display==='none')return;
+    if(kmap){var c=kmap.getCenter();map.setView([c.getLat(),c.getLng()],toZoom(kmap.getLevel()),{animate:false});}
+    kdiv.style.display='none';
+    if(kinfo)kinfo.close();
+  }
+  // 지적선 체크 → 카카오 지적편집도
+  function kOverlay(){
+    if(!kmap)return;
+    var K=window.kakao.maps,box=el(opt.cadastre),on=!!(box&&box.checked);
+    if(on!==kcad){
+      if(on)kmap.addOverlayMapTypeId(K.MapTypeId.USE_DISTRICT);
+      else if(kcad)kmap.removeOverlayMapTypeId(K.MapTypeId.USE_DISTRICT);
+      kcad=on;
+    }
+    var zb=el(opt.zoning);
+    if(zb&&zb.checked)status('용도지역 도면은 브이월드 지도(일반지도·위성)에서만 보입니다.');
   }
   function toggleOverlay(){
     if(!map)return;
+    var kon=isKakao(baseVal());
+    if(kon)kOverlay();
     [[opt.cadastre,'cad','lp_pa_cbnd_bubun',0.9,'지적선'],[opt.zoning,'zon','lt_c_uq111',0.35,'용도지역']].forEach(function(t){
       if(!t[0])return;
-      var box=el(t[0]),on=!!(box&&box.checked);
+      var box=el(t[0]),on=!!(box&&box.checked)&&!kon;   // 카카오맵일 때는 브이월드 도면을 받지 않는다(가려져 안 보임)
       if(on&&!layers[t[1]]){
         layers[t[1]]=vworldWms(t[2],t[3]);
         layers[t[1]].on('tileerror',onWmsError(t[4]));
@@ -251,45 +358,48 @@ function create(opt){
   // 이름표를 필지 **바깥**에 놓는다. 확대하면 필지가 화면에서 커지므로 그만큼 더 밀어낸다 —
   // 고정 거리로 두면 확대했을 때 이름표가 필지 안에 파묻혀 화살표가 뜻을 잃는다.
   // 평가사가 직접 끌어다 놓은 이름표는 그 자리를 그대로 지킨다(자동 배치보다 우선).
-  function labelOffset(it,n,poly){
+  // hw·hh = 필지 묶음의 화면상 반폭·반높이(px). 없으면(점 핀) 기본 거리.
+  function offsetFor(it,n,hw,hh){
     var man=it.xy&&it.xy.labOff;
     if(man&&isFinite(man[0])&&isFinite(man[1]))return [man[0],man[1]];
     var d=DIRS[n%DIRS.length],away=46;
-    if(poly&&map){
-      var pb=poly.getBounds();
-      if(pb.isValid()){
-        var nw=map.latLngToLayerPoint(pb.getNorthWest()),se=map.latLngToLayerPoint(pb.getSouthEast());
-        var hw=Math.abs(se.x-nw.x)/2,hh=Math.abs(se.y-nw.y)/2;
-        var tx=Math.abs(d[0])>0.01?hw/Math.abs(d[0]):Infinity;
-        var ty=Math.abs(d[1])>0.01?hh/Math.abs(d[1]):Infinity;
-        away=Math.min(tx,ty)+30;           // 필지 테두리에서 30px 떨어뜨린다
-      }
+    if(isFinite(hw)&&isFinite(hh)){
+      var tx=Math.abs(d[0])>0.01?hw/Math.abs(d[0]):Infinity;
+      var ty=Math.abs(d[1])>0.01?hh/Math.abs(d[1]):Infinity;
+      away=Math.min(tx,ty)+30;           // 필지 테두리에서 30px 떨어뜨린다
     }
     away=it.labelGroup?Math.max(44,away):Math.max(44,Math.min(away,150));  // 너무 붙지도, 화면 밖으로 날아가지도 않게
     return [Math.round(d[0]*away),Math.round(d[1]*away)];
   }
-  // 선택한 필지 묶음의 실제 경계 중 이름표에 가장 가까운 점(화살촉 위치).
-  function boundaryTip(it,poly,dx,dy){
-    if(!it.boundaryLeader||!poly||!map)return null;
-    var origin=map.latLngToLayerPoint(poly.getBounds().getCenter()),best=null,dist2=Infinity;
-    function ring(coords){
+  function labelOffset(it,n,poly){
+    if(poly&&map){
+      var pb=poly.getBounds();
+      if(pb.isValid()){
+        var nw=map.latLngToLayerPoint(pb.getNorthWest()),se=map.latLngToLayerPoint(pb.getSouthEast());
+        return offsetFor(it,n,Math.abs(se.x-nw.x)/2,Math.abs(se.y-nw.y)/2);
+      }
+    }
+    return offsetFor(it,n);
+  }
+  // 경계 중 이름표에 가장 가까운 점(화살촉 위치). px(위도,경도)→화면 점, origin=필지 중심의 화면 점.
+  function tipFor(geo,px,origin,dx,dy){
+    var best=null,dist2=Infinity;
+    eachRing(geo,function(coords){
       for(var i=0;i<coords.length-1;i++){
-        var a=map.latLngToLayerPoint([coords[i][1],coords[i][0]]),b=map.latLngToLayerPoint([coords[i+1][1],coords[i+1][0]]);
+        var a=px(coords[i][1],coords[i][0]),b=px(coords[i+1][1],coords[i+1][0]);
         var ax=a.x-origin.x,ay=a.y-origin.y,vx=b.x-a.x,vy=b.y-a.y;
         var den=vx*vx+vy*vy,t=den?Math.max(0,Math.min(1,((dx-ax)*vx+(dy-ay)*vy)/den)):0;
         var x=ax+t*vx,y=ay+t*vy,d=(dx-x)*(dx-x)+(dy-y)*(dy-y);
         if(d<dist2){dist2=d;best=[x,y];}
       }
-    }
-    function visit(g){
-      if(!g)return;
-      if(g.type==='FeatureCollection')g.features.forEach(visit);
-      else if(g.type==='Feature')visit(g.geometry);
-      else if(g.type==='GeometryCollection')g.geometries.forEach(visit);
-      else if(g.type==='Polygon')ring(g.coordinates[0]);
-      else if(g.type==='MultiPolygon')g.coordinates.forEach(function(p){ring(p[0]);});
-    }
-    visit(poly.toGeoJSON());return best;
+    });
+    return best;
+  }
+  // 선택한 필지 묶음의 실제 경계 중 이름표에 가장 가까운 점(화살촉 위치).
+  function boundaryTip(it,poly,dx,dy){
+    if(!it.boundaryLeader||!poly||!map)return null;
+    return tipFor(poly.toGeoJSON(),function(la,ln){return map.latLngToLayerPoint([la,ln]);},
+      map.latLngToLayerPoint(poly.getBounds().getCenter()),dx,dy);
   }
   // 이름표 → 필지로 향하는 화살표. 아이콘 원점(필지 중심)이 SVG 한가운데에 오게 놓는다.
   function leader(dx,dy,color,tip){
@@ -305,17 +415,21 @@ function create(opt){
       '<polygon points="'+[tx+','+ty,(bx+px)+','+(by+py),(bx-px)+','+(by-py)].join(' ')+
       '" fill="'+color+'" stroke="#fff" stroke-width="1"/></svg>';
   }
+  function dotHtml(it){
+    return '<div class="mkr'+(it.pick?' pick':'')+'"><div class="dot" style="background:'+it.color+'"></div>'+
+           '<div class="lab">'+esc(it.label)+'</div></div>';
+  }
   function dotIcon(it){
-    return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
-      html:'<div class="mkr'+(it.pick?' pick':'')+'"><div class="dot" style="background:'+it.color+'"></div>'+
-           '<div class="lab">'+esc(it.label)+'</div></div>'});
+    return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html:dotHtml(it)});
   }
   var LAB_TIP='끌어서 이름표만 옮깁니다(필지와 화살촉은 그대로). 두 번 누르면 제자리로.';
+  function parcelHtml(it,dx,dy,tip){
+    return '<div class="mkr par'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color,tip)+
+           '<div class="lab" title="'+esc(it.boundaryLeader?'끌어서 이름표를 옮깁니다(화살촉은 필지 경계). 두 번 누르면 제자리로.':LAB_TIP)+'" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>';
+  }
   function parcelIcon(it,n,poly){
     var o=labelOffset(it,n,poly),dx=o[0],dy=o[1];
-    return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],
-      html:'<div class="mkr par'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color,boundaryTip(it,poly,dx,dy))+
-           '<div class="lab" title="'+esc(it.boundaryLeader?'끌어서 이름표를 옮깁니다(화살촉은 필지 경계). 두 번 누르면 제자리로.':LAB_TIP)+'" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>'});
+    return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html:parcelHtml(it,dx,dy,boundaryTip(it,poly,dx,dy))});
   }
   // 확대·축소하면 필지의 화면 크기가 달라지므로 이름표를 다시 밀어낸다(직접 옮긴 것은 그대로)
   var labeled=[];   // [{marker, it, n, poly}]
@@ -333,13 +447,24 @@ function create(opt){
   }
   function bindLabelDrag(r){
     var root=r.marker.getElement();if(!root)return;
+    dragLabel(root,r.it,{
+      base:function(){return labelOffset(r.it,r.n,r.poly);},
+      tip:function(dx,dy){return boundaryTip(r.it,r.poly,dx,dy);},
+      lock:function(on){if(map.dragging){if(on)map.dragging.disable();else map.dragging.enable();}},
+      click:function(){r.marker.openPopup();},
+      reset:function(){r.marker.closePopup();r.marker.setIcon(parcelIcon(r.it,r.n,r.poly));bindLabelDrag(r);}
+    });
+  }
+  // 지도 종류와 무관한 이름표 끌기. h = {base(), tip(dx,dy), lock(on), click(), reset()}
+  function dragLabel(root,it,h){
     var wrap=root.querySelector('.mkr'),box=root.querySelector('.lab');
     if(!wrap||!box)return;
+    var r={it:it};
     var start=null,base=[0,0],moved=false;
     function paint(dx,dy){
       box.style.left=dx+'px';box.style.top=dy+'px';
       var svg=wrap.querySelector('svg.ldr');
-      if(svg)svg.outerHTML=leader(dx,dy,r.it.color,boundaryTip(r.it,r.poly,dx,dy));
+      if(svg)svg.outerHTML=leader(dx,dy,it.color,h.tip(dx,dy));
     }
     function onMove(e){
       var p=evPt(e);if(!p||!start)return;
@@ -352,21 +477,21 @@ function create(opt){
       document.removeEventListener('mouseup',onUp,true);
       document.removeEventListener('touchmove',onMove,{capture:true});
       document.removeEventListener('touchend',onUp,true);
-      if(map.dragging)map.dragging.enable();
+      h.lock(false);
       if(moved){
         r.it.xy.labOff=[parseInt(box.style.left,10)||0,parseInt(box.style.top,10)||0];
         onSave();
         status('🏷️ '+r.it.label+' 이름표를 옮겼습니다(저장됨). '+(r.it.boundaryLeader?'화살촉은 필지 경계를 가리킵니다.':'필지와 화살촉은 그대로입니다.'));
       }else if(start){
-        r.marker.openPopup();   // 끌지 않고 그냥 눌렀으면 종전처럼 설명을 띄운다
+        h.click();   // 끌지 않고 그냥 눌렀으면 종전처럼 설명을 띄운다
       }
       start=null;
     }
     function onDown(e){
       var p=evPt(e);if(!p)return;
       start=p;moved=false;
-      base=labelOffset(r.it,r.n,r.poly);
-      if(map.dragging)map.dragging.disable();
+      base=h.base();
+      h.lock(true);
       document.addEventListener('mousemove',onMove,true);
       document.addEventListener('mouseup',onUp,true);
       document.addEventListener('touchmove',onMove,{passive:false,capture:true});
@@ -381,9 +506,9 @@ function create(opt){
     // 두 번 누르면 자동 배치로 되돌린다(지도 확대가 같이 걸리지 않게 막는다)
     box.addEventListener('dblclick',function(e){
       e.preventDefault();e.stopPropagation();
-      r.marker.closePopup();   // 두 번 누르면 첫 클릭으로 열린 설명이 남으므로 닫아 준다
+      // 두 번 누르면 첫 클릭으로 열린 설명이 남으므로 reset에서 닫아 준다
       if(r.it.xy)delete r.it.xy.labOff;
-      onSave();r.marker.setIcon(parcelIcon(r.it,r.n,r.poly));bindLabelDrag(r);
+      onSave();h.reset();
       status('🏷️ '+r.it.label+' 이름표를 제자리로 되돌렸습니다.');
     });
   }
@@ -395,8 +520,90 @@ function create(opt){
     status('📍 '+it.label+' 위치를 직접 옮겼습니다(저장됨). 「주소 다시 찾기」를 누르면 되돌아갑니다.');
   }
 
+  // 카카오맵에 그리기 — Leaflet draw()와 같은 규칙(숨김·묶음 이름표·채택 채우기)을 카카오 도형으로 옮긴 것.
+  // 이름표 끌기·두 번 눌러 되돌리기·설명창은 같고, 점 핀(집합건물 사례)만 카카오에서는 끌 수 없다.
+  function kdraw(){
+    if(!kakaoOn())return;
+    var K=window.kakao.maps,proj=kmap.getProjection();
+    kobjs.forEach(function(o){o.setMap(null);});kobjs=[];
+    if(kinfo)kinfo.close();
+    function px(la,ln){var p=proj.containerPointFromCoords(new K.LatLng(la,ln));return {x:p.x,y:p.y};}
+    function bbox(geos){
+      var b=null;
+      geos.forEach(function(g){eachRing(g,function(ring){ring.forEach(function(c){
+        if(!b)b={s:c[1],n:c[1],w:c[0],e:c[0]};
+        else{b.s=Math.min(b.s,c[1]);b.n=Math.max(b.n,c[1]);b.w=Math.min(b.w,c[0]);b.e=Math.max(b.e,c[0]);}
+      });});});
+      return b;
+    }
+    function info(it,ll){
+      if(!kinfo)kinfo=new K.InfoWindow({removable:true});
+      kinfo.setContent('<div style="padding:6px 22px 6px 8px;font-size:12px;line-height:1.5;min-width:160px;white-space:nowrap">'+popup(it)+'</div>');
+      kinfo.setPosition(ll);kinfo.open(kmap);
+    }
+    var n=0,groups=Object.create(null);
+    items.forEach(function(it){
+      if(!it.labelGroup||!it.xy||hidden[it.kind])return;
+      var g=groups[it.labelGroup]||(groups[it.labelGroup]={leader:it,features:[]});
+      if(it.xy.geom){g.features.push(it.xy.geom);if(!g.leader.xy.geom)g.leader=it;}
+    });
+    items.forEach(function(it){
+      if(!it.xy)return;
+      var myN=it.xy.geom?n++:0;   // 번호는 숨김과 상관없이(Leaflet과 같은 방향)
+      if(hidden[it.kind])return;
+      var geos=null;
+      if(it.xy.geom){
+        geos=[it.xy.geom];
+        eachRing(it.xy.geom,function(ring){
+          var pg=new K.Polygon({map:kmap,path:ring.map(function(c){return new K.LatLng(c[1],c[0]);}),
+            strokeColor:it.color,strokeWeight:it.pick?4:3,strokeOpacity:1,
+            fillColor:it.color,fillOpacity:it.pick?0.16:0.01});   // 0.01 = 안 칠한 듯 보여도 안쪽을 누를 수 있게
+          K.event.addListener(pg,'click',function(e){info(it,e.latLng);});
+          kobjs.push(pg);
+        });
+      }
+      var group=it.labelGroup&&groups[it.labelGroup];
+      if(group&&group.leader!==it)return;           // 묶음은 이름표 하나만
+      if(group&&group.features.length){geos=group.features;myN=0;}
+      var root=document.createElement('div'),pos;
+      if(geos){
+        var b=bbox(geos);if(!b)return;
+        pos=new K.LatLng((b.s+b.n)/2,(b.w+b.e)/2);
+        var hw,hh,origin;
+        var calc=function(){
+          var nw=px(b.n,b.w),se=px(b.s,b.e);origin=px(pos.getLat(),pos.getLng());
+          hw=Math.abs(se.x-nw.x)/2;hh=Math.abs(se.y-nw.y)/2;
+        };
+        var tip=function(dx,dy){calc();return it.boundaryLeader?tipFor({type:'GeometryCollection',geometries:geos},px,origin,dx,dy):null;};
+        var base=function(){calc();return offsetFor(it,myN,hw,hh);};
+        var o=base();
+        root.innerHTML=parcelHtml(it,o[0],o[1],tip(o[0],o[1]));
+        dragLabel(root,it,{base:base,tip:tip,
+          lock:function(on){kmap.setDraggable(!on);},
+          click:function(){info(it,pos);},
+          reset:function(){kdraw();}});
+      }else{
+        pos=new K.LatLng(it.xy.y,it.xy.x);
+        root.innerHTML=dotHtml(it);
+        root.addEventListener('click',function(e){e.stopPropagation();info(it,pos);});
+      }
+      var ov=new K.CustomOverlay({map:kmap,position:pos,content:root,xAnchor:0,yAnchor:0,zIndex:it.pick?3:2,clickable:true});
+      kobjs.push(ov);
+    });
+  }
+  // Leaflet이 맞춘 화면(범위)을 카카오로 옮기고 다시 그린다
+  function ksync(keepView){
+    if(!kakaoOn())return;
+    if(!keepView){var c=map.getCenter();kmap.setCenter(new window.kakao.maps.LatLng(c.lat,c.lng));kmap.setLevel(toLevel(map.getZoom()));}
+    kdraw();
+  }
+
   // keepView=true면 화면 위치를 그대로 두고 다시 그리기만 한다(핀을 옮긴 직후 등)
   function draw(keepView){
+    drawLeaflet(keepView);
+    ksync(keepView);
+  }
+  function drawLeaflet(keepView){
     markers.forEach(function(m){map.removeLayer(m);});markers=[];
     shapes.forEach(function(s){map.removeLayer(s);});shapes=[];
     labeled=[];
@@ -512,11 +719,12 @@ function create(opt){
       injectCss();
       if(!map){
         map=L.map(opt.box).setView(opt.center||[37.5665,126.9780],opt.zoom||16);
-        setBase();toggleOverlay();
+        applyBase();   // 처음 띄울 때는 사용자 선택으로 치지 않는다(브이월드가 막히면 OSM 자동 대체 허용)
         L.control.scale({imperial:false}).addTo(map);
         map.on('zoomend',relabel);   // 확대·축소에 맞춰 이름표를 필지 바깥으로 다시 민다
       }
       map.invalidateSize();
+      if(kakaoOn())kmap.relayout();   // 숨은 탭에서 열렸으면 카카오도 크기를 다시 잡는다
       return refresh(list===undefined?items:list,force);
     }).catch(function(e){status(e.message,true);});
   }
@@ -524,7 +732,7 @@ function create(opt){
   return {
     open:open, refresh:refresh, setBase:setBase, toggleOverlay:toggleOverlay, setVisible:setVisible,
     status:status, items:function(){return items;},
-    leaflet:function(){return map;}, markers:function(){return markers;}
+    leaflet:function(){return map;}, markers:function(){return markers;}, kakao:function(){return kmap;}
   };
 }
 

@@ -146,9 +146,11 @@
       <label class="mapchk"><input type="checkbox" id="mapCadastre" checked onchange="MAPV.toggleOverlay()"> 지적선</label>
       <label class="mapchk"><input type="checkbox" id="mapZoning" onchange="MAPV.toggleOverlay()"> 용도지역</label>
       <select class="box" id="mapBaseSel" onchange="MAPV.setBase()">
-        <option value="Base">일반지도</option>
-        <option value="Satellite">위성사진</option>
-        <option value="Hybrid">위성+지명</option>
+        <option value="kakao">카카오맵</option>
+        <option value="kakaoSky">카카오 스카이뷰</option>
+        <option value="Base">브이월드 일반지도</option>
+        <option value="Satellite">브이월드 위성</option>
+        <option value="Hybrid">브이월드 위성+지명</option>
         <option value="osm">OSM(대체)</option>
       </select>
       <button class="btn" onclick="redraw(true)" title="표의 소재지로 주소를 다시 조회합니다(직접 옮긴 핀도 초기화)">↻ 주소 다시 찾기</button>
