@@ -246,6 +246,8 @@
   .caselist-tbl tr.cur{background:#eff6ff;}
   .caselist-tbl .del-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
   .caselist-tbl .del-btn:hover{background:#fee2e2;}
+  .caselist-tbl .copy-btn{background:#faf5ff;color:#6b21a8;border:1px solid #e9d5ff;}
+  .caselist-tbl .copy-btn:hover{background:#f3e8ff;}
   .caselist-tbl .bak-btn{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;}
   .caselist-tbl .bak-btn:hover{background:#dcfce7;}
   .caselist-tbl tr.bakrow td{background:#f8fafc;text-align:left;padding:6px 10px;}
@@ -3378,6 +3380,28 @@ function deleteCase(id){
   if(currentId===id)newCase();
   else{renderCaseBar();renderCaseListPanel();}
 }
+// 저장된 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다(비교표준지·사례를 바꿔 보는 용도). 원본 건은 그대로. 메모도 같이 복사.
+function copyCaseId(id){var n=2,c;do{c=id+'-'+n++;}while(localStorage.getItem(landCaseKey(c)));return c;}
+function copyCase(id){
+  if(saveTimer)doSave();   // 지금 화면이 원본 건이면 대기 중인 저장부터 반영
+  var raw=null;try{raw=localStorage.getItem(landCaseKey(id));}catch(e){}
+  var o=null;try{o=JSON.parse(raw||'null');}catch(e){}
+  if(!o){alert('복제 실패 — 저장 데이터가 없습니다.');return;}
+  var nid=prompt(id+' 건을 복제합니다.\n새 접수번호를 입력하세요 (원본은 그대로 남습니다).',copyCaseId(id));
+  if(nid==null)return;nid=nid.trim();
+  if(!nid){alert('접수번호를 입력해야 복제할 수 있습니다.');return;}
+  if(localStorage.getItem(landCaseKey(nid))){alert(nid+' 접수번호로 저장된 건이 이미 있습니다. 다른 번호를 넣어 주세요.');return;}
+  o.ov=o.ov||{};o.ov.ov_caseNo=nid;o._rev=newRev();
+  try{
+    localStorage.setItem(landCaseKey(nid),JSON.stringify(o));
+    var m=localStorage.getItem(MEMO_PREFIX+id);if(m)localStorage.setItem(MEMO_PREFIX+nid,m);
+  }catch(e){alert('복제 실패: '+e.message);return;}
+  var L0=(o.LANDS||[])[0]||{};
+  var list=getLandList().filter(function(c){return c.id!==nid;});
+  list.unshift({id:nid,label:(nid+' '+((L0['소재지']||'')+' '+(L0['지번']||'')).trim()).trim(),updated:new Date().toISOString()});
+  setLandList(list);caseList=list;
+  loadCase(nid);
+}
 function toggleCaseList(){
   showCaseList=!showCaseList;
   document.getElementById('caseListPanel').hidden=!showCaseList;
@@ -3403,7 +3427,7 @@ function renderCaseBar(){
 function renderCaseListPanel(){
   var p=document.getElementById('caseListPanel');
   if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.</div>';return;}
-  var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th style="width:196px">작업</th></tr></thead><tbody>';
+  var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th style="width:250px">작업</th></tr></thead><tbody>';
   caseList.forEach(function(c){
     var when='-';try{var d=new Date(c.updated);when=d.toLocaleDateString('ko-KR')+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}catch(e){}
     var obj=(c.label||'').replace(c.id,'').trim()||'-';
@@ -3413,6 +3437,7 @@ function renderCaseListPanel(){
        '<td class="l">'+eh(obj)+'</td><td>'+eh(when)+'</td>'+
        '<td><button class="btn sm" onclick="loadCase(\''+jsq(c.id)+'\')">열기</button> '+
        (ring.length?'<button class="btn sm bak-btn'+(open?' on':'')+'" title="덮어쓰기 전에 자동 보관된 이전 내용('+ring.length+'개)" onclick="toggleBak(\''+jsq(c.id)+'\')">↺ 이전 버전 '+ring.length+'</button> ':'')+
+       '<button class="btn sm copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 비교표준지·사례를 바꿔 볼 때" onclick="copyCase(\''+jsq(c.id)+'\')">⧉ 복제</button> '+
        '<button class="btn sm del-btn" onclick="deleteCase(\''+jsq(c.id)+'\')">삭제</button></td></tr>';
     if(open&&ring.length){
       var b='<div class="bakhint">거래사례가 지워졌거나 잘못 덮어쓴 경우, 아래에서 되돌릴 시각을 고르세요. 되돌려도 지금 내용은 이 목록에 남습니다.</div><table class="baklist">';
