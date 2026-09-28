@@ -74,7 +74,7 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     assert.deepEqual(await page.locator('.y-location:not(.y-land):not(.y-bld) h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
     // Ⅲ. 건물의 개황도 문장형 — 양식 문구 그대로("건물로서 / 등 / 창호 등임. / 로 이용 중임.")
     assert.deepEqual(await page.locator('.y-bld h4').allTextContents(),['1. 건물의 구조','2. 이용상태']);
-    assert.deepEqual((await page.locator('.y-bld p').allTextContents()).map(t=>t.replace(/\s+/g,' ').trim()),[' 건물로서','- 외벽 : 등','- 창호 : 창호 등임.','공부상 로 이용 중임.'].map(t=>t.trim()));
+    assert.deepEqual((await page.locator('.y-bld p').allInnerTexts()).map(t=>t.replace(/\s+/g,' ').trim()),['건물로서','- 외벽 : 등','- 창호 : 창호 등임.','공부상 로 이용 중임.','+ 항목 추가 (가·나·다) 건물표에서 채우기']);
     assert.deepEqual(await page.evaluate(()=>['y_struct','y_wall','y_window','y_usestate'].map(id=>document.getElementById(id).closest('.y-bld')?document.getElementById(id).className:'')),['y-inline y-struct','y-inline y-wall','y-inline y-window','y-inline y-usestate']);
     async function outputParagraphs(){return page.evaluate(async()=>{
       const bytes=await ArapTojiDocuments.buildYohang();
@@ -209,6 +209,35 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     const near=await outputParagraphs();
     assert(near.some(t=>t.includes('진출입이 가능하며, 근거리에 성남여수동행정복지센터 버스정류장이 소재')),'근거리 문장: '+near.filter(t=>t.includes('진출입')).join(' | '));
     assert(!near.some(t=>t.includes('진출입이 가능하며, 인근에')));
+    // 이용상태 여러 항목 — 건물표(주·부)에서 채우기 → 공부상 / 가) 주택 / 나) 차고로 이용 중임.
+    await page.evaluate(()=>{document.getElementById('bldBody').innerHTML='';
+      addBldRow({구분:'주',층별:'1층',용도:'주택',연면적:'80'});addBldRow({구분:'주',층별:'2층',용도:'주택',연면적:'80'});
+      addBldRow({구분:'부',층별:'1층',용도:'차고',연면적:'20'});window.confirm=()=>true;});
+    await page.locator('#y_usestateFromBld').click();
+    assert.equal(await page.locator('#y_usestate').inputValue(),'주택');
+    assert.deepEqual(await page.locator('#y_usestateList input').evaluateAll(a=>a.map(x=>x.value)),['차고']);
+    assert(await page.locator('#y_usestateTail').isHidden(),'여러 항목이면 첫 줄 끝 문구 숨김');
+    let us=await outputParagraphs();
+    let at=us.indexOf('공부상');
+    assert(at>=0,'공부상 문단: '+us.filter(t=>t.includes('공부상')).join(' | '));
+    assert.deepEqual(us.slice(at,at+3),['공부상','가) 주택','나) 차고로 이용 중임.']);
+    // 동이 둘 이상이면 "1동 : 용도"
+    await page.evaluate(()=>{document.getElementById('bldBody').innerHTML='';
+      addBldRow({동:'1',구분:'주',층별:'1층',용도:'주택'});addBldRow({동:'2',구분:'주',층별:'1층',용도:'근린생활시설'});addBldRow({동:'2',구분:'부',층별:'1층',용도:'창고'});});
+    await page.locator('#y_usestateFromBld').click();
+    await page.locator('#y_usestateAdd').click();
+    await page.locator('#y_usestateList input').last().fill('기타 수기 항목');
+    await page.evaluate(()=>doSave());
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>window.ArapTojiDocuments);
+    await page.evaluate(()=>showTab('yohang'));
+    assert.deepEqual(await page.locator('#y_usestateList input').evaluateAll(a=>a.map(x=>x.value)),['2동 : 근린생활시설','2동 : 창고','기타 수기 항목'],'추가 항목 저장·복원');
+    us=await outputParagraphs();at=us.indexOf('공부상');
+    assert.deepEqual(us.slice(at,at+5),['공부상','가) 1동 : 주택','나) 2동 : 근린생활시설','다) 2동 : 창고','라) 기타 수기 항목로 이용 중임.']);
+    // 항목 모두 지우면 원래 한 줄 문장
+    while(await page.locator('#y_usestateList .del').count())await page.locator('#y_usestateList .del').first().click();
+    assert(await page.locator('#y_usestateTail').isVisible());
+    assert((await outputParagraphs()).includes('공부상 1동 : 주택로 이용 중임.'));
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({status:'PASS',auto},null,1));
   }finally{await browser.close();server.close();}

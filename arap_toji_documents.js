@@ -10,7 +10,7 @@ function yohangMap(){
     '요항_도로1방위':cgVal('y_road1dir'),'요항_도로1노폭':cgVal('y_road1w'),
     '요항_도로2방위':cgVal('y_road2dir'),'요항_도로2노폭':cgVal('y_road2w'),
     '요항_건물구조':cgVal('y_struct'),'요항_외벽':cgVal('y_wall'),'요항_창호':cgVal('y_window'),
-    '요항_이용상태':cgVal('y_usestate')};
+    '요항_이용상태':usestateItems().length===1?usestateItems()[0]:cgVal('y_usestate')};
 }
 // {{토큰}}이 든 <hp:p> 문단을 값의 줄 수만큼 복제한다(줄배치 캐시 제거 → 한글이 다시 배치).
 // 집합건물 expandYohangPara와 같은 방식. 값이 비면 아무것도 하지 않고 양식 표시를 남긴다.
@@ -44,6 +44,39 @@ function dropSecondRoad(doc){
   runs.slice(i-1,w+1).forEach(function(r){r.remove();});
   runs.slice(w+1).forEach(function(r){Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(n){n.textContent=n.textContent.replace('각각 ','');});});
   Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+}
+// 이용상태 항목(가·나·다) — 요항표 탭 첫 칸 + 추가 항목(y_usestateMore, JSON 배열). 빈 항목은 뺀다.
+function usestateItems(){
+  var more=[];try{more=JSON.parse(cgVal('y_usestateMore')||'[]');}catch(e){}
+  if(!Array.isArray(more))more=[];
+  return [cgVal('y_usestate')].concat(more).map(function(v){return String(v==null?'':v).trim();}).filter(Boolean);
+}
+// 항목이 둘 이상이면 "공부상 {{요항_이용상태}}로 이용 중임." 한 문단을
+//   공부상 / 가) 주택 / 나) 차고로 이용 중임.
+// 여러 문단으로 나눈다(같은 문단 서식 복제 — 앞 검정 런은 '공부상'·'가) ', 값 런은 빨강, 끝 문구는 마지막 항목에만).
+function splitUsestate(doc){
+  var items=usestateItems();if(items.length<2)return;
+  var tok='{{요항_이용상태}}';
+  var t=Array.from(doc.getElementsByTagNameNS('*','t')).find(function(n){return n.textContent.indexOf(tok)>=0;});
+  if(!t)return;
+  var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
+  if(!p)return;
+  var L='가나다라마바사아자차카타파하';
+  var make=function(fill){
+    var c=p.cloneNode(true),ts=Array.from(c.getElementsByTagNameNS('*','t')),k=ts.findIndex(function(n){return n.textContent.indexOf(tok)>=0;});
+    ts.forEach(function(n,i){n.textContent=fill(n.textContent,i,k);});
+    Array.from(c.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+    p.parentNode.insertBefore(c,p);
+  };
+  make(function(txt,i,k){return i===0&&i<k?txt.replace(/\s+$/,''):'';});
+  items.forEach(function(v,j){
+    make(function(txt,i,k){
+      if(i<k)return i===0?L[j%L.length]+') ':'';
+      if(i===k)return txt.split(tok).join(v);
+      return j===items.length-1?txt:'';
+    });
+  });
+  p.remove();
 }
 // 교통상황 문장 "…진출입이 가능하며, 인근에 {{요항_교통}}…"의 '인근에'를 요항표 탭 드롭다운(인근에/근거리에)대로 바꾼다.
 function setTrafficNear(doc){
@@ -100,6 +133,7 @@ async function buildYohang(){
     fillLocationNarrative(d);
     dropSecondRoad(d);
     setTrafficNear(d);
+    splitUsestate(d);
     Array.from(d.getElementsByTagNameNS('*','run')).filter(function(r){return red.has(r.getAttribute('charPrIDRef'));}).forEach(function(r){
       Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){
         t.textContent=t.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
