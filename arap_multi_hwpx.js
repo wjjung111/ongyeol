@@ -38,7 +38,7 @@ function model(input,h){
  const shown=cases.filter(c=>c.isShown||c.isSelected);const numbered=shown.map((c,i)=>({...c,symbol:i+1,originalSymbol:c.symbol}));
  const findCase=u=>{const c=resolveCase(u,cases);return c?numbered.find(x=>x.id===c.id)||c:null;};
  const units=(ov.units||[]).filter(u=>u&&(u.ho||u.dong||u.floor||num(u.area)>0));
- if(!units.length)throw Error('② 대상물건개요에 호수를 입력하세요.');
+ if(!units.length)throw Error('2. 대상물건개요에 호수를 입력하세요.');
  const rows=units.map((u,i)=>{const c=findCase(u),cal=calculateUnit(u,c,input,h),{ext,intF,ho,etc,totFac:factor,ua:area,raw,rnd:unit,finalAmt:amount,ready}=cal;
  const cv=caseValues(c,g.ARAP_INDEX_DATA,h.parseTimeAdjDetail,ov);
  return {u,c,area,unit,amount,ready,values:{...cv,'일련번호':sym(i),'동':u.dong||'','층':u.floor||'','호수':u.ho||'','동층호':[u.dong,u.floor,u.ho].map(text).join('/'),'대지지분':fmt(num(u.landArea)),'전유면적':fmt(num(u.area)),'평가면적':fmt(area),'공용면적':fmt(num(u.commonArea)),'합계면적':num(u.area)!=null&&num(u.commonArea)!=null?fmt(num(u.area)+num(u.commonArea)):'',

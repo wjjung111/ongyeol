@@ -13,7 +13,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   try{
     const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
+    await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiDocuments);
     await page.evaluate(()=>{

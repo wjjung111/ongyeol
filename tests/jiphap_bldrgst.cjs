@@ -1,4 +1,4 @@
-// 집합건물 앱 '② 대상물건개요' 건축물대장 불러오기 검증 — V-World·프록시 응답을 흉내내어
+// 집합건물 앱 '2. 대상물건개요' 건축물대장 불러오기 검증 — V-World·프록시 응답을 흉내내어
 // 주소 조회 → 동·호 선택 → 빈칸 채움(단일 호수) / 표 추가(여러 호수), '빈칸만 채우기' 규칙 확인
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_bldrgst.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -28,7 +28,7 @@ const MOCK={
     const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[],calls=[];
     page.on('pageerror',e=>errors.push(e.message));
     await ctx.route('**/*',r=>{const u=r.request().url();
-      if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});
+      if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});
       if(u.startsWith(base))return r.continue();
       if(u.startsWith('https://api.vworld.kr'))return r.fulfill({json:MOCK.vworld});
       if(u.includes('workers.dev/bld')){const q=new URL(u).searchParams,op=q.get('op');calls.push(op+':'+(q.get('dongNm')||'')+':'+(q.get('hoNm')||''));const m=MOCK[op];return r.fulfill({json:typeof m==='function'?m(q):m});}
@@ -36,11 +36,11 @@ const MOCK={
       return r.abort();});
     await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');}catch(e){}});
     await page.goto(base+'/s3r86w8a.html',{waitUntil:'domcontentloaded'});
-    await page.waitForSelector('#root >> text=② 대상물건개요',{timeout:60000});
+    await page.waitForSelector('#root >> text=2. 대상물건개요',{timeout:60000});
     await page.waitForFunction(()=>window.ArapBldrgst&&window.ArapBldrgst.Panel);
     // ── 단일 호수: 조회 주소는 저장된 물건과 무관하게 공란에서 시작 ──
     const single=page.locator('#root');
-    await single.getByText('② 대상물건개요',{exact:true}).click();
+    await single.getByText('2. 대상물건개요',{exact:true}).click();
     const panel=single.locator('text=🏢 건축물대장 불러오기').locator('xpath=ancestor::div[1]/..');
     const qbox=single.locator('input[placeholder="조회할 지번주소 또는 도로명주소를 입력하세요"]');
     assert.equal(await qbox.inputValue(),'');
@@ -88,7 +88,7 @@ const MOCK={
     // ── 여러 호수: 호를 고르면 상세물건정보 표에 행 추가 ──
     await page.locator('#btn-multi').click();
     const multi=page.locator('#root-multi');
-    await multi.getByText('② 대상물건개요',{exact:true}).click();
+    await multi.getByText('2. 대상물건개요',{exact:true}).click();
     const mq=multi.locator('input[placeholder="조회할 지번주소 또는 도로명주소를 입력하세요"]');
     await mq.fill('서울 서초구 방배동 1344');
     await multi.locator('button:has-text("🔍 조회")').click();

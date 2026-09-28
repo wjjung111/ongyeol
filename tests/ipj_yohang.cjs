@@ -21,7 +21,7 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
   try{
     const ctx=await browser.newContext({acceptDownloads:true}),page=await ctx.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message)); // 콘솔의 Babel 용량 안내·사용기록 전송 실패(외부 차단)는 무관
-    await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
+    await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');}catch(e){}});
     await page.goto(base+'/입주권.html',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('text=② 접수개요',{timeout:60000});

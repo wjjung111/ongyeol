@@ -28,7 +28,7 @@ const labelsOf=page=>page.evaluate(()=>[...document.querySelectorAll('#mapBox .m
   page.on('pageerror',e=>errs.push(e.message));
   await ctx.route('**/*',r=>{
     const u=r.request().url();
-    if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});
+    if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});
     if(u.includes('leaflet.js'))return LF?r.fulfill({body:fs.readFileSync(LF+'/leaflet.js','utf8'),contentType:'text/javascript'}):r.continue();
     if(u.includes('leaflet.css'))return LF?r.fulfill({body:fs.readFileSync(LF+'/leaflet.css','utf8'),contentType:'text/css'}):r.continue();
     if(u.includes('api.vworld.kr/req/search')){

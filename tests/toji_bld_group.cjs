@@ -12,7 +12,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});
   const ctx=await browser.newContext();const page=await ctx.newPage();const errs=[];
   page.on('pageerror',e=>errs.push(e.message));page.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text());});
-  await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
+  await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
   await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>window.renderBldCalc&&window.addBldRow);
 

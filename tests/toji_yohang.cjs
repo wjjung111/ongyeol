@@ -20,7 +20,7 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
   try{
     const ctx=await browser.newContext({acceptDownloads:true}),page=await ctx.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
+    await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiDocuments);
     // 대상물건 값 입력 → 요항표 탭에서 자동채움 확인

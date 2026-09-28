@@ -31,7 +31,7 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
 const mk=async()=>{const ctx=await browser.newContext({acceptDownloads:true}),page=await ctx.newPage();page.setDefaultTimeout(30000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
   await ctx.route('**/*',r=>{const u=r.request().url();
-    if(u.includes('arap_access.js')||u.includes('arap_name.js'))return r.fulfill({body:'',contentType:'text/javascript'});
+    if((u.includes('arap_access.js')||u.includes('arap_user.js'))||u.includes('arap_name.js'))return r.fulfill({body:'',contentType:'text/javascript'});
     if(u.startsWith(base))return r.continue();return r.abort();});
   return {ctx,page,errors};};
 // 화면에 보이지 않는 칸이어도 값은 읽을 수 있다(청구서 카드가 접혀 있는 탭에 있음)
