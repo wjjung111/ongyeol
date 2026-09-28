@@ -197,6 +197,18 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     await page.locator('#y_roadCnt').selectOption('2');
     assert(await page.locator('#y_road2wrap').isVisible(),'두 면으로 되돌리면 ② 칸 다시 보임');
     assert((await outputParagraphs()).includes('본건 남서측으로 노폭 약 0m, 북측으로 노폭 약 0m 내외의 아스팔트 포장도로와 각각 접하고 있음.'));
+    // 교통상황 '인근에/근거리에' 드롭다운 — 기본은 양식 그대로, 근거리에 고르면 문장만 바뀌고 저장·복원된다.
+    assert.equal(await page.locator('#y_trafficNear').inputValue(),'','기본 = 인근에');
+    assert((await outputParagraphs()).some(t=>t.includes('진출입이 가능하며, 인근에 성남여수동행정복지센터 버스정류장이 소재')));
+    await page.locator('#y_trafficNear').selectOption('근거리에');
+    await page.evaluate(()=>doSave());
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>window.ArapTojiDocuments);
+    await page.evaluate(()=>showTab('yohang'));
+    assert.equal(await page.locator('#y_trafficNear').inputValue(),'근거리에','인근/근거리 저장·복원');
+    const near=await outputParagraphs();
+    assert(near.some(t=>t.includes('진출입이 가능하며, 근거리에 성남여수동행정복지센터 버스정류장이 소재')),'근거리 문장: '+near.filter(t=>t.includes('진출입')).join(' | '));
+    assert(!near.some(t=>t.includes('진출입이 가능하며, 인근에')));
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({status:'PASS',auto},null,1));
   }finally{await browser.close();server.close();}
