@@ -172,6 +172,8 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     assert.equal(dashes['총 거래금액(원)'],'950,000,000');
     // 거래시점에 내용연수를 넘긴 사례 → 감가 관련 칸이 빨간 글씨, 화면에서 적은 한 줄 메모는 표 바로 아래에 그대로.
     const agedNote='※ 거래사례#2는 거래시점 당시 내용연수가 초과한 바 관찰감가법을 적용하여 토지 단가를 배분하였음.';
+    const agedNote2='※ 거래사례#1은 건물의 내용연수가 도과한 바 건물의 가격은 거래금액에 포함된 것으로 봄.';
+    await page.evaluate(n2=>{window.NOTE2=n2;},agedNote2);
     const aged=await page.evaluate(async note=>{
       TRADES=[{loc:'신원동 646',use:'1종일주',jimok:'대',landA:'87.78',bldA:'108.16',total:'720000000',date:'2024.10.15',
                appr:'2022.04.20',struct:'철근콘크리트구조',reCost:'1,200,000',life:'50'},
@@ -179,7 +181,7 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
               {loc:'신원동 236-6',use:'1종일주',jimok:'대',landA:'333',bldA:'144.24',total:'2465000000',date:'2026.07.17',
                appr:'1979.06.14',struct:'벽돌구조',reCost:'900,000',life:'45',rest:'15'}];
       ETC={type:'t',idx:0};GA={idx:0};
-      document.getElementById('g_tradeNote').value=note;
+      document.getElementById('g_tradeNote').value=note+'\n\n'+NOTE2;
       calcGongsi();
       const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
       const entries=await ArapCheonggu.parseZip(bytes.buffer);
@@ -195,7 +197,7 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
       ps.forEach((p,i)=>{
         const tbl=Array.from(p.getElementsByTagNameNS(HP,'tbl')).find(t=>t.textContent.includes('거래사례#1')&&t.textContent.includes('잔존연수'));
         if(!tbl)return;
-        out.after.push(ps[i+1].textContent.trim());
+        out.after.push([ps[i+1].textContent.trim(),ps[i+2].textContent.trim()]);
         const map={};
         Array.from(tbl.children).filter(n=>n.localName==='tr').forEach(tr=>{
           const cells=Array.from(tr.children).filter(n=>n.localName==='tc');if(cells.length<3)return;
@@ -207,7 +209,8 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
       return out;
     },agedNote);
     assert.equal(aged.after.length,2);
-    for(const t of aged.after)assert.equal(t,agedNote,'표 바로 아래 줄이 메모여야 합니다: '+t);
+    // 엔터로 나눈 두 줄 → 한글에서도 두 문단(빈 줄은 건너뜀)
+    for(const t of aged.after)assert.deepEqual(t,[agedNote,agedNote2],'표 바로 아래 두 줄이 메모여야 합니다: '+t);
     for(const map of aged.reds){
       for(const k of ['사용승인일','주구조','재조달원가(원/㎡)','내용연수','잔존연수'])
         assert.deepEqual(map[k],[false,true],k+' 칸은 #2만 빨강이어야 합니다');

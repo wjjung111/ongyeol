@@ -622,8 +622,14 @@ function opinionXml(xml,data){
       var next=target.nextSibling;
       clearLines(target);target=next;
     }
-    // 화면에서 적은 한 줄 메모는 (여러 표로 나뉘었으면) 마지막 표 바로 아래에 붙인다
-    if(data.tradeNote){var np=makeNoteP(doc,data.tradeNote);if(np)last.parentNode.insertBefore(np,last.nextSibling);}
+    // 화면에서 적은 메모는 줄마다 한 문단으로, (여러 표로 나뉘었으면) 마지막 표 바로 아래에 붙인다
+    if(data.tradeNote){
+      var at=last;
+      data.tradeNote.split(/\r?\n/).forEach(function(line){
+        if(!line.trim())return;                         // 빈 줄은 건너뛴다
+        var np=makeNoteP(doc,line);if(np){at.parentNode.insertBefore(np,at.nextSibling);at=np;}
+      });
+    }
   });
   // 개별요인 비교항목 표 — 화면에서 고른 지대의 항목으로 바꾼다(템플릿 원본은 상업지대).
   var daegu=text(data.global['지대'])||'상업지대',items=FACTOR_ITEMS[daegu]||FACTOR_ITEMS['상업지대'];
