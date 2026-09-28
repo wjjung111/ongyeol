@@ -3966,10 +3966,28 @@ function App(){
     setCurrentId(null);setStep(0);setShowList(false);
   };
 
-  // 건 삭제
+  // 건 삭제 — 곧바로 지우지 않고 휴지통(최근 20건)으로 옮김. 건 내용·메모를 통째로 담아 두고 「되살리기」로 복구
+  const TRASH_KEY=LIST_KEY.replace("case-list","trash"),TRASH_MAX=20;
+  const [showTrash,setShowTrash]=useState(false);
+  const [trashVer,setTrashVer]=useState(0);
+  const lsG=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+  const getTrash=()=>{try{return JSON.parse(lsG(TRASH_KEY)||"[]")||[];}catch(e){return [];}};
+  const setTrash=list=>{list=list.slice(0,TRASH_MAX);   // 공간이 모자라면 오래된 것부터 버리며 다시 시도
+    for(;;){try{localStorage.setItem(TRASH_KEY,JSON.stringify(list));setTrashVer(v=>v+1);return true;}
+      catch(e){if(!list.length)return false;list.pop();}}};
+  const curData=()=>({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
+  const caseLabel=(id,o)=>`${id} ${o.buildingName||""} ${o.dong?o.dong+"동":""} ${o.ho?o.ho+"호":""}`.trim();
+  const putList=(id,label)=>{const updated=new Date().toISOString();
+    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});};
+  const nextCopyId=id=>{let n=2,c;do{c=id+"-"+n++;}while(lsG(caseKey(c)));return c;};
   const deleteCase=async(id)=>{
-    if(!confirm(`${id} 건을 삭제할까요?`))return;
-    try{storageDelete(caseKey(id));}catch(e){console.warn('case delete from storage failed',e);}
+    if(!confirm(`${id} 건을 휴지통으로 옮길까요?\n(📂 저장된 건 → 🗑 휴지통에서 되살릴 수 있습니다)`))return;
+    const raw=currentId===id?JSON.stringify(curData()):lsG(caseKey(id));
+    if(raw){const c=caseList.find(x=>x.id===id)||{};
+      const tr=getTrash().filter(x=>!(x.id===id&&x.raw===raw));
+      tr.unshift({id,label:c.label||id,t:Date.now(),raw,memo:lsG(MEMO_KEY_PREFIX+id)});
+      if(!setTrash(tr)&&!confirm("저장 공간이 부족해 휴지통에 넣지 못했습니다. 그래도 완전히 삭제할까요?"))return;}
+    try{storageDelete(caseKey(id));storageDelete(MEMO_KEY_PREFIX+id);}catch(e){console.warn('case delete from storage failed',e);}
     setCaseList(prev=>{
       const newList=prev.filter(c=>c.id!==id);
       storageSet(LIST_KEY,JSON.stringify(newList));
@@ -3977,6 +3995,45 @@ function App(){
     });
     if(currentId===id)newCase();
   };
+  // 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다(사례·단가를 바꿔 보는 용도). 원본은 그대로, 메모도 복사
+  const copyCase=(id)=>{
+    let d=null;
+    if(currentId===id){d=curData();try{storageSet(caseKey(id),JSON.stringify(d));}catch(e){}}   // 원본의 저장 대기분부터 반영
+    else{try{d=JSON.parse(lsG(caseKey(id))||"null");}catch(e){}}
+    if(!d){alert("복제 실패 — 저장 데이터가 없습니다.");return;}
+    let nid=prompt(`${id} 건을 복제합니다.\n새 접수번호를 입력하세요 (원본은 그대로 남습니다).`,nextCopyId(id));
+    if(nid==null)return;nid=nid.trim();
+    if(!nid){alert("접수번호를 입력해야 복제할 수 있습니다.");return;}
+    if(lsG(caseKey(nid))){alert(`${nid} 접수번호로 저장된 건이 이미 있습니다. 다른 번호를 넣어 주세요.`);return;}
+    d={...d,ov:{...(d.ov||{}),caseNo:nid}};
+    try{storageSet(caseKey(nid),JSON.stringify(d));const m=lsG(MEMO_KEY_PREFIX+id);if(m)storageSet(MEMO_KEY_PREFIX+nid,m);}
+    catch(e){alert("복제 실패: "+e.message);return;}
+    putList(nid,caseLabel(nid,d.ov));
+    loadCase(nid);
+  };
+  const restoreTrash=(k)=>{
+    const tr=getTrash(),it=tr[k];if(!it)return;
+    let id=it.id;
+    if(lsG(caseKey(id))){
+      id=prompt(`${it.id} 접수번호로 저장된 건이 이미 있습니다.\n되살릴 건에 쓸 새 접수번호를 입력하세요.`,nextCopyId(it.id));
+      if(id==null)return;id=id.trim();if(!id)return;
+      if(lsG(caseKey(id))){alert(`${id} 접수번호로 저장된 건이 이미 있습니다.`);return;}
+    }
+    let d=null;try{d=JSON.parse(it.raw);}catch(e){}
+    if(!d){alert("되살리기 실패 — 데이터가 손상되었습니다.");return;}
+    d={...d,ov:{...(d.ov||{}),caseNo:id}};
+    try{storageSet(caseKey(id),JSON.stringify(d));if(it.memo&&!lsG(MEMO_KEY_PREFIX+id))storageSet(MEMO_KEY_PREFIX+id,it.memo);}
+    catch(e){alert("되살리기 실패: "+e.message);return;}
+    putList(id,caseLabel(id,d.ov));
+    tr.splice(k,1);setTrash(tr);
+  };
+  const purgeTrash=(k)=>{
+    const tr=getTrash(),it=tr[k];if(!it)return;
+    if(!confirm(`${it.id} 건을 휴지통에서 완전히 지울까요? 되돌릴 수 없습니다.`))return;
+    tr.splice(k,1);setTrash(tr);
+  };
+  const fmtWhen=t=>{try{const x=new Date(t);return x.toLocaleDateString("ko-KR")+" "+x.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});}catch(e){return "-";}};
+  const trashList=React.useMemo(getTrash,[trashVer,showList]);
 
   const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출","⑤ 위치도"];
   const selCnt=cases.filter(c=>c.isSelected).length;
@@ -4011,20 +4068,39 @@ function App(){
     {showList&&(<div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:12,marginBottom:8,maxHeight:300,overflowY:"auto"}}>
       {caseList.length===0?<div style={{color:"#999",fontSize:12,textAlign:"center",padding:16}}>저장된 평가서가 없습니다.</div>:
       <table style={S.tbl}><thead><tr>
-        <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:100}}>작업</th>
+        <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:"1%"}}>작업</th>
       </tr></thead><tbody>
         {caseList.map(c=>(
           <tr key={c.id} style={{background:c.id===currentId?"#eff6ff":"#fff"}}>
             <td style={{...S.td,fontWeight:700,color:C.acc}}>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
             <td style={S.tdL}>{c.label?.replace(c.id,"").trim()||"-"}</td>
             <td style={S.td}>{c.updated?new Date(c.updated).toLocaleDateString("ko-KR")+" "+new Date(c.updated).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"-"}</td>
-            <td style={S.td}>
+            <td style={{...S.td,whiteSpace:"nowrap"}}>
               <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>loadCase(c.id)}>열기</button>
+              <button className="copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때" style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id)}>⧉ 복제</button>
               <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>deleteCase(c.id)}>삭제</button>
             </td>
           </tr>
         ))}
       </tbody></table>}
+      {trashList.length>0&&<div style={{marginTop:8,fontSize:12}}>
+        <button className="trash-btn" style={{...S.btn,background:showTrash?"#e2e8f0":"#f8fafc",color:"#475569",border:"1px solid #cbd5e1",fontSize:11,padding:"3px 10px"}} onClick={()=>setShowTrash(!showTrash)}>🗑 휴지통 {trashList.length}</button>
+        <span style={{color:"#94a3b8"}}> 지운 건은 최근 {TRASH_MAX}건까지 여기 보관됩니다.</span>
+        {showTrash&&<table className="trash-tbl" style={{...S.tbl,marginTop:6}}><thead><tr>
+          <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>지운 시각</th><th style={{...S.th,width:"1%"}}>작업</th>
+        </tr></thead><tbody>
+          {trashList.map((it,k)=>(
+            <tr key={it.id+"_"+it.t} style={{background:"#fafafa"}}>
+              <td style={{...S.td,fontWeight:700,color:C.acc}}>{it.id}</td>
+              <td style={S.tdL}>{String(it.label||"").replace(it.id,"").trim()||"-"}</td>
+              <td style={S.td}>{fmtWhen(it.t)}</td>
+              <td style={{...S.td,whiteSpace:"nowrap"}}>
+                <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>restoreTrash(k)}>↩ 되살리기</button>
+                <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>purgeTrash(k)}>완전히 삭제</button>
+              </td>
+            </tr>))}
+        </tbody></table>}
+      </div>}
       <SyncPanel/>
     </div>)}
 
@@ -7035,10 +7111,28 @@ function App(){
     setCurrentId(null);setStep(0);setShowList(false);
   };
 
-  // 건 삭제
+  // 건 삭제 — 곧바로 지우지 않고 휴지통(최근 20건)으로 옮김. 건 내용·메모를 통째로 담아 두고 「되살리기」로 복구
+  const TRASH_KEY=LIST_KEY.replace("case-list","trash"),TRASH_MAX=20;
+  const [showTrash,setShowTrash]=useState(false);
+  const [trashVer,setTrashVer]=useState(0);
+  const lsG=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+  const getTrash=()=>{try{return JSON.parse(lsG(TRASH_KEY)||"[]")||[];}catch(e){return [];}};
+  const setTrash=list=>{list=list.slice(0,TRASH_MAX);   // 공간이 모자라면 오래된 것부터 버리며 다시 시도
+    for(;;){try{localStorage.setItem(TRASH_KEY,JSON.stringify(list));setTrashVer(v=>v+1);return true;}
+      catch(e){if(!list.length)return false;list.pop();}}};
+  const curData=()=>({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
+  const caseLabel=(id,o)=>`${id} ${o.buildingName||""} ${o.dong?o.dong+"동":""} ${o.ho?o.ho+"호":""}`.trim();
+  const putList=(id,label)=>{const updated=new Date().toISOString();
+    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});};
+  const nextCopyId=id=>{let n=2,c;do{c=id+"-"+n++;}while(lsG(caseKey(c)));return c;};
   const deleteCase=async(id)=>{
-    if(!confirm(`${id} 건을 삭제할까요?`))return;
-    try{storageDelete(caseKey(id));}catch(e){}
+    if(!confirm(`${id} 건을 휴지통으로 옮길까요?\n(📂 저장된 건 → 🗑 휴지통에서 되살릴 수 있습니다)`))return;
+    const raw=currentId===id?JSON.stringify(curData()):lsG(caseKey(id));
+    if(raw){const c=caseList.find(x=>x.id===id)||{};
+      const tr=getTrash().filter(x=>!(x.id===id&&x.raw===raw));
+      tr.unshift({id,label:c.label||id,t:Date.now(),raw,memo:lsG(MEMO_KEY_PREFIX+id)});
+      if(!setTrash(tr)&&!confirm("저장 공간이 부족해 휴지통에 넣지 못했습니다. 그래도 완전히 삭제할까요?"))return;}
+    try{storageDelete(caseKey(id));storageDelete(MEMO_KEY_PREFIX+id);}catch(e){console.warn('case delete from storage failed',e);}
     setCaseList(prev=>{
       const newList=prev.filter(c=>c.id!==id);
       storageSet(LIST_KEY,JSON.stringify(newList));
@@ -7046,6 +7140,45 @@ function App(){
     });
     if(currentId===id)newCase();
   };
+  // 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다(사례·단가를 바꿔 보는 용도). 원본은 그대로, 메모도 복사
+  const copyCase=(id)=>{
+    let d=null;
+    if(currentId===id){d=curData();try{storageSet(caseKey(id),JSON.stringify(d));}catch(e){}}   // 원본의 저장 대기분부터 반영
+    else{try{d=JSON.parse(lsG(caseKey(id))||"null");}catch(e){}}
+    if(!d){alert("복제 실패 — 저장 데이터가 없습니다.");return;}
+    let nid=prompt(`${id} 건을 복제합니다.\n새 접수번호를 입력하세요 (원본은 그대로 남습니다).`,nextCopyId(id));
+    if(nid==null)return;nid=nid.trim();
+    if(!nid){alert("접수번호를 입력해야 복제할 수 있습니다.");return;}
+    if(lsG(caseKey(nid))){alert(`${nid} 접수번호로 저장된 건이 이미 있습니다. 다른 번호를 넣어 주세요.`);return;}
+    d={...d,ov:{...(d.ov||{}),caseNo:nid}};
+    try{storageSet(caseKey(nid),JSON.stringify(d));const m=lsG(MEMO_KEY_PREFIX+id);if(m)storageSet(MEMO_KEY_PREFIX+nid,m);}
+    catch(e){alert("복제 실패: "+e.message);return;}
+    putList(nid,caseLabel(nid,d.ov));
+    loadCase(nid);
+  };
+  const restoreTrash=(k)=>{
+    const tr=getTrash(),it=tr[k];if(!it)return;
+    let id=it.id;
+    if(lsG(caseKey(id))){
+      id=prompt(`${it.id} 접수번호로 저장된 건이 이미 있습니다.\n되살릴 건에 쓸 새 접수번호를 입력하세요.`,nextCopyId(it.id));
+      if(id==null)return;id=id.trim();if(!id)return;
+      if(lsG(caseKey(id))){alert(`${id} 접수번호로 저장된 건이 이미 있습니다.`);return;}
+    }
+    let d=null;try{d=JSON.parse(it.raw);}catch(e){}
+    if(!d){alert("되살리기 실패 — 데이터가 손상되었습니다.");return;}
+    d={...d,ov:{...(d.ov||{}),caseNo:id}};
+    try{storageSet(caseKey(id),JSON.stringify(d));if(it.memo&&!lsG(MEMO_KEY_PREFIX+id))storageSet(MEMO_KEY_PREFIX+id,it.memo);}
+    catch(e){alert("되살리기 실패: "+e.message);return;}
+    putList(id,caseLabel(id,d.ov));
+    tr.splice(k,1);setTrash(tr);
+  };
+  const purgeTrash=(k)=>{
+    const tr=getTrash(),it=tr[k];if(!it)return;
+    if(!confirm(`${it.id} 건을 휴지통에서 완전히 지울까요? 되돌릴 수 없습니다.`))return;
+    tr.splice(k,1);setTrash(tr);
+  };
+  const fmtWhen=t=>{try{const x=new Date(t);return x.toLocaleDateString("ko-KR")+" "+x.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});}catch(e){return "-";}};
+  const trashList=React.useMemo(getTrash,[trashVer,showList]);
 
   const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출","⑤ 위치도"];
   const selCnt=cases.filter(c=>c.isSelected).length;
@@ -7080,20 +7213,39 @@ function App(){
     {showList&&(<div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:12,marginBottom:8,maxHeight:300,overflowY:"auto"}}>
       {caseList.length===0?<div style={{color:"#999",fontSize:12,textAlign:"center",padding:16}}>저장된 평가서가 없습니다.</div>:
       <table style={S.tbl}><thead><tr>
-        <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:100}}>작업</th>
+        <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:"1%"}}>작업</th>
       </tr></thead><tbody>
         {caseList.map(c=>(
           <tr key={c.id} style={{background:c.id===currentId?"#eff6ff":"#fff"}}>
             <td style={{...S.td,fontWeight:700,color:C.acc}}>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
             <td style={S.tdL}>{c.label?.replace(c.id,"").trim()||"-"}</td>
             <td style={S.td}>{c.updated?new Date(c.updated).toLocaleDateString("ko-KR")+" "+new Date(c.updated).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"-"}</td>
-            <td style={S.td}>
+            <td style={{...S.td,whiteSpace:"nowrap"}}>
               <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>loadCase(c.id)}>열기</button>
+              <button className="copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때" style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id)}>⧉ 복제</button>
               <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>deleteCase(c.id)}>삭제</button>
             </td>
           </tr>
         ))}
       </tbody></table>}
+      {trashList.length>0&&<div style={{marginTop:8,fontSize:12}}>
+        <button className="trash-btn" style={{...S.btn,background:showTrash?"#e2e8f0":"#f8fafc",color:"#475569",border:"1px solid #cbd5e1",fontSize:11,padding:"3px 10px"}} onClick={()=>setShowTrash(!showTrash)}>🗑 휴지통 {trashList.length}</button>
+        <span style={{color:"#94a3b8"}}> 지운 건은 최근 {TRASH_MAX}건까지 여기 보관됩니다.</span>
+        {showTrash&&<table className="trash-tbl" style={{...S.tbl,marginTop:6}}><thead><tr>
+          <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>지운 시각</th><th style={{...S.th,width:"1%"}}>작업</th>
+        </tr></thead><tbody>
+          {trashList.map((it,k)=>(
+            <tr key={it.id+"_"+it.t} style={{background:"#fafafa"}}>
+              <td style={{...S.td,fontWeight:700,color:C.acc}}>{it.id}</td>
+              <td style={S.tdL}>{String(it.label||"").replace(it.id,"").trim()||"-"}</td>
+              <td style={S.td}>{fmtWhen(it.t)}</td>
+              <td style={{...S.td,whiteSpace:"nowrap"}}>
+                <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>restoreTrash(k)}>↩ 되살리기</button>
+                <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>purgeTrash(k)}>완전히 삭제</button>
+              </td>
+            </tr>))}
+        </tbody></table>}
+      </div>}
       <SyncPanel/>
     </div>)}
 
