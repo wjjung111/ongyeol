@@ -87,6 +87,7 @@
     };
   })();
   </script>
+  <script src="arap_sync.js"></script><!-- ArapCred: GitHub 토큰을 크롬 비밀번호 관리자에 보관 -->
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
   // 조회는 관리자.html(비밀번호)에서만 가능. 샘플 건(SAMPLE-*)은 제외. 실패해도 앱 동작에 영향 없음.
@@ -260,7 +261,7 @@
         const r=await fetch("https://api.github.com/gists?per_page=100&page="+p,{headers:hdrs(t)});
         if(!r.ok)throw new Error("GitHub 응답 "+r.status+(r.status===401?" — 토큰이 잘못되었거나 만료됨":""));
         const arr=await r.json();if(!arr.length)break;
-        const g=arr.find(x=>x.files&&x.files[FILE]);
+        const g=arr.find(x=>x.files&&(x.files[FILE]||x.files["arap_sync_toji.json"]));   // 토지건물이 먼저 만든 Gist도 같이 씀
         if(g){lsSet(GIST_KEY,g.id);const r2=await fetch("https://api.github.com/gists/"+g.id,{headers:hdrs(t)});return await r2.json();}
       }
       return null;
@@ -3725,19 +3726,25 @@ function SyncPanel(){
   const [syncBusy,setSyncBusy]=useState(false);
   useEffect(()=>{if(window.ArapSync)window.ArapSync.onStatus(setSyncStatus);},[]);
   const connected=!!(window.ArapSync&&window.ArapSync.token());
+  // 연결 성공하면 토큰을 크롬 비밀번호 관리자에 보관 — 크롬 기록·쿠키를 지워도 「🔑 저장된 토큰으로 연결」 한 번으로 복구
+  const connectTok=async(tok)=>{window.ArapSync.setToken(tok);if(!String(tok||"").trim()){setSyncStatus("연결 해제됨");return;}
+    setSyncBusy(true);try{const p=await window.ArapSync.syncNow();if(window.ArapCred)window.ArapCred.save(String(tok).trim());
+      if(p&&p.changed>0&&confirm(`GitHub 백업에서 저장건 ${p.changed}건을 받아왔습니다. 새로고침할까요?`))location.reload();}
+    catch(e){console.error('syncNow',e);}finally{setSyncBusy(false);}};
   return(<div style={{borderTop:"1px solid #e2e5ea",marginTop:10,paddingTop:8}}>
     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-      <span style={{fontSize:12,fontWeight:700,color:"#1a2744"}}>☁️ 기기 동기화</span>
+      <span style={{fontSize:12,fontWeight:700,color:"#1a2744"}}>☁️ GitHub 자동 백업</span>
       <input type="password" style={{border:"1px solid #e2e5ea",borderRadius:3,padding:"4px 8px",fontSize:11,outline:"none",width:230}} value={tokenInput}
         onChange={e=>setTokenInput(e.target.value)} placeholder="GitHub 토큰 (gist 권한) — 기기당 1회"/>
       <button style={{...S.btn,background:"#1a2744",color:"#fff",fontSize:11,padding:"4px 12px"}} disabled={syncBusy}
-        onClick={async()=>{window.ArapSync.setToken(tokenInput);if(!tokenInput.trim()){setSyncStatus("연결 해제됨");return;}
-          setSyncBusy(true);try{const p=await window.ArapSync.syncNow();if(p&&p.changed>0&&confirm(`다른 기기의 저장건 ${p.changed}건을 받아왔습니다. 새로고침할까요?`))location.reload();}
-          catch(e){console.error('syncNow',e);}finally{setSyncBusy(false);}}}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
+        onClick={()=>connectTok(tokenInput)}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
+      {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,background:"#e2e8f0",color:"#1a2744",fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
+        onClick={async()=>{const t=await window.ArapCred.load();if(!t){alert("크롬에 저장된 토큰이 없습니다. 토큰을 직접 붙여넣고 「연결」을 눌러 주세요.");return;}setTokenInput(t);connectTok(t);}}>🔑 저장된 토큰으로 연결</button>}
       <span style={{fontSize:11,color:syncStatus.startsWith("⚠️")?"#dc2626":"#059669"}}>{syncStatus}</span>
     </div>
     <div style={{fontSize:10.5,color:"#94a3b8",marginTop:3}}>
-      토큰 발급: github.com → Settings → Developer settings → Personal access tokens(classic) → 'gist' 권한만 체크. 저장하면 자동 업로드되고, 다른 기기에서 접속하면 자동으로 받아와요. (삭제는 기기 간 전파 안 됨)
+      {connected?"저장할 때마다 GitHub(비공개)에 자동 백업돼요. 크롬 기록·쿠키를 지워도 「🔑 저장된 토큰으로 연결」 한 번이면 전부 돌아와요. 토지건물과 같은 토큰이에요.":
+        "연결해 두면 저장할 때마다 GitHub(비공개)에 자동 백업 → 크롬 기록·쿠키를 지워도 복구되고 다른 기기에서도 보여요. 토큰 발급: github.com → Settings → Developer settings → Personal access tokens(classic) → 'gist' 권한만 체크. (삭제는 기기 간 전파 안 됨)"}
     </div>
   </div>);
 }
@@ -6898,19 +6905,25 @@ function SyncPanel(){
   const [syncBusy,setSyncBusy]=useState(false);
   useEffect(()=>{if(window.ArapSync)window.ArapSync.onStatus(setSyncStatus);},[]);
   const connected=!!(window.ArapSync&&window.ArapSync.token());
+  // 연결 성공하면 토큰을 크롬 비밀번호 관리자에 보관 — 크롬 기록·쿠키를 지워도 「🔑 저장된 토큰으로 연결」 한 번으로 복구
+  const connectTok=async(tok)=>{window.ArapSync.setToken(tok);if(!String(tok||"").trim()){setSyncStatus("연결 해제됨");return;}
+    setSyncBusy(true);try{const p=await window.ArapSync.syncNow();if(window.ArapCred)window.ArapCred.save(String(tok).trim());
+      if(p&&p.changed>0&&confirm(`GitHub 백업에서 저장건 ${p.changed}건을 받아왔습니다. 새로고침할까요?`))location.reload();}
+    catch(e){console.error('syncNow',e);}finally{setSyncBusy(false);}};
   return(<div style={{borderTop:"1px solid #e2e5ea",marginTop:10,paddingTop:8}}>
     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-      <span style={{fontSize:12,fontWeight:700,color:"#1a2744"}}>☁️ 기기 동기화</span>
+      <span style={{fontSize:12,fontWeight:700,color:"#1a2744"}}>☁️ GitHub 자동 백업</span>
       <input type="password" style={{border:"1px solid #e2e5ea",borderRadius:3,padding:"4px 8px",fontSize:11,outline:"none",width:230}} value={tokenInput}
         onChange={e=>setTokenInput(e.target.value)} placeholder="GitHub 토큰 (gist 권한) — 기기당 1회"/>
       <button style={{...S.btn,background:"#1a2744",color:"#fff",fontSize:11,padding:"4px 12px"}} disabled={syncBusy}
-        onClick={async()=>{window.ArapSync.setToken(tokenInput);if(!tokenInput.trim()){setSyncStatus("연결 해제됨");return;}
-          setSyncBusy(true);try{const p=await window.ArapSync.syncNow();if(p&&p.changed>0&&confirm(`다른 기기의 저장건 ${p.changed}건을 받아왔습니다. 새로고침할까요?`))location.reload();}
-          catch(e){console.error('syncNow',e);}finally{setSyncBusy(false);}}}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
+        onClick={()=>connectTok(tokenInput)}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
+      {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,background:"#e2e8f0",color:"#1a2744",fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
+        onClick={async()=>{const t=await window.ArapCred.load();if(!t){alert("크롬에 저장된 토큰이 없습니다. 토큰을 직접 붙여넣고 「연결」을 눌러 주세요.");return;}setTokenInput(t);connectTok(t);}}>🔑 저장된 토큰으로 연결</button>}
       <span style={{fontSize:11,color:syncStatus.startsWith("⚠️")?"#dc2626":"#059669"}}>{syncStatus}</span>
     </div>
     <div style={{fontSize:10.5,color:"#94a3b8",marginTop:3}}>
-      토큰 발급: github.com → Settings → Developer settings → Personal access tokens(classic) → 'gist' 권한만 체크. 저장하면 자동 업로드되고, 다른 기기에서 접속하면 자동으로 받아와요. (삭제는 기기 간 전파 안 됨)
+      {connected?"저장할 때마다 GitHub(비공개)에 자동 백업돼요. 크롬 기록·쿠키를 지워도 「🔑 저장된 토큰으로 연결」 한 번이면 전부 돌아와요. 토지건물과 같은 토큰이에요.":
+        "연결해 두면 저장할 때마다 GitHub(비공개)에 자동 백업 → 크롬 기록·쿠키를 지워도 복구되고 다른 기기에서도 보여요. 토큰 발급: github.com → Settings → Developer settings → Personal access tokens(classic) → 'gist' 권한만 체크. (삭제는 기기 간 전파 안 됨)"}
     </div>
   </div>);
 }
