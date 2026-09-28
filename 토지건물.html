@@ -711,7 +711,11 @@
       <div class="card">
         <h2>재조달원가·감가수정</h2>
         <div class="row" style="margin-bottom:8px;align-items:center;gap:12px"><button class="btn gh sm" onclick="addBldRow({});renderBldCalc();">+ 층 추가</button>
-          <label style="font-size:12px;font-weight:700;color:#334155;cursor:pointer;user-select:none" title="켜면 층마다 유효경과연수를 직접 넣어 잔가율을 계산하고, 의견서에 관찰감가 문장과 실제·유효경과연수 두 열이 나갑니다"><input type="checkbox" id="bld_obs" onchange="bldSetObs(this.checked)" style="vertical-align:-2px"> 관찰감가 (실제·유효경과연수)</label></div>
+          <label style="font-size:12px;font-weight:700;color:#334155;cursor:pointer;user-select:none" title="켜면 층마다 유효경과연수를 직접 넣어 잔가율을 계산하고, 의견서에 관찰감가 문장과 실제·유효경과연수 두 열이 나갑니다"><input type="checkbox" id="bld_obs" onchange="bldSetObs(this.checked)" style="vertical-align:-2px"> 관찰감가 (실제·유효경과연수)</label>
+          <span style="margin-left:auto;font-size:12px;color:#626b78">적용단가</span>
+          <select class="box" id="bld_rUnit" style="flex:0 0 auto;width:auto" onchange="bldSetRound('_rUnit',this.value)" title="자동 = 단가 자릿수로(십만원대 단가 → 백원 단위에서)"><option value="auto">자동(단가 자릿수)</option><option value="1">원 단위</option><option value="10">십원 단위</option><option value="100">백원 단위</option><option value="1000">천원 단위</option><option value="10000">만원 단위</option></select>
+          <select class="box" id="bld_rMode" style="flex:0 0 auto;width:auto" onchange="bldSetRound('_rMode',this.value)"><option value="none">그대로</option><option value="round">반올림</option><option value="floor">절사</option></select>
+          <span id="bld_rHint" style="font-size:11px;color:#626b78"></span></div>
         <div class="tw"><table id="tblBldCalc"></table></div>
       </div>
       </div>
@@ -784,7 +788,7 @@
             <!-- 주건물/부속건물·동별로 나눌 때: 공부상 / 가) … / 나) …로 이용 중임. (추가 항목은 y_usestateMore에 JSON 배열) -->
             <p>공부상 <span id="y_usestateBr" hidden><br>가) </span><input type="text" id="y_usestate" class="y-inline y-usestate" aria-label="이용상태(공부상)" placeholder="제2종근린생활시설 및 다가구주택"><span id="y_usestateTail">로 이용 중임.</span></p>
             <div id="y_usestateList"></div>
-            <textarea id="y_usestateMore" hidden></textarea>
+            <textarea id="y_usestateMore" hidden style="display:none"></textarea>
             <p><button type="button" class="btn gh sm" id="y_usestateAdd">+ 항목 추가 (가·나·다)</button> <button type="button" class="btn gh sm" id="y_usestateFromBld" title="③ 건물평가 표의 동·주/부·용도로 항목을 만듭니다">건물표에서 채우기</button></p>
           </div>
 
@@ -2471,6 +2475,9 @@ function renderBldCalc(){
   var multiDong=rows.some(function(r){return String(r['동']||'').trim();});
   // 관찰감가 — 켜면 경과연수가 '실제'(사용승인일 기준)와 '유효'(평가사가 정함) 두 열이 되고 잔가율은 유효 기준
   var obs=!!(window.BLD_STATE&&window.BLD_STATE._obs),obsBox=document.getElementById('bld_obs');if(obsBox)obsBox.checked=obs;
+  var bs=window.BLD_STATE||{};['_rUnit','_rMode'].forEach(function(k){var el=document.getElementById('bld'+k);if(el)el.value=bs[k]||(k==='_rUnit'?'auto':'none');});
+  var rm=bs._rMode||'none',rHint=document.getElementById('bld_rHint');
+  if(rHint)rHint.textContent=rm==='none'?'※ 재조달원가 × 잔가율 그대로':'※ '+((bs._rUnit||'auto')==='auto'?'단가 자릿수에 맞춰 ':(UNIT_KO[num(bs._rUnit)]||'')+' 단위에서 ')+(rm==='floor'?'절사':'반올림');
   var h='<tr>'+(multiDong?'<th>동</th>':'')+'<th>해당층</th><th title="사정면적이 있으면 사정면적, 없으면 연면적">면적(㎡)</th><th>이용상황</th><th>구조</th><th style="width:46px" title="같은 글자끼리 묶으면 재조달원가·내용연수를 같이 씁니다 — 한 칸만 고치면 그 묶음 전체가 바뀝니다">묶음</th><th>재조달원가<br>(원/㎡)</th><th>내용연수</th>'+(obs?'<th>실제<br>경과연수</th><th title="현상·관리상태를 보고 정한 경과연수 — 비우면 실제 경과연수">유효<br>경과연수</th>':'<th>경과연수</th>')+'<th>잔가율</th><th>적용단가<br>(원/㎡)</th><th>금액(원)</th></tr>';
   var total=0,areaSum=0,gongbuSum=0,docRows=[];
   rows.forEach(function(r,i){
@@ -2485,7 +2492,7 @@ function renderBldCalc(){
     var lf=num(life)||50,ec=(age!==''?Math.min(age,lf):0);
     var ratio=lf>0?Math.max(0,(lf-ec))/lf:0;
     var size=bldArea(r),gongbu=num(r['연면적']);   // 사정면적이 있으면 그 면적으로 평가
-    var applyUnit=num(reCost)*ratio,amt=applyUnit*size;
+    var applyUnit=bldRoundApply(num(reCost)*ratio),amt=applyUnit*size;
     total+=amt;areaSum+=size||0;gongbuSum+=gongbu||0;
     docRows.push({data:r,reCost:num(reCost),life:lf,elapsed:elapsed,eff:obs?age:null,remaining:Math.max(0,lf-ec),ratio:ratio,apply:applyUnit,size:size,gongbu:gongbu,total:amt});
     h+='<tr>'+(multiDong?('<td>'+(r['동']||'')+'</td>'):'')+
@@ -2505,6 +2512,11 @@ function renderBldCalc(){
   sd();calcFinal();
   try{renderGjs();}catch(e){console.error('기준시가 계산',e);}
 }
+// 건물 적용단가 끝수 처리 — 토지 결정단가와 같은 규칙("천원 단위에서 반올림" → 만원 단위). 기본 '그대로'(종전 결과 유지)
+function bldRoundApply(v){var bs=window.BLD_STATE||{},m=bs._rMode||'none';if(m==='none'||!v)return v;
+  var u=bs._rUnit&&bs._rUnit!=='auto'?num(bs._rUnit):Math.max(1,Math.pow(10,Math.floor(Math.log10(v))-3));
+  return roundUnit(v,u,m);}
+function bldSetRound(k,v){window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[k]=v;saveForm();renderBldCalc();}
 function bldSetObs(on){
   window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE._obs=!!on;   // 건별 저장(BLD_STATE)에 같이 들어간다
   saveForm();renderBldCalc();}
@@ -2830,7 +2842,7 @@ function renderUsestate(){
   document.getElementById('y_usestateTail').hidden=!!items.length;
   items.forEach(function(v,i){
     var p=document.createElement('p');
-    p.innerHTML=Y_LETTERS[(i+1)%Y_LETTERS.length]+') <input type="text" class="y-inline y-usestate" aria-label="이용상태 추가 항목"> <span class="del" title="이 항목 삭제">✕</span>'+(i===items.length-1?' <span>로 이용 중임.</span>':'');
+    p.innerHTML=Y_LETTERS[(i+1)%Y_LETTERS.length]+') <input type="text" class="y-inline y-usestate" aria-label="이용상태 추가 항목">'+(i===items.length-1?'<span>로 이용 중임.</span>':'')+' <span class="del" title="이 항목 삭제">✕</span>';
     var inp=p.querySelector('input');inp.value=v;
     inp.addEventListener('input',function(){var a=usestateMoreList();a[i]=inp.value;setUsestateMore(a);saveForm();});
     p.querySelector('.del').onclick=function(){var a=usestateMoreList();a.splice(i,1);setUsestateMore(a);renderUsestate();saveForm();};
