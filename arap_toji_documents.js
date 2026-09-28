@@ -45,6 +45,15 @@ function dropSecondRoad(doc){
   runs.slice(w+1).forEach(function(r){Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(n){n.textContent=n.textContent.replace('각각 ','');});});
   Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
 }
+// 교통상황 문장 "…진출입이 가능하며, 인근에 {{요항_교통}}…"의 '인근에'를 요항표 탭 드롭다운(인근에/근거리에)대로 바꾼다.
+function setTrafficNear(doc){
+  var near=cgVal('y_trafficNear');if(!near||near==='인근에')return;
+  var t=Array.from(doc.getElementsByTagNameNS('*','t')).find(function(n){return /진출입이 가능하며,\s*인근에/.test(n.textContent);});
+  if(!t)return;
+  t.textContent=t.textContent.replace(/(진출입이 가능하며,\s*)인근에/,'$1'+near);
+  var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
+  if(p)Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+}
 // 원본 양식은 보존하고 입지조건의 고정 문구 두 곳만 출력 시 바꾼다.
 // 비어 있으면 원래 문단 유지. 여러 줄은 같은 서식의 문단으로 나눠 한글에서도 줄바꿈을 보존한다.
 function fillLocationNarrative(doc){
@@ -90,6 +99,7 @@ async function buildYohang(){
     var d=xml(dec.decode(e.data));
     fillLocationNarrative(d);
     dropSecondRoad(d);
+    setTrafficNear(d);
     Array.from(d.getElementsByTagNameNS('*','run')).filter(function(r){return red.has(r.getAttribute('charPrIDRef'));}).forEach(function(r){
       Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(t){
         t.textContent=t.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
