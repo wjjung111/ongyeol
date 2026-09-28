@@ -139,7 +139,8 @@ function floorMap(r){
     '층1_공부면적':area(r.gongbu!=null?r.gongbu:r.size),
     // 구조는 한 줄만 쓴다 — 빈 둘째 줄({{층N_구조2}})은 지우는 손이 가서 템플릿에서 뺐다.
     '층1_이용상황':text(d['용도']),'층1_구조':text(d['구조']),'층1_재조달':money(r.reCost),
-    '층1_내용연수':text(r.life),'층1_경과연수':text(r.elapsed),'층1_잔가율':r.remaining+'/'+r.life,
+    // 관찰감가면 잔가율은 유효경과연수 기준(r.remaining이 이미 그 값) — 실제 경과연수 칸은 사용승인일 기준 그대로
+    '층1_내용연수':text(r.life),'층1_경과연수':text(r.elapsed),'층1_유효경과연수':text(r.eff!=null?r.eff:r.elapsed),'층1_잔가율':r.remaining+'/'+r.life,
     '층1_적용단가':money(r.apply),'층1_금액':money(r.total)};
 }
 function buildingMaps(rows){
@@ -233,6 +234,8 @@ function opinionData(){
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
     tradeNote:text(val('g_tradeNote')).trim(),
+    // 건물 관찰감가 체크 — 켜면 산출개요에 관찰감가 문장 + 잔가율 표에 실제·유효경과연수 두 열
+    observed:!!br.observed,
     // 그 밖의 사항(6항) — 첫 탭 목록. 화면이 없으면(null) 양식 문단을 그대로 둔다. 빈 항목은 뺀다.
     // user = 양식 기본 문구가 아닌 것(끼워 넣었거나 고친 것) → 한글에서 빨간 글씨로 나가 검토하기 쉽게
     etcItems:Array.isArray(window.ETC_ITEMS)?window.ETC_ITEMS.map(function(s){return {text:text(s).trim(),user:typeof etcIsUser==='function'&&etcIsUser(s)};}).filter(function(x){return x.text;}):null};
@@ -546,12 +549,32 @@ function mergeRows(tbl,start,n,keepCols){
   });
   clearLines(tbl);
 }
+// 관찰감가를 안 쓰면 잔가율 표의 「유효경과연수」 열을 빼고 종전 양식(경과연수 한 열)으로 되돌린다.
+// 열 너비도 종전 템플릿 값으로 — 합 48,821(2026-09-28 이전 양식과 같음).
+var PLAIN_AGE_W=[3688,5840,11217,9236,4710,4710,4710,4710],EFF_COL=6;
+function plainAgeCols(tbl){
+  children(tbl,'tr').forEach(function(tr,ri){
+    children(tr,'tc').forEach(function(tc){
+      var ad=children(tc,'cellAddr')[0],c=Number(ad.getAttribute('colAddr'));
+      if(c===EFF_COL){tc.remove();return;}
+      if(c>EFF_COL){c--;ad.setAttribute('colAddr',String(c));}
+      if(PLAIN_AGE_W[c])children(tc,'cellSz')[0].setAttribute('width',String(PLAIN_AGE_W[c]));
+      if(!ri&&c===EFF_COL-1){var ts=descendants(tc,'t');if(ts.length>=2){ts[0].textContent='경과';ts[1].textContent='연수';}}   // '실제/경과연수' → '경과/연수'
+    });
+  });
+  tbl.setAttribute('colCnt',String(Number(tbl.getAttribute('colCnt'))-1));
+  var sz=children(tbl,'sz')[0];if(sz)sz.setAttribute('width',String(PLAIN_AGE_W.reduce(function(a,b){return a+b;},0)));
+  clearLines(tbl);
+}
 function blankMap(el){var m={};(el.textContent.match(tokenRE)||[]).forEach(function(s){m[s.slice(2,-2)]='';});return m;}
 function replacePlain(root,from,to){descendants(root,'t').forEach(function(t){if(t.textContent.indexOf(from)>=0)t.textContent=t.textContent.split(from).join(to);});}
 function opinionXml(xml,data){
   var doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.getElementsByTagName('parsererror').length)throw new Error('의견서 템플릿 XML을 읽을 수 없습니다.');
   var state={seq:0,map:Object.assign({},data.global)},tables=descendants(doc,'tbl');
+  // 산출개요의 관찰감가 문장 — 체크 안 했으면 문단째 뺀다
+  if(!data.observed)children(doc.documentElement,'p').forEach(function(p){
+    if(!descendants(p,'tbl').length&&p.textContent.indexOf('관찰감가법을 병용')>=0)p.remove();});
   // 토큰으로 표를 식별한다. 표 번호나 XML 문자열 위치에 의존하지 않는다.
   tables.forEach(function(tbl){
     var rows=children(tbl,'tr');
@@ -587,7 +610,10 @@ function opinionXml(xml,data){
       // 그 밖의 요인 보정치 결정 표: 선정하지 않은 표준지는 빼고 선정한 표준지만(모두 미선정이면 양식 빈 행)
       resizeRows(tbl,1,1,1,hasToken(tbl,'그밖_사례기호')?picked:data.parcels,state);
     }
-    else if(hasToken(tbl,'층1_번호'))resizeRows(tbl,1,5,1,data.floors.length?data.floors:[blankMap(tbl)],state);
+    else if(hasToken(tbl,'층1_번호')){
+      if(hasToken(tbl,'층1_유효경과연수')&&!data.observed)plainAgeCols(tbl);   // 토큰 칸이 빠지므로 행 채우기 전에
+      resizeRows(tbl,1,5,1,data.floors.length?data.floors:[blankMap(tbl)],state);
+    }
     else if(hasToken(tbl,'신축1_분류')){
       var refs=data.newCosts;
       if(!refs.length){var b=blankMap(tbl);Object.keys(b).forEach(function(k){b[k]='[기입]';});refs=[b];}
