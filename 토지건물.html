@@ -248,6 +248,11 @@
   .caselist-tbl tr.cur{background:#eff6ff;}
   .caselist-tbl .del-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
   .caselist-tbl .del-btn:hover{background:#fee2e2;}
+  .arap-sync{border-top:1px solid #e2e5ea;margin-top:10px;padding-top:8px;font-size:12px;}
+  .arap-sync-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;} .arap-sync-row b{color:#1a2744;}
+  .arap-sync-tok{border:1px solid #e2e5ea;border-radius:3px;padding:4px 8px;font-size:11px;width:230px;}
+  .arap-sync-st{font-size:11px;color:#059669;} .arap-sync-st.err{color:#dc2626;}
+  .arap-sync-help{font-size:10.5px;color:#94a3b8;margin-top:3px;}
   .trash-bar{margin-top:8px;font-size:12px;} .trash-bar .dim{color:#94a3b8;}
   .trash-btn{background:#f8fafc;color:#475569;border:1px solid #cbd5e1;} .trash-btn.on{background:#e2e8f0;}
   .trash-tbl{margin-top:6px;} .trash-tbl tr td{background:#fafafa;}
@@ -303,7 +308,8 @@
 <script src="arap_access.js"></script>
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
 <script src="arap_cheonggu.js"></script><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
-<script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 거래사례 지도 페이지와 같은 코드 -->
+<script src="arap_map.js"></script>
+<script src="arap_sync.js"></script><!-- 저장건 GitHub 자동 백업(집합건물과 같은 토큰·Gist) --><!-- 위치도 공용 엔진 — 거래사례 지도 페이지와 같은 코드 -->
 
 <script src="arap_jibyun_data.js"></script><!-- 지가변동률+연도 누계(매일 06시 자동갱신). 있으면 통신 없이 계산, 없거나 파일 밖 달은 프록시 -->
 <div id="mode-bar">
@@ -3243,6 +3249,7 @@ function restoreBak(id,k){
   setBak(id,ring);
   var o=s.data;o._rev=newRev();var raw=JSON.stringify(o);
   try{localStorage.setItem(key,raw);localStorage.setItem(FORM_STORAGE,raw);}catch(e){alert('복구 실패: '+e.message);return;}
+  if(window.LAND_SYNC)LAND_SYNC.touch();
   REVS[key]=o._rev;REVS[FORM_STORAGE]=o._rev;CONFLICT=null;renderConflict();
   bakOpen=null;loadCase(id);doSave();
 }
@@ -3306,7 +3313,15 @@ var LAND_LIST_KEY='tojigeonmul-list';
 function landCaseKey(id){return 'tojigeonmul-case:'+id;}
 var caseList=[],currentId=null,showCaseList=false,saveStatus='';
 function getLandList(){try{return JSON.parse(localStorage.getItem(LAND_LIST_KEY)||'[]')||[];}catch(e){return [];}}
-function setLandList(list){try{localStorage.setItem(LAND_LIST_KEY,JSON.stringify(list));}catch(e){console.error('list save',e);}}
+function setLandList(list){try{localStorage.setItem(LAND_LIST_KEY,JSON.stringify(list));}catch(e){console.error('list save',e);}
+  if(window.LAND_SYNC)LAND_SYNC.touch();}   // 저장·삭제·복제 모두 목록을 고치므로 여기서 백업 예약
+// GitHub 자동 백업 — 크롬 기록·쿠키를 지워도 저장건이 남도록(arap_sync.js). 받아온 건이 있으면 새로고침해서 반영
+var LAND_SYNC=window.ArapSyncLite?ArapSyncLite.create({file:'arap_sync_toji.json',listKey:LAND_LIST_KEY,caseKey:landCaseKey,
+  memoKey:function(id){return 'tojigeonmul-memo:'+id;},trashKey:'tojigeonmul-trash',
+  onPulled:function(n){if(confirm('GitHub 백업에서 저장건 '+n+'건을 받아왔습니다. 새로고침해서 목록에 반영할까요?'))location.reload();}}):null;
+if(LAND_SYNC)LAND_SYNC.onStatus(function(st){var el=document.querySelector('#caseListPanel .arap-sync-st');if(el){el.textContent=st;el.classList.toggle('err',st.indexOf('⚠️')===0);}});
+function syncHtml(){return LAND_SYNC?LAND_SYNC.panelHtml():'';}
+function bindSync(){if(LAND_SYNC)LAND_SYNC.bindPanel(document.getElementById('caseListPanel'));}
 function eh(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
 function jsq(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
 
@@ -3481,7 +3496,7 @@ function renderCaseBar(){
 }
 function renderCaseListPanel(){
   var p=document.getElementById('caseListPanel');
-  if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.</div>'+trashHtml();return;}
+  if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.'+(LAND_SYNC&&!LAND_SYNC.token()?' 크롬 기록을 지워 없어졌다면 아래 「☁️ GitHub 자동 백업」에서 연결하면 되살아나요.':'')+'</div>'+trashHtml()+syncHtml();bindSync();return;}
   var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th class="act">작업</th></tr></thead><tbody>';
   caseList.forEach(function(c){
     var when='-';try{var d=new Date(c.updated);when=d.toLocaleDateString('ko-KR')+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}catch(e){}
@@ -3503,7 +3518,7 @@ function renderCaseListPanel(){
       h+='<tr class="bakrow"><td colspan="4">'+b+'</table></td></tr>';
     }
   });
-  p.innerHTML=h+'</tbody></table>'+trashHtml();
+  p.innerHTML=h+'</tbody></table>'+trashHtml()+syncHtml();bindSync();
 }
 
 // ================= 우측 메모장 (집합건물과 동일 UX, 접수번호별 저장) =================
