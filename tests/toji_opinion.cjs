@@ -74,6 +74,13 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     // 건물 관찰감가(2026-09-28) — 끄면 산출개요 문장 없음 + 잔가율 표 '경과연수' 한 열(종전 폭 48,821)
     //   켜면 문장 + '실제/유효 경과연수' 두 열(51,833), 잔가율은 유효경과연수 기준. 화면 표도 같은 두 열.
     assert(!one.text.includes('관찰감가법'),'관찰감가 끄면 문장이 없어야 합니다');
+    // 기준시점근거(2026-09-28 집합건물과 같은 선택지·문구): 미선택 = 의뢰일인, 현장조사완료일인 = 대상물건의 가격조사를 완료한 날짜인
+    assert(one.text.includes('의뢰일인')&&!one.text.includes('귀 제시일인'),'기준시점근거 미선택 = 의뢰일인');
+    const basisTxt=await page.evaluate(async()=>{document.getElementById('ov_gijunBasis').value='현장조사완료일인';
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const es=await ArapCheonggu.parseZip(bytes.buffer);document.getElementById('ov_gijunBasis').value='';
+      return es.filter(e=>/^Contents\/section\d+\.xml$/.test(e.name)).map(e=>new TextDecoder().decode(e.data)).join('').replace(/<[^>]+>/g,'');});
+    assert(basisTxt.includes('대상물건의 가격조사를 완료한 날짜인'),'현장조사완료일인 문구');
     const ageTable=async()=>page.evaluate(async()=>{
       const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
       const entries=await ArapCheonggu.parseZip(bytes.buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph',HH='http://www.hancom.co.kr/hwpml/2011/head';

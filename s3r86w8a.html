@@ -17,6 +17,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #f5f6f8; }
     input:focus, textarea:focus, select:focus { outline: 2px solid #2563eb !important; outline-offset: -1px; background: #eff6ff !important; }
+    #root button:not(:disabled):hover { filter: brightness(.95); }
   </style>
 </head>
 <body>
@@ -1031,13 +1032,17 @@ function parseKapaRow(text,idx){
 
 // ── Styles ──
 const C={pri:"#1a2744",acc:"#2563eb",dng:"#dc2626",bg:"#f5f6f8",card:"#fff",bdr:"#e2e5ea",hdr:"#f0f2f5",sel:"#eff6ff",lb:"#f0f7ff"};
+// 버튼 색 체계 (토지건물 .btn과 같은 규칙, 2026-09-28): p=주요(파랑) · s=보조(흰 바탕·회색 테두리) · d=삭제(빨강 글씨) · on=켜진 토글(남색) · off=꺼짐
+const BTN={p:{background:C.acc,color:"#fff",border:`1px solid ${C.acc}`},s:{background:"#fff",color:"#1e293b",border:"1px solid #cbd5e1"},
+  d:{background:"#fff",color:C.dng,border:"1px solid #fecaca"},on:{background:C.pri,color:"#fff",border:`1px solid ${C.pri}`},
+  off:{background:"#e2e8f0",color:"#94a3b8",border:"1px solid #e2e8f0",cursor:"not-allowed",boxShadow:"none"}};
 const S={
   app:{fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif",margin:0,padding:0,background:C.bg,height:"100vh",overflow:"hidden",fontSize:13,lineHeight:1.5},
   card:{background:C.card,borderRadius:6,padding:16,marginBottom:12,border:`1px solid ${C.bdr}`},
   h1:{fontSize:20,fontWeight:700,color:C.pri,margin:0},
   h2:{fontSize:14,fontWeight:700,color:C.pri,marginBottom:10,paddingBottom:6,borderBottom:`2px solid ${C.pri}`},
   h3:{fontSize:13,fontWeight:700,color:C.pri,marginBottom:6},
-  btn:{padding:"7px 16px",borderRadius:4,border:"none",cursor:"pointer",fontWeight:600,fontSize:12},
+  btn:{padding:"7px 16px",borderRadius:6,border:"1px solid transparent",cursor:"pointer",fontWeight:600,fontSize:12,boxShadow:"0 1px 2px rgba(15,23,42,.06)",transition:"background .12s,border-color .12s,filter .12s"},
   inp:{border:`1px solid ${C.bdr}`,borderRadius:3,padding:"4px 8px",fontSize:12,outline:"none"},
   sel2:{border:`1px solid ${C.bdr}`,borderRadius:3,padding:"4px 8px",fontSize:12,outline:"none"},
   ta:{border:`1px solid ${C.bdr}`,borderRadius:4,padding:8,fontSize:12,fontFamily:"monospace",width:"100%",resize:"vertical",outline:"none"},
@@ -1060,7 +1065,8 @@ const S={
 
 const AUTO_HL={background:"#fff7ed",border:"1.5px solid #fb923c"}; // 자동인식 칸 강조 — 사용자가 수정하거나 [검토 완료] 누를 때까지 유지
 function AutoTag(){return(<span style={{marginLeft:4,padding:"1px 5px",borderRadius:8,background:"#ffedd5",color:"#c2410c",fontSize:9,fontWeight:700,whiteSpace:"nowrap",verticalAlign:"middle"}}>자동인식</span>);}
-function F({label,value,onChange,w,placeholder,auto}){return(<div style={S.row}><span style={S.lbl}>{label}{auto?<AutoTag/>:null}</span><input style={{...S.inp,width:w||"100%",...(auto?AUTO_HL:{})}} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder}/></div>);}
+// tabFill: 빈 칸에서 Tab을 누르면 연회색 안내 글씨(placeholder) 그대로 채운다 (토지건물과 동일)
+function F({label,value,onChange,w,placeholder,auto,tabFill}){return(<div style={S.row}><span style={S.lbl}>{label}{auto?<AutoTag/>:null}</span><input style={{...S.inp,width:w||"100%",...(auto?AUTO_HL:{})}} value={value||""} onChange={e=>onChange(e.target.value)} onKeyDown={tabFill?(e=>{if(e.key==="Tab"&&!e.shiftKey&&!String(e.target.value||"").trim()&&placeholder)onChange(placeholder);}):undefined} placeholder={placeholder}/></div>);}
 // 달력 팝업 — 날짜칸 포커스 시 아래 표시. onMouseDown preventDefault로 달력 클릭이 input blur를 못 일으키게 함(blur가 먼저 닫아버리는 사고 방지)
 function CalPop({value,onPick,sep}){
   const m=String(value||"").match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})/);
@@ -1341,7 +1347,7 @@ function Step1({ov,setOv}){
     {hasAuto&&<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,padding:"8px 12px",background:"#fff7ed",border:"1.5px solid #fb923c",borderRadius:6}}>
       <span style={{fontSize:16}}>🤖</span>
       <span style={{fontSize:12,color:"#9a3412",fontWeight:600,flex:1}}>주황색 칸은 접수 이미지에서 <b>자동으로 인식된 값</b>입니다 — 원본과 대조해 꼭 검토해주세요. 직접 수정하거나 [검토 완료]를 누르면 표시가 사라집니다.</span>
-      <button style={{...S.btn,background:"#ea580c",color:"#fff",fontSize:11,padding:"4px 10px",whiteSpace:"nowrap"}} onClick={()=>setOv(p=>({...p,autoFields:{}}))}>✓ 검토 완료</button>
+      <button style={{...S.btn,...BTN.p,fontSize:11,padding:"4px 10px",whiteSpace:"nowrap"}} onClick={()=>setOv(p=>({...p,autoFields:{}}))}>✓ 검토 완료</button>
     </div>}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
       <F label="접수번호" value={ov.caseNo} onChange={ua("caseNo")} placeholder="HI260305-2601" auto={af.caseNo}/>
@@ -1349,10 +1355,10 @@ function Step1({ov,setOv}){
       <DateF label="의뢰일(청구서용)" value={ov.requestDate} onChange={ua("requestDate")} placeholder="2026/06/08" sep="/" auto={af.requestDate}/>
       <F label="평가목적" value={ov.purpose} onChange={v=>u("purpose",v)}/>
       <F label="제출처" value={ov.submitTo} onChange={v=>u("submitTo",v)}/>
-      <F label="평가구분" value={ov.evalCategory} onChange={ua("evalCategory")} placeholder="상속 / 증여 등" auto={af.evalCategory}/>
+      <F label="평가구분" value={ov.evalCategory} onChange={ua("evalCategory")} placeholder="상속(증여)" tabFill auto={af.evalCategory}/>
       <DateF label="기준시점" value={ov.baseDate} onChange={ua("baseDate")} placeholder="20260310 → 자동변환" auto={af.baseDate}/>
       <div style={S.row}><span style={S.lbl}>기준시점근거</span><select style={{...S.sel2,width:"100%",...(!ov.baseDateBasis?{background:"#fffbeb",border:"1.5px solid #f59e0b",color:"#92400e",fontWeight:700}:{})}} value={ov.baseDateBasis||""} onChange={e=>u("baseDateBasis",e.target.value)}><option value="" disabled>선택</option><option value="의뢰일인">의뢰일인</option><option value="현장조사완료일인">현장조사완료일인</option><option value="귀 제시일인">귀 제시일인</option></select></div>
-      <DateF label="현장조사기간" value={ov.surveyDate} onChange={v=>u("surveyDate",v)} placeholder="20260310"/>
+      <DateF label="현장조사일" value={ov.surveyDate} onChange={v=>u("surveyDate",v)} placeholder="20260310"/>
       <DateF label="작성일자" value={ov.writeDate} onChange={v=>u("writeDate",v)}/>
       <F label="기준가치" value={ov.baseValue} onChange={v=>u("baseValue",v)}/>
       <F label="소유자" value={ov.owner} onChange={v=>u("owner",v)}/>
@@ -1593,7 +1599,7 @@ function Step2({ov,setOv,propType,setPropType}){
   return(<div>
     <div style={{...S.card,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
       <span style={{...S.lbl,minWidth:70}}>물건 유형</span>
-      {["주거용","비주거용"].map(t=>(<button key={t} style={{...S.btn,background:propType===t?C.pri:"#e2e8f0",color:propType===t?"#fff":"#666"}} onClick={()=>setPropType(t)}>{t}</button>))}
+      {["주거용","비주거용"].map(t=>(<button key={t} style={{...S.btn,...(propType===t?BTN.on:BTN.s)}} onClick={()=>setPropType(t)}>{t}</button>))}
     </div>
     {/* PDF 업로드 영역 */}
     <div onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
@@ -1605,15 +1611,15 @@ function Step2({ov,setOv,propType,setPropType}){
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 12px",background:"#fff",borderRadius:6,border:"1px solid #e2e5ea"}}>
         <span style={{fontSize:12,fontWeight:600,color:"#555",whiteSpace:"nowrap"}}>🔑 API 키</span>
         <input type={showKey?"text":"password"} style={{...S.inp,flex:1,fontSize:12}} value={apiKey} onChange={e=>handleApiKey(e.target.value)} placeholder="sk-ant-... (console.anthropic.com에서 발급)"/>
-        <button style={{...S.btn,background:"#e2e8f0",color:"#555",fontSize:11,padding:"4px 8px"}} onClick={()=>setShowKey(!showKey)}>{showKey?"숨김":"보기"}</button>
+        <button style={{...S.btn,...BTN.s,fontSize:11,padding:"4px 8px"}} onClick={()=>setShowKey(!showKey)}>{showKey?"숨김":"보기"}</button>
         {apiKey?<span style={{fontSize:11,color:"#059669"}}>✅</span>:<span style={{fontSize:11,color:"#f59e0b"}}>⚠️ 필요</span>}
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
-        <label style={{...S.btn,background:C.acc,color:"#fff",cursor:"pointer"}}>
+        <label style={{...S.btn,...BTN.s}}>
           + PDF 추가
           <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple onChange={handleFiles} disabled={loading} style={{display:"none"}}/>
         </label>
-        <button style={{...S.btn,background:loading?"#94a3b8":"#059669",color:"#fff",fontSize:13}} onClick={doRecognize} disabled={loading||!files.length}>
+        <button style={{...S.btn,...(loading?BTN.off:BTN.p),fontSize:13}} onClick={doRecognize} disabled={loading||!files.length}>
           {loading?"🔄 인식 중...":"🤖 자동 인식"}
         </button>
         {recognized&&<span style={{color:"#059669",fontWeight:700,fontSize:12}}>✅ 인식 완료!</span>}
@@ -1785,9 +1791,9 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   const handleKaP=e=>{const t=e.clipboardData.getData("text");if(!t.trim()||!t.includes("\t"))return;e.preventDefault();const p=parseKapaRow(t,precs.length);if(p.length>0){setPrecs(prev=>reIdx([...prev,...p],true));setKapaHistory(prev=>[{id:Date.now(),time:new Date().toLocaleString("ko-KR"),raw:t,count:p.length},...prev]);}};
   const togC=(id,f)=>{setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,[f]:!c[f]};if(f==="isSelected"&&!c.isSelected)nv.isShown=true;if(f==="isShown"&&c.isShown)nv.isSelected=false;return nv;}));};
   const togP=id=>{setPrecs(p=>p.map(x=>x.id===id?{...x,isShown:!x.isShown}:x));};
-  const delC=id=>{setCases(p=>reIdx(p.filter(c=>c.id!==id),false));};
+  const delC=id=>{const c0=cases.find(x=>x.id===id);pushUndo&&pushUndo("거래사례"+(c0&&c0.symbol?" #"+c0.symbol:"")+" 삭제됨");setCases(p=>reIdx(p.filter(c=>c.id!==id),false));};
   const updC=(id,key,val)=>{setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));};
-  const delP=id=>{setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
+  const delP=id=>{pushUndo&&pushUndo("평가전례 삭제됨");setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
   const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?updatePrecPricing(x,key,val):x));};
   const dropC=(f,t)=>{if(f===t)return;setCases(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,false);});};
   const dropP=(f,t)=>{if(f===t)return;setPrecs(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,true);});};
@@ -1850,7 +1856,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           {kaisHistory.map(h=><div key={h.id} style={{background:"#fff",border:"1px solid #e2e5ea",borderRadius:4,padding:"8px 10px",marginBottom:6}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <span style={{fontSize:11,color:"#888"}}>{h.time} — {h.count}건 추가</span>
-              <button style={{...S.btn,fontSize:10,padding:"2px 8px",background:"#fef2f2",color:C.dng}} onClick={()=>setKaisHistory(prev=>prev.filter(x=>x.id!==h.id))}>삭제</button>
+              <button style={{...S.btn,...BTN.d,fontSize:10,padding:"2px 8px"}} onClick={()=>setKaisHistory(prev=>prev.filter(x=>x.id!==h.id))}>삭제</button>
             </div>
             <pre style={{fontSize:10,lineHeight:1.4,background:"#f8f9fa",padding:6,borderRadius:3,overflowX:"auto",whiteSpace:"pre-wrap",wordBreak:"break-all",margin:0,maxHeight:120,overflowY:"auto"}}>{h.raw}</pre>
           </div>)}
@@ -1903,7 +1909,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
                 <select style={{...S.sel2,width:120}} value={nrCapRegion} onChange={e=>{setNrCapRegion(e.target.value);try{localStorage.setItem("arap-nrcap-region",e.target.value);}catch(err){console.error('nrcap region save',err);}}}>
                   {(regs.length?regs:["서울"]).map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
-                <button style={{...S.btn,background:CD?C.acc:"#cbd5e1",color:"#fff"}} disabled={!CD}
+                <button style={{...S.btn,...(CD?BTN.p:BTN.off)}} disabled={!CD}
                   onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setTimeWarnings(["⚠️ "+r.err]);}else{setTmpTime(r.text);checkTimeWarnings(r.text,c);}}}>계산</button>
               </div>
               <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
@@ -1919,7 +1925,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
                 <select style={{...S.sel2,width:100}} value={sjIdxRegion} onChange={e=>{setSjIdxRegion(e.target.value);try{localStorage.setItem("arap-sjidx-region",e.target.value);}catch(err){console.error('sjidx region save',err);}}}>
                   {regs.map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
-                <button style={{...S.btn,background:D?C.acc:"#cbd5e1",color:"#fff"}} disabled={!D}
+                <button style={{...S.btn,...(D?BTN.p:BTN.off)}} disabled={!D}
                   onClick={()=>{const r=buildSjIdxText(sjIdxKind,sjIdxRegion,c.tradeDate,ov.baseDate);if(r.err){setTimeWarnings(["⚠️ "+r.err]);}else{setTmpTime(r.text);checkTimeWarnings(r.text,c);}}}>계산</button>
               </div>
               <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
@@ -1931,8 +1937,8 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           {timeWarnings.length>0&&<div style={{marginTop:6}}>{timeWarnings.map((w,i)=><div key={i} style={{padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:4,color:"#dc2626",fontSize:12,fontWeight:600,marginBottom:4}}>{w}</div>)}</div>}
           <div style={{marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:12}}>인식: <b style={{color:C.acc}}>{parseTA(tmpTime)?fmtDec(parseTA(tmpTime),5):"없음"}</b></span>
-            <div style={{display:"flex",gap:6}}><button style={{...S.btn,background:"#e2e8f0",color:"#555"}} onClick={()=>setEditTimeId(null)}>취소</button>
-              <button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>applyTm(c.id)}>적용</button></div>
+            <div style={{display:"flex",gap:6}}><button style={{...S.btn,...BTN.s}} onClick={()=>setEditTimeId(null)}>취소</button>
+              <button style={{...S.btn,...BTN.p}} onClick={()=>applyTm(c.id)}>적용</button></div>
           </div></div></div>);})()}
 
     <div style={{...S.h2,marginTop:16}}>평가전례 입력 (카파허브)</div>
@@ -1946,7 +1952,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           {kapaHistory.map(h=><div key={h.id} style={{background:"#fff",border:"1px solid #e2e5ea",borderRadius:4,padding:"8px 10px",marginBottom:6}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <span style={{fontSize:11,color:"#888"}}>{h.time} — {h.count}건 추가</span>
-              <button style={{...S.btn,fontSize:10,padding:"2px 8px",background:"#fef2f2",color:C.dng}} onClick={()=>setKapaHistory(prev=>prev.filter(x=>x.id!==h.id))}>삭제</button>
+              <button style={{...S.btn,...BTN.d,fontSize:10,padding:"2px 8px"}} onClick={()=>setKapaHistory(prev=>prev.filter(x=>x.id!==h.id))}>삭제</button>
             </div>
             <pre style={{fontSize:10,lineHeight:1.4,background:"#f8f9fa",padding:6,borderRadius:3,overflowX:"auto",whiteSpace:"pre-wrap",wordBreak:"break-all",margin:0,maxHeight:120,overflowY:"auto"}}>{h.raw}</pre>
           </div>)}
@@ -3426,7 +3432,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
             <select style={{...S.sel2,width:120}} value={nrCapRegion} onChange={e=>{setNrCapRegion(e.target.value);try{localStorage.setItem("arap-nrcap-region",e.target.value);}catch(err){console.error('nrcap region save',err);}}}>
               {(cregs.length?cregs:["서울"]).map(o=><option key={o} value={o}>{o}</option>)}
             </select>
-            <button style={{...S.btn,background:CD?C.acc:"#cbd5e1",color:"#fff"}} disabled={!CD}
+            <button style={{...S.btn,...(CD?BTN.p:BTN.off)}} disabled={!CD}
               onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
           </div>
           <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
@@ -3442,7 +3448,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
           <select style={{...S.sel2,width:100}} value={region} onChange={e=>{setRegion(e.target.value);try{localStorage.setItem("arap-sjidx-region",e.target.value);}catch(err){console.error('sjidx region save',err);}}}>
             {regs.map(o=><option key={o} value={o}>{o}</option>)}
           </select>
-          <button style={{...S.btn,background:D?C.acc:"#cbd5e1",color:"#fff"}} disabled={!D}
+          <button style={{...S.btn,...(D?BTN.p:BTN.off)}} disabled={!D}
             onClick={()=>{const r=buildSjIdxText(kind,region,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
         </div>
         <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
@@ -3454,8 +3460,8 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
       {warns.length>0&&<div style={{marginTop:6}}>{warns.map((w,i)=><div key={i} style={{padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:4,color:"#dc2626",fontSize:12,fontWeight:600,marginBottom:4}}>{w}</div>)}</div>}
       <div style={{marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{fontSize:12}}>인식: <b style={{color:C.acc}}>{parseTA(tmpTime)?fmtDec(parseTA(tmpTime),5):"없음"}</b></span>
-        <div style={{display:"flex",gap:6}}><button style={{...S.btn,background:"#e2e8f0",color:"#555"}} onClick={onClose}>취소</button>
-          <button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>onApply(tmpTime)}>적용</button></div>
+        <div style={{display:"flex",gap:6}}><button style={{...S.btn,...BTN.s}} onClick={onClose}>취소</button>
+          <button style={{...S.btn,...BTN.p}} onClick={()=>onApply(tmpTime)}>적용</button></div>
       </div></div></div>);
 }
 
@@ -3584,13 +3590,13 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     {/* [v2.0] 다운로드 — 새 양식 감정평가서(한글 .hwpx) 전용 (기타 버튼 제거) */}
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8,alignItems:"center",flexWrap:"wrap"}}>
       {!saved&&<span style={{fontSize:11,color:"#999"}}>{ov.caseNo?.trim()?"⏳ 자동저장 중... 몇 초 뒤 버튼이 켜집니다":"1. 접수개요에서 접수번호를 입력하면 자동저장되고 버튼이 켜집니다"}</span>}
-      <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 26px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved||downloading} onClick={doExportHwpxV2} title="새 양식 감정평가서(표지+평가표+산출근거) 한글파일(.hwpx) — 주거용 전용">
+      <button style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:14,fontWeight:700,padding:"9px 26px"}} disabled={!saved||downloading} onClick={doExportHwpxV2} title="새 양식 감정평가서(표지+평가표+산출근거) 한글파일(.hwpx) — 주거용 전용">
         표지/괄감/의견서
       </button>
-      <button style={{...S.btn,background:saved?"#0891b2":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 20px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>downloadYohangHwpx(ov)} title="감정평가요항표(입지조건·건물상황) 한글파일(.hwpx)">
+      <button style={{...S.btn,...(saved?BTN.s:BTN.off),fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved} onClick={()=>downloadYohangHwpx(ov)} title="감정평가요항표(입지조건·건물상황) 한글파일(.hwpx)">
         요항표
       </button>
-      <button style={{...S.btn,background:saved?"#64748b":"#cbd5e1",color:"#fff",fontSize:13,padding:"9px 16px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>downloadMyeongseXlsx(ov,fT)} title="감정평가명세표 엑셀(.xlsx) — 층·필지 동적 처리(정확)">
+      <button style={{...S.btn,...(saved?BTN.s:BTN.off),fontSize:13,padding:"9px 16px"}} disabled={!saved} onClick={()=>downloadMyeongseXlsx(ov,fT)} title="감정평가명세표 엑셀(.xlsx) — 층·필지 동적 처리(정확)">
         명세표(excel)
       </button>
     </div>
@@ -3701,7 +3707,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           </tbody></table>);
       })()}
       <div style={{marginTop:8}}>
-        <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:13,padding:"8px 22px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
+        <button style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:13,padding:"8px 22px"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
       </div>
     </div>
   </div>);
@@ -3756,9 +3762,9 @@ function SyncPanel(){
       <span style={{fontSize:12,fontWeight:700,color:"#1a2744"}}>☁️ GitHub 자동 백업</span>
       <input type="password" style={{border:"1px solid #e2e5ea",borderRadius:3,padding:"4px 8px",fontSize:11,outline:"none",width:230}} value={tokenInput}
         onChange={e=>setTokenInput(e.target.value)} placeholder="GitHub 토큰 (gist 권한) — 기기당 1회"/>
-      <button style={{...S.btn,background:"#1a2744",color:"#fff",fontSize:11,padding:"4px 12px"}} disabled={syncBusy}
+      <button style={{...S.btn,...BTN.p,fontSize:11,padding:"4px 12px"}} disabled={syncBusy}
         onClick={()=>connectTok(tokenInput)}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
-      {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,background:"#e2e8f0",color:"#1a2744",fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
+      {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,...BTN.s,fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
         onClick={async()=>{const t=await window.ArapCred.load();if(!t){alert("크롬에 저장된 토큰이 없습니다. 토큰을 직접 붙여넣고 「연결」을 눌러 주세요.");return;}setTokenInput(t);connectTok(t);}}>🔑 저장된 토큰으로 연결</button>}
       <span style={{fontSize:11,color:syncStatus.startsWith("⚠️")?"#dc2626":"#059669"}}>{syncStatus}</span>
     </div>
@@ -3819,7 +3825,38 @@ function App(){
   const [showList,setShowList]=useState(false);
   const [leftCollapsed,setLeftCollapsed]=useState(false);
   const [rightCollapsed,setRightCollapsed]=useState(false);
-  const pushUndo=useCallback(()=>{},[]);
+  // ── 되돌리기(Ctrl+Z)·다시 실행(Ctrl+Y) — 0.4초 멈춘 입력마다 건 전체 상태를 한 칸씩 기록(최대 60칸) ──
+  //    입력칸 안에서는 브라우저 기본 되돌리기(글자 단위), 칸 밖에서는 이 기록으로 한 단계씩. 건을 열거나 새로 만들면 기록을 비운다.
+  const histRef=React.useRef({undo:[],redo:[],last:null,skip:false});
+  const stateRef=React.useRef(null);
+  const [histVer,setHistVer]=useState(0);
+  const [undoToast,setUndoToast]=useState("");
+  const commitSnap=()=>{const h=histRef.current;if(!stateRef.current)return;const snap=JSON.stringify(stateRef.current);
+    if(h.skip){h.skip=false;h.last=snap;return;}
+    if(h.last!=null&&snap!==h.last){h.undo.push(h.last);if(h.undo.length>60)h.undo.shift();h.redo=[];setHistVer(v=>v+1);}
+    h.last=snap;};
+  const applySnap=snap=>{const d=JSON.parse(snap);histRef.current.skip=true;
+    setOv(d.ov);setCases(d.cases||[]);setPrecs(d.precs||[]);setPropType(d.propType||"주거용");
+    const r=d.rnd||{};setUD(r.uD);setUM(r.uM);setTD(r.tD);setTM(r.tM);setManU(r.manU);};
+  const undo=()=>{commitSnap();const h=histRef.current;if(!h.undo.length)return false;const prev=h.undo.pop();h.redo.push(h.last);h.last=prev;applySnap(prev);setHistVer(v=>v+1);setUndoToast("");return true;};
+  const redo=()=>{commitSnap();const h=histRef.current;if(!h.redo.length)return false;const nx=h.redo.pop();h.undo.push(h.last);h.last=nx;applySnap(nx);setHistVer(v=>v+1);return true;};
+  const resetHist=()=>{histRef.current={undo:[],redo:[],last:null,skip:false};setHistVer(v=>v+1);setUndoToast("");};
+  // 지우기 직전에 부른다 → 지운 뒤 「↩ 되돌리기」 안내를 8초 띄움
+  const pushUndo=useCallback(label=>{commitSnap();if(label)setUndoToast(label);},[]);
+  useEffect(()=>{if(!undoToast)return;const t=setTimeout(()=>setUndoToast(""),8000);return()=>clearTimeout(t);},[undoToast]);
+  useEffect(()=>{
+    const onKey=e=>{
+      if(!(e.ctrlKey||e.metaKey)||e.altKey)return;
+      const k=String(e.key||"").toLowerCase();if(k!=="z"&&k!=="y")return;
+      const root=document.getElementById("root");if(!root||root.style.display==="none")return;   // 여러 호수 화면일 때는 안 함
+      const el=document.activeElement,tag=el&&el.tagName;
+      if(el&&(tag==="INPUT"||tag==="TEXTAREA"||el.isContentEditable)&&!/^(checkbox|radio|button)$/i.test(el.type||""))return;   // 칸 안 = 브라우저 기본
+      if(document.getElementById("arap-name-gate"))return;
+      const isRedo=k==="y"||(k==="z"&&e.shiftKey);
+      e.preventDefault();isRedo?redo():undo();
+    };
+    document.addEventListener("keydown",onKey);return()=>document.removeEventListener("keydown",onKey);
+  });
   const initF=useCallback(prev=>prev.map(c=>{if(c.isSelected&&c.extFactor===undefined)return{...c,extFactor:1.0,intFactor:1.0,hoFactor:1.0,etcFactor:1.0,totalFactor:1.0,noteExt:"",noteInt:"",noteHo:"",noteEtc:""};return c;}),[]);
   const setC=useCallback(fn=>{setCases(prev=>{const next=typeof fn==="function"?fn(prev):fn;return initF(next);});},[initF]);
 
@@ -3939,18 +3976,37 @@ function App(){
 
   const [saveStatus,setSaveStatus]=useState("");
 
-  // 자동저장 (2초 디바운스) — 접수번호가 있을 때만
+  stateRef.current={ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}};
+  useEffect(()=>{if(!loaded)return;const t=setTimeout(commitSnap,400);return()=>clearTimeout(t);},[ov,cases,precs,propType,uD,uM,tD,tM,manU,loaded]);
+  // 자동저장 (0.4초 디바운스 — 토지건물과 같게) — 접수번호가 있을 때만. 창을 닫거나 다른 창으로 넘어갈 때는 즉시 저장(flushSaveRef)
+  const flushSaveRef=React.useRef(null);
+  useEffect(()=>{
+    const flush=()=>{try{flushSaveRef.current&&flushSaveRef.current();}catch(e){console.error('flush save',e);}};
+    const onVis=()=>{if(document.visibilityState==="hidden")flush();};
+    window.addEventListener("pagehide",flush);window.addEventListener("beforeunload",flush);document.addEventListener("visibilitychange",onVis);
+    return()=>{window.removeEventListener("pagehide",flush);window.removeEventListener("beforeunload",flush);document.removeEventListener("visibilitychange",onVis);};
+  },[]);
   useEffect(()=>{
     if(!loaded)return;
     const id=ov.caseNo?.trim();
-    if(!id){setSaveStatus("");return;}
+    if(!id){setSaveStatus("");flushSaveRef.current=null;return;}
     setSaveStatus("⏳");
+    const label=`${id} ${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim();
+    const caseJson=()=>JSON.stringify({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
+    // 창 닫힘용 즉시 저장 — React 상태 갱신 없이 저장소에 바로 쓴다(목록도 저장소에서 읽어 맨 앞으로)
+    flushSaveRef.current=()=>{
+      storageSet(caseKey(id),caseJson());
+      let prev=[];try{prev=JSON.parse(localStorage.getItem(LIST_KEY)||"[]");}catch(e){console.error('flush list',e);}
+      if(!Array.isArray(prev))prev=[];
+      storageSet(LIST_KEY,JSON.stringify([{id,label,updated:new Date().toISOString()},...prev.filter(c=>c&&c.id!==id)]));
+      flushSaveRef.current=null;
+    };
     const t=setTimeout(async()=>{
       try{
+        flushSaveRef.current=null;
         // 건 데이터 저장
-        storageSet(caseKey(id),JSON.stringify({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}}));
+        storageSet(caseKey(id),caseJson());
         // 목록 업데이트
-        const label=`${id} ${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim();
         const updated=new Date().toISOString();
         setCaseList(prev=>{
           const filtered=prev.filter(c=>c.id!==id);
@@ -3959,6 +4015,11 @@ function App(){
           return newList;
         });
         setCurrentId(id);
+        setSaveStatus("✅");
+      }catch(e){setSaveStatus("❌ "+String(e.message||e));}
+    },400);
+    // 관리자 사용기록은 입력이 5초 멈췄을 때만(글자마다 보내지 않게)
+    const tLog=setTimeout(()=>{
         // 관리자 사용기록: 건 요약 전송 — 결정단가·시산가액은 ④탭(Step4)과 동일 산식 (이 스코프엔 fT가 없어 재계산)
         try{
           const uv2=getUV(uD),tv2=getUV(tD);
@@ -3968,10 +4029,8 @@ function App(){
           const fT2=applyR((fU2||0)*(getEffArea(ov)||0),tv2,tM);
           window.arapUsageLog&&window.arapUsageLog("저장",{caseNo:id,addr:label.replace(id,"").trim()+(ov.jibun?" · "+ov.jibun:""),kind:propType,amount:fT2||pNum(ov.deskPrice)||""});
         }catch(e){console.error('usage summary',e);}
-        setSaveStatus("✅");
-      }catch(e){setSaveStatus("❌ "+String(e.message||e));}
     },5000);
-    return()=>clearTimeout(t);
+    return()=>{clearTimeout(t);clearTimeout(tLog);};
   },[ov,cases,precs,propType,uD,uM,tD,tM,manU,loaded]);
 
   // 건 불러오기
@@ -3981,7 +4040,7 @@ function App(){
       if(r&&r.value){const d=JSON.parse(r.value);
         if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
         if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
-        setCaseRevision(v=>v+1);
+        setCaseRevision(v=>v+1);resetHist();
         setCurrentId(id);setStep(0);setShowList(false);
       }
     }catch(e){alert("불러오기 실패");}
@@ -3989,7 +4048,7 @@ function App(){
 
   // 새 건
   const newCase=()=>{
-    setCaseRevision(v=>v+1);
+    setCaseRevision(v=>v+1);resetHist();
     setOv({...emptyOv,writeDate:today()});
     setCases([]);setPrecs([]);setPropType("주거용");
     setUD("만원");setUM("round");setTD("백만원");setTM("round");setManU("");
@@ -4106,6 +4165,7 @@ function App(){
 
   const labels=["1. 접수개요","2. 대상물건개요","3. 사례 등 입력","4. 가격산출","5. 위치도"];
   const selCnt=cases.filter(c=>c.isSelected).length;
+  const canUndo=histRef.current.undo.length>0||(histRef.current.last!=null&&!!stateRef.current&&JSON.stringify(stateRef.current)!==histRef.current.last);
 
   if(!loaded)return <div style={{padding:40,textAlign:"center",color:"#888"}}>데이터 불러오는 중...</div>;
 
@@ -4117,10 +4177,12 @@ function App(){
     {/* 건 관리 바 */}
     <div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:"8px 12px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-        <button style={{...S.btn,background:C.pri,color:"#fff",fontSize:12}} onClick={newCase}>+ 새 평가서</button>
-        <button style={{...S.btn,background:showList?"#94a3b8":"#e2e8f0",color:showList?"#fff":"#555",fontSize:12}} onClick={()=>setShowList(!showList)}>
+        <button style={{...S.btn,...BTN.p,fontSize:12}} onClick={newCase}>+ 새 평가서</button>
+        <button style={{...S.btn,...(showList?BTN.on:BTN.s),fontSize:12}} onClick={()=>setShowList(!showList)}>
           📂 저장된 건 ({allCases.length})
         </button>
+        <button title="되돌리기 (Ctrl+Z)" disabled={!canUndo} style={{...S.btn,...(canUndo?BTN.s:BTN.off),fontSize:12}} onClick={undo}>↩ 되돌리기</button>
+        <button title="다시 실행 (Ctrl+Y)" disabled={!histRef.current.redo.length} style={{...S.btn,...(histRef.current.redo.length?BTN.s:BTN.off),fontSize:12}} onClick={redo}>↪ 다시</button>
         {currentId&&saveStatus==="✅"&&<span style={{fontSize:11,color:"#059669",fontWeight:600}}>💾 {currentId} 저장완료</span>}
         {currentId&&saveStatus==="⏳"&&<span style={{fontSize:11,color:"#f59e0b",fontWeight:600}}>⏳ {currentId} 저장중...</span>}
         {saveStatus.startsWith("❌")&&<span style={{fontSize:11,color:"#dc2626",fontWeight:600}}>{saveStatus}</span>}
@@ -4133,6 +4195,12 @@ function App(){
       </div>
     </div>
 
+    {undoToast&&<div role="status" style={{position:"fixed",left:"50%",bottom:24,transform:"translateX(-50%)",zIndex:5000,background:"#1e293b",color:"#fff",borderRadius:8,padding:"10px 14px",fontSize:13,display:"flex",gap:12,alignItems:"center",boxShadow:"0 6px 20px rgba(15,23,42,.3)"}}>
+      <span>🗑 {undoToast}</span>
+      <button style={{...S.btn,...BTN.p,fontSize:12,padding:"5px 12px"}} onClick={undo}>↩ 되돌리기</button>
+      <span style={{fontSize:11,color:"#94a3b8"}}>Ctrl+Z</span>
+      <span style={{cursor:"pointer",color:"#94a3b8",marginLeft:2}} onClick={()=>setUndoToast("")}>✕</span>
+    </div>}
     {/* 건 목록 패널 */}
     {showList&&(<div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:12,marginBottom:8,maxHeight:460,overflowY:"auto"}}>
       {allCases.length===0?<div style={{color:"#999",fontSize:12,textAlign:"center",padding:16}}>저장된 평가서가 없습니다.</div>:
@@ -4145,15 +4213,15 @@ function App(){
             <td style={S.tdL}>{c.label?.replace(c.id,"").trim()||"-"}</td>
             <td style={S.td}>{c.updated?new Date(c.updated).toLocaleDateString("ko-KR")+" "+new Date(c.updated).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"-"}</td>
             <td style={{...S.td,whiteSpace:"nowrap"}}>
-              <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} title={c.kind===MY?"":KIND_NAME[c.kind]+" 호수 화면으로 넘어가 엽니다"} onClick={()=>caseOp(c.kind,"open",c.id)}>열기</button>
-              <button className="copy-btn" title={c.kind===MY?"이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때":KIND_NAME[c.kind]+" 호수 건을 "+KIND_NAME[MY]+" 호수 건으로 복사 — 원본은 그대로"} style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id,c.kind)}>{c.kind===MY?"⧉ 복제":"⧉ "+KIND_NAME[MY]+"호수로 복제"}</button>
-              <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(c.kind,"del",c.id)}>삭제</button>
+              <button style={{...S.btn,...BTN.p,fontSize:11,padding:"3px 10px",marginRight:4}} title={c.kind===MY?"":KIND_NAME[c.kind]+" 호수 화면으로 넘어가 엽니다"} onClick={()=>caseOp(c.kind,"open",c.id)}>열기</button>
+              <button className="copy-btn" title={c.kind===MY?"이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때":KIND_NAME[c.kind]+" 호수 건을 "+KIND_NAME[MY]+" 호수 건으로 복사 — 원본은 그대로"} style={{...S.btn,...BTN.s,fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id,c.kind)}>{c.kind===MY?"⧉ 복제":"⧉ "+KIND_NAME[MY]+"호수로 복제"}</button>
+              <button style={{...S.btn,...BTN.d,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(c.kind,"del",c.id)}>삭제</button>
             </td>
           </tr>
         ))}
       </tbody></table>}
       {trashList.length>0&&<div style={{marginTop:8,fontSize:12}}>
-        <button className="trash-btn" style={{...S.btn,background:showTrash?"#e2e8f0":"#f8fafc",color:"#475569",border:"1px solid #cbd5e1",fontSize:11,padding:"3px 10px"}} onClick={()=>setShowTrash(!showTrash)}>🗑 휴지통 {trashList.length}</button>
+        <button className="trash-btn" style={{...S.btn,...(showTrash?BTN.on:BTN.s),fontSize:11,padding:"3px 10px"}} onClick={()=>setShowTrash(!showTrash)}>🗑 휴지통 {trashList.length}</button>
         <span style={{color:"#94a3b8"}}> 지운 건은 최근 {TRASH_MAX}건까지 여기 보관됩니다.</span>
         {showTrash&&<table className="trash-tbl" style={{...S.tbl,marginTop:6}}><thead><tr>
           <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>지운 시각</th><th style={{...S.th,width:"1%"}}>작업</th>
@@ -4164,8 +4232,8 @@ function App(){
               <td style={S.tdL}>{String(it.label||"").replace(it.id,"").trim()||"-"}</td>
               <td style={S.td}>{fmtWhen(it.t)}</td>
               <td style={{...S.td,whiteSpace:"nowrap"}}>
-                <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>caseOp(it.kind,"restore",it.k)}>↩ 되살리기</button>
-                <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(it.kind,"purge",it.k)}>완전히 삭제</button>
+                <button style={{...S.btn,...BTN.p,fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>caseOp(it.kind,"restore",it.k)}>↩ 되살리기</button>
+                <button style={{...S.btn,...BTN.d,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(it.kind,"purge",it.k)}>완전히 삭제</button>
               </td>
             </tr>))}
         </tbody></table>}
@@ -4181,8 +4249,8 @@ function App(){
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} saved={!!(currentId&&saveStatus==="✅")}/></div>
     <div style={{display:step===4?"block":"none"}}><StepMap ov={ov} sfx="" active={step===4}/></div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-      {step>0?<button style={{...S.btn,background:"#e2e8f0",color:"#555"}} onClick={()=>setStep(step-1)}>← 이전</button>:<div/>}
-      {step<4?<button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
+      {step>0?<button style={{...S.btn,...BTN.s}} onClick={()=>setStep(step-1)}>← 이전</button>:<div/>}
+      {step<4?<button style={{...S.btn,...BTN.p}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
     </div>
     </div>{/* 중앙 메인 끝 */}
     <RightMemo caseId={currentId||ov.caseNo} collapsed={rightCollapsed} setCollapsed={setRightCollapsed}/>
