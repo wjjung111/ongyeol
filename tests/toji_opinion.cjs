@@ -208,7 +208,7 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     // 거래시점에 내용연수를 넘긴 사례 → 감가 관련 칸이 빨간 글씨, 화면에서 적은 한 줄 메모는 표 바로 아래에 그대로.
     const agedNote='※ 거래사례#2는 거래시점 당시 내용연수가 초과한 바 관찰감가법을 적용하여 토지 단가를 배분하였음.';
     const agedNote2='※ 거래사례#1은 건물의 내용연수가 도과한 바 건물의 가격은 거래금액에 포함된 것으로 봄.';
-    await page.evaluate(n2=>{window.NOTE2=n2;},agedNote2);
+    await page.evaluate(n2=>{window.NOTE2=n2;},agedNote2.replace(/^※ /,''));   // ※ 없이 적어도 한글에는 ※가 붙는다
     const aged=await page.evaluate(async note=>{
       TRADES=[{loc:'신원동 646',use:'1종일주',jimok:'대',landA:'87.78',bldA:'108.16',total:'720000000',date:'2024.10.15',
                appr:'2022.04.20',struct:'철근콘크리트구조',reCost:'1,200,000',life:'50'},
