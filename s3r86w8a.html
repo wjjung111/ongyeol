@@ -1358,6 +1358,7 @@ function Step1({ov,setOv}){
       <F label="소유자" value={ov.owner} onChange={v=>u("owner",v)}/>
       <F label="감정평가조건" value={ov.condition} onChange={v=>u("condition",v)}/>
       <F label="목록표시근거" value={ov.listBasis} onChange={v=>u("listBasis",v)}/>
+      <CommaF label="탁상가격" value={ov.deskPrice} onChange={v=>u("deskPrice",v)} w="200px" placeholder="직접입력"/>
     </div>
   </div>);
 }
