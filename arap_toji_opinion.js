@@ -653,6 +653,7 @@ function opinionXml(xml,data){
       var at=last;
       data.tradeNote.split(/\r?\n/).forEach(function(line){
         if(!line.trim())return;                         // 빈 줄은 건너뛴다
+        line=line.trim();if(!/^※/.test(line))line='※ '+line;   // 표 아래 주석은 ※로 시작(이미 적었으면 그대로)
         var np=makeNoteP(doc,line);if(np){at.parentNode.insertBefore(np,at.nextSibling);at=np;}
       });
     }
