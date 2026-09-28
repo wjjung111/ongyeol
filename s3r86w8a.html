@@ -1358,6 +1358,7 @@ function Step1({ov,setOv}){
       <F label="소유자" value={ov.owner} onChange={v=>u("owner",v)}/>
       <F label="감정평가조건" value={ov.condition} onChange={v=>u("condition",v)}/>
       <F label="목록표시근거" value={ov.listBasis} onChange={v=>u("listBasis",v)}/>
+      <CommaF label="탁상가격" value={ov.deskPrice} onChange={v=>u("deskPrice",v)} w="200px" placeholder="직접입력"/>
     </div>
   </div>);
 }
@@ -1652,6 +1653,10 @@ function Step2({ov,setOv,propType,setPropType}){
         <F label="창호(요항표)" value={ov.windowType} onChange={v=>u("windowType",v)} placeholder="샷시 창호"/>
       </div>
     </div>
+    {/* 인근위치설명 — ②대상물건개요 (2026-09-28 사용자 요청으로 ③사례 탭에서 다시 옮김) */}
+    <div style={S.card}>
+      <F label="인근위치설명" value={ov.nearDesc} onChange={v=>u("nearDesc",v)} placeholder="지하철○호선 '○○역' 남"/>
+    </div>
     <div style={S.card}><div style={S.h2}>건물 개요 (의견서용)</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         <F label="단지규모(동/세대·호)" value={ov.complexScale} onChange={v=>u("complexScale",v)} placeholder="동수/세대수 또는 호수"/>
@@ -1807,10 +1812,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
     setEditTimeId(null);setTmpTime("");};
 
   return(<div>
-    {/* 인근위치설명 — 개요탭에서 이동 (사례입력 맥락과 함께 보기 위함) */}
-    <div style={S.card}>
-      <F label="인근위치설명" value={ov.nearDesc} onChange={v=>uu("nearDesc",v)} placeholder="지하철○호선 '○○역' 남"/>
-    </div>
     {/* 인근가격수준 구조화 입력 */}
     <div style={{...S.card,background:"#f8fafc"}}>
       <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:C.pri}}>인근가격수준</div>
@@ -5115,6 +5116,10 @@ function Step2({ov,setOv,propType,setPropType}){
       </div>
     </div>
 
+    {/* 인근위치설명 — ②대상물건개요 (2026-09-28 사용자 요청으로 ③사례 탭에서 다시 옮김) */}
+    <div style={S.card}>
+      <F label="인근위치설명" value={ov.nearDesc} onChange={v=>u("nearDesc",v)} placeholder="지하철○호선 '○○역' 남"/>
+    </div>
     <div style={S.card}><div style={S.h2}>요항표·명세표 입력</div>
       <F label="외벽" value={ov.extWall||""} onChange={v=>u("extWall",v)}/>
       <F label="창호" value={ov.windowType||""} onChange={v=>u("windowType",v)}/>
@@ -5310,10 +5315,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   };
 
   return(<div>
-    {/* 인근위치설명 — 개요탭에서 이동 (사례입력 맥락과 함께 보기 위함) */}
-    <div style={S.card}>
-      <F label="인근위치설명" value={ov.nearDesc} onChange={v=>uu("nearDesc",v)} placeholder="지하철○호선 '○○역' 남"/>
-    </div>
     {/* 인근가격수준 구조화 입력 — 최대 2행. 2행 활성화 여부는 ov.nearRow2 플래그로 토글 */}
     <div style={{...S.card,background:"#f8fafc"}}>
       <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:C.pri}}>인근가격수준</div>
