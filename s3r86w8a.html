@@ -3973,20 +3973,36 @@ function App(){
     setCurrentId(null);setStep(0);setShowList(false);
   };
 
-  // 건 삭제 — 곧바로 지우지 않고 휴지통(최근 20건)으로 옮김. 건 내용·메모를 통째로 담아 두고 「되살리기」로 복구
-  const TRASH_KEY=LIST_KEY.replace("case-list","trash"),TRASH_MAX=20;
+  // ── 저장된 건: 단일·여러 호수 목록을 한 화면에 함께 보여 준다(저장키는 종전 그대로 방식별로 따로) ──
+  // 다른 방식의 건을 여기서 「⧉ 복제」하면 이 방식으로 바꿔 복사 → 단일로 하던 건에 호수 추가 / 여러 호수 건을 한 호수만으로.
+  // 다른 방식 건의 열기·삭제·되살리기는 그 방식의 앱에 이벤트로 넘겨 그쪽 화면 상태까지 맞춘다.
+  const MY=LIST_KEY.indexOf("v2:")===0?"multi":"single";
+  const KIND_NAME={single:"단일",multi:"여러"};
+  const KK=k=>{const pre=k==="multi"?"v2:":"";return {list:pre+"appraisal-case-list",key:id=>pre+"case:"+id,memo:pre+"appraisal-memo:",trash:pre+"appraisal-trash"};};
+  const TRASH_KEY=KK(MY).trash,TRASH_MAX=20;
   const [showTrash,setShowTrash]=useState(false);
   const [trashVer,setTrashVer]=useState(0);
   const lsG=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
-  const getTrash=()=>{try{return JSON.parse(lsG(TRASH_KEY)||"[]")||[];}catch(e){return [];}};
+  const readArr=k=>{try{return JSON.parse(lsG(k)||"[]")||[];}catch(e){return [];}};
+  const getTrash=()=>readArr(TRASH_KEY);
+  const bump=()=>{try{window.dispatchEvent(new CustomEvent("arap-case-changed"));}catch(e){}};
   const setTrash=list=>{list=list.slice(0,TRASH_MAX);   // 공간이 모자라면 오래된 것부터 버리며 다시 시도
-    for(;;){try{localStorage.setItem(TRASH_KEY,JSON.stringify(list));setTrashVer(v=>v+1);return true;}
+    for(;;){try{localStorage.setItem(TRASH_KEY,JSON.stringify(list));setTrashVer(v=>v+1);bump();return true;}
       catch(e){if(!list.length)return false;list.pop();}}};
   const curData=()=>({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
   const caseLabel=(id,o)=>`${id} ${o.buildingName||""} ${o.dong?o.dong+"동":""} ${o.ho?o.ho+"호":""}`.trim();
   const putList=(id,label)=>{const updated=new Date().toISOString();
-    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});};
+    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});bump();};
   const nextCopyId=id=>{let n=2,c;do{c=id+"-"+n++;}while(lsG(caseKey(c)));return c;};
+  // 다른 방식 저장 데이터를 이 방식으로 — 여러→단일은 첫 호수(가)를 스칼라 칸으로, 단일→여러는 스칼라 칸으로 호수 1개
+  const UNIT_KEYS=["dong","floor","ho","area","commonArea","landArea","mainUseJeonyu"];
+  const toMine=(d,from)=>{
+    if(from===MY)return d;
+    const o={...(d.ov||{})};
+    if(MY==="single"){const u=(o.units||[])[0];if(u)UNIT_KEYS.forEach(k=>{if(u[k]!=null&&u[k]!=="")o[k]=u[k];});delete o.units;}
+    else{o.units=[{id:Date.now(),evalArea:"",...Object.fromEntries(UNIT_KEYS.map(k=>[k,o[k]||""]))}];}
+    return {...d,ov:o};
+  };
   const deleteCase=async(id)=>{
     if(!confirm(`${id} 건을 휴지통으로 옮길까요?\n(📂 저장된 건 → 🗑 휴지통에서 되살릴 수 있습니다)`))return;
     const raw=currentId===id?JSON.stringify(curData()):lsG(caseKey(id));
@@ -4000,20 +4016,24 @@ function App(){
       storageSet(LIST_KEY,JSON.stringify(newList));
       return newList;
     });
+    bump();
     if(currentId===id)newCase();
   };
-  // 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다(사례·단가를 바꿔 보는 용도). 원본은 그대로, 메모도 복사
-  const copyCase=(id)=>{
-    let d=null;
-    if(currentId===id){d=curData();try{storageSet(caseKey(id),JSON.stringify(d));}catch(e){}}   // 원본의 저장 대기분부터 반영
-    else{try{d=JSON.parse(lsG(caseKey(id))||"null");}catch(e){}}
+  // 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다. 원본은 그대로, 메모도 복사. from=원본 방식(다르면 이 방식으로 바꿔 복사)
+  const copyCase=(id,from=MY)=>{
+    const K=KK(from);let d=null;
+    if(from===MY&&currentId===id){d=curData();try{storageSet(caseKey(id),JSON.stringify(d));}catch(e){}}   // 원본의 저장 대기분부터 반영
+    else{try{d=JSON.parse(lsG(K.key(id))||"null");}catch(e){}}
     if(!d){alert("복제 실패 — 저장 데이터가 없습니다.");return;}
-    let nid=prompt(`${id} 건을 복제합니다.\n새 접수번호를 입력하세요 (원본은 그대로 남습니다).`,nextCopyId(id));
+    const cross=from!==MY,nUnits=((d.ov||{}).units||[]).length;
+    const note=cross?(MY==="multi"?"\n\n단일 호수 건을 여러 호수 건으로 복사합니다(호수는 1개로 시작, 「+ 호수 추가」로 늘리세요).":
+      "\n\n여러 호수 건을 단일 호수 건으로 복사합니다."+(nUnits>1?` 호수 ${nUnits}개 중 첫 번째(가) 호수만 옮겨집니다.`:"")):"";
+    let nid=prompt(`${id} 건을 ${cross?KIND_NAME[MY]+" 호수로 ":""}복제합니다.\n새 접수번호를 입력하세요 (원본은 그대로 남습니다).${note}`,cross&&!lsG(caseKey(id))?id:nextCopyId(id));
     if(nid==null)return;nid=nid.trim();
     if(!nid){alert("접수번호를 입력해야 복제할 수 있습니다.");return;}
-    if(lsG(caseKey(nid))){alert(`${nid} 접수번호로 저장된 건이 이미 있습니다. 다른 번호를 넣어 주세요.`);return;}
-    d={...d,ov:{...(d.ov||{}),caseNo:nid}};
-    try{storageSet(caseKey(nid),JSON.stringify(d));const m=lsG(MEMO_KEY_PREFIX+id);if(m)storageSet(MEMO_KEY_PREFIX+nid,m);}
+    if(lsG(caseKey(nid))){alert(`${nid} 접수번호로 저장된 ${KIND_NAME[MY]} 호수 건이 이미 있습니다. 다른 번호를 넣어 주세요.`);return;}
+    d=toMine(d,from);d={...d,ov:{...(d.ov||{}),caseNo:nid}};
+    try{storageSet(caseKey(nid),JSON.stringify(d));const m=lsG(K.memo+id);if(m&&!lsG(MEMO_KEY_PREFIX+nid))storageSet(MEMO_KEY_PREFIX+nid,m);}
     catch(e){alert("복제 실패: "+e.message);return;}
     putList(nid,caseLabel(nid,d.ov));
     loadCase(nid);
@@ -4039,8 +4059,27 @@ function App(){
     if(!confirm(`${it.id} 건을 휴지통에서 완전히 지울까요? 되돌릴 수 없습니다.`))return;
     tr.splice(k,1);setTrash(tr);
   };
+  // 다른 방식 앱이 넘긴 요청 처리 + 목록 새로고침 신호
+  const opsRef=React.useRef(null);
+  opsRef.current={open:id=>loadCase(id),del:id=>deleteCase(id),restore:k=>restoreTrash(k),purge:k=>purgeTrash(k)};
+  const [listVer,setListVer]=useState(0);
+  useEffect(()=>{
+    const onOp=e=>{const d=e.detail||{};if(d.kind===MY&&opsRef.current[d.op])opsRef.current[d.op](d.arg);};
+    const onChg=()=>setListVer(v=>v+1);
+    window.addEventListener("arap-case-op",onOp);window.addEventListener("arap-case-changed",onChg);
+    return()=>{window.removeEventListener("arap-case-op",onOp);window.removeEventListener("arap-case-changed",onChg);};
+  },[]);
+  const caseOp=(kind,op,arg)=>{
+    if(kind===MY){opsRef.current[op](arg);return;}
+    if(op==="open"){setShowList(false);const b=document.getElementById(kind==="multi"?"btn-multi":"btn-single");if(b)b.click();}
+    try{window.dispatchEvent(new CustomEvent("arap-case-op",{detail:{kind,op,arg}}));}catch(e){}
+  };
   const fmtWhen=t=>{try{const x=new Date(t);return x.toLocaleDateString("ko-KR")+" "+x.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});}catch(e){return "-";}};
-  const trashList=React.useMemo(getTrash,[trashVer,showList]);
+  const OTHER=MY==="multi"?"single":"multi";
+  const allCases=React.useMemo(()=>[...caseList.map(c=>({...c,kind:MY})),...readArr(KK(OTHER).list).map(c=>({...c,kind:OTHER}))]
+    .sort((a,b)=>String(b.updated||"").localeCompare(String(a.updated||""))),[caseList,listVer,showList]);
+  const trashList=React.useMemo(()=>[...getTrash().map((it,k)=>({...it,kind:MY,k})),...readArr(KK(OTHER).trash).map((it,k)=>({...it,kind:OTHER,k}))]
+    .sort((a,b)=>(b.t||0)-(a.t||0)),[trashVer,listVer,showList]);
 
   const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출","⑤ 위치도"];
   const selCnt=cases.filter(c=>c.isSelected).length;
@@ -4057,7 +4096,7 @@ function App(){
       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
         <button style={{...S.btn,background:C.pri,color:"#fff",fontSize:12}} onClick={newCase}>+ 새 평가서</button>
         <button style={{...S.btn,background:showList?"#94a3b8":"#e2e8f0",color:showList?"#fff":"#555",fontSize:12}} onClick={()=>setShowList(!showList)}>
-          📂 저장된 건 ({caseList.length})
+          📂 저장된 건 ({allCases.length})
         </button>
         {currentId&&saveStatus==="✅"&&<span style={{fontSize:11,color:"#059669",fontWeight:600}}>💾 {currentId} 저장완료</span>}
         {currentId&&saveStatus==="⏳"&&<span style={{fontSize:11,color:"#f59e0b",fontWeight:600}}>⏳ {currentId} 저장중...</span>}
@@ -4072,20 +4111,20 @@ function App(){
     </div>
 
     {/* 건 목록 패널 */}
-    {showList&&(<div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:12,marginBottom:8,maxHeight:300,overflowY:"auto"}}>
-      {caseList.length===0?<div style={{color:"#999",fontSize:12,textAlign:"center",padding:16}}>저장된 평가서가 없습니다.</div>:
+    {showList&&(<div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:12,marginBottom:8,maxHeight:460,overflowY:"auto"}}>
+      {allCases.length===0?<div style={{color:"#999",fontSize:12,textAlign:"center",padding:16}}>저장된 평가서가 없습니다.</div>:
       <table style={S.tbl}><thead><tr>
         <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:"1%"}}>작업</th>
       </tr></thead><tbody>
-        {caseList.map(c=>(
-          <tr key={c.id} style={{background:c.id===currentId?"#eff6ff":"#fff"}}>
-            <td style={{...S.td,fontWeight:700,color:C.acc}}>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
+        {allCases.map(c=>(
+          <tr key={c.kind+":"+c.id} style={{background:c.kind===MY&&c.id===currentId?"#eff6ff":"#fff"}}>
+            <td style={{...S.td,fontWeight:700,color:C.acc,whiteSpace:"nowrap"}}><span className="kind-tag" title={KIND_NAME[c.kind]+" 호수 건"} style={{display:"inline-block",fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,marginRight:5,background:c.kind==="multi"?"#fef3c7":"#e0f2fe",color:c.kind==="multi"?"#92400e":"#075985"}}>{KIND_NAME[c.kind]}</span>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
             <td style={S.tdL}>{c.label?.replace(c.id,"").trim()||"-"}</td>
             <td style={S.td}>{c.updated?new Date(c.updated).toLocaleDateString("ko-KR")+" "+new Date(c.updated).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"-"}</td>
             <td style={{...S.td,whiteSpace:"nowrap"}}>
-              <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>loadCase(c.id)}>열기</button>
-              <button className="copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때" style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id)}>⧉ 복제</button>
-              <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>deleteCase(c.id)}>삭제</button>
+              <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} title={c.kind===MY?"":KIND_NAME[c.kind]+" 호수 화면으로 넘어가 엽니다"} onClick={()=>caseOp(c.kind,"open",c.id)}>열기</button>
+              <button className="copy-btn" title={c.kind===MY?"이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때":KIND_NAME[c.kind]+" 호수 건을 "+KIND_NAME[MY]+" 호수 건으로 복사 — 원본은 그대로"} style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id,c.kind)}>{c.kind===MY?"⧉ 복제":"⧉ "+KIND_NAME[MY]+"호수로 복제"}</button>
+              <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(c.kind,"del",c.id)}>삭제</button>
             </td>
           </tr>
         ))}
@@ -4096,14 +4135,14 @@ function App(){
         {showTrash&&<table className="trash-tbl" style={{...S.tbl,marginTop:6}}><thead><tr>
           <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>지운 시각</th><th style={{...S.th,width:"1%"}}>작업</th>
         </tr></thead><tbody>
-          {trashList.map((it,k)=>(
-            <tr key={it.id+"_"+it.t} style={{background:"#fafafa"}}>
-              <td style={{...S.td,fontWeight:700,color:C.acc}}>{it.id}</td>
+          {trashList.map(it=>(
+            <tr key={it.kind+"_"+it.id+"_"+it.t} style={{background:"#fafafa"}}>
+              <td style={{...S.td,fontWeight:700,color:C.acc,whiteSpace:"nowrap"}}><span style={{display:"inline-block",fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,marginRight:5,background:it.kind==="multi"?"#fef3c7":"#e0f2fe",color:it.kind==="multi"?"#92400e":"#075985"}}>{KIND_NAME[it.kind]}</span>{it.id}</td>
               <td style={S.tdL}>{String(it.label||"").replace(it.id,"").trim()||"-"}</td>
               <td style={S.td}>{fmtWhen(it.t)}</td>
               <td style={{...S.td,whiteSpace:"nowrap"}}>
-                <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>restoreTrash(k)}>↩ 되살리기</button>
-                <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>purgeTrash(k)}>완전히 삭제</button>
+                <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>caseOp(it.kind,"restore",it.k)}>↩ 되살리기</button>
+                <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(it.kind,"purge",it.k)}>완전히 삭제</button>
               </td>
             </tr>))}
         </tbody></table>}
@@ -7124,20 +7163,36 @@ function App(){
     setCurrentId(null);setStep(0);setShowList(false);
   };
 
-  // 건 삭제 — 곧바로 지우지 않고 휴지통(최근 20건)으로 옮김. 건 내용·메모를 통째로 담아 두고 「되살리기」로 복구
-  const TRASH_KEY=LIST_KEY.replace("case-list","trash"),TRASH_MAX=20;
+  // ── 저장된 건: 단일·여러 호수 목록을 한 화면에 함께 보여 준다(저장키는 종전 그대로 방식별로 따로) ──
+  // 다른 방식의 건을 여기서 「⧉ 복제」하면 이 방식으로 바꿔 복사 → 단일로 하던 건에 호수 추가 / 여러 호수 건을 한 호수만으로.
+  // 다른 방식 건의 열기·삭제·되살리기는 그 방식의 앱에 이벤트로 넘겨 그쪽 화면 상태까지 맞춘다.
+  const MY=LIST_KEY.indexOf("v2:")===0?"multi":"single";
+  const KIND_NAME={single:"단일",multi:"여러"};
+  const KK=k=>{const pre=k==="multi"?"v2:":"";return {list:pre+"appraisal-case-list",key:id=>pre+"case:"+id,memo:pre+"appraisal-memo:",trash:pre+"appraisal-trash"};};
+  const TRASH_KEY=KK(MY).trash,TRASH_MAX=20;
   const [showTrash,setShowTrash]=useState(false);
   const [trashVer,setTrashVer]=useState(0);
   const lsG=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
-  const getTrash=()=>{try{return JSON.parse(lsG(TRASH_KEY)||"[]")||[];}catch(e){return [];}};
+  const readArr=k=>{try{return JSON.parse(lsG(k)||"[]")||[];}catch(e){return [];}};
+  const getTrash=()=>readArr(TRASH_KEY);
+  const bump=()=>{try{window.dispatchEvent(new CustomEvent("arap-case-changed"));}catch(e){}};
   const setTrash=list=>{list=list.slice(0,TRASH_MAX);   // 공간이 모자라면 오래된 것부터 버리며 다시 시도
-    for(;;){try{localStorage.setItem(TRASH_KEY,JSON.stringify(list));setTrashVer(v=>v+1);return true;}
+    for(;;){try{localStorage.setItem(TRASH_KEY,JSON.stringify(list));setTrashVer(v=>v+1);bump();return true;}
       catch(e){if(!list.length)return false;list.pop();}}};
   const curData=()=>({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
   const caseLabel=(id,o)=>`${id} ${o.buildingName||""} ${o.dong?o.dong+"동":""} ${o.ho?o.ho+"호":""}`.trim();
   const putList=(id,label)=>{const updated=new Date().toISOString();
-    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});};
+    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});bump();};
   const nextCopyId=id=>{let n=2,c;do{c=id+"-"+n++;}while(lsG(caseKey(c)));return c;};
+  // 다른 방식 저장 데이터를 이 방식으로 — 여러→단일은 첫 호수(가)를 스칼라 칸으로, 단일→여러는 스칼라 칸으로 호수 1개
+  const UNIT_KEYS=["dong","floor","ho","area","commonArea","landArea","mainUseJeonyu"];
+  const toMine=(d,from)=>{
+    if(from===MY)return d;
+    const o={...(d.ov||{})};
+    if(MY==="single"){const u=(o.units||[])[0];if(u)UNIT_KEYS.forEach(k=>{if(u[k]!=null&&u[k]!=="")o[k]=u[k];});delete o.units;}
+    else{o.units=[{id:Date.now(),evalArea:"",...Object.fromEntries(UNIT_KEYS.map(k=>[k,o[k]||""]))}];}
+    return {...d,ov:o};
+  };
   const deleteCase=async(id)=>{
     if(!confirm(`${id} 건을 휴지통으로 옮길까요?\n(📂 저장된 건 → 🗑 휴지통에서 되살릴 수 있습니다)`))return;
     const raw=currentId===id?JSON.stringify(curData()):lsG(caseKey(id));
@@ -7151,20 +7206,24 @@ function App(){
       storageSet(LIST_KEY,JSON.stringify(newList));
       return newList;
     });
+    bump();
     if(currentId===id)newCase();
   };
-  // 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다(사례·단가를 바꿔 보는 용도). 원본은 그대로, 메모도 복사
-  const copyCase=(id)=>{
-    let d=null;
-    if(currentId===id){d=curData();try{storageSet(caseKey(id),JSON.stringify(d));}catch(e){}}   // 원본의 저장 대기분부터 반영
-    else{try{d=JSON.parse(lsG(caseKey(id))||"null");}catch(e){}}
+  // 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다. 원본은 그대로, 메모도 복사. from=원본 방식(다르면 이 방식으로 바꿔 복사)
+  const copyCase=(id,from=MY)=>{
+    const K=KK(from);let d=null;
+    if(from===MY&&currentId===id){d=curData();try{storageSet(caseKey(id),JSON.stringify(d));}catch(e){}}   // 원본의 저장 대기분부터 반영
+    else{try{d=JSON.parse(lsG(K.key(id))||"null");}catch(e){}}
     if(!d){alert("복제 실패 — 저장 데이터가 없습니다.");return;}
-    let nid=prompt(`${id} 건을 복제합니다.\n새 접수번호를 입력하세요 (원본은 그대로 남습니다).`,nextCopyId(id));
+    const cross=from!==MY,nUnits=((d.ov||{}).units||[]).length;
+    const note=cross?(MY==="multi"?"\n\n단일 호수 건을 여러 호수 건으로 복사합니다(호수는 1개로 시작, 「+ 호수 추가」로 늘리세요).":
+      "\n\n여러 호수 건을 단일 호수 건으로 복사합니다."+(nUnits>1?` 호수 ${nUnits}개 중 첫 번째(가) 호수만 옮겨집니다.`:"")):"";
+    let nid=prompt(`${id} 건을 ${cross?KIND_NAME[MY]+" 호수로 ":""}복제합니다.\n새 접수번호를 입력하세요 (원본은 그대로 남습니다).${note}`,cross&&!lsG(caseKey(id))?id:nextCopyId(id));
     if(nid==null)return;nid=nid.trim();
     if(!nid){alert("접수번호를 입력해야 복제할 수 있습니다.");return;}
-    if(lsG(caseKey(nid))){alert(`${nid} 접수번호로 저장된 건이 이미 있습니다. 다른 번호를 넣어 주세요.`);return;}
-    d={...d,ov:{...(d.ov||{}),caseNo:nid}};
-    try{storageSet(caseKey(nid),JSON.stringify(d));const m=lsG(MEMO_KEY_PREFIX+id);if(m)storageSet(MEMO_KEY_PREFIX+nid,m);}
+    if(lsG(caseKey(nid))){alert(`${nid} 접수번호로 저장된 ${KIND_NAME[MY]} 호수 건이 이미 있습니다. 다른 번호를 넣어 주세요.`);return;}
+    d=toMine(d,from);d={...d,ov:{...(d.ov||{}),caseNo:nid}};
+    try{storageSet(caseKey(nid),JSON.stringify(d));const m=lsG(K.memo+id);if(m&&!lsG(MEMO_KEY_PREFIX+nid))storageSet(MEMO_KEY_PREFIX+nid,m);}
     catch(e){alert("복제 실패: "+e.message);return;}
     putList(nid,caseLabel(nid,d.ov));
     loadCase(nid);
@@ -7190,8 +7249,27 @@ function App(){
     if(!confirm(`${it.id} 건을 휴지통에서 완전히 지울까요? 되돌릴 수 없습니다.`))return;
     tr.splice(k,1);setTrash(tr);
   };
+  // 다른 방식 앱이 넘긴 요청 처리 + 목록 새로고침 신호
+  const opsRef=React.useRef(null);
+  opsRef.current={open:id=>loadCase(id),del:id=>deleteCase(id),restore:k=>restoreTrash(k),purge:k=>purgeTrash(k)};
+  const [listVer,setListVer]=useState(0);
+  useEffect(()=>{
+    const onOp=e=>{const d=e.detail||{};if(d.kind===MY&&opsRef.current[d.op])opsRef.current[d.op](d.arg);};
+    const onChg=()=>setListVer(v=>v+1);
+    window.addEventListener("arap-case-op",onOp);window.addEventListener("arap-case-changed",onChg);
+    return()=>{window.removeEventListener("arap-case-op",onOp);window.removeEventListener("arap-case-changed",onChg);};
+  },[]);
+  const caseOp=(kind,op,arg)=>{
+    if(kind===MY){opsRef.current[op](arg);return;}
+    if(op==="open"){setShowList(false);const b=document.getElementById(kind==="multi"?"btn-multi":"btn-single");if(b)b.click();}
+    try{window.dispatchEvent(new CustomEvent("arap-case-op",{detail:{kind,op,arg}}));}catch(e){}
+  };
   const fmtWhen=t=>{try{const x=new Date(t);return x.toLocaleDateString("ko-KR")+" "+x.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});}catch(e){return "-";}};
-  const trashList=React.useMemo(getTrash,[trashVer,showList]);
+  const OTHER=MY==="multi"?"single":"multi";
+  const allCases=React.useMemo(()=>[...caseList.map(c=>({...c,kind:MY})),...readArr(KK(OTHER).list).map(c=>({...c,kind:OTHER}))]
+    .sort((a,b)=>String(b.updated||"").localeCompare(String(a.updated||""))),[caseList,listVer,showList]);
+  const trashList=React.useMemo(()=>[...getTrash().map((it,k)=>({...it,kind:MY,k})),...readArr(KK(OTHER).trash).map((it,k)=>({...it,kind:OTHER,k}))]
+    .sort((a,b)=>(b.t||0)-(a.t||0)),[trashVer,listVer,showList]);
 
   const labels=["① 접수개요","② 대상물건개요","③ 사례 등 입력","④ 가격산출","⑤ 위치도"];
   const selCnt=cases.filter(c=>c.isSelected).length;
@@ -7208,7 +7286,7 @@ function App(){
       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
         <button style={{...S.btn,background:C.pri,color:"#fff",fontSize:12}} onClick={newCase}>+ 새 평가서</button>
         <button style={{...S.btn,background:showList?"#94a3b8":"#e2e8f0",color:showList?"#fff":"#555",fontSize:12}} onClick={()=>setShowList(!showList)}>
-          📂 저장된 건 ({caseList.length})
+          📂 저장된 건 ({allCases.length})
         </button>
         {currentId&&saveStatus==="✅"&&<span style={{fontSize:11,color:"#059669",fontWeight:600}}>💾 {currentId} 저장완료</span>}
         {currentId&&saveStatus==="⏳"&&<span style={{fontSize:11,color:"#f59e0b",fontWeight:600}}>⏳ {currentId} 저장중...</span>}
@@ -7223,20 +7301,20 @@ function App(){
     </div>
 
     {/* 건 목록 패널 */}
-    {showList&&(<div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:12,marginBottom:8,maxHeight:300,overflowY:"auto"}}>
-      {caseList.length===0?<div style={{color:"#999",fontSize:12,textAlign:"center",padding:16}}>저장된 평가서가 없습니다.</div>:
+    {showList&&(<div style={{background:"#fff",border:`1px solid ${C.bdr}`,borderRadius:6,padding:12,marginBottom:8,maxHeight:460,overflowY:"auto"}}>
+      {allCases.length===0?<div style={{color:"#999",fontSize:12,textAlign:"center",padding:16}}>저장된 평가서가 없습니다.</div>:
       <table style={S.tbl}><thead><tr>
         <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:"1%"}}>작업</th>
       </tr></thead><tbody>
-        {caseList.map(c=>(
-          <tr key={c.id} style={{background:c.id===currentId?"#eff6ff":"#fff"}}>
-            <td style={{...S.td,fontWeight:700,color:C.acc}}>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
+        {allCases.map(c=>(
+          <tr key={c.kind+":"+c.id} style={{background:c.kind===MY&&c.id===currentId?"#eff6ff":"#fff"}}>
+            <td style={{...S.td,fontWeight:700,color:C.acc,whiteSpace:"nowrap"}}><span className="kind-tag" title={KIND_NAME[c.kind]+" 호수 건"} style={{display:"inline-block",fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,marginRight:5,background:c.kind==="multi"?"#fef3c7":"#e0f2fe",color:c.kind==="multi"?"#92400e":"#075985"}}>{KIND_NAME[c.kind]}</span>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
             <td style={S.tdL}>{c.label?.replace(c.id,"").trim()||"-"}</td>
             <td style={S.td}>{c.updated?new Date(c.updated).toLocaleDateString("ko-KR")+" "+new Date(c.updated).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"-"}</td>
             <td style={{...S.td,whiteSpace:"nowrap"}}>
-              <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>loadCase(c.id)}>열기</button>
-              <button className="copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때" style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id)}>⧉ 복제</button>
-              <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>deleteCase(c.id)}>삭제</button>
+              <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} title={c.kind===MY?"":KIND_NAME[c.kind]+" 호수 화면으로 넘어가 엽니다"} onClick={()=>caseOp(c.kind,"open",c.id)}>열기</button>
+              <button className="copy-btn" title={c.kind===MY?"이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때":KIND_NAME[c.kind]+" 호수 건을 "+KIND_NAME[MY]+" 호수 건으로 복사 — 원본은 그대로"} style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id,c.kind)}>{c.kind===MY?"⧉ 복제":"⧉ "+KIND_NAME[MY]+"호수로 복제"}</button>
+              <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(c.kind,"del",c.id)}>삭제</button>
             </td>
           </tr>
         ))}
@@ -7247,14 +7325,14 @@ function App(){
         {showTrash&&<table className="trash-tbl" style={{...S.tbl,marginTop:6}}><thead><tr>
           <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>지운 시각</th><th style={{...S.th,width:"1%"}}>작업</th>
         </tr></thead><tbody>
-          {trashList.map((it,k)=>(
-            <tr key={it.id+"_"+it.t} style={{background:"#fafafa"}}>
-              <td style={{...S.td,fontWeight:700,color:C.acc}}>{it.id}</td>
+          {trashList.map(it=>(
+            <tr key={it.kind+"_"+it.id+"_"+it.t} style={{background:"#fafafa"}}>
+              <td style={{...S.td,fontWeight:700,color:C.acc,whiteSpace:"nowrap"}}><span style={{display:"inline-block",fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,marginRight:5,background:it.kind==="multi"?"#fef3c7":"#e0f2fe",color:it.kind==="multi"?"#92400e":"#075985"}}>{KIND_NAME[it.kind]}</span>{it.id}</td>
               <td style={S.tdL}>{String(it.label||"").replace(it.id,"").trim()||"-"}</td>
               <td style={S.td}>{fmtWhen(it.t)}</td>
               <td style={{...S.td,whiteSpace:"nowrap"}}>
-                <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>restoreTrash(k)}>↩ 되살리기</button>
-                <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>purgeTrash(k)}>완전히 삭제</button>
+                <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} onClick={()=>caseOp(it.kind,"restore",it.k)}>↩ 되살리기</button>
+                <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(it.kind,"purge",it.k)}>완전히 삭제</button>
               </td>
             </tr>))}
         </tbody></table>}
@@ -7292,6 +7370,7 @@ ReactDOM.createRoot(document.getElementById('root-multi')).render(React.createEl
       bs.classList.toggle('active',single);
       bm.classList.toggle('active',!single);
       try{localStorage.setItem('arap-jiphap-mode',mode);}catch(e){}
+      try{window.dispatchEvent(new CustomEvent('arap-case-changed'));}catch(e){}   // 저장된 건 목록(두 방식 합본) 새로고침
     }
     bs.onclick=function(){show('single');};
     bm.onclick=function(){show('multi');};
