@@ -781,7 +781,11 @@
             <p>- 외벽 : <input type="text" id="y_wall" class="y-inline y-wall" aria-label="외벽" placeholder="몰탈위 페인팅 마감"> 등</p>
             <p>- 창호 : <input type="text" id="y_window" class="y-inline y-window" aria-label="창호" placeholder="샷시">창호 등임.</p>
             <h4>2. 이용상태</h4>
-            <p>공부상 <input type="text" id="y_usestate" class="y-inline y-usestate" aria-label="이용상태(공부상)" placeholder="제2종근린생활시설 및 다가구주택">로 이용 중임.</p>
+            <!-- 주건물/부속건물·동별로 나눌 때: 공부상 / 가) … / 나) …로 이용 중임. (추가 항목은 y_usestateMore에 JSON 배열) -->
+            <p>공부상 <span id="y_usestateBr" hidden><br>가) </span><input type="text" id="y_usestate" class="y-inline y-usestate" aria-label="이용상태(공부상)" placeholder="제2종근린생활시설 및 다가구주택"><span id="y_usestateTail">로 이용 중임.</span></p>
+            <div id="y_usestateList"></div>
+            <textarea id="y_usestateMore" hidden></textarea>
+            <p><button type="button" class="btn gh sm" id="y_usestateAdd">+ 항목 추가 (가·나·다)</button> <button type="button" class="btn gh sm" id="y_usestateFromBld" title="③ 건물평가 표의 동·주/부·용도로 항목을 만듭니다">건물표에서 채우기</button></p>
           </div>
 
           <div class="row" style="margin-top:12px"><button class="btn" id="btnYohang2">📄 5. 요항표 받기 (.hwpx)</button><span class="hint" id="y_status" role="status"></span></div>
@@ -2644,7 +2648,7 @@ var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
-var Y_IDS=['y_dong','y_near','y_surroundings','y_trafficNear','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_roadCnt','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate'];
+var Y_IDS=['y_dong','y_near','y_surroundings','y_trafficNear','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_roadCnt','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate','y_usestateMore'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_specialApplied','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_SPECIAL_MANUAL=false;  // 특별용역비 적용액(차액 × 배수)을 평가사가 직접 고쳤는지 — 고쳤으면 자동값으로 덮지 않는다
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
@@ -2803,7 +2807,7 @@ function fillYohangFromData(){
   var st=document.getElementById('y_struct'),auto=yohangStructAuto();
   if(st&&auto&&(!st.value.trim()||st.value===yohangStructAuto(true)||st.value===st.dataset.autoStruct)){st.value=auto;st.dataset.autoStruct=auto;}
   set('y_usestate',cgVal('bt_purps'));
-  applyRoadCnt();
+  applyRoadCnt();renderUsestate();
 }
 // 대상물건개요의 구조·층수(지상/지하 = "4/1")로 만드는 건물 구조 자동 문구. groundOnly=true 면 예전 방식(지상만)
 // 층수(지상/지하 "4/1") → "지하 1층 지상 4층" (명세표 건물란·요항표 건물 구조가 같이 쓴다)
@@ -2815,6 +2819,44 @@ function yohangStructAuto(groundOnly){
   return [cgVal('bt_strct'),floorsText(groundOnly)].filter(Boolean).join(' ');
 }
 // 접면도로 수 — 한 면만 접하면 화면에서 ② 칸과 "각각"을 숨긴다(출력은 arap_toji_documents.js가 같은 값을 읽어 문구를 뺀다)
+// 이용상태 여러 항목(가·나·다). 첫 항목은 y_usestate, 나머지는 y_usestateMore(JSON 배열).
+var Y_LETTERS='가나다라마바사아자차카타파하';
+function usestateMoreList(){try{var a=JSON.parse(document.getElementById('y_usestateMore').value||'[]');return Array.isArray(a)?a.map(String):[];}catch(e){return [];}}
+function setUsestateMore(a){document.getElementById('y_usestateMore').value=a.length?JSON.stringify(a):'';}
+function renderUsestate(){
+  var items=usestateMoreList(),list=document.getElementById('y_usestateList');if(!list)return;
+  list.innerHTML='';
+  document.getElementById('y_usestateBr').hidden=!items.length;
+  document.getElementById('y_usestateTail').hidden=!!items.length;
+  items.forEach(function(v,i){
+    var p=document.createElement('p');
+    p.innerHTML=Y_LETTERS[(i+1)%Y_LETTERS.length]+') <input type="text" class="y-inline y-usestate" aria-label="이용상태 추가 항목"> <span class="del" title="이 항목 삭제">✕</span>'+(i===items.length-1?' <span>로 이용 중임.</span>':'');
+    var inp=p.querySelector('input');inp.value=v;
+    inp.addEventListener('input',function(){var a=usestateMoreList();a[i]=inp.value;setUsestateMore(a);saveForm();});
+    p.querySelector('.del').onclick=function(){var a=usestateMoreList();a.splice(i,1);setUsestateMore(a);renderUsestate();saveForm();};
+    list.appendChild(p);
+  });
+}
+function addUsestateItem(){var a=usestateMoreList();a.push('');setUsestateMore(a);renderUsestate();saveForm();
+  var ins=document.querySelectorAll('#y_usestateList input');if(ins.length)ins[ins.length-1].focus();}
+// ③ 건물평가 표 → 항목. 주건물 먼저, 부속은 뒤. 동이 둘 이상이면 "1동 : 주택", 같은 묶음의 용도는 " 및 "로 잇는다.
+function usestateFromBld(){
+  var rows=bldRows().filter(function(r){return String(r['용도']||'').trim();});
+  if(!rows.length){alert('③ 건물평가 표에 용도가 적힌 층이 없습니다.');return;}
+  var groups=[],byKey={},dongs=[];
+  rows.forEach(function(r){
+    var d=String(r['동']||'').trim(),g=/부/.test(r['구분']||'')?'부':'주',k=g+'|'+d,u=String(r['용도']).trim();
+    if(d&&dongs.indexOf(d)<0)dongs.push(d);
+    if(!byKey[k]){byKey[k]={g:g,d:d,uses:[]};groups.push(byKey[k]);}
+    if(byKey[k].uses.indexOf(u)<0)byKey[k].uses.push(u);
+  });
+  groups=groups.filter(function(x){return x.g==='주';}).concat(groups.filter(function(x){return x.g==='부';}));
+  var items=groups.map(function(x){var d=/^\d+$/.test(x.d)?x.d+'동':x.d;return (dongs.length>1&&d?d+' : ':'')+x.uses.join(' 및 ');});
+  var cur=[cgVal('y_usestate')].concat(usestateMoreList()).filter(function(v){return v.trim();});
+  if(cur.length&&cur.join('\n')!==items.join('\n')&&!confirm('지금 적힌 이용상태를 건물표 내용으로 바꿀까요?\n\n'+items.map(function(v,i){return Y_LETTERS[i%Y_LETTERS.length]+') '+v;}).join('\n')))return;
+  document.getElementById('y_usestate').value=items[0];
+  setUsestateMore(items.slice(1));renderUsestate();saveForm();
+}
 function applyRoadCnt(){
   var sel=document.getElementById('y_roadCnt');if(!sel)return;
   if(sel.value!=='1')sel.value='2';
@@ -3201,7 +3243,7 @@ function applyForm(o){
   document.getElementById('y_jise').value=yohangTerrain(cgVal('y_jise'));
   delete document.getElementById('y_use').dataset.autoUse;
   delete document.getElementById('y_struct').dataset.autoStruct;
-  applyRoadCnt();
+  applyRoadCnt();renderUsestate();
   TOICE=o.TOICE||{};
   if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
   // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.
@@ -3269,7 +3311,7 @@ function clearForm(){
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   CG_TRAVEL_MANUAL=false;CG_SPECIAL_MANUAL=false;
-  Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;delete el.dataset.autoStruct;}});TOICE={};applyRoadCnt();
+  Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;delete el.dataset.autoStruct;}});TOICE={};applyRoadCnt();renderUsestate();
   TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
   ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
 }
@@ -3470,6 +3512,8 @@ document.getElementById('cg_specialApplied').addEventListener('blur',function(){
 Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',saveForm);});
 document.getElementById('y_roadCnt').addEventListener('change',function(){applyRoadCnt();saveForm();});
 document.getElementById('y_trafficNear').addEventListener('change',saveForm);
+document.getElementById('y_usestateAdd').onclick=addUsestateItem;
+document.getElementById('y_usestateFromBld').onclick=usestateFromBld;
 document.getElementById('cg_travel').addEventListener('blur',function(){renderCheonggu();saveForm();});
 if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});renderEtcItems();}
 applyOvDefaults();
