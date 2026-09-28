@@ -30,7 +30,7 @@
   .side .v.sm{font-size:12px;font-weight:600;color:#e2e8f0;}
   .side .money{font-size:15px;color:#7dd3fc;}
   .side hr{border:none;border-top:1px solid #334155;margin:9px 0;}
-  .side button{width:100%;background:#2563eb;color:#fff;border:none;border-radius:4px;padding:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
+  .side button{width:100%;background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
 
   .tabs{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap;}
   .tabs button{background:#e2e8f0;color:#888;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:inherit;}
@@ -119,13 +119,14 @@
   td input{width:100%;border:none;text-align:center;font:inherit;font-size:12px;padding:2px;background:transparent;}
   .grid2{display:grid;grid-template-columns:1fr;gap:5px 18px;}
   .fld{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
-  .fld label{width:84px;flex-shrink:0;text-align:right;font-size:12px;color:#555;font-weight:600;}
+  .fld label{width:100px;flex-shrink:0;text-align:right;font-size:12px;color:#555;font-weight:600;}
   .fld input,.fld select,.box{flex:1;min-width:0;border:1px solid #e2e5ea;border-radius:3px;padding:4px 7px;font-size:12px;font-family:inherit;background:#fff;}
   .fld input[readonly]{background:#f8fafc;color:#64748b;}
-  .btn{background:#2563eb;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
-  .btn:hover{background:#1d4ed8;} .btn:disabled{opacity:.5;cursor:default;}
-  .btn.gh{background:#fff;color:#2563eb;border:1px solid #2563eb;}
-  .btn.gray{background:#64748b;}
+  /* 버튼 색 체계 (집합건물 BTN과 같은 규칙, 2026-09-28): 기본=주요(파랑) · .gh/.gray=보조(흰 바탕·회색 테두리) · 삭제=빨강 글씨 */
+  .btn{background:#2563eb;color:#fff;border:1px solid #2563eb;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,.06);transition:background .12s,border-color .12s,filter .12s;}
+  .btn:hover{filter:brightness(.95);} .btn:disabled{background:#e2e8f0;border-color:#e2e8f0;color:#94a3b8;cursor:not-allowed;box-shadow:none;filter:none;}
+  .btn.gh,.btn.gray{background:#fff;color:#1e293b;border:1px solid #cbd5e1;}
+  .btn.gh:disabled,.btn.gray:disabled{background:#f1f5f9;border-color:#e2e8f0;color:#94a3b8;}
   .btn.sm{padding:3px 9px;font-size:11px;}
   .row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
   .hint{color:#94a3b8;font-size:11px;}
@@ -246,7 +247,7 @@
   .caselist-tbl th.act{width:1%;} .caselist-tbl td:last-child{white-space:nowrap;width:1%;}
   .caselist-tbl tr.bakrow td:last-child{white-space:normal;width:auto;}
   .caselist-tbl tr.cur{background:#eff6ff;}
-  .caselist-tbl .del-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+  .caselist-tbl .del-btn{background:#fff;color:#dc2626;border:1px solid #fecaca;}
   .caselist-tbl .del-btn:hover{background:#fee2e2;}
   .arap-sync{border-top:1px solid #e2e5ea;margin-top:10px;padding-top:8px;font-size:12px;}
   .arap-sync-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;} .arap-sync-row b{color:#1a2744;}
@@ -254,12 +255,12 @@
   .arap-sync-st{font-size:11px;color:#059669;} .arap-sync-st.err{color:#dc2626;}
   .arap-sync-help{font-size:10.5px;color:#94a3b8;margin-top:3px;}
   .trash-bar{margin-top:8px;font-size:12px;} .trash-bar .dim{color:#94a3b8;}
-  .trash-btn{background:#f8fafc;color:#475569;border:1px solid #cbd5e1;} .trash-btn.on{background:#e2e8f0;}
+  .trash-btn{background:#fff;color:#1e293b;border:1px solid #cbd5e1;} .trash-btn.on{background:#1a2744;color:#fff;border-color:#1a2744;}
   .trash-tbl{margin-top:6px;} .trash-tbl tr td{background:#fafafa;}
-  .caselist-tbl .copy-btn{background:#faf5ff;color:#6b21a8;border:1px solid #e9d5ff;}
-  .caselist-tbl .copy-btn:hover{background:#f3e8ff;}
-  .caselist-tbl .bak-btn{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;}
-  .caselist-tbl .bak-btn:hover{background:#dcfce7;}
+  .caselist-tbl .copy-btn{background:#fff;color:#1e293b;border:1px solid #cbd5e1;}
+  .caselist-tbl .copy-btn:hover{background:#f8fafc;}
+  .caselist-tbl .bak-btn{background:#fff;color:#1e293b;border:1px solid #cbd5e1;}
+  .caselist-tbl .bak-btn:hover{background:#f8fafc;}
   .caselist-tbl tr.bakrow td{background:#f8fafc;text-align:left;padding:6px 10px;}
   .baklist{width:100%;border-collapse:collapse;font-size:11.5px;}
   .baklist td{padding:3px 6px;border:none;border-bottom:1px dashed #e2e5ea;text-align:left;}
@@ -270,7 +271,12 @@
   /* 저장 충돌 안내줄 (다른 탭이 먼저 저장 / 같은 접수번호 건 있음) */
   .conflict{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:6px;padding:8px 11px;margin-bottom:8px;font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   .conflict .dim{color:#a16207;font-size:11px;}
-  .conflict[hidden]{display:none;}   /* display:flex가 hidden을 덮어 빈 주황 줄이 늘 보이던 문제 */
+  .conflict[hidden]{display:none;}
+  .undo-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:5000;background:#1e293b;color:#fff;border-radius:8px;padding:10px 14px;font-size:13px;display:flex;gap:12px;align-items:center;box-shadow:0 6px 20px rgba(15,23,42,.3);}
+  .undo-toast[hidden]{display:none;}
+  .undo-toast .k,.undo-toast .x{font-size:11px;color:#94a3b8;} .undo-toast .x{cursor:pointer;font-size:13px;}
+  /* 기준시점근거가 '선택' 상태면 노란 강조 (집합건물과 동일) */
+  select#ov_gijunBasis:invalid{background:#fffbeb;border-color:#f59e0b;color:#92400e;}   /* display:flex가 hidden을 덮어 빈 주황 줄이 늘 보이던 문제 */
   /* 우측 메모장 (집합건물과 동일) */
   #mainShell{--memo-w:300px;--side-w:186px;grid-template-columns:var(--side-w) minmax(0,1fr) var(--memo-w);}
   #mainShell.memo-collapsed{grid-template-columns:var(--side-w) minmax(0,1fr) 30px;}
@@ -290,9 +296,10 @@
   .deskbar .r{margin-left:auto;}
   /* 하단 ← 이전 / 다음 → (집합건물과 동일) */
   .stepnav{display:flex;justify-content:space-between;margin-top:12px;}
-  .stepnav button{padding:7px 16px;border-radius:4px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
-  .stepnav .prev{background:#e2e8f0;color:#555;}
-  .stepnav .next{background:#1a2744;color:#fff;}
+  .stepnav button{padding:7px 16px;border-radius:6px;border:1px solid transparent;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .stepnav .prev{background:#fff;color:#1e293b;border-color:#cbd5e1;}
+  .stepnav .next{background:#2563eb;color:#fff;}
+  .stepnav button:hover{filter:brightness(.95);}
   .stepnav button[hidden]{visibility:hidden;display:inline-block;}
   #mode-bar .mb-user{font-size:12px;color:#94a3b8;cursor:pointer;margin-left:8px;}
   .memo-wrap{position:sticky;top:52px;min-width:0;}
@@ -329,6 +336,7 @@
 <body>
 <script src="arap_access.js"></script>
 <script src="arap_user.js"></script><!-- 사용자 이름 게이트(허용 목록) + 상단바 🙋 이름 — 집합건물과 같은 이름·저장키 -->
+<script>window.ARAP_DATE_POPUP=true;</script><!-- 날짜칸 누르면 달력 팝업(집합건물과 같은 모양) -->
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
 <script src="arap_cheonggu.js"></script><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
 <script src="arap_map.js"></script>
@@ -370,6 +378,8 @@
       <div class="casebar-left">
         <button class="btn sm" onclick="newCase()">+ 새 평가서</button>
         <button class="btn gh sm" id="btnCaseList" onclick="toggleCaseList()">📂 저장된 건 (0)</button>
+        <button class="btn gh sm" id="btnUndo" onclick="histUndo()" title="되돌리기 (Ctrl+Z)" disabled>↩ 되돌리기</button>
+        <button class="btn gh sm" id="btnRedo" onclick="histRedo()" title="다시 실행 (Ctrl+Y)" disabled>↪ 다시</button>
         <span id="caseStatus" class="casebar-status"></span>
       </div>
       <div class="casebar-right">
@@ -409,20 +419,20 @@
         <div class="grid2">
           <span class="fld"><label>접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
           <span class="fld"><label>의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
-          <span class="fld"><label>의뢰일</label><input type="text" id="ov_orderDay" data-date placeholder="2025.09.25"></span>
+          <span class="fld"><label>의뢰일(청구서용)</label><input type="text" id="ov_orderDay" data-date data-date-sep="/" placeholder="2026/06/08"></span>
           <span class="fld"><label>평가목적</label><input type="text" id="ov_purpose" value="일반거래(시가참고)" placeholder="일반거래(시가참고)"></span>
           <span class="fld"><label>제출처</label><input type="text" id="ov_submit" value="국세청 및 관할세무서" placeholder="국세청 및 관할세무서"></span>
-          <span class="fld"><label>평가구분</label><input type="text" id="ov_kind" value="상속(증여)" placeholder="상속(증여)"></span>
+          <span class="fld"><label>평가구분</label><input type="text" id="ov_kind" data-tabfill placeholder="상속(증여)" title="비어 있을 때 Tab을 누르면 상속(증여)로 채워집니다"></span>
           <span class="fld"><label>기준시점</label><input type="text" id="base_gijun" data-date placeholder="2025.09.25"></span>
           <span class="fld"><label>기준시점근거</label>
-            <select id="ov_gijunBasis">
-              <option>귀 의뢰 요청 날짜인</option><option>귀 제시일인</option><option>실지조사 완료일인</option><option>가격조사 완료일인</option>
+            <select id="ov_gijunBasis" required>
+              <option value="" disabled selected>선택</option><option>의뢰일인</option><option>현장조사완료일인</option><option>귀 제시일인</option>
             </select></span>
-          <span class="fld"><label>실지조사일</label><input type="text" id="base_josa" data-date placeholder="2026.07.31"></span>
+          <span class="fld"><label>현장조사일</label><input type="text" id="base_josa" data-date placeholder="2026.07.31"></span>
           <span class="fld"><label>작성일자</label><input type="text" id="ov_writeDay" data-date placeholder="2026.08.01"></span>
           <span class="fld"><label>기준가치</label><input type="text" id="ov_value" placeholder="시장가치"></span>
           <span class="fld"><label>소유자</label><input type="text" id="ov_owner" placeholder="홍길동"></span>
-          <span class="fld"><label>평가조건</label><input type="text" id="ov_cond" placeholder="-"></span>
+          <span class="fld"><label>감정평가조건</label><input type="text" id="ov_cond" placeholder="-"></span>
           <span class="fld"><label>공시기준일</label><input type="text" id="base_gongsi" data-date value="2026.01.01" placeholder="2026.01.01"></span>
           <span class="fld"><label>탁상가격</label><input type="text" id="ov_deskPrice" placeholder="4,625,000,000"></span>
         </div>
@@ -935,6 +945,8 @@
     </div>
 </div>
 
+<!-- 지운 뒤 되돌리기 안내 (집합건물과 같은 모양) -->
+<div id="undoToast" class="undo-toast" role="status" hidden><span id="undoToastMsg">🗑 지웠습니다</span><button class="btn sm" onclick="histUndo()">↩ 되돌리기</button><span class="k">Ctrl+Z</span><span class="x" onclick="hideUndoToast()">✕</span></div>
 <div id="memoViewer" hidden onclick="this.hidden=true"><img alt="메모 이미지"></div>
 
 <!-- 수동붙여넣기 폴백 (API 자동호출 차단 시) -->
@@ -2569,6 +2581,8 @@ function renderBldCalc(){
 function bldRoundApply(v){var bs=window.BLD_STATE||{},m=bs._rMode||'none';if(m==='none'||!v)return v;
   var u=bs._rUnit&&bs._rUnit!=='auto'?num(bs._rUnit):Math.max(1,Math.pow(10,Math.floor(Math.log10(v))-3));
   return roundUnit(v,u,m);}
+// 새 건의 건물 적용단가 기본 = 백원 단위에서 반올림(2026-09-28 사용자 결정). 옛 저장건(_rMode 없음)은 '그대로' 유지
+function bldNewState(){return {_rUnit:'100',_rMode:'round'};}
 function bldSetRound(k,v){window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE[k]=v;saveForm();renderBldCalc();}
 function bldSetObs(on){
   window.BLD_STATE=window.BLD_STATE||{};window.BLD_STATE._obs=!!on;   // 건별 저장(BLD_STATE)에 같이 들어간다
@@ -2646,7 +2660,7 @@ function calcFinal(){
 // ================= 좌측 요약 사이드바 =================
 // 예시 회색글씨(placeholder): 본건 토지가 한 번 조회돼 실제 소재지가 들어오면 "예: 안양시 동안구 …" 같은 예시값은 전부 지운다.
 // '-'·'반올림'·'kais붙여넣기'·'⏳ 계산 중…'처럼 형식 안내인 것만 남긴다. 본건이 비면 원래 예시로 되돌린다.
-var KEEP_PH=['-','반올림','자동','kais붙여넣기','⏳ 계산 중…','50 또는 1/2','공부면적','연면적'];   // 사정면적·지분 칸 안내는 계속 보여준다
+var KEEP_PH=['-','반올림','자동','kais붙여넣기','⏳ 계산 중…','50 또는 1/2','공부면적','연면적','상속(증여)','2026/06/08'];   // 사정면적·지분 칸 안내는 계속 보여준다
 function hideExamples(){
   var has=!!String((LANDS[0]||{})['소재지']||'').trim();
   document.querySelectorAll('input,textarea').forEach(function(el){
@@ -2728,6 +2742,8 @@ function sub(i,btn){
 }
 
 // ================= 저장/복원 =================
+// 기준시점근거 옛 선택지(2026-09-28 이전) → 지금 선택지
+var GIJUN_BASIS_OLD={'귀 의뢰 요청 날짜인':'의뢰일인','실지조사 완료일인':'현장조사완료일인','가격조사 완료일인':'현장조사완료일인'};
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice'];   // 감정서번호 칸은 2026-09-16 삭제(접수번호와 같은 값) — 옛 저장값은 무시
 var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr'];
@@ -3201,13 +3217,46 @@ function collect(){
 var saveTimer=null;
 function saveForm(){clearTimeout(saveTimer);
   if(document.getElementById('ov_caseNo').value.trim()){saveStatus='⏳';renderCaseBar();}
-  saveTimer=setTimeout(doSave,400);}
+  saveTimer=setTimeout(doSave,400);renderUndoBtns();}
 // 실제 저장. 저장할 때마다 판 번호(_rev)를 붙여 두고, 저장소의 판이 이 탭이 아는 판과 다르면(다른 탭이 먼저 저장·같은 접수번호 건 존재) 덮어쓰지 않고 멈춘다.
 function doSave(){clearTimeout(saveTimer);saveTimer=null;
+  try{histCommit();}catch(e){console.error('undo history',e);}
   if(checkConflict()){saveStatus='❌';renderCaseBar();return;}
   try{var o=collect();o._rev=newRev();var raw=JSON.stringify(o);
     localStorage.setItem(FORM_STORAGE,raw);REVS[FORM_STORAGE]=o._rev;saveCurrentCase(o,raw);}
   catch(e){console.error('form save',e);saveStatus='❌';renderCaseBar();}}
+// ── 되돌리기(Ctrl+Z)·다시 실행(Ctrl+Y) — 자동저장(0.4초 멈춤)마다 화면 전체 상태를 한 칸씩 기록(최대 60칸) ──
+//    입력칸 안에서는 브라우저 기본 되돌리기(글자 단위), 칸 밖에서는 이 기록으로 한 단계씩. 건을 열거나 새로 만들면 기록을 비운다. (집합건물과 같은 규칙)
+var HIST={undo:[],redo:[],last:null,skip:false};
+function histSnap(o){o=o||collect();var c={};Object.keys(o).forEach(function(k){if(k!=='_rev')c[k]=o[k];});return JSON.stringify(c);}
+function histCommit(){var snap=histSnap();
+  if(HIST.skip){HIST.skip=false;HIST.last=snap;renderUndoBtns();return;}
+  if(HIST.last!=null&&snap!==HIST.last){HIST.undo.push(HIST.last);if(HIST.undo.length>60)HIST.undo.shift();HIST.redo=[];}
+  HIST.last=snap;renderUndoBtns();}
+function histReset(){HIST={undo:[],redo:[],last:null,skip:false};try{HIST.last=histSnap();}catch(e){console.error('undo reset',e);}renderUndoBtns();hideUndoToast();}
+function histApply(snap){var o=JSON.parse(snap);HIST.skip=true;clearTimeout(saveTimer);saveTimer=null;
+  var y=window.scrollY;   // 보던 탭·스크롤 위치는 그대로
+  clearForm();applyForm(o);applyOvDefaults();refreshAfterLoad();window.scrollTo(0,y);saveForm();}
+function histFlush(){if(saveTimer)doSave();else histCommit();}
+function histUndo(){histFlush();if(!HIST.undo.length)return;var prev=HIST.undo.pop();HIST.redo.push(HIST.last);HIST.last=prev;histApply(prev);hideUndoToast();renderUndoBtns();}
+function histRedo(){histFlush();if(!HIST.redo.length)return;var nx=HIST.redo.pop();HIST.undo.push(HIST.last);HIST.last=nx;histApply(nx);renderUndoBtns();}
+function renderUndoBtns(){var u=document.getElementById('btnUndo'),r=document.getElementById('btnRedo');
+  if(u)u.disabled=!(HIST.undo.length||saveTimer);if(r)r.disabled=!HIST.redo.length;}
+var UNDO_TOAST_T=null;
+function showUndoToast(msg){var t=document.getElementById('undoToast');if(!t)return;document.getElementById('undoToastMsg').textContent='🗑 '+msg;t.hidden=false;
+  clearTimeout(UNDO_TOAST_T);UNDO_TOAST_T=setTimeout(hideUndoToast,8000);}
+function hideUndoToast(){var t=document.getElementById('undoToast');if(t)t.hidden=true;clearTimeout(UNDO_TOAST_T);}
+// ✕(행·사례 지우기)를 누르기 직전 상태를 기록해 두고, 지운 뒤 「↩ 되돌리기」 안내를 띄운다
+document.addEventListener('click',function(e){var d=e.target&&e.target.closest&&e.target.closest('#mainShell .del');
+  if(!d||d.closest('#memoPanel'))return;try{histFlush();}catch(err){console.error('undo flush',err);}
+  var t=(d.getAttribute('title')||'').replace(/\s*삭제$/,'').replace('이 사례 비우기/','사례 ');
+  setTimeout(function(){showUndoToast((t&&t!=='삭제'?t+' ':'')+'지웠습니다');renderUndoBtns();},0);},true);
+document.addEventListener('keydown',function(e){
+  if(!(e.ctrlKey||e.metaKey)||e.altKey)return;var k=String(e.key||'').toLowerCase();if(k!=='z'&&k!=='y')return;
+  var el=document.activeElement,tag=el&&el.tagName;
+  if(el&&(tag==='INPUT'||tag==='TEXTAREA'||el.isContentEditable)&&!/^(checkbox|radio|button)$/i.test(el.type||''))return;   // 칸 안 = 브라우저 기본
+  if(document.getElementById('arap-name-gate'))return;
+  e.preventDefault();if(k==='y'||e.shiftKey)histRedo();else histUndo();});
 // 창을 닫거나 다른 페이지로 갈 때 아직 안 쓴 저장(0.4초 대기 중)을 바로 쓴다
 window.addEventListener('pagehide',function(){if(saveTimer)doSave();});
 window.addEventListener('beforeunload',function(){if(saveTimer)doSave();});
@@ -3309,7 +3358,10 @@ function restoreBak(id,k){
 function applyForm(o){
   if(!o)return false;
   if(o.base){document.getElementById('base_gongsi').value=o.base.gongsi||'';document.getElementById('base_gijun').value=o.base.gijun||'';document.getElementById('base_josa').value=o.base.josa||'';}
-  if(o.ov)OV_IDS.forEach(function(id){if(o.ov[id]!=null)document.getElementById(id).value=o.ov[id];});
+  if(o.ov)OV_IDS.forEach(function(id){if(o.ov[id]==null)return;var v=o.ov[id];
+    if(id==='ov_gijunBasis')v=GIJUN_BASIS_OLD[v]||v;                     // 옛 선택지 문구 → 집합건물과 같은 선택지
+    if(id==='ov_orderDay')v=String(v).replace(/^(\d{4})\.(\d{2})\.(\d{2})\.?$/,'$1/$2/$3');   // 의뢰일은 집합건물처럼 2026/06/08
+    document.getElementById(id).value=v;});
   if(o.bt)BT_IDS.forEach(function(id){if(o.bt[id]!=null)document.getElementById(id).value=o.bt[id];});
   var lm=(o.SAJ_MODE&&o.SAJ_MODE.land)||'direct';
   SAJ_MODE={land:(lm==='share'||lm==='group')?lm:'direct',
@@ -3353,7 +3405,8 @@ function restore(){
 
 // 감정평가 개요 기본값 — 비어 있는 칸만 채운다(평가사가 자유 수정, 다른 값이면 그대로 유지)
 // base_gongsi(공시기준일)는 해가 바뀌면 이 값만 고치면 된다
-var OV_DEFAULTS={ov_purpose:'일반거래(시가참고)',ov_submit:'국세청 및 관할세무서',ov_kind:'상속(증여)',ov_value:'시장가치',base_gongsi:'2026.01.01'};
+// 평가구분(ov_kind)은 미리 채우지 않는다 — 연회색 안내 글씨로 두고 빈 칸에서 Tab을 누르면 채움(data-tabfill, 2026-09-28)
+var OV_DEFAULTS={ov_purpose:'일반거래(시가참고)',ov_submit:'국세청 및 관할세무서',ov_value:'시장가치',base_gongsi:'2026.01.01'};
 function applyOvDefaults(){Object.keys(OV_DEFAULTS).forEach(function(id){
   var el=document.getElementById(id);if(el&&!el.value.trim())el.value=OV_DEFAULTS[id];});}
 // 날짜 칸 자동 인식 — 8자리 숫자(YYYYMMDD)면 YYYY.MM.DD로 바꿔줌 (그 외 형식은 그대로)
@@ -3409,7 +3462,7 @@ function clearForm(){
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   CG_TRAVEL_MANUAL=false;CG_SPECIAL_MANUAL=false;
   Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;delete el.dataset.autoStruct;}});TOICE={};applyRoadCnt();renderUsestate();
-  TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE={};
+  TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE=bldNewState();
   ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
 }
 // 그 밖의 요인 표의 지역요인 두 칸은 비워 두지 않고 항상 1.000으로 채운다(값은 언제든 고칠 수 있고, 지우면 다시 1.000)
@@ -3428,7 +3481,7 @@ function newCase(){
   try{localStorage.removeItem(FORM_STORAGE);}catch(e){}
   REVS={};   // 새 평가서는 어떤 저장 건도 '내 것'이 아님 — 여기서 기존 접수번호를 치면 겹침 안내가 뜨도록
   showCaseList=false;document.getElementById('caseListPanel').hidden=true;
-  refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);
+  refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);histReset();
 }
 function loadCase(id){
   var raw=null;try{raw=localStorage.getItem(landCaseKey(id));}catch(e){}
@@ -3442,7 +3495,7 @@ function loadCase(id){
   try{localStorage.setItem(FORM_STORAGE,raw);}catch(e){}
   REVS={};REVS[landCaseKey(id)]=o._rev||'';REVS[FORM_STORAGE]=o._rev||'';   // 연 건만 '내 것'
   showCaseList=false;document.getElementById('caseListPanel').hidden=true;
-  refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);
+  refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);histReset();
 }
 // 삭제는 곧바로 지우지 않고 휴지통(최근 20건)으로 옮긴다 — 건 내용·이전 버전·메모를 통째로 담아 두고 「되살리기」로 복구
 var TRASH_KEY='tojigeonmul-trash',TRASH_MAX=20,showTrash=false;
@@ -3685,7 +3738,11 @@ document.getElementById('y_trafficNear').addEventListener('change',saveForm);
 document.getElementById('y_usestateAdd').onclick=addUsestateItem;
 document.getElementById('y_usestateFromBld').onclick=usestateFromBld;
 document.getElementById('cg_travel').addEventListener('blur',function(){renderCheonggu();saveForm();});
-if(!restore()){renderStds();renderLands();addBldRow({});addBldRow({});renderEtcItems();}
+if(!restore()){window.BLD_STATE=bldNewState();renderStds();renderLands();addBldRow({});addBldRow({});renderEtcItems();}
+// 빈 칸에서 Tab → 연회색 안내 글씨(placeholder) 그대로 채움 (평가구분 등 data-tabfill 칸)
+document.addEventListener('keydown',function(e){var el=e.target;
+  if(e.key!=='Tab'||e.shiftKey||!el||!el.hasAttribute||!el.hasAttribute('data-tabfill')||String(el.value||'').trim()||!el.placeholder)return;
+  el.value=el.placeholder;try{el.dispatchEvent(new Event('input',{bubbles:true}));}catch(err){}},true);
 applyOvDefaults();
 // 저장된 건 목록 로드 + 현재 작업건(접수번호) 목록 편입
 caseList=getLandList();
@@ -3712,6 +3769,7 @@ initSplits();initMemoResize();
 renderBldCalc();   // 켤 때 건물 원가법도 함께 계산 — 건물 탭을 열지 않고 문서를 뽑아도 건물가액이 들어가도록
 calcGongsi();
 renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채움·미리보기)
+histReset();       // 되돌리기 기록 시작점 = 켰을 때 화면
 
 // ================= 키보드 셀 이동 (↑/↓ 방향키 + Tab) =================
 // 텍스트 입력칸에서 ↑/↓ 로 위·아래 칸으로 포커스 이동(같은 열 우선). ←→·Tab은 기본 동작 유지.

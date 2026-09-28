@@ -673,7 +673,8 @@ function opinionXml(xml,data){
         t[0].textContent=t[0].textContent.replace('같거나 비슷하여 비교표준지로 선정하였음','같거나 비슷한 '+label+'를 비교표준지로 선정하였음');
         return emphasize(p,label,'bu');});}}
   // 원본의 고정 샘플 문구 중 이미 앱에서 입력받는 항목을 연결한다. 법령·방법론 본문은 유지.
-  replacePlain(doc,'귀 제시일인',val('ov_gijunBasis')||'귀 제시일인');
+  // 기준시점근거 — 집합건물 감정평가서와 같은 문구(현장조사완료일인 → 대상물건의 가격조사를 완료한 날짜인, 미선택이면 의뢰일인)
+  replacePlain(doc,'귀 제시일인',(function(b){return b==='현장조사완료일인'?'대상물건의 가격조사를 완료한 날짜인':(b||'의뢰일인');})(val('ov_gijunBasis')));
   replacePlain(doc,'일반거래(시가참고)',val('ov_purpose'));
   replacePlain(doc,'한국부동산원, 2025년',val('op_costSource')||'[건물신축단가표 출처·연도 기입]');
   replacePlain(doc,'헙계','합계');
