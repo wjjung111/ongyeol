@@ -1,4 +1,5 @@
-// 저장된 건 복제(⧉ 복제): 새 접수번호로 한 벌 더 만들고, 복제본 수정이 원본에 번지지 않는지 검증.
+// 저장된 건 복제(⧉ 복제)·휴지통: 새 접수번호로 한 벌 더 만들고 복제본 수정이 원본에 번지지 않는지,
+// 삭제한 건이 휴지통에 들어가 되살아나는지(같은 번호가 있으면 새 번호로) 검증.
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_case_copy.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -47,6 +48,39 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   const r3=await page.evaluate(()=>JSON.parse(localStorage.getItem('tojigeonmul-case:T-001-2')).STDS[0]['지번']);
   console.log('③ 중복 거절',msgs[1]);
   assert.equal(r3,'999');assert.match(msgs[1],/이미 있습니다/);
+
+  // ④ 삭제 → 휴지통 → 되살리기(내용·메모 그대로)
+  page.removeAllListeners('dialog');
+  page.on('dialog',d=>d.accept());
+  const r4=await page.evaluate(()=>{deleteCase('T-001');
+    const after={has:!!localStorage.getItem('tojigeonmul-case:T-001'),list:getLandList().map(c=>c.id),trash:getTrash().map(x=>x.id)};
+    showCaseList=true;document.getElementById('caseListPanel').hidden=false;showTrash=true;renderCaseListPanel();
+    const btn=!!document.querySelector('.trash-tbl button');
+    restoreTrash(0);
+    return {after,btn,back:JSON.parse(localStorage.getItem('tojigeonmul-case:T-001')).STDS[0]['지번'],
+      memo:localStorage.getItem('tojigeonmul-memo:T-001'),list:getLandList().map(c=>c.id),trash:getTrash().length};});
+  console.log('④ 휴지통',r4);
+  assert.equal(r4.after.has,false);assert.deepEqual(r4.after.list,['T-001-2']);assert.deepEqual(r4.after.trash,['T-001']);
+  assert.ok(r4.btn);assert.equal(r4.back,'586');assert.ok(r4.memo);assert.deepEqual(r4.list,['T-001','T-001-2']);assert.equal(r4.trash,0);
+
+  // ⑤ 같은 번호가 이미 있으면 새 번호로 되살림(기존 건은 안 건드림)
+  page.removeAllListeners('dialog');
+  page.on('dialog',d=>d.type()==='prompt'?d.accept('T-001-R'):d.accept());
+  const r5=await page.evaluate(()=>{deleteCase('T-001-2');
+    const o=JSON.parse(getTrash()[0].raw);o.ov.ov_caseNo='T-001-2';
+    localStorage.setItem('tojigeonmul-case:T-001-2',JSON.stringify(Object.assign({},o,{STDS:[{'지번':'NEW'}]})));
+    restoreTrash(0);
+    return {kept:JSON.parse(localStorage.getItem('tojigeonmul-case:T-001-2')).STDS[0]['지번'],
+      r:JSON.parse(localStorage.getItem('tojigeonmul-case:T-001-R')),};});
+  console.log('⑤ 새 번호로 되살림',r5.kept,r5.r.ov.ov_caseNo,r5.r.STDS[0]['지번']);
+  assert.equal(r5.kept,'NEW');assert.equal(r5.r.ov.ov_caseNo,'T-001-R');assert.equal(r5.r.STDS[0]['지번'],'999');
+
+  // ⑥ 작업 열 줄바꿈 없음 — 버튼 3개가 한 줄
+  await page.setViewportSize({width:1400,height:900});
+  await page.evaluate(()=>{localStorage.setItem('tojigeonmul-bak:T-001-R',JSON.stringify([{t:Date.now(),data:{}},{t:Date.now(),data:{}}]));deleteCase('T-001');showCaseList=true;showTrash=true;document.getElementById('caseListPanel').hidden=false;renderCaseListPanel();});
+  const tops=await page.evaluate(()=>[...document.querySelector('.caselist-tbl tbody tr:first-child td:last-child').querySelectorAll('button')].map(b=>Math.round(b.getBoundingClientRect().top)));
+  console.log('⑥ 버튼 높이',tops);assert.ok(Math.max(...tops)-Math.min(...tops)<5);
+  await page.screenshot({path:process.env.SHOT||'/dev/null',clip:{x:0,y:0,width:1400,height:500}}).catch(()=>{});
 
   assert.deepEqual(errs,[]);console.log('OK');
   await browser.close();server.close();
