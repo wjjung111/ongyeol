@@ -243,9 +243,14 @@
   .caselist-tbl th{background:#f0f2f5;font-size:11px;font-weight:600;color:#1a2744;padding:5px 7px;border:1px solid #e2e5ea;white-space:nowrap;}
   .caselist-tbl td{padding:5px 7px;border:1px solid #e2e5ea;text-align:center;}
   .caselist-tbl td.l{text-align:left;} .caselist-tbl td.cid{font-weight:700;color:#2563eb;}
+  .caselist-tbl th.act{width:1%;} .caselist-tbl td:last-child{white-space:nowrap;width:1%;}
+  .caselist-tbl tr.bakrow td:last-child{white-space:normal;width:auto;}
   .caselist-tbl tr.cur{background:#eff6ff;}
   .caselist-tbl .del-btn{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
   .caselist-tbl .del-btn:hover{background:#fee2e2;}
+  .trash-bar{margin-top:8px;font-size:12px;} .trash-bar .dim{color:#94a3b8;}
+  .trash-btn{background:#f8fafc;color:#475569;border:1px solid #cbd5e1;} .trash-btn.on{background:#e2e8f0;}
+  .trash-tbl{margin-top:6px;} .trash-tbl tr td{background:#fafafa;}
   .caselist-tbl .copy-btn{background:#faf5ff;color:#6b21a8;border:1px solid #e9d5ff;}
   .caselist-tbl .copy-btn:hover{background:#f3e8ff;}
   .caselist-tbl .bak-btn{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;}
@@ -3371,14 +3376,64 @@ function loadCase(id){
   showCaseList=false;document.getElementById('caseListPanel').hidden=true;
   refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);
 }
+// 삭제는 곧바로 지우지 않고 휴지통(최근 20건)으로 옮긴다 — 건 내용·이전 버전·메모를 통째로 담아 두고 「되살리기」로 복구
+var TRASH_KEY='tojigeonmul-trash',TRASH_MAX=20,showTrash=false;
+function getTrash(){try{return JSON.parse(localStorage.getItem(TRASH_KEY)||'[]')||[];}catch(e){return [];}}
+// 저장 공간이 모자라면 오래된 것부터 버리며 다시 시도
+function setTrash(list){list=list.slice(0,TRASH_MAX);
+  for(;;){try{localStorage.setItem(TRASH_KEY,JSON.stringify(list));return true;}
+    catch(e){if(!list.length)return false;list.pop();}}}
 function deleteCase(id){
-  if(!confirm(id+' 건을 삭제할까요?'+(getBak(id).length?'\n(이전 버전 백업도 함께 지워집니다)':'')))return;
-  try{localStorage.removeItem(landCaseKey(id));localStorage.removeItem(bakKey(id));}catch(e){}
+  if(!confirm(id+' 건을 휴지통으로 옮길까요?\n(📂 저장된 건 → 🗑 휴지통에서 되살릴 수 있습니다)'))return;
+  var raw=lsGet(landCaseKey(id)),c=getLandList().filter(function(x){return x.id===id;})[0]||{};
+  if(raw){var tr=getTrash().filter(function(x){return !(x.id===id&&x.raw===raw);});
+    tr.unshift({id:id,label:c.label||id,t:Date.now(),raw:raw,bak:lsGet(bakKey(id)),memo:lsGet(MEMO_PREFIX+id)});
+    if(!setTrash(tr)&&!confirm('저장 공간이 부족해 휴지통에 넣지 못했습니다. 그래도 완전히 삭제할까요?'))return;}
+  try{localStorage.removeItem(landCaseKey(id));localStorage.removeItem(bakKey(id));localStorage.removeItem(MEMO_PREFIX+id);}catch(e){}
   delete REVS[landCaseKey(id)];if(bakOpen===id)bakOpen=null;
   caseList=getLandList().filter(function(c){return c.id!==id;});
   setLandList(caseList);
   if(currentId===id)newCase();
   else{renderCaseBar();renderCaseListPanel();}
+}
+function restoreTrash(k){
+  var tr=getTrash(),it=tr[k];if(!it)return;
+  var id=it.id;
+  if(lsGet(landCaseKey(id))){
+    id=prompt(it.id+' 접수번호로 저장된 건이 이미 있습니다.\n되살릴 건에 쓸 새 접수번호를 입력하세요.',copyCaseId(it.id));
+    if(id==null)return;id=id.trim();if(!id)return;
+    if(lsGet(landCaseKey(id))){alert(id+' 접수번호로 저장된 건이 이미 있습니다.');return;}
+  }
+  var raw=it.raw;
+  if(id!==it.id){try{var o=JSON.parse(raw);o.ov=o.ov||{};o.ov.ov_caseNo=id;raw=JSON.stringify(o);}catch(e){}}
+  try{localStorage.setItem(landCaseKey(id),raw);
+    if(id===it.id&&it.bak)localStorage.setItem(bakKey(id),it.bak);
+    if(it.memo&&!lsGet(MEMO_PREFIX+id))localStorage.setItem(MEMO_PREFIX+id,it.memo);
+  }catch(e){alert('되살리기 실패: '+e.message);return;}
+  var list=getLandList().filter(function(c){return c.id!==id;});
+  list.unshift({id:id,label:(id+' '+String(it.label||'').replace(it.id,'').trim()).trim(),updated:new Date().toISOString()});
+  setLandList(list);caseList=list;
+  tr.splice(k,1);setTrash(tr);
+  renderCaseBar();renderCaseListPanel();
+}
+function purgeTrash(k){
+  var tr=getTrash(),it=tr[k];if(!it)return;
+  if(!confirm(it.id+' 건을 휴지통에서 완전히 지울까요? 되돌릴 수 없습니다.'))return;
+  tr.splice(k,1);setTrash(tr);renderCaseListPanel();
+}
+function toggleTrash(){showTrash=!showTrash;renderCaseListPanel();}
+function trashHtml(){
+  var tr=getTrash();if(!tr.length)return '';
+  var h='<div class="trash-bar"><button class="btn sm trash-btn'+(showTrash?' on':'')+'" onclick="toggleTrash()">🗑 휴지통 '+tr.length+'</button>'+
+    '<span class="dim"> 지운 건은 최근 '+TRASH_MAX+'건까지 여기 보관됩니다.</span></div>';
+  if(!showTrash)return h;
+  h+='<table class="caselist-tbl trash-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>지운 시각</th><th class="act">작업</th></tr></thead><tbody>';
+  tr.forEach(function(it,k){
+    h+='<tr><td class="cid">'+eh(it.id)+'</td><td class="l">'+eh(String(it.label||'').replace(it.id,'').trim()||'-')+'</td><td>'+eh(fmtWhen(it.t))+'</td>'+
+       '<td><button class="btn sm" onclick="restoreTrash('+k+')">↩ 되살리기</button> '+
+       '<button class="btn sm del-btn" onclick="purgeTrash('+k+')">완전히 삭제</button></td></tr>';
+  });
+  return h+'</tbody></table>';
 }
 // 저장된 건 복제 — 같은 내용을 새 접수번호로 한 벌 더 만들어 연다(비교표준지·사례를 바꿔 보는 용도). 원본 건은 그대로. 메모도 같이 복사.
 function copyCaseId(id){var n=2,c;do{c=id+'-'+n++;}while(localStorage.getItem(landCaseKey(c)));return c;}
@@ -3426,8 +3481,8 @@ function renderCaseBar(){
 }
 function renderCaseListPanel(){
   var p=document.getElementById('caseListPanel');
-  if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.</div>';return;}
-  var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th style="width:250px">작업</th></tr></thead><tbody>';
+  if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.</div>'+trashHtml();return;}
+  var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th class="act">작업</th></tr></thead><tbody>';
   caseList.forEach(function(c){
     var when='-';try{var d=new Date(c.updated);when=d.toLocaleDateString('ko-KR')+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}catch(e){}
     var obj=(c.label||'').replace(c.id,'').trim()||'-';
@@ -3448,7 +3503,7 @@ function renderCaseListPanel(){
       h+='<tr class="bakrow"><td colspan="4">'+b+'</table></td></tr>';
     }
   });
-  p.innerHTML=h+'</tbody></table>';
+  p.innerHTML=h+'</tbody></table>'+trashHtml();
 }
 
 // ================= 우측 메모장 (집합건물과 동일 UX, 접수번호별 저장) =================
