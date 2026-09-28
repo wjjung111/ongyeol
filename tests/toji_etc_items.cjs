@@ -48,7 +48,7 @@ const items=()=>Array.from(document.querySelectorAll('#etcItemsBox .etc-item')).
   try{
     const ctx=await browser.newContext({acceptDownloads:true});const page=await ctx.newPage();
     page.on('pageerror',e=>errs.push(e.message));page.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text());});
-    await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
+    await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     page.on('dialog',d=>d.accept());
     await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiOpinion&&window.renderEtcItems);

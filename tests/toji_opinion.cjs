@@ -59,7 +59,7 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
   try{
     const context=await browser.newContext({acceptDownloads:true}),page=await context.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    await context.route('**/*',route=>{const u=route.request().url();if(u.includes('arap_access.js'))return route.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return route.continue();return route.abort();});
+    await context.route('**/*',route=>{const u=route.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return route.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return route.continue();return route.abort();});
     await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiOpinion);
     const simple=await fixture(page);

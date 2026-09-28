@@ -22,7 +22,7 @@ async function gh(route){const req=route.request(),u=new URL(req.url()),m=req.me
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL});
   const ctx=await browser.newContext();const errors=[];
-  await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});
+  await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});
     if(u.startsWith('https://api.github.com/'))return gh(r);if(u.startsWith(base))return r.continue();return r.abort();});
   let page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
   await page.goto(base+'/토지건물.html');await page.waitForFunction(()=>window.LAND_SYNC&&window.doSave);

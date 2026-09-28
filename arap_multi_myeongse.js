@@ -43,7 +43,7 @@ function groups(ov,units){
 /* ── 계산 모델(화면·한글과 같은 함수) ── */
 function model(input,h){
  const {ov,cases=[]}=input,units=(ov.units||[]).filter(u=>u&&(txt(u.ho)||txt(u.dong)||txt(u.floor)||num(u.area)>0));
- if(!units.length)throw Error('② 대상물건개요에 호수를 입력하세요.');
+ if(!units.length)throw Error('2. 대상물건개요에 호수를 입력하세요.');
  const parcels=parcelsOf(ov),landTot=parcels.reduce((s,p)=>s+(p.area||0),0)||num(ov.landAreaTotal)||0;
  const rows=units.map((u,i)=>{const c=g.ArapMultiHwpx.resolveCase(u,cases),cal=g.ArapMultiHwpx.calculateUnit(u,c,input,h);
   const area=num(u.area),ua=cal.ua,la=num(u.landArea);
