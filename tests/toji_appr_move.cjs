@@ -48,7 +48,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   assert.deepEqual(mv.order,['다동 3-3','가동 1-1','나동 2-2']);
   assert.deepEqual(mv.syms,['a','b','c']);
   assert.equal(mv.etc,0);assert.equal(mv.checked,0);
-  assert.ok(mv.msg.includes('자리 순서대로'));
+  assert.equal(mv.msg,'✅ 평가사례 3행 → 1행','안내는 짧게(#226) — 기호 재부여는 syms로 확인');
   assert.ok(mv.opt.some(t=>t.startsWith('평가사례 a — 다동 3-3')),'그밖의요인 드롭다운도 새 기호로');
 
   // ③ 끌어놓기(HTML5) — 1행 손잡이를 3행에 놓으면 1행이 맨 아래로
@@ -78,7 +78,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   console.log('④ 직접 적은 기호',custom);
   assert.deepEqual(custom.order,['나동 2-2','다동 3-3','가동 1-1']);
   assert.deepEqual(custom.syms,['㉯','㉰','㉮'],'기호는 사례를 따라간다(다시 매기지 않음)');
-  assert.ok(custom.msg.includes('그대로'));
+  assert.equal(custom.msg,'✅ 평가사례 1행 → 3행');
 
   // ⑤ 저장·복원 후에도 순서·기호가 유지된다
   const round=await page.evaluate(()=>{
