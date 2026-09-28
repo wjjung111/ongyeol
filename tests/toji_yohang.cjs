@@ -217,6 +217,7 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     assert.equal(await page.locator('#y_usestate').inputValue(),'주택');
     assert.deepEqual(await page.locator('#y_usestateList input').evaluateAll(a=>a.map(x=>x.value)),['차고']);
     assert(await page.locator('#y_usestateTail').isHidden(),'여러 항목이면 첫 줄 끝 문구 숨김');
+    assert(await page.locator('#y_usestateMore').isHidden(),'저장용 칸은 화면에 안 보임');
     let us=await outputParagraphs();
     let at=us.indexOf('공부상');
     assert(at>=0,'공부상 문단: '+us.filter(t=>t.includes('공부상')).join(' | '));
