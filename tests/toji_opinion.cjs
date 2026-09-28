@@ -71,6 +71,41 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
     assert.equal(one.first,'mimetype');assert(one.text.includes('456,000,000'));assert(one.text.includes('공시 의견 & 특수문자 <검증>'));assert(one.text.includes('Codex 결정의견: 화면에서 입력한 문구.'));
     assert(one.text.includes('본건은 검증동 소재 검증초등학교 북측 인근에'));   // 개요 산문은 지번·'토지 및 건물' 없이 동까지
     assert(!one.text.includes('신사동'));assert(!one.text.includes('한국부동산원, 2025년'));assert(one.text.includes('검증분류'));assert(!one.text.includes('[기입]'));
+    // 건물 관찰감가(2026-09-28) — 끄면 산출개요 문장 없음 + 잔가율 표 '경과연수' 한 열(종전 폭 48,821)
+    //   켜면 문장 + '실제/유효 경과연수' 두 열(51,833), 잔가율은 유효경과연수 기준. 화면 표도 같은 두 열.
+    assert(!one.text.includes('관찰감가법'),'관찰감가 끄면 문장이 없어야 합니다');
+    const ageTable=async()=>page.evaluate(async()=>{
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const entries=await ArapCheonggu.parseZip(bytes.buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph',HH='http://www.hancom.co.kr/hwpml/2011/head';
+      const doc=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>/^Contents\/section\d+\.xml$/.test(e.name)).data),'application/xml');
+      const head=new DOMParser().parseFromString(new TextDecoder().decode(entries.find(e=>e.name==='Contents/header.xml').data),'application/xml');
+      const color=id=>Array.from(head.getElementsByTagNameNS(HH,'charPr')).find(p=>p.getAttribute('id')===id).getAttribute('textColor');
+      const ch=(el,n)=>Array.from(el.children).filter(x=>x.localName===n);
+      const tbl=Array.from(doc.getElementsByTagNameNS(HP,'tbl')).find(t=>{const h=ch(t,'tr')[0].textContent;return h.includes('경과')&&h.includes('해당층');});
+      const sent=ch(doc.documentElement,'p').find(p=>p.textContent.includes('관찰감가법'));
+      return {bytes:Array.from(bytes),cols:+tbl.getAttribute('colCnt'),width:+ch(tbl,'sz')[0].getAttribute('width'),
+        widths:ch(ch(tbl,'tr')[0],'tc').map(c=>+ch(c,'cellSz')[0].getAttribute('width')),
+        rows:ch(tbl,'tr').map(r=>ch(r,'tc').map(c=>c.textContent.trim())),
+        sent:sent?sent.textContent.trim():'',sentColors:sent?Array.from(sent.getElementsByTagNameNS(HP,'run')).map(r=>color(r.getAttribute('charPrIDRef'))):[]};
+    });
+    const plain=await ageTable();
+    assert.equal(plain.cols,8);assert.equal(plain.width,48821);assert.equal(plain.widths.reduce((a,b)=>a+b,0),48821);
+    assert.equal(plain.rows[0][5],'경과연수');assert.equal(plain.rows[1][5],'8');assert.equal(plain.rows[1][6],'42/50');assert.equal(plain.sent,'');
+    const scr=await page.evaluate(()=>{bldSetObs(true);bldSet(0,'eff','20');
+      return {head:[...document.querySelectorAll('#tblBldCalc tr:first-child th')].map(t=>t.textContent),box:document.getElementById('bld_obs').checked,
+        r0:window.BLD_RESULT.rows[0],r1:window.BLD_RESULT.rows[1]||null,obs:window.BLD_RESULT.observed};});
+    assert.ok(scr.box&&scr.obs);assert.ok(scr.head.includes('실제경과연수')&&scr.head.includes('유효경과연수')&&!scr.head.includes('경과연수'),scr.head.join('|'));
+    assert.equal(scr.r0.elapsed,8);assert.equal(scr.r0.eff,20);assert.equal(scr.r0.remaining,30);assert.equal(scr.r0.ratio,0.6);
+    if(scr.r1){assert.equal(scr.r1.eff,8,'유효경과연수를 비우면 실제 경과연수');assert.equal(scr.r1.remaining,42);}
+    const obs=await ageTable();await validate(page,obs.bytes,'observed');
+    fs.writeFileSync(path.join(out,'observed.hwpx'),Buffer.from(obs.bytes));   // 한글에서 열어 보는 확인용
+    assert.equal(obs.cols,9);assert.equal(obs.width,51833);
+    assert.equal(obs.rows[0][5],'실제경과연수');assert.equal(obs.rows[0][6],'유효경과연수');
+    assert.deepEqual(obs.rows[1].slice(5,8),['8','20','30/50']);
+    assert.equal(obs.sent,'감가수정은 현상 및 관리상태 등을 감안하여 관찰감가법을 병용하였음.');
+    assert.ok(obs.sentColors.every(c=>c==='#000000'),'관찰감가 문장은 검정: '+obs.sentColors);
+    await page.evaluate(()=>{bldSetObs(false);});
+    assert.equal((await ageTable()).cols,8,'다시 끄면 한 열');
     const oldPage=await context.newPage();await oldPage.goto(base+'/baseline.html',{waitUntil:'domcontentloaded'});const oldSimple=await fixture(oldPage);assert.deepEqual(simple,oldSimple);
     const multi=await fixture(page,true),oldMulti=await fixture(oldPage,true);assert.deepEqual(multi,oldMulti);
     const multiBytes=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data())));
