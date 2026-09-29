@@ -560,7 +560,8 @@
             <div class="row" style="margin-bottom:6px"><span class="hint">지대:</span>
               <select class="box" id="g_daegu" style="max-width:120px"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select></div>
             <div class="tw"><table id="tblGaebyeol"></table></div>
-            <div class="fld" style="margin-top:6px"><label>비교의견</label><input class="box" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함."></div>
+            <!-- 비교의견은 필지 행마다 아래 줄에 따로 쓴다(LANDS[i].gop). 이 숨은 칸은 그 기능 전 저장건의 공통 의견 — 필지 의견이 없으면 이 값을 보여 준다 -->
+            <input type="hidden" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함.">
           </div>
 
           <!-- 시산가액: 왼쪽 계산 흐름의 마지막 칸(거래사례비교법 탭과 같은 자리) -->
@@ -823,12 +824,16 @@
           <h3>Ⅱ. 토지의 개황</h3>
           <div class="y-location y-land">
             <h4>1. 지세 및 형상</h4>
-            <p>인접토지 및 인접도로 대비 <input type="text" id="y_jise" class="y-inline y-terrain" aria-label="지세" placeholder="등고평탄한"> <input type="text" id="y_shape" class="y-inline y-shape" aria-label="형상" placeholder="정방형">의 토지임.</p>
+            <!-- 본건 필지가 둘 이상이면(묶기 아님) 1~3항을 기호별로: 기호1 = 아래 기존 칸, 기호2부터 = LANDS[i].yh (renderYohangLands) -->
+            <p><span class="y-kiho" hidden>(1) 기호1 : </span>인접토지 및 인접도로 대비 <input type="text" id="y_jise" class="y-inline y-terrain" aria-label="지세" placeholder="등고평탄한"> <input type="text" id="y_shape" class="y-inline y-shape" aria-label="형상" placeholder="정방형">의 토지임.</p>
+            <div id="y_landMore1"></div>
             <h4>2. 이용상황</h4>
-            <p><input type="text" id="y_use" class="y-inline" aria-label="이용상황" placeholder="주상용 건부지">로 이용중임.</p>
+            <p><span class="y-kiho" hidden>(1) 기호1 : </span><input type="text" id="y_use" class="y-inline" aria-label="이용상황" placeholder="주상용 건부지">로 이용중임.</p>
+            <div id="y_landMore2"></div>
             <h4>3. 접면도로 상황</h4>
             <!-- 접면도로 수: 한 면만 접하면 ② 문구("…m, 북측으로 노폭 약 0m")와 "각각"을 빼고 출력한다(2026-09-22) -->
-            <p><select id="y_roadCnt" class="y-inline y-roadcnt" aria-label="접면도로 수"><option value="2">두 면 접함</option><option value="1">한 면만 접함</option></select> 본건 <input type="text" id="y_road1dir" class="y-inline y-direction" aria-label="접면도로① 방위" placeholder="남서측">으로 노폭 약 <input type="text" id="y_road1w" class="y-inline y-width" aria-label="접면도로① 노폭(m)" placeholder="0">m<span id="y_road2wrap">, <input type="text" id="y_road2dir" class="y-inline y-direction" aria-label="접면도로② 방위" placeholder="북측">으로 노폭 약 <input type="text" id="y_road2w" class="y-inline y-width" aria-label="접면도로② 노폭(m)" placeholder="0">m</span> 내외의 아스팔트 포장도로와 <span id="y_roadEach">각각 </span>접하고 있음.</p>
+            <p><select id="y_roadCnt" class="y-inline y-roadcnt" aria-label="접면도로 수"><option value="2">두 면 접함</option><option value="1">한 면만 접함</option></select> <span class="y-kiho" hidden>(1) 기호1 : </span><span id="y_roadBon">본건 </span><input type="text" id="y_road1dir" class="y-inline y-direction" aria-label="접면도로① 방위" placeholder="남서측">으로 노폭 약 <input type="text" id="y_road1w" class="y-inline y-width" aria-label="접면도로① 노폭(m)" placeholder="0">m<span id="y_road2wrap">, <input type="text" id="y_road2dir" class="y-inline y-direction" aria-label="접면도로② 방위" placeholder="북측">으로 노폭 약 <input type="text" id="y_road2w" class="y-inline y-width" aria-label="접면도로② 노폭(m)" placeholder="0">m</span> 내외의 아스팔트 포장도로와 <span id="y_roadEach">각각 </span>접하고 있음.</p>
+            <div id="y_landMore3"></div>
           </div>
 
           <h3>Ⅲ. 건물의 개황</h3>
@@ -2302,19 +2307,25 @@ function pickEtc(type,idx){
 
 // ================= 공시지가기준법 계산 (필지별) =================
 // 표준지별 그밖의요인 결정치를 STDS[j].etcDecide에 보관 — 표준지가 1개면 지금과 동일하게 동작
+// 본건-표준지 개별요인 비교의견 — 필지마다 한 줄(묶기면 LANDS[0] 하나). 의견서 개별요인 표의 필지별 「의견」 행으로 나간다.
+// 아직 안 적은 필지(gop 없음)는 예전 공통 의견(g_opinion)을 보여 준다.
+function landGop(L){L=L||{};if(L.gop!=null)return L.gop;var g=document.getElementById('g_opinion');return g?g.value:'';}
+function gopRow(i){
+  return '<tr><td colspan="8" style="text-align:left"><input value="'+esc(landGop(LANDS[i]))+'" placeholder="본건은 비교표준지와 비교하여 …" aria-label="'+(i+1)+'번 필지 비교의견" style="text-align:left" oninput="LANDS['+i+'].gop=this.value;saveForm();"></td></tr>';
+}
 function renderGaebyeol(){
   var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>';
   if(isLandGroup()){   // 묶기 — 묶은 필지 전체에 대해 한 세트만 입력
     var L0=LANDS[0]||{},f0=landFactors(L0);
-    h+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td><td>'+String.fromCharCode(65+(L0.stdIdx||0))+'</td>'+
+    h+='<tr><td rowspan="2" style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td><td>'+String.fromCharCode(65+(L0.stdIdx||0))+'</td>'+
       f0.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="setGroupFac(\'\','+k+',this.value);calcGongsi();saveForm();"></td>';}).join('')+
-      '<td class="calc-c fac">'+facProduct(f0).toFixed(3)+'</td></tr>';
+      '<td class="calc-c fac">'+facProduct(f0).toFixed(3)+'</td></tr>'+gopRow(0);
   }
   else LANDS.forEach(function(L,i){
     var f=landFactors(L);
-    h+='<tr><td>'+(i+1)+'</td><td>'+String.fromCharCode(65+(L.stdIdx||0))+'</td>'+
+    h+='<tr><td rowspan="2">'+(i+1)+'</td><td>'+String.fromCharCode(65+(L.stdIdx||0))+'</td>'+
       f.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="LANDS['+i+'].gf['+k+']=this.value;calcGongsi();saveForm();"></td>';}).join('')+
-      '<td class="calc-c fac">'+facProduct(f).toFixed(3)+'</td></tr>';
+      '<td class="calc-c fac">'+facProduct(f).toFixed(3)+'</td></tr>'+gopRow(i);
   });
   setTableHtml('tblGaebyeol',h);facToneAll();
 }
@@ -2925,7 +2936,48 @@ function fillYohangFromData(){
   var st=document.getElementById('y_struct'),auto=yohangStructAuto();
   if(st&&auto&&(!st.value.trim()||st.value===yohangStructAuto(true)||st.value===st.dataset.autoStruct)){st.value=auto;st.dataset.autoStruct=auto;}
   set('y_usestate',cgVal('bt_purps'));
-  applyRoadCnt();renderUsestate();
+  // 기호2부터(여러 필지) — 빈 칸만 그 필지의 지세·형상·이용상황으로
+  if(yohangMulti())LANDS.forEach(function(Li,i){if(!i)return;var y=Li.yh||(Li.yh={});
+    if(!hasV(y.jise)&&Li['지세'])y.jise=yohangTerrain(Li['지세']==='평지'?'평탄':Li['지세']);
+    if(!hasV(y.shape)&&Li['형상'])y.shape=Li['형상'];
+    if(!hasV(y.use)&&Li['이용상황'])y.use=Li['이용상황'];});
+  applyRoadCnt();renderUsestate();renderYohangLands();
+}
+// ── 요항표 Ⅱ. 토지의 개황 — 본건 필지가 둘 이상이면(묶기 아님) 1. 지세 및 형상 · 2. 이용상황 · 3. 접면도로 상황을 기호별로 ──
+// 기호1은 기존 칸(y_jise·y_shape·y_use·y_roadCnt·y_road…), 기호2부터는 필지에 LANDS[i].yh = {jise,shape,use,roadCnt,road1dir,road1w,road2dir,road2w}.
+// 의견서 출력은 arap_toji_documents.js가 yohangLands()를 읽어 문단을 "(1) 기호1 : …", "(2) 기호2 : …"로 나눈다.
+var YH_KEYS=['jise','shape','use','roadCnt','road1dir','road1w','road2dir','road2w'];
+function yohangMulti(){return LANDS.length>1&&!isLandGroup();}
+function yohangLands(){
+  var first={};YH_KEYS.forEach(function(k){first[k]=cgVal('y_'+k);});
+  if(!yohangMulti())return [first];
+  return LANDS.map(function(Li,i){if(!i)return first;var y=Li.yh||{},o={};YH_KEYS.forEach(function(k){o[k]=String(y[k]==null?'':y[k]);});return o;});
+}
+function renderYohangLands(){
+  var multi=yohangMulti();
+  [].forEach.call(document.querySelectorAll('.y-kiho'),function(el){el.hidden=!multi;});
+  var bon=document.getElementById('y_roadBon');if(bon)bon.hidden=multi;
+  var boxes=[1,2,3].map(function(n){return document.getElementById('y_landMore'+n);});
+  if(boxes.some(function(b){return !b;}))return;
+  boxes.forEach(function(b){b.innerHTML='';});
+  if(!multi)return;
+  LANDS.forEach(function(Li,i){
+    if(!i)return;
+    var y=Li.yh||{},pre='('+(i+1)+') 기호'+(i+1)+' : ',one=y.roadCnt==='1',hide=one?' style="display:none"':'';
+    var inp=function(k,cls,label,ph){return '<input type="text" class="y-inline '+cls+'" data-i="'+i+'" data-k="'+k+'" aria-label="기호'+(i+1)+' '+label+'" placeholder="'+ph+'" value="'+esc(y[k]||'')+'">';};
+    boxes[0].insertAdjacentHTML('beforeend','<p>'+pre+'인접토지 및 인접도로 대비 '+inp('jise','y-terrain','지세','등고평탄한')+' '+inp('shape','y-shape','형상','정방형')+'의 토지임.</p>');
+    boxes[1].insertAdjacentHTML('beforeend','<p>'+pre+inp('use','','이용상황','주상용 건부지')+'로 이용중임.</p>');
+    boxes[2].insertAdjacentHTML('beforeend','<p><select class="y-inline y-roadcnt" data-i="'+i+'" data-k="roadCnt" aria-label="기호'+(i+1)+' 접면도로 수"><option value="2">두 면 접함</option><option value="1"'+(one?' selected':'')+'>한 면만 접함</option></select> '+pre+
+      inp('road1dir','y-direction','접면도로① 방위','남서측')+'으로 노폭 약 '+inp('road1w','y-width','접면도로① 노폭(m)','0')+'m<span class="y-road2"'+hide+'>, '+
+      inp('road2dir','y-direction','접면도로② 방위','북측')+'으로 노폭 약 '+inp('road2w','y-width','접면도로② 노폭(m)','0')+'m</span> 내외의 아스팔트 포장도로와 <span class="y-road2"'+hide+'>각각 </span>접하고 있음.</p>');
+  });
+}
+function yohangLandInput(e){
+  var el=e.target;if(!el||!el.dataset||el.dataset.i==null)return;
+  var Li=LANDS[+el.dataset.i];if(!Li)return;
+  (Li.yh||(Li.yh={}))[el.dataset.k]=el.value;
+  if(el.dataset.k==='roadCnt'){var one=el.value==='1';[].forEach.call(el.parentNode.querySelectorAll('.y-road2'),function(sp){sp.style.display=one?'none':'';});}
+  saveForm();
 }
 // 대상물건개요의 구조·층수(지상/지하 = "4/1")로 만드는 건물 구조 자동 문구. groundOnly=true 면 예전 방식(지상만)
 // 층수(지상/지하 "4/1") → "지하 1층 지상 4층" (명세표 건물란·요항표 건물 구조가 같이 쓴다)
@@ -3748,6 +3800,7 @@ CG_IDS.forEach(function(id){
 document.getElementById('cg_specialApplied').addEventListener('blur',function(){renderCheonggu();saveForm();});
 Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',saveForm);});
 document.getElementById('y_roadCnt').addEventListener('change',function(){applyRoadCnt();saveForm();});
+[1,2,3].forEach(function(n){var b=document.getElementById('y_landMore'+n);if(b){b.addEventListener('input',yohangLandInput);b.addEventListener('change',yohangLandInput);}});
 document.getElementById('y_trafficNear').addEventListener('change',saveForm);
 document.getElementById('y_usestateAdd').onclick=addUsestateItem;
 document.getElementById('y_usestateFromBld').onclick=usestateFromBld;

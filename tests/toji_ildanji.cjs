@@ -48,7 +48,7 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   assert.equal(grp.area,'965.8');
   assert.equal(grp.rowspan,2);                 // 사정면적 칸이 두 행을 합쳐 한 칸
   assert.equal(grp.sisanRows,2);               // 머리행 + 일단지 한 줄
-  assert.equal(grp.facRows,2);                 // 개별요인도 한 세트
+  assert.equal(grp.facRows,3);                 // 개별요인도 한 세트(머리행 + 요인 행 + 비교의견 행)
   near(grp.size,965.8);near(grp.gongbu,965.8);
   assert.equal(grp.sajSum,'965.8');
   assert.equal(grp.total,Math.round(grp.unit*965.8*1e-6)*1e6||grp.unit*965.8);

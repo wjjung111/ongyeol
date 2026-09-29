@@ -36,6 +36,9 @@ function dropSecondRoad(doc){
   if(!t)return;
   var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
   if(!p)return;
+  dropSecondRoadIn(p);
+}
+function dropSecondRoadIn(p){
   var runs=Array.from(p.children).filter(function(n){return n.localName==='run';});
   var i=runs.findIndex(function(r){return r.textContent.indexOf('{{요항_도로2방위}}')>=0;});
   var w=runs.findIndex(function(r){return r.textContent.indexOf('{{요항_도로2노폭}}')>=0;});
@@ -44,6 +47,48 @@ function dropSecondRoad(doc){
   runs.slice(i-1,w+1).forEach(function(r){r.remove();});
   runs.slice(w+1).forEach(function(r){Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(n){n.textContent=n.textContent.replace('각각 ','');});});
   Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+}
+// 본건 필지가 둘 이상이면(묶기 아님, 토지건물.html yohangLands) 「Ⅱ. 토지의 개황」 1. 지세 및 형상 · 2. 이용상황 · 3. 접면도로 상황
+// 문단을 기호마다 한 문단씩 복제한다: "(1) 기호1 : 인접토지 및 인접도로 대비 …", "(2) 기호2 : …".
+// 앞머리는 문단의 검정 런을 복제해 검정으로, 값은 빨강 런 그대로. 접면도로는 "본건 "을 빼고 기호별 접면도로 수대로(한 면이면 ②·'각각' 뺌).
+// 값이 빈 칸은 {{토큰#n}}으로 표시해 두었다가(아래 채움 단계가 기호1 값으로 덮지 않게) 마지막에 양식 표시 {{토큰}}로 돌린다.
+var LAND_PARAS=[
+  {tok:'{{요항_지세}}',keys:{'요항_지세':'jise','토지_형상':'shape'}},
+  {tok:'{{요항_이용상황}}',keys:{'요항_이용상황':'use'}},
+  {tok:'{{요항_도로1방위}}',keys:{'요항_도로1방위':'road1dir','요항_도로1노폭':'road1w','요항_도로2방위':'road2dir','요항_도로2노폭':'road2w'},road:true}];
+function splitLandParas(doc,red){
+  var lands=(typeof yohangLands==='function')?yohangLands():[];
+  if(lands.length<2)return;
+  var runsOf=function(p){return Array.from(p.children).filter(function(n){return n.localName==='run';});};
+  var tsOf=function(el){return Array.from(el.getElementsByTagNameNS('*','t'));};
+  LAND_PARAS.forEach(function(spec){
+    var t=tsOf(doc).find(function(n){return n.textContent.indexOf(spec.tok)>=0;});
+    if(!t)return;
+    var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
+    if(!p)return;
+    lands.forEach(function(ld,i){
+      var c=p.cloneNode(true);
+      if(spec.road){
+        if(ld.roadCnt==='1')dropSecondRoadIn(c);
+        var t0=runsOf(c).length?tsOf(runsOf(c)[0])[0]:null;
+        if(t0)t0.textContent=t0.textContent.replace(/^본건\s*/,'');
+      }
+      tsOf(c).forEach(function(n){n.textContent=n.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
+        if(!Object.prototype.hasOwnProperty.call(spec.keys,k))return full;
+        var v=String(ld[spec.keys[k]]||'').trim();if(k==='요항_지세')v=v.replace(/한$/,'');
+        return v||'{{'+k+'#'+(i+1)+'}}';
+      });});
+      var black=runsOf(c).find(function(r){return !red.has(r.getAttribute('charPrIDRef'))&&tsOf(r).length;});
+      if(black){
+        var pre=black.cloneNode(true);
+        tsOf(pre).forEach(function(n,j){n.textContent=j?'':'('+(i+1)+') 기호'+(i+1)+' : ';});
+        c.insertBefore(pre,runsOf(c)[0]);
+      }
+      Array.from(c.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+      p.parentNode.insertBefore(c,p);
+    });
+    p.remove();
+  });
 }
 // 이용상태 항목(가·나·다) — 요항표 탭 첫 칸 + 추가 항목(y_usestateMore, JSON 배열). 빈 항목은 뺀다.
 function usestateItems(){
@@ -131,6 +176,7 @@ async function buildYohang(){
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
     fillLocationNarrative(d);
+    splitLandParas(d,red);   // 여러 필지면 토지의 개황 1~3항을 기호별 문단으로(이 뒤 dropSecondRoad는 할 일이 없어진다)
     dropSecondRoad(d);
     setTrafficNear(d);
     splitUsestate(d);
@@ -141,7 +187,7 @@ async function buildYohang(){
           return map[k];});                             // 채운 값도 빨강 글자모양 그대로 둔다
       });
     });
-    var out=ser(d);
+    var out=ser(d).replace(/\{\{([^{}#]+)#\d+\}\}/g,'{{$1}}');   // 기호2부터 빈 칸 표시를 양식 표시로
     // 토지이용계획은 여러 줄 → 문단을 줄 수만큼 복제하고, 복제본 글자색은 빨강으로(다른 채움 자리와 같게)
     out=expandPara(out,'{{요항_용도지역}}',toice,redOf);
     e.data=enc.encode(out);
