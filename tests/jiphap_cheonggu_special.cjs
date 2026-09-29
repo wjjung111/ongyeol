@@ -29,11 +29,11 @@ const FEE=['1  예상평가액  1,775,270,360',
  const r={};
  r['상한-하한']=await pick('상한-하한');r['기준-하한']=await pick('기준-하한');r['상한-기준']=await pick('상한-기준');
  console.log(mode,r);
- assert.equal(r['상한-하한'],'615,580');   // 2,128,260 - 1,512,680
- assert.equal(r['기준-하한'],'302,536');   // 1,815,216 - 1,512,680
- assert.equal(r['상한-기준'],'313,044');   // 2,128,260 - 1,815,216
+ assert.equal(r['상한-하한'],'616,000');   // 2,128,260 - 1,512,680 = 615,580 → 천원 반올림
+ assert.equal(r['기준-하한'],'303,000');   // 1,815,216 - 1,512,680
+ assert.equal(r['상한-기준'],'313,000');   // 2,128,260 - 1,815,216
  // 채워진 값은 직접 고칠 수 있다
- const inp=card.locator('input[placeholder="계산서 붙여넣으면 자동"]').first();await inp.fill('313,000');assert.equal(await inp.inputValue(),'313,000');
+ const inp=card.locator('input[placeholder="계산서 붙여넣으면 자동"]').first();await inp.fill('313,044');assert.equal(await inp.inputValue(),'313,044');
  assert.equal(errors.length,0);
  await ctx.close();
  }

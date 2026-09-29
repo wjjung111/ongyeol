@@ -1980,7 +1980,7 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
   const P=k=>pNum(fee[k])||0, rd0=n=>Math.floor((n||0)/1000)*1000;
   // 특별용역비 방식: 상한-하한/기준-하한은 붙여넣은 계산서의 수수료 차액을 절사 없이 그대로 자동입력 (칸은 항상 자유수정 가능)
   const specialFeeMode=fee.specialFeeMode||"직접입력";
-  const specialFeeAuto=(()=>{if(specialFeeMode==="직접입력")return null;try{const f=parseFeeStatement(fee.feeText||"");if(!f.하한수수료)return null;const hi=specialFeeMode==="상한-하한"?f.상한수수료:f.기준수수료;if(!hi)return null;return hi-f.하한수수료;}catch(e){return null;}})();
+  const specialFeeAuto=(()=>{if(specialFeeMode==="직접입력")return null;try{const f=parseFeeStatement(fee.feeText||"");if(!f.하한수수료)return null;const hi=specialFeeMode==="상한-하한"?f.상한수수료:f.기준수수료;if(!hi)return null;return Math.round((hi-f.하한수수료)/1000)*1000;}catch(e){return null;}})();
   useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setFee(p=>({...p,specialFee:fmtComma(String(specialFeeAuto))}));},[specialFeeMode,fee.feeText]);
   // 여비 자동: 소재지(사업위치·시군구·법정동) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
   const travelAutoFull=arapTravelFee(`${ov.projLoc||""} ${ov.sigungu||""} ${ov.beopjeongdong||""}`);

@@ -925,7 +925,7 @@
               <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한·상한-기준이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
               <span class="mul-x" id="cg_specialMulX">×</span>
               <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다. 직접입력 방식에서는 쓰이지 않습니다." oninput="CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();">
-            </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(예: 351,223 → 351,000). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
+            </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(자동값은 천원 단위 반올림 — 예: 755,897 → 756,000. 원 단위로 되돌리려면 755,897처럼 직접 입력). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
           <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
           <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
           <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
@@ -2863,9 +2863,9 @@ function cgFeeMul(){return cgMul('cg_feeMul');}
 function cgSpecialMul(){return cgMul('cg_specialMul');}
 // 특별용역비(청구서·합계에 나가는 값)
 //  · 직접입력: 칸에 적은 금액 그대로(배수 없음 — 평가사가 원하는 액수를 바로 적는 방식)
-//  · 상한-하한/기준-하한: 차액 × 배수(원 미만 절사)를 '적용액' 칸에 채우고, 평가사가 그 칸을 고쳤으면 고친 값
+//  · 상한-하한/기준-하한: 차액 × 배수(천원 단위 반올림)를 '적용액' 칸에 채우고, 평가사가 그 칸을 고쳤으면 고친 값
 function cgSpecialIsDirect(){return (cgVal('cg_specialMode')||'직접입력')==='직접입력';}
-function cgSpecialAutoApplied(){return Math.trunc(num(cgVal('cg_special'))*cgSpecialMul());}
+function cgSpecialAutoApplied(){return Math.round(num(cgVal('cg_special'))*cgSpecialMul()/1000)*1000;}   // 기본값: 천원 단위 반올림(755,897→756,000), 적용액 칸에서 자유 수정
 function cgSpecialApplied(){
   if(cgSpecialIsDirect())return num(cgVal('cg_special'));
   if(CG_SPECIAL_MANUAL&&hasV(cgVal('cg_specialApplied')))return num(cgVal('cg_specialApplied'));
