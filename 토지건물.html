@@ -1956,6 +1956,7 @@ function addCase(){TRADES.push({});renderTrade();syncPick();saveForm();}
 // 사례 번호(#1·#2…)는 따로 저장하지 않고 열 순서에서 나오므로 옮기면 저절로 다시 매겨진다.
 // 대신 자리로 기억하는 것들 — 그밖의요인·거래사례 선정, ↩복구 자리 — 은 같이 옮겨 줘야 한다.
 // splice로 f자리 항목을 t자리로 옮겼을 때, 옛 자리 j가 가는 새 자리 (거래사례 열·평가사례 행 공용)
+function idxAfterDel(j,i){return j===i?-1:(j>i?j-1:j);}
 function idxAfterMove(j,f,t){
   if(j===f)return t;
   if(f<t)return (j>f&&j<=t)?j-1:j;
@@ -2005,8 +2006,9 @@ function delTrade(i){
   // 3열까지는 항상 남긴다: 3열 이하면 그 열만 비우고, 4열 이상이면 열을 없앤다
   if(!snap.spliced){TRADES[i]={};}
   else{TRADES.splice(i,1);
-    if(ETC.type==='t'&&ETC.idx>=TRADES.length)ETC.idx=TRADES.length-1;
-    if(GA.idx>=TRADES.length)GA.idx=0;}
+    // 지운 사례가 선정돼 있었으면 선정 해제, 뒤쪽 사례를 골라 뒀으면 한 칸 당겨 같은 사례를 가리킨다
+    if(ETC.type==='t')ETC.idx=idxAfterDel(ETC.idx,i);
+    GA.idx=idxAfterDel(GA.idx,i);}
   renderTrade();syncPick();calcGongsi();saveForm();
   var msg=document.getElementById('pTradeMsg');
   msg.className='pst';msg.textContent='거래사례 #'+(i+1)+'('+(snap.data.loc||'내용 없음')+')을 '+(snap.spliced?'삭제':'비움')+'했습니다 — 머리글의 ↩로 복구할 수 있습니다.';
@@ -2080,7 +2082,7 @@ function delAppr(i){
   // 3행까지는 항상 남긴다: 3행 이하면 그 행만 비우고, 4행 이상이면 행을 없앤다
   if(APPRS.length<=3){APPRS[i]={};renderAppr();syncPick();calcGongsi();saveForm();return;}
   APPRS.splice(i,1);
-  if(ETC.type==='a'&&ETC.idx>=APPRS.length)ETC.idx=Math.max(0,APPRS.length-1);
+  if(ETC.type==='a')ETC.idx=idxAfterDel(ETC.idx,i);
   renderAppr();syncPick();calcGongsi();saveForm();
 }
 // 행별 kapa hub 붙여넣기: 붙인 행부터 차례로 채운다(여러 건이면 아래 행으로, 모자라면 행 추가). 기호는 행 순서대로 a,b,c…
@@ -2183,7 +2185,8 @@ function parseApprText(text){
 }
 
 // ================= 그 밖의 요인 =================
-var ETC={type:'t',idx:0};
+// 적용사례는 평가사가 직접 고른다 — 새 건은 선정 없음(-1). 고르면 그 사례의 시점수정치를 바로 계산한다(pickEtc·pickGa).
+var ETC={type:'t',idx:-1};
 function syncPick(){
   var sel=document.getElementById('etcPick'),h='';
   TRADES.forEach(function(c,i){h+='<option value="t'+i+'"'+(ETC.type==='t'&&ETC.idx===i?' selected':'')+'>거래사례 #'+(i+1)+' — '+(c.loc||'')+'</option>';});
@@ -2237,7 +2240,7 @@ function etcPaint(OV,AUTO){
 }
 
 // ================= 거래사례비교법 채택 =================
-var GA={idx:0};
+var GA={idx:-1};
 // 거래사례 표의 '거래사례 선정' 행 라디오를 GA.idx에 맞춘다 (표 전체를 다시 그리지 않고 체크만 옮김)
 function syncGaRow(){var tbl=document.getElementById('tblTrade');if(!tbl)return;
   [].forEach.call(tbl.querySelectorAll('input[name="pickTradeGa"]'),function(r,i){r.checked=(GA.idx===i);});}
@@ -3391,7 +3394,7 @@ function applyForm(o){
   CG_TRAVEL_MANUAL=typeof o.cgTravelManual==='boolean'?o.cgTravelManual:
     (hasV(cgVal('cg_travel'))&&num(cgVal('cg_travel'))!==40000&&num(cgVal('cg_travel'))!==cgTravelAuto());
   CG_SPECIAL_MANUAL=o.cgSpecialManual===true;
-  TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:0};GA=o.GA||{idx:0};window.BLD_STATE=o.BLD_STATE||{};
+  TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:-1};GA=o.GA||{idx:-1};window.BLD_STATE=o.BLD_STATE||{};
   // 그 밖의 사항 — 이 기능 전에 저장된 건(etcItems 없음)은 양식 기본 문구로
   ETC_ITEMS=Array.isArray(o.etcItems)?etcMigrate(o.etcItems.map(function(s){return String(s==null?'':s);})):ETC_ITEMS_DEFAULT.slice();
   window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
@@ -3462,7 +3465,7 @@ function clearForm(){
   GONGSI_IDS.concat(GEORAE_IDS).concat(GJ_IDS).concat(FN_IDS).concat(CG_IDS).forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   CG_TRAVEL_MANUAL=false;CG_SPECIAL_MANUAL=false;
   Y_IDS.forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.autoUse;delete el.dataset.autoStruct;}});TOICE={};applyRoadCnt();renderUsestate();
-  TRADES=[];APPRS=[];ETC={type:'t',idx:0};GA={idx:0};window.BLD_STATE=bldNewState();
+  TRADES=[];APPRS=[];ETC={type:'t',idx:-1};GA={idx:-1};window.BLD_STATE=bldNewState();
   ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
 }
 // 그 밖의 요인 표의 지역요인 두 칸은 비워 두지 않고 항상 1.000으로 채운다(값은 언제든 고칠 수 있고, 지우면 다시 1.000)

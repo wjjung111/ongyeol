@@ -173,7 +173,7 @@ function opinionData(){
   var gs=window.GONGSI_RESULT,ga=window.GEORAE_RESULT||{};
   var br=(typeof bldResult==='function'?bldResult():null)||window.BLD_RESULT||{rows:[],total:0,size:0};
   if(!gs||!gs.rows||!gs.rows.length||!gs.total)throw new Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
-  var etc=gs.etc,choice=etcCase(),choiceName=ETC.type==='t'?'거래사례 #'+(ETC.idx+1):'평가사례 '+text(choice&&choice.no);
+  var etc=gs.etc,choice=etcCase(),choiceName=!choice?'':ETC.type==='t'?'거래사례 #'+(ETC.idx+1):'평가사례 '+text(choice&&choice.no);
   var tm=etcTimeMeta(),selected=TRADES[GA.idx]||{},gt=(ga.rows||[])[0]||{};
   var date=docDot(val('base_gongsi'));
   var m={
@@ -183,7 +183,7 @@ function opinionData(){
     '공시시점_설명':[val('jb_region'),'('+date+'~'+docDot(val('base_gijun'))+')',val('jb_use')].filter(Boolean).join(' '),
     '공시시점_치':fixed(gs.rows[0].time,5),'공시시점_률':fixed((gs.rows[0].time-1)*100,3)+'%',
     '공시개별_의견':val('g_opinion'),'거래개별_의견':val('ga_opinion'),'그밖개별_의견':val('e_opinion'),
-    '그밖_채택사례':choiceName,'그밖_사례기호':ETC.type==='t'?'#'+(ETC.idx+1):text(choice&&choice.no),
+    '그밖_채택사례':choiceName,'그밖_사례기호':!choice?'':ETC.type==='t'?'#'+(ETC.idx+1):text(choice&&choice.no),
     '그밖_사례단가':money(etc.source),'그밖_사정':fixed(etc.sajeong,3),'그밖_시점':fixed(etc.time,5),
     '그밖_지역':fixed(etc.area,3),'그밖_개별':fixed(etc.individual,3),'그밖_산출단가':money(etc.out1),
     '그밖_비교치':fixed(etc.ratio,2),'그밖_표준지_시점':fixed(etc.stdTime,5),'그밖_표준지_개별':fixed(etc.stdIndividual,3),
@@ -191,7 +191,7 @@ function opinionData(){
     '그밖_시점설명':(tm?timeMetaLabel(tm):'')+') : '+fixed(etc.time,5),
     // 「2) 거래사례의 선정 및 그 이유」 문장 — '#2'만 적으면 무엇의 2번인지 안 보여서
     // 아래 표 머리(거래사례#1·#2·#3)와 같은 말로 '거래사례#2'로 내보낸다(2026-09-22 요청).
-    '거래_채택기호':'거래사례#'+(GA.idx+1),'거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
+    '거래_채택기호':TRADES[GA.idx]?'거래사례#'+(GA.idx+1):'','거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
     '거래_시점률':gt.time==null?'':fixed((gt.time-1)*100,3)+'%','거래_시점':fixed(gt.time,5),
     '공시_시산가액':money(gs.total),'거래_시산가액':money(ga.total),'토지감정평가액':money(window.LAND_FINAL),
     '토지_면적':area(gs.gongbuSize||gs.size),'토지_사정면적':area(gs.size),   // 합계 자리 — 공부면적/사정면적 각각
