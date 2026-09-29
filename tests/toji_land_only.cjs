@@ -64,7 +64,12 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       fs.writeFileSync(path.join(out,'토지만_의견서_'+mode+'.hwpx'),Buffer.from(bytes));
       const r=await check(page,bytes);
       assert.deepEqual(r.left,[],mode+' 남은 토큰');assert.deepEqual(r.bad,[],mode+' 표 구조');
-      assert(!/건물면적|사용승인일|재조달원가\(원|건물금액/.test(r.text),mode+' 거래사례 표 건물 칸 없음');
+      // 거래사례 표 — 정답 샘플처럼 건물 칸 8줄은 남기고, 토지만 거래라 값은 '-'
+      const trs=r.tables.filter(t=>t[0][0]==='구분'&&t[0].join('').includes('거래사례#1'));
+      assert.equal(trs.length,2,'거래사례 표 2개');
+      trs.forEach(t=>{assert.equal(t.length,17,'거래사례 표 17줄');
+        ['건물면적(㎡)','사용승인일','주구조','재조달원가(원/㎡)','내용연수','잔존연수','건물 적용단가(원/㎡)','건물금액(원)'].forEach(lb=>{
+          const row=t.find(x=>x[0]===lb);assert(row,lb);assert.equal(row[1],'-',mode+' '+lb+' = -');});});
       assert(r.text.includes('원가법'),'원가법 정의 문단 유지');
       assert(r.text.includes('본건 토지에 대하여')&&r.text.includes('현황 토지의 면적'),'오타 수정');
       assert(!r.text.includes('토지 및 건물의 특성')&&r.text.includes('목적으로서 수요성, 환가성, 공시지가와 인근지역의 현지조사 가격수준, 토지 특성 등을'),'결정의견 = 정답 샘플 문구');

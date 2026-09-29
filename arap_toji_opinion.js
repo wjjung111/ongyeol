@@ -69,7 +69,11 @@ function tradeMap(c,n){
   // 자동계산 칸은 화면과 같은 규칙 — 계산할 재료가 없거나 결과가 0이면 0이 아니라 '-'로 적는다.
   m[prefix+'잔존연수']=active?((manualNum(c.rest)||cal.restAuto!=null)?text(cal.rest):'-'):'';
   var keys={건물단가:'bldUnit',건물금액:'bldAmt',토지금액:'landAmt',토지단가:'landUnit'};
-  Object.keys(keys).forEach(function(k){m[prefix+k]=active?(cal[keys[k]]?money(cal[keys[k]]):'-'):'';});return m;
+  Object.keys(keys).forEach(function(k){m[prefix+k]=active?(cal[keys[k]]?money(cal[keys[k]]):'-'):'';});
+  // 토지만 — 거래사례 표의 건물 칸(8줄)은 남기고, 토지만의 거래라 비어 있는 칸은 '-'(토지만 정답 샘플과 같게)
+  if(active&&typeof LAND_ONLY!=='undefined'&&LAND_ONLY)['건물면적','승인일','주구조','재조달','내용연수','잔존연수','건물단가','건물금액'].forEach(function(k){
+    if(!String(m[prefix+k]||'').trim())m[prefix+k]='-';});
+  return m;
 }
 // 거래시점에 이미 내용연수를 넘긴 사례(경과연수 ≥ 내용연수) — 잔존연수를 관찰감가로 직접 정하게 되는 경우.
 // 의견서 거래사례 표에서 그 사례의 건물 감가 관련 칸을 빨간 글씨로 내보내 눈에 띄게 한다.
