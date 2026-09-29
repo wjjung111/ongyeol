@@ -72,9 +72,9 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     assert.equal(await page.locator('#y_surroundings').evaluate(el=>getComputedStyle(el,'::placeholder').color),'rgb(160, 167, 178)');
     assert.equal(await page.locator('#landQuery').getAttribute('placeholder'),'','다른 화면의 예시 숨김 동작은 유지');
     assert.deepEqual(await page.locator('.y-location:not(.y-land):not(.y-bld) h4').allTextContents(),['1. 지리적 위치','2. 부근상황','3. 교통상황','4. 기타사항']);
-    // Ⅲ. 건물의 개황도 문장형 — 양식 문구 그대로("건물로서 / 등 / 창호 등임. / 로 이용 중임.")
+    // Ⅲ. 건물의 개황도 문장형 — 양식 문구 그대로("건물로서 / 등 / 창호 등임. / 로 이용 중임.") — '로/으로'는 입력값 받침대로(다가구주택 → 으로)
     assert.deepEqual(await page.locator('.y-bld h4').allTextContents(),['1. 건물의 구조','2. 이용상태']);
-    assert.deepEqual((await page.locator('.y-bld p').allInnerTexts()).map(t=>t.replace(/\s+/g,' ').trim()),['건물로서','- 외벽 : 등','- 창호 : 창호 등임.','공부상 로 이용 중임.','+ 항목 추가 (가·나·다) 건물표에서 채우기']);
+    assert.deepEqual((await page.locator('.y-bld p').allInnerTexts()).map(t=>t.replace(/\s+/g,' ').trim()),['건물로서','- 외벽 : 등','- 창호 : 창호 등임.','공부상 으로 이용 중임.','+ 항목 추가 (가·나·다) 건물표에서 채우기']);
     assert.deepEqual(await page.evaluate(()=>['y_struct','y_wall','y_window','y_usestate'].map(id=>document.getElementById(id).closest('.y-bld')?document.getElementById(id).className:'')),['y-inline y-struct','y-inline y-wall','y-inline y-window','y-inline y-usestate']);
     async function outputParagraphs(){return page.evaluate(async()=>{
       const bytes=await ArapTojiDocuments.buildYohang();
@@ -234,11 +234,11 @@ const RAW=`「국토의 계획 및 이용에 관한 법률」에 따른 지역�
     await page.evaluate(()=>showTab('yohang'));
     assert.deepEqual(await page.locator('#y_usestateList input').evaluateAll(a=>a.map(x=>x.value)),['2동 : 근린생활시설','2동 : 창고','기타 수기 항목'],'추가 항목 저장·복원');
     us=await outputParagraphs();at=us.indexOf('공부상');
-    assert.deepEqual(us.slice(at,at+5),['공부상','가) 1동 : 주택','나) 2동 : 근린생활시설','다) 2동 : 창고','라) 기타 수기 항목로 이용 중임.']);
+    assert.deepEqual(us.slice(at,at+5),['공부상','가) 1동 : 주택','나) 2동 : 근린생활시설','다) 2동 : 창고','라) 기타 수기 항목으로 이용 중임.']);
     // 항목 모두 지우면 원래 한 줄 문장
     while(await page.locator('#y_usestateList .del').count())await page.locator('#y_usestateList .del').first().click();
     assert(await page.locator('#y_usestateTail').isVisible());
-    assert((await outputParagraphs()).includes('공부상 1동 : 주택로 이용 중임.'));
+    assert((await outputParagraphs()).includes('공부상 1동 : 주택으로 이용 중임.'));
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify({status:'PASS',auto},null,1));
   }finally{await browser.close();server.close();}
