@@ -189,6 +189,53 @@ function fillLocationNarrative(doc){
     p.remove();return false;
   });
 }
+// ── 토지만 평가(토지건물.html LAND_ONLY) ──
+function landOnly(){return typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY;}
+// 요항표: 「Ⅲ. 건물의 개황」 제목부터 끝까지 본문 문단을 뺀다(구역 설정·개체가 든 문단은 남김).
+function dropBldSection(doc){
+  var ps=Array.from(doc.documentElement.children).filter(function(p){return p.localName==='p';});
+  var at=ps.findIndex(function(p){return /^Ⅲ\.\s*건물의 개황/.test(p.textContent.trim());});
+  if(at<0)return;
+  ps.slice(at).forEach(function(p){
+    if(p.getElementsByTagNameNS('*','secPr').length||p.getElementsByTagNameNS('*','ctrl').length||p.getElementsByTagNameNS('*','tbl').length)return;
+    p.remove();
+  });
+}
+// 한글 표에서 행 하나를 뺀다 — 위에서 이 행까지 세로로 합쳐진 칸은 한 줄 줄이고, 아래 행 번호·표 높이·행 수를 맞춘다.
+function dropHwpxRow(tbl,tr){
+  var kids=function(el,n){return Array.from(el.children).filter(function(x){return x.localName===n;});};
+  var rows=kids(tbl,'tr'),idx=rows.indexOf(tr);if(idx<0)return;
+  var h=Math.max.apply(null,kids(tr,'tc').map(function(c){var sp=+kids(c,'cellSpan')[0].getAttribute('rowSpan');return sp===1?+kids(c,'cellSz')[0].getAttribute('height'):0;}).concat([0]));
+  rows.slice(0,idx).forEach(function(r){kids(r,'tc').forEach(function(c){
+    var ad=kids(c,'cellAddr')[0],sp=kids(c,'cellSpan')[0],sz=kids(c,'cellSz')[0],r0=+ad.getAttribute('rowAddr'),n=+sp.getAttribute('rowSpan');
+    if(r0+n>idx){sp.setAttribute('rowSpan',String(n-1));sz.setAttribute('height',String(Math.max(0,+sz.getAttribute('height')-h)));}
+  });});
+  tr.remove();
+  kids(tbl,'tr').forEach(function(r,i){kids(r,'tc').forEach(function(c){kids(c,'cellAddr')[0].setAttribute('rowAddr',String(i));});});
+  tbl.setAttribute('rowCnt',String(kids(tbl,'tr').length));
+  var tsz=kids(tbl,'sz')[0];if(tsz)tsz.setAttribute('height',String(Math.max(0,+tsz.getAttribute('height')-h)));
+  var host=tbl.parentNode;while(host&&host.localName!=='p')host=host.parentNode;
+  if(host)Array.from(host.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){if(n.parentNode===host)n.remove();});
+}
+// 괄호감정표(토건 양식) → 토지만: 평가내역의 건물 줄을 빼고, 목록표시근거에서 일반건축물대장을 뺀다. base64로 돌려준다.
+async function landOnlyGwal(b64){
+  var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
+  entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
+    var d=xml(dec.decode(e.data));
+    Array.from(d.getElementsByTagNameNS('*','tr')).filter(function(tr){return tr.textContent.indexOf('{{괄_건물_')>=0;}).forEach(function(tr){
+      var tbl=tr.parentNode;while(tbl&&tbl.localName!=='tbl')tbl=tbl.parentNode;if(tbl)dropHwpxRow(tbl,tr);});
+    var ts=Array.from(d.getElementsByTagNameNS('*','t'));
+    ts.forEach(function(t,ti){
+      if(t.textContent.indexOf('일반건축물대장')>=0){t.textContent=t.textContent.replace(/,\s*일반건축물대장\s*,\s*/,', ').replace(/일반건축물대장\s*,\s*/,'');
+        // 양식은 "토지대장," / "일반건축물대장, 귀 제시자료"로 글자 조각이 나뉘어 있다 — 앞 조각이 쉼표로 끝나면 띄어 쓴다
+        var prev=ts[ti-1];if(prev&&/,$/.test(prev.textContent)&&t.textContent&&!/^\s/.test(t.textContent))t.textContent=' '+t.textContent;
+        var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;if(p)Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});}});
+    e.data=enc.encode(ser(d));
+  });
+  var bytes=A.createZipStored(entries);if(bytes instanceof Promise)bytes=await bytes;
+  var u=new Uint8Array(bytes.buffer||bytes),s='';for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
+  return btoa(s);
+}
 async function buildYohang(){
   var b64=await fetchTplB64('템플릿/토건 요항표 템플릿.hwpx');
   var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer);
@@ -208,6 +255,7 @@ async function buildYohang(){
   var toice=(typeof assembleToice==='function')?assembleToice():'';
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
+    if(landOnly())dropBldSection(d);   // 토지만 — 「Ⅲ. 건물의 개황」 절 없음
     fillLocationNarrative(d);
     splitLandParas(d,red);   // 여러 필지면 토지의 개황 1~3항을 기호별 문단으로(이 뒤 dropSecondRoad는 할 일이 없어진다)
     dropSecondRoad(d);
@@ -342,5 +390,5 @@ $('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=a
 function downloadYohang(btn,statusId){return run(btn,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'5. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');},statusId);}
 $('btnYohang').onclick=function(){return downloadYohang(this);};
 if($('btnYohang2'))$('btnYohang2').onclick=function(){return downloadYohang(this,'y_status');};
-window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang};
+window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang,landOnlyGwal:landOnlyGwal};
 })();
