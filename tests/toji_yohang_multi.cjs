@@ -116,8 +116,8 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     assert.equal(await page.locator('.y-kiho').first().textContent(),'(1) 기호1 : ','불러온 뒤 다시 그림');
     await page.evaluate(()=>{SAJ_MODE.land='direct';ILDANJI=false;});
     // 조사 로/으로 — 판단 함수 + 화면 + 출력
-    assert.deepEqual(await page.evaluate(()=>['답','대','골','전','건부지','공장','주거용(단독)','3','',null].map(josaRo)),
-      ['으로','로','로','으로','로','으로','으로',null,null,null]);
+    assert.deepEqual(await page.evaluate(()=>['답','대','골','전','건부지','공장','주거용(단독)','3','',null,'다가구주택(1가구)','제1종근린생활시설(소매점)','주거용（단독）','(주택)','다가구주택 (3가구) '].map(josaRo)),
+      ['으로','로','로','으로','로','으로','으로',null,null,null,'으로','로','으로','으로','으로']);
     await page.locator('#y_use').fill('공장');
     assert.equal(await page.locator('#y_use + .y-ro').textContent(),'으로','화면 조사 = 으로');
     await page.locator('#y_use').fill('대');

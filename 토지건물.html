@@ -1269,7 +1269,10 @@ function renderLands(){
       document.getElementById('landSajSum').textContent=fmtArea(roundArea(j));}}
 }
 function addLand(){LANDS.push({});if(isLandGroup())recalcGroupArea();renderLands();calcGongsi();saveForm();}
-function delLand(i){if(LANDS.length<=1){alert('마지막 필지는 지울 수 없습니다.');return;}LANDS.splice(i,1);if(isLandGroup())recalcGroupArea();renderLands();calcGongsi();saveForm();}
+function delLand(i){if(LANDS.length<=1){alert('마지막 필지는 지울 수 없습니다.');return;}LANDS.splice(i,1);
+  // 거래사례별 기억(gaMem)은 필지 순서로 담겨 있으므로 지운 필지 자리를 같이 빼 준다 — 안 그러면 다른 사례로 바꿀 때 지운 필지의 요인·의견이 다음 필지에 붙는다
+  TRADES.forEach(function(c){var m=c&&c.gaMem;if(!m)return;['gaf','gaApply','gaop'].forEach(function(k){if(Array.isArray(m[k]))m[k].splice(i,1);});});
+  if(isLandGroup())recalcGroupArea();renderLands();calcGongsi();saveForm();}
 function landChanged(){renderLands();calcGongsi();saveForm();sd();try{renderGjs();}catch(e){}}
 
 function renderStds(){
@@ -2997,7 +3000,11 @@ function renderYohangLands(){
 function josaRo(word){
   var w=String(word==null?'':word);
   if(/\{\{|\}\}/.test(w))return null;   // 비워 둔 칸의 양식 표시({{토큰}})는 판단하지 않는다(양식 조사 그대로)
-  w=w.replace(/[\s)\]>"'’”」』]+$/,'');
+  // 끝의 괄호 묶음은 떼고 그 앞말로 판단(다가구주택(1가구) → 주택 → 으로, 근린생활시설(소매점) → 시설 → 로). 전각 괄호도.
+  var tail=/[\s"'’”」』]+$/,group=/\s*[(（\[<][^()（）\[\]<>]*[)）\]>]$/,prev;
+  w=w.replace(tail,'');
+  do{prev=w;w=w.replace(group,'').replace(tail,'');}while(w&&w!==prev);
+  if(!w)w=String(word).replace(/[\s)）\]>"'’”」』]+$/,'');   // 값 전체가 괄호면 괄호 안 끝 글자로
   if(!w)return null;
   var c=w.charCodeAt(w.length-1)-0xAC00;
   if(c<0||c>11171)return null;

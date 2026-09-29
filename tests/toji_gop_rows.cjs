@@ -99,10 +99,19 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       assert.deepEqual(res.ga.spans[2+2*i],['1x8']);
     }
     assert(res.ga.texts[1].includes('1.03'),'거래 요인값 반영');
+    // 필지를 지운 뒤 다른 거래사례로 바꿔도 의견이 필지를 따라간다(사례별 기억도 같은 자리를 뺀다)
+    await page.evaluate(()=>{showTab('georae');pickGa(1);});
+    for(let i=0;i<4;i++)await gin.nth(i).fill('사례2 필지'+(i+1));
+    await page.evaluate(()=>{pickGa(0);delLand(0);showTab('georae');calcGeorae();});
+    assert.equal(await gin.nth(0).inputValue(),'거래 필지2 의견','삭제 후 #1 사례: 옛 필지2 의견');
+    await page.evaluate(()=>{pickGa(1);calcGeorae();});
+    assert.equal(await gin.nth(0).inputValue(),'사례2 필지2','삭제 후 #2 사례: 옛 필지2 의견(지운 필지1 의견 아님)');
+    assert.equal(await gin.count(),3);
+    await page.evaluate(()=>{pickGa(0);showTab('gongsi');calcGongsi();});
     // 묶기(일단지)면 의견 한 줄
     await page.evaluate(()=>{SAJ_MODE.land='group';showTab('gongsi');calcGongsi();});
     assert.equal(await inputs.count(),1,'묶기 → 의견 1개');
-    assert.equal(await inputs.nth(0).inputValue(),'필지1 의견: 표준지 대비 대등','묶기 = 첫 필지 의견');
+    assert.equal(await inputs.nth(0).inputValue(),'필지2 의견: 표준지 대비 열세','묶기 = 첫 필지 의견(필지1을 지워 옛 필지2가 첫 필지)');
     await page.evaluate(()=>{showTab('georae');calcGeorae();});
     assert.equal(await gin.count(),1,'묶기 → 거래 의견 1개');
     assert.deepEqual(errors,[]);
