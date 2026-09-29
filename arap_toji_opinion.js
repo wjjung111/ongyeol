@@ -603,6 +603,15 @@ function opinionXml(xml,data){
     else if(hasToken(tbl,'공시시점_설명'))resizeRows(tbl,1,1,1,data.standards,state);
     // 본건/표준지 개별요인 표: 필지마다 [요인 행 + 의견 행] 두 줄 묶음으로 늘린다(일련번호 칸은 두 줄 세로 병합)
     else if(hasToken(tbl,'공시개별_번호'))resizeRows(tbl,1,2,2,data.parcels,state);
+    // 토지 전용 양식 「Ⅳ. 감정평가액의 결정」 표(구분·사정면적·적용단가·감정평가액) — 여러 필지(일단지·묶기 아님)면
+    // 「토지」 한 줄을 필지마다 「토지 기호n」 줄로 늘리고, 합계 줄(사정면적 합계·감정평가액)은 그대로. 한 필지·일단지는 종전 한 줄.
+    else if(hasToken(tbl,'토지감정평가액')&&hasToken(tbl,'토지_사정면적')&&hasToken(tbl,'공시_적용단가')&&!hasToken(tbl,'건물가액')){   // 토건 양식(건물 줄 있음)은 종전대로
+      if(data.parcels.length>1){
+        resizeRows(tbl,1,1,1,data.parcels.map(function(p){return Object.assign({},p,{'토지감정평가액':p['공시_시산가액']});}),state);
+        children(tbl,'tr').slice(1,1+data.parcels.length).forEach(function(r,i){
+          var t=descendants(children(r,'tc')[0],'t')[0];if(t&&t.textContent.trim()==='토지')t.textContent='토지 기호'+(i+1);});
+      }
+    }
     // 본건/거래사례 개별요인 표도 같은 구조 — 필지마다 [요인 행 + 의견 행]. ('필지_번호'를 쓰므로 아래 '필지_번호' 분기보다 먼저)
     else if(hasToken(tbl,'거래개별_가로'))resizeRows(tbl,1,2,2,data.parcels,state);
     else if(hasToken(tbl,'평사1_기호'))resizeRows(tbl,1,3,1,data.appraisals.length?data.appraisals:[blankMap(tbl)],state);
@@ -685,7 +694,7 @@ function opinionXml(xml,data){
   replacePlain(doc,'헙계','합계');
   if(ETC.type==='a')replacePlain(doc,'상기와 같이 거래사례를 기준한','상기와 같이 평가사례를 기준한');
   descendants(doc,'p').filter(function(p){return p.parentNode===doc.documentElement;}).forEach(function(p){
-    if(p.textContent.indexOf('본건은 ')===0&&p.textContent.indexOf('토지 및 건물의 특성')>=0&&val('fn_opinion')){
+    if(p.textContent.indexOf('본건은 ')===0&&/토지( 및 건물)?의 특성/.test(p.textContent)&&val('fn_opinion')){   // 토지 전용 양식은 '토지의 특성'
       var ts=descendants(p,'t');if(ts.length){ts[0].textContent=val('fn_opinion');ts.slice(1).forEach(function(t){t.textContent='';});clearLines(p);}
     }
   });
@@ -721,7 +730,7 @@ window.downloadOpinion=async function(){
   btn.disabled=true;status.textContent='의견서를 만드는 중…';
   try{
     calcGongsi();renderBldCalc();calcFinal();
-    var data=opinionData(),b64=await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx');
+    var data=opinionData(),b64=await fetchTplB64(typeof opinionTplPath==='function'?opinionTplPath():'템플릿/토건 의견서(산출근거) 템플릿.hwpx');
     var bytes=await buildOpinion(b64,data);
     window.ArapCheonggu.triggerDownload(bytes,'3. 의견서(산출근거)_'+(val('ov_client')||'의뢰인')+'.hwpx');
     status.textContent='의견서를 받았습니다. 한글에서 의견 문구'+(!val('op_location')||!data.newCosts.length?'와 [기입] 표시':'')+'를 확인하세요.';
