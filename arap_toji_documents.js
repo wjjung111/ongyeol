@@ -333,7 +333,9 @@ async function buildStatement(rows){
   var locLines=function(v){return String(v||'').split('\n').flatMap(function(line){return line.trim()?line.trim().split(/\s+/):[''];});};
   var newRow=function(n){var row=d.createElementNS(X,'row');row.setAttribute('r',n);rowAttrs.forEach(function(p){row.setAttribute(p[0],p[1]);});return row;};
   original.filter(function(row){var n=+row.getAttribute('r');return n>=start&&n<base;}).forEach(function(row){row.remove();});
-  rows.forEach(function(item){
+  rows.forEach(function(item,ii){
+    // 토지 필지 행(둘째 필지부터)은 위에 빈 줄 한 줄 — 필지 사이 간격(사용자 요청 2026-09-29)
+    if(ii>0&&!item.header&&item['명세_기호']&&!carry.length){var gap=newRow(r);cols.forEach(function(c){gap.append(cell(d,c+r,style[c],null));});sd.insertBefore(gap,footer);r++;}
     var split={};cols.forEach(function(c){var k=keys[c];
       if(!k){split[c]=[];return;}
       if(numeric[c]){split[c]=[item['명세_'+k]];return;}
@@ -362,6 +364,9 @@ async function buildStatement(rows){
   var old=nodes(footer,'c').find(function(c){return c.getAttribute('r')==='J'+end;});var sum=cell(d,'J'+end,old&&old.getAttribute('s'),total,'SUM(J'+start+':J'+(end-1)+')');if(old)old.replaceWith(sum);else footer.append(sum);
   var dim=nodes(d,'dimension')[0];if(dim&&/\d+$/.test(dim.getAttribute('ref')||''))dim.setAttribute('ref',dim.getAttribute('ref').replace(/\d+$/,function(n){return +n+shift;}));
   // 인쇄 설정(배율·용지)은 양식 그대로 두고, 행이 늘어난 만큼 인쇄범위 끝만 밀어 준다.
+  // 면적(공부·사정) 열이 좁아 '#####'로 나오던 것 — G·H열을 넓히고 E·F(지목용도·용도지역)를 그만큼 줄여 인쇄 폭 유지
+  Array.from(d.getElementsByTagNameNS(X,'col')).forEach(function(c){var mn=+c.getAttribute('min');
+    if(mn===7||mn===8)c.setAttribute('width','20');else if(mn===5)c.setAttribute('width','25');});
   entry.data=enc.encode(ser(d));
   var book=entries.find(function(e){return e.name==='xl/workbook.xml';}),bd=xml(dec.decode(book.data));
   nodes(bd,'definedName').forEach(function(n){if(n.getAttribute('name')==='_xlnm.Print_Area'&&shift)n.textContent=n.textContent.replace(/\d+$/,function(v){return +v+shift;});});

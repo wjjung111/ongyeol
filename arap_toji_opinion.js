@@ -341,6 +341,13 @@ function emphasize(p,needle,flags){
 }
 function descendants(el,name){return Array.from(el.getElementsByTagNameNS(HP,name));}
 function children(el,name){return Array.from(el.children).filter(function(n){return n.namespaceURI===HP&&n.localName===name;});}
+// 을/를: 끝 글자 받침(숫자는 읽는 소리 — 0·1·3·6·7·8 받침 있음)
+function josaEul(w){
+  var c=String(w).replace(/[\s)\]"'’”]+$/,'').slice(-1);if(!c)return null;
+  if(/[0-9]/.test(c))return '013678'.indexOf(c)>=0?'을':'를';
+  var k=c.charCodeAt(0)-0xAC00;if(k<0||k>11171)return null;
+  return k%28?'을':'를';
+}
 function hasToken(el,k){return el.textContent.indexOf('{{'+k+'}}')>=0;}
 function clearLines(el){descendants(el,'linesegarray').forEach(function(n){n.remove();});}
 // 행별 토큰을 구분한 뒤 마지막에 한 번만 치환한다. 입력값 속 {{...}}는 재해석하지 않는다.
@@ -541,6 +548,7 @@ function appendSumRow(tbl,values){
     if(ts.length){ts[0].textContent=values[i]==null?'':String(values[i]);ts.slice(1).forEach(function(t){t.textContent='';});}
     children(tc,'cellAddr')[0].setAttribute('rowAddr',String(rows.length));
   });
+  descendants(row,'run').forEach(function(run){if(descendants(run,'t').length)markRun(run,'b');});   // 합계 행은 굵게
   clearLines(row);tbl.appendChild(row);
   tbl.setAttribute('rowCnt',String(rows.length+1));
   var h=Math.max.apply(null,children(row,'tc').map(function(c){return Number(children(c,'cellSz')[0].getAttribute('height'));}));
@@ -721,6 +729,15 @@ function opinionXml(xml,data){
     if(old!==t.textContent){var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;if(p)children(p,'linesegarray').forEach(function(n){n.remove();});}
   });
   if(missing.size)throw new Error('연결되지 않은 의견서 항목: '+Array.from(missing).join(', '));
+  // 조사 을/를 — 채운 값 바로 뒤 '을'·'를'을 끝 글자 받침대로(거래사례#1 → 을, #2 → 를). 한글·숫자만 판단, 그 밖(영문 기호 등)은 양식 그대로.
+  descendants(doc,'p').forEach(function(p){
+    var ts=descendants(p,'t');
+    ts.forEach(function(t,i){
+      var m=t.textContent.match(/^(을|를)(?![가-힣])/);if(!m||!i)return;
+      var prev=ts.slice(0,i).reverse().find(function(x){return x.textContent.length;});if(!prev)return;
+      var j=josaEul(prev.textContent);if(j&&j!==m[1])t.textContent=j+t.textContent.slice(1);
+    });
+  });
   return new XMLSerializer().serializeToString(doc);
 }
 async function buildOpinion(b64,data){
