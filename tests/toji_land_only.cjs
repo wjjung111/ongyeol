@@ -19,7 +19,10 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       for(let y=rr;y<rr+ +s.getAttribute('rowSpan');y++)for(let z=cc;z<cc+ +s.getAttribute('colSpan');z++){const k=y+','+z;if(occ.has(k))bad.push('overlap');occ.add(k);}}));
     if(occ.size!==cnt*cols)bad.push('missing '+rows[0].textContent.slice(0,15));
     tables.push(rows.map(r=>ch(r,'tc').map(c=>c.textContent)));}
-  return {left:xml.match(/\{\{[^}]+\}\}/g)||[],bad,tables,text:doc.documentElement.textContent};},Array.from(bytesArr));}
+  const HH='http://www.hancom.co.kr/hwpml/2011/head',hx=new DOMParser().parseFromString(new TextDecoder().decode(es.find(e=>e.name==='Contents/header.xml').data),'application/xml');
+  const boldIds=new Set(Array.from(hx.getElementsByTagNameNS(HH,'charPr')).filter(c=>c.getElementsByTagNameNS(HH,'bold').length).map(c=>c.getAttribute('id')));
+  let boldSum=0;for(const t of doc.getElementsByTagNameNS(HP,'tbl')){const rs=ch(t,'tr'),last=rs[rs.length-1];if(ch(ch(last,'tc')[0],'subList').length&&last.textContent.startsWith('합계')&&t.textContent.includes('시산가액(원)')){const runs=Array.from(last.getElementsByTagNameNS(HP,'run')).filter(r=>r.getElementsByTagNameNS(HP,'t').length);if(runs.length&&runs.every(r=>boldIds.has(r.getAttribute('charPrIDRef'))))boldSum++;}}
+  return {boldSum,left:xml.match(/\{\{[^}]+\}\}/g)||[],bad,tables,text:doc.documentElement.textContent};},Array.from(bytesArr));}
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});
@@ -71,6 +74,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
         ['건물면적(㎡)','사용승인일','주구조','재조달원가(원/㎡)','내용연수','잔존연수','건물 적용단가(원/㎡)','건물금액(원)'].forEach(lb=>{
           const row=t.find(x=>x[0]===lb);assert(row,lb);assert.equal(row[1],'-',mode+' '+lb+' = -');});});
       assert(r.text.includes('원가법'),'원가법 정의 문단 유지');
+      assert(r.text.includes('거래사례#1을 선정')&&!r.text.includes('#1를'),'조사 을/를');
       assert(r.text.includes('본건 토지에 대하여')&&r.text.includes('현황 토지의 면적'),'오타 수정');
       assert(!r.text.includes('토지 및 건물의 특성')&&r.text.includes('목적으로서 수요성, 환가성, 공시지가와 인근지역의 현지조사 가격수준, 토지 특성 등을'),'결정의견 = 정답 샘플 문구');
       const iv=r.tables.find(t=>t[0][0]==='구분'&&t[0].join('').includes('감정평가액(원)'));
@@ -87,6 +91,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       sis.forEach(t=>{const last=t[t.length-1];
         if(mode==='multi'){assert.equal(t.length,1+3+1);assert.deepEqual(last.slice(0,4),['합계','450','450','-']);assert.equal(last[5],'-');}
         else assert.notEqual(last[0],'합계');});
+      if(mode==='multi')assert.equal(r.boldSum,2,'합계 행 굵게 2개');
       if(mode==='multi'){assert.equal(sis[0][4][4],fmt(v.land),'공시 합계 = 토지감정평가액');assert.equal((r.text.match(/필지\d 표준지 비교/g)||[]).length,3);}
     }
     // ③ 괄호감정표 — 건물 줄 없음, 평가내역 세로 합침 4줄, 일반건축물대장 없음
@@ -117,6 +122,11 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     const title=await page.evaluate(async()=>{const b=await ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());const es=await ArapCheonggu.parseZip(b.buffer);
       return new TextDecoder().decode(es.find(e=>e.name==='xl/sharedStrings.xml').data);});
     assert(title.includes('(토지)감정평가명세표')&&!title.includes('토지·건물'),'명세표 제목 (토지)');
+    const sh=await page.evaluate(async()=>{const b=await ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());const es=await ArapCheonggu.parseZip(b.buffer);
+      return new TextDecoder().decode(es.find(e=>/sheet1\.xml$/.test(e.name)).data);});
+    assert(/<col min="7"[^>]*width="20"/.test(sh)&&/<col min="8"[^>]*width="20"/.test(sh),'면적 열 너비');
+    const brow=[...sh.matchAll(/<c r="B(\d+)"[^>]*t="inlineStr"><is><t>([123])<\/t>/g)].map(m=>+m[1]);
+    assert.equal(brow.length,3);assert.equal(brow[1]-brow[0],5,'필지 사이 빈 줄 1');assert.equal(brow[2]-brow[1],5);
     // ⑥ 저장·복원 + 평가대상 전환
     await page.evaluate(()=>{document.getElementById('ov_caseNo').value='LAND-TEST';doSave();});
     await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
