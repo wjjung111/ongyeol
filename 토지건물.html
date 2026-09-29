@@ -174,6 +174,9 @@
   .undo{color:#2563eb;cursor:pointer;font-weight:700;margin-left:2px;}
   .undo:hover{text-decoration:underline;}
   /* 고정 계산값(수정 불가) — 직접 고칠 수 있는 회색 칸(calc-c)보다 한 단계 진하게 */
+  /* 토지 개별요인 비교치: 1 초과 = 우세(파랑), 1 미만 = 열세(빨강). 1이거나 비었으면 원래 색 */
+  input.fac-up,.calc-c.fac-up,.calc-c.fac-up input{color:#2563eb;}
+  input.fac-dn,.calc-c.fac-dn,.calc-c.fac-dn input{color:#dc2626;}
   .calc-c.fixed{background:#d6deea;color:#0f2547;}
   /* 청구서 과목/금액 표 — 집합건물 청구서와 같은 구성(색은 토지건물 톤 유지) */
   #cg_table{max-width:560px;font-size:13px;}
@@ -625,7 +628,7 @@
                     <td class="jud-c"><input id="eSaj2" value="" placeholder="-" oninput="calcGongsi()"></td>
                     <td class="calc-c" id="eStdTime"><input class="eo" data-k="stdTime" onblur="calcGongsi()" oninput="etcOv('stdTime',this.value)"></td>
                     <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
-                    <td class="jud-c"><input id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
+                    <td class="jud-c"><input class="fac" id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
                     <td class="calc-c" id="eOut2"><input class="eo" data-k="out2" onblur="calcGongsi()" oninput="etcOv('out2',this.value)"></td></tr>
               </table></div>
               <div class="etc-warn" id="etcWarn" style="display:none">
@@ -639,13 +642,13 @@
               <div class="tw"><table>
                 <tr><th>가로<br>조건</th><th>접근<br>조건</th><th>환경<br>조건</th><th>획지<br>조건</th><th>행정적<br>조건</th><th>기타<br>조건</th><th>계</th></tr>
                 <tr>
-                  <td class="jud-c"><input class="ef" id="e_f1" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef" id="e_f2" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef" id="e_f3" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef" id="e_f4" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef" id="e_f5" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef" id="e_f6" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="calc-c fixed" id="efSum" title="자동 계산(여섯 조건의 곱) — 이 칸은 고칠 수 없고, 위 조건 칸을 고치면 따라 바뀝니다">1.000</td></tr>
+                  <td class="jud-c"><input class="ef fac" id="e_f1" value="1.00" oninput="calcGongsi()"></td>
+                  <td class="jud-c"><input class="ef fac" id="e_f2" value="1.00" oninput="calcGongsi()"></td>
+                  <td class="jud-c"><input class="ef fac" id="e_f3" value="1.00" oninput="calcGongsi()"></td>
+                  <td class="jud-c"><input class="ef fac" id="e_f4" value="1.00" oninput="calcGongsi()"></td>
+                  <td class="jud-c"><input class="ef fac" id="e_f5" value="1.00" oninput="calcGongsi()"></td>
+                  <td class="jud-c"><input class="ef fac" id="e_f6" value="1.00" oninput="calcGongsi()"></td>
+                  <td class="calc-c fixed fac" id="efSum" title="자동 계산(여섯 조건의 곱) — 이 칸은 고칠 수 없고, 위 조건 칸을 고치면 따라 바뀝니다">1.000</td></tr>
                 <tr><th class="rowh">의견</th><td colspan="6" style="text-align:left"><input id="e_opinion" value="" placeholder="표준지는 평가사례와 비교하여 …" style="text-align:left"></td></tr>
               </table></div>
 
@@ -1189,6 +1192,13 @@ function landShareChanged(i){recalcLandSaj(i);landChanged();etcSyncShare();}
 function blankFactors(){return ['1.00','1.00','1.00','1.00','1.00','1.00'];}
 function landFactors(L){if(!L.gf||L.gf.length!==6)L.gf=blankFactors();return L.gf;}
 function landGaFactors(L){if(!L.gaf||L.gaf.length!==6)L.gaf=blankFactors();return L.gaf;}
+// 개별요인 비교치 색: class="fac"인 칸(입력칸은 값, 계 칸은 글자)이 1보다 크면 fac-up(파랑·우세), 작으면 fac-dn(빨강·열세)
+function facTone(el){
+  var t=String(el.tagName==='INPUT'?el.value:el.textContent).trim(),v=t===''?NaN:num(t);
+  el.classList.toggle('fac-up',v>1);el.classList.toggle('fac-dn',v>0&&v<1);
+}
+function facToneAll(){[].forEach.call(document.querySelectorAll('.fac'),facTone);}
+document.addEventListener('input',function(e){if(e.target&&e.target.classList&&e.target.classList.contains('fac'))facTone(e.target);});
 function facProduct(arr){var p=1;arr.forEach(function(v){p*=num(v)||1;});return Math.round(p*1000)/1000;}
 // 표를 다시 그릴 때, 그 표 안 입력칸에 커서가 있으면 같은 자리(행·열) 칸으로 커서와 선택 위치를 되돌린다.
 // 개별요인·적용단가처럼 글자 하나 칠 때마다 표 전체를 새로 그리는 곳에서 커서가 빠지던 문제 대응.
@@ -2297,21 +2307,22 @@ function renderGaebyeol(){
   if(isLandGroup()){   // 묶기 — 묶은 필지 전체에 대해 한 세트만 입력
     var L0=LANDS[0]||{},f0=landFactors(L0);
     h+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td><td>'+String.fromCharCode(65+(L0.stdIdx||0))+'</td>'+
-      f0.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="setGroupFac(\'\','+k+',this.value);calcGongsi();saveForm();"></td>';}).join('')+
-      '<td class="calc-c">'+facProduct(f0).toFixed(3)+'</td></tr>';
+      f0.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="setGroupFac(\'\','+k+',this.value);calcGongsi();saveForm();"></td>';}).join('')+
+      '<td class="calc-c fac">'+facProduct(f0).toFixed(3)+'</td></tr>';
   }
   else LANDS.forEach(function(L,i){
     var f=landFactors(L);
     h+='<tr><td>'+(i+1)+'</td><td>'+String.fromCharCode(65+(L.stdIdx||0))+'</td>'+
-      f.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="LANDS['+i+'].gf['+k+']=this.value;calcGongsi();saveForm();"></td>';}).join('')+
-      '<td class="calc-c">'+facProduct(f).toFixed(3)+'</td></tr>';
+      f.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="LANDS['+i+'].gf['+k+']=this.value;calcGongsi();saveForm();"></td>';}).join('')+
+      '<td class="calc-c fac">'+facProduct(f).toFixed(3)+'</td></tr>';
   });
-  setTableHtml('tblGaebyeol',h);
+  setTableHtml('tblGaebyeol',h);facToneAll();
 }
 function calcGongsi(){
   renderGaebyeol();
   var ef=mul('.ef');
   document.getElementById('efSum').textContent=ef.toFixed(3);   // 아래 개별요인비교치 박스의 '계' — 항상 자동값(기준)
+  facToneAll();
 
   // ── 그 밖의 요인: 선택된 표준지 기준 ──
   var sj=Math.min(+(document.getElementById('etcStd').value||0),STDS.length-1);
@@ -2408,16 +2419,16 @@ function calcGeorae(){
   if(isLandGroup()){   // 묶기 — 묶은 필지 전체에 대해 한 세트만 입력
     var Lg=LANDS[0]||{},fg=landGaFactors(Lg);
     hf+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td><td>#'+(GA.idx+1)+'</td>'+
-      fg.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="setGroupFac(\'ga\','+k+',this.value);calcGeorae();saveForm();"></td>';}).join('')+
-      '<td class="calc-c">'+facProduct(fg).toFixed(3)+'</td></tr>';
+      fg.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="setGroupFac(\'ga\','+k+',this.value);calcGeorae();saveForm();"></td>';}).join('')+
+      '<td class="calc-c fac">'+facProduct(fg).toFixed(3)+'</td></tr>';
   }
   else LANDS.forEach(function(L,i){
     var f=landGaFactors(L);
     hf+='<tr><td>'+(i+1)+'</td><td>#'+(GA.idx+1)+'</td>'+
-      f.map(function(v,k){return '<td class="jud-c"><input value="'+esc(v)+'" oninput="LANDS['+i+'].gaf['+k+']=this.value;calcGeorae();saveForm();"></td>';}).join('')+
-      '<td class="calc-c">'+facProduct(f).toFixed(3)+'</td></tr>';
+      f.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="LANDS['+i+'].gaf['+k+']=this.value;calcGeorae();saveForm();"></td>';}).join('')+
+      '<td class="calc-c fac">'+facProduct(f).toFixed(3)+'</td></tr>';
   });
-  setTableHtml('tblGaFactors',hf);
+  setTableHtml('tblGaFactors',hf);facToneAll();
 
   // 시산가액 — 필지별 + 합계. 사정보정·시점수정·지역요인은 사례 공통값(숨은 입력)이며 표 셀에서 바로 고침(자동 채움, 필지 공통)
   var hs='<tr><th>일련<br>번호</th><th>사례단가<br>(원/㎡)</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th>'
