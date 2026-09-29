@@ -3510,7 +3510,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
     const hi=specialFeeMode==="기준-하한"?f.기준수수료:f.상한수수료;
     const lo=specialFeeMode==="상한-기준"?f.기준수수료:f.하한수수료;if(!hi||!lo)return null;
-    return String(hi-lo);})();  // 절사 없이 그대로
+    return String(Math.round((hi-lo)/1000)*1000);})();  // 기본값: 천원 단위 반올림(755,897→756,000). 칸에서 자유 수정 가능
   useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setSpecialFee(fmtComma(String(specialFeeAuto)));},[specialFeeMode,feeText]);
   const specialFeeEff=specialFee;  // 자동 모드도 칸에 채워진 값을 쓰므로 자유수정 가능
   // 여비 자동: 소재지(ov.jibun) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
@@ -6753,7 +6753,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
     const hi=specialFeeMode==="기준-하한"?f.기준수수료:f.상한수수료;
     const lo=specialFeeMode==="상한-기준"?f.기준수수료:f.하한수수료;if(!hi||!lo)return null;
-    return String(hi-lo);})();  // 절사 없이 그대로
+    return String(Math.round((hi-lo)/1000)*1000);})();  // 기본값: 천원 단위 반올림(755,897→756,000). 칸에서 자유 수정 가능
   useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setSpecialFee(fmtComma(String(specialFeeAuto)));},[specialFeeMode,feeText]);
   const specialFeeEff=specialFee;  // 자동 모드도 칸에 채워진 값을 쓰므로 자유수정 가능
   // 여비 자동: 소재지(ov.jibun) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
