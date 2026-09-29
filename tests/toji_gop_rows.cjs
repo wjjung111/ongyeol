@@ -37,6 +37,30 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
     await page.evaluate(()=>showTab('gongsi'));
     assert.equal(await inputs.count(),4);assert.equal(await inputs.nth(3).inputValue(),'필지4 의견: 표준지 대비 열세','복원');
+    // 거래사례비교법 개별요인 표도 필지마다 비교의견 행
+    await page.evaluate(()=>{
+      document.getElementById('ga_opinion').value='예전 거래 공통 의견';
+      TRADES=[{loc:'거래동 1',landA:'100',total:'100000000',date:'2025.01.01',landUnit:'1000000'},{loc:'거래동 2',landA:'100',total:'120000000',date:'2025.02.01',landUnit:'1200000'},{}];
+      GA={idx:0};document.getElementById('ga_time').value='1.01';showTab('georae');renderTrade();syncGeorae();calcGeorae();});
+    const gin=page.locator('#tblGaFactors input[aria-label$="거래사례 비교의견"]');
+    assert.equal(await gin.count(),4,'거래사례 의견 칸 4개');
+    assert.equal(await page.locator('#tblGaFactors tr').count(),9);
+    assert.equal(await gin.nth(1).inputValue(),'예전 거래 공통 의견','옛 공통 의견을 보여 줌');
+    for(let i=0;i<4;i++)await gin.nth(i).fill('거래 필지'+(i+1)+' 의견');
+    await page.locator('#tblGaFactors input.fac').nth(0).fill('1.03');
+    assert.equal(await gin.nth(0).inputValue(),'거래 필지1 의견','요인 고쳐도 의견 유지');
+    // 사례별 기억: #2로 바꿔 의견을 고친 뒤 #1로 돌아오면 #1 의견 복구
+    await page.evaluate(()=>pickGa(1));
+    await gin.nth(0).fill('사례2 필지1 의견');
+    await page.evaluate(()=>pickGa(0));
+    assert.equal(await gin.nth(0).inputValue(),'거래 필지1 의견','사례 #1 의견 복구');
+    await page.evaluate(()=>pickGa(1));
+    assert.equal(await gin.nth(0).inputValue(),'사례2 필지1 의견','사례 #2 의견 복구');
+    await page.evaluate(()=>pickGa(0));
+    await page.evaluate(()=>doSave());
+    await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
+    await page.evaluate(()=>showTab('georae'));
+    assert.equal(await gin.nth(3).inputValue(),'거래 필지4 의견','거래 의견 복원');
     // 의견서 — 실제 다운로드
     await page.evaluate(()=>showTab('doc'));
     const dl=page.waitForEvent('download');await page.locator('#btnOpinion').click();const d=await dl;
@@ -46,16 +70,18 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       const xml=es.filter(e=>/^Contents\/section\d+\.xml$/.test(e.name)).map(e=>new TextDecoder().decode(e.data));
       if(xml.some(x=>/\{\{[^}]+\}\}/.test(x)))throw Error('남은 토큰');
       const ch=(el,n)=>Array.from(el.children).filter(x=>x.localName===n);
-      let found=null;
+      let found=null,foundGa=null;
       for(const x of xml){const doc=new DOMParser().parseFromString(x,'application/xml');
         for(const t of doc.getElementsByTagNameNS(HP,'tbl')){const rows=ch(t,'tr');if(!rows.length)continue;
-          const head=rows[0].textContent;if(!(head.includes('비교표준지')&&head.includes('가로조건')&&head.includes('계')&&!head.includes('사례')))continue;
+          const head=rows[0].textContent,isStd=head.includes('비교표준지')&&head.includes('가로조건')&&!head.includes('사례'),isGa=head.includes('사례토지기호')&&head.includes('가로조건');
+          if(!isStd&&!isGa)continue;
           const cnt=Number(t.getAttribute('rowCnt')),cols=Number(t.getAttribute('colCnt')),occ=new Set();
           rows.forEach((r,i)=>ch(r,'tc').forEach(c=>{const a=ch(c,'cellAddr')[0],s=ch(c,'cellSpan')[0];const rr=+a.getAttribute('rowAddr'),cc=+a.getAttribute('colAddr'),rs=+s.getAttribute('rowSpan'),cs=+s.getAttribute('colSpan');
             if(rr!==i)throw Error('rowAddr');for(let y=rr;y<rr+rs;y++)for(let z=cc;z<cc+cs;z++){const k=y+','+z;if(occ.has(k))throw Error('겹침');occ.add(k);}}));
           if(occ.size!==cnt*cols)throw Error('빈칸 '+occ.size+'/'+cnt*cols);
-          found={cnt,rows:rows.length,texts:rows.map(r=>r.textContent),spans:rows.map(r=>ch(r,'tc').map(c=>ch(c,'cellSpan')[0].getAttribute('rowSpan')+'x'+ch(c,'cellSpan')[0].getAttribute('colSpan')))};}}
-      return found;},Array.from(fs.readFileSync(file)));
+          const o={cnt,rows:rows.length,texts:rows.map(r=>r.textContent),spans:rows.map(r=>ch(r,'tc').map(c=>ch(c,'cellSpan')[0].getAttribute('rowSpan')+'x'+ch(c,'cellSpan')[0].getAttribute('colSpan')))};
+          if(isStd)found=o;else foundGa=o;}}
+      return found&&Object.assign(found,{ga:foundGa});},Array.from(fs.readFileSync(file)));
     assert(res,'개별요인 표를 찾음');
     assert.equal(res.cnt,9);assert.equal(res.rows,9);
     for(let i=0;i<4;i++){
@@ -65,10 +91,29 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       assert.deepEqual(res.spans[2+2*i],['1x8']);
     }
     assert(res.texts[1].includes('1.02'),'고친 요인값 반영');
+    assert(res.ga,'거래사례 개별요인 표를 찾음');
+    assert.equal(res.ga.cnt,9,'거래 표 9행');
+    for(let i=0;i<4;i++){
+      assert.equal(res.ga.spans[1+2*i][0],'2x1','거래 표 번호 칸 두 줄 병합');
+      assert.equal(res.ga.texts[2+2*i],'거래 필지'+(i+1)+' 의견','거래 의견 행 '+(i+1));
+      assert.deepEqual(res.ga.spans[2+2*i],['1x8']);
+    }
+    assert(res.ga.texts[1].includes('1.03'),'거래 요인값 반영');
+    // 필지를 지운 뒤 다른 거래사례로 바꿔도 의견이 필지를 따라간다(사례별 기억도 같은 자리를 뺀다)
+    await page.evaluate(()=>{showTab('georae');pickGa(1);});
+    for(let i=0;i<4;i++)await gin.nth(i).fill('사례2 필지'+(i+1));
+    await page.evaluate(()=>{pickGa(0);delLand(0);showTab('georae');calcGeorae();});
+    assert.equal(await gin.nth(0).inputValue(),'거래 필지2 의견','삭제 후 #1 사례: 옛 필지2 의견');
+    await page.evaluate(()=>{pickGa(1);calcGeorae();});
+    assert.equal(await gin.nth(0).inputValue(),'사례2 필지2','삭제 후 #2 사례: 옛 필지2 의견(지운 필지1 의견 아님)');
+    assert.equal(await gin.count(),3);
+    await page.evaluate(()=>{pickGa(0);showTab('gongsi');calcGongsi();});
     // 묶기(일단지)면 의견 한 줄
     await page.evaluate(()=>{SAJ_MODE.land='group';showTab('gongsi');calcGongsi();});
     assert.equal(await inputs.count(),1,'묶기 → 의견 1개');
-    assert.equal(await inputs.nth(0).inputValue(),'필지1 의견: 표준지 대비 대등','묶기 = 첫 필지 의견');
+    assert.equal(await inputs.nth(0).inputValue(),'필지2 의견: 표준지 대비 열세','묶기 = 첫 필지 의견(필지1을 지워 옛 필지2가 첫 필지)');
+    await page.evaluate(()=>{showTab('georae');calcGeorae();});
+    assert.equal(await gin.count(),1,'묶기 → 거래 의견 1개');
     assert.deepEqual(errors,[]);
     console.log('PASS',file);
   }finally{await browser.close();server.close();}

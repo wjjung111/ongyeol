@@ -51,6 +51,7 @@ function parcelMap(L,i,gs,ga){
   return Object.assign(landMap(L,i),standardMap(STDS[g.stdIdx]||{},g.stdIdx),factors('공시개별',g.factors),factors('거래개별',a.factors||[]),{
     '토지_사정면적':evalArea(L,g),
     '공시개별_의견':typeof landGop==='function'?text(landGop(L)):val('g_opinion'),   // 필지별 비교의견(개별요인 표의 필지마다 의견 행)
+    '거래개별_의견':typeof landGaop==='function'?text(landGaop(L)):val('ga_opinion'),   // 거래사례비교법 개별요인 표도 필지마다 의견 행
     '공시시점_치':fixed(g.time,5),'공시_지역요인':fixed(g.area,3),'공시개별_계':fixed(g.individual,3),
     '그밖_결정보정치':fixed(g.etc,2),'공시_산정단가':money(g.calculated),'공시_적용단가':money(g.apply),'공시_시산가액':money(g.total),
     '거래_채택단가':money(a.source),'거래_사정':fixed(a.sajeong,3),'거래_시점':fixed(a.time,5),'거래_지역':fixed(a.area,3),
@@ -602,6 +603,8 @@ function opinionXml(xml,data){
     else if(hasToken(tbl,'공시시점_설명'))resizeRows(tbl,1,1,1,data.standards,state);
     // 본건/표준지 개별요인 표: 필지마다 [요인 행 + 의견 행] 두 줄 묶음으로 늘린다(일련번호 칸은 두 줄 세로 병합)
     else if(hasToken(tbl,'공시개별_번호'))resizeRows(tbl,1,2,2,data.parcels,state);
+    // 본건/거래사례 개별요인 표도 같은 구조 — 필지마다 [요인 행 + 의견 행]. ('필지_번호'를 쓰므로 아래 '필지_번호' 분기보다 먼저)
+    else if(hasToken(tbl,'거래개별_가로'))resizeRows(tbl,1,2,2,data.parcels,state);
     else if(hasToken(tbl,'평사1_기호'))resizeRows(tbl,1,3,1,data.appraisals.length?data.appraisals:[blankMap(tbl)],state);
     else if(hasToken(tbl,'그밖_사례단가')){
       scope(tbl,data.detail,state);

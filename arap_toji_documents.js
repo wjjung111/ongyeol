@@ -48,7 +48,7 @@ function dropSecondRoadIn(p){
   runs.slice(w+1).forEach(function(r){Array.from(r.getElementsByTagNameNS('*','t')).forEach(function(n){n.textContent=n.textContent.replace('각각 ','');});});
   Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
 }
-// 본건 필지가 둘 이상이면(묶기 아님, 토지건물.html yohangLands) 「Ⅱ. 토지의 개황」 1. 지세 및 형상 · 2. 이용상황 · 3. 접면도로 상황
+// 본건 필지가 둘 이상이면(일단지·묶기 아님, 토지건물.html yohangLands) 「Ⅱ. 토지의 개황」 1. 지세 및 형상 · 2. 이용상황 · 3. 접면도로 상황
 // 문단을 기호마다 한 문단씩 복제한다: "(1) 기호1 : 인접토지 및 인접도로 대비 …", "(2) 기호2 : …".
 // 앞머리는 문단의 검정 런을 복제해 검정으로, 값은 빨강 런 그대로. 접면도로는 "본건 "을 빼고 기호별 접면도로 수대로(한 면이면 ②·'각각' 뺌).
 // 값이 빈 칸은 {{토큰#n}}으로 표시해 두었다가(아래 채움 단계가 기호1 값으로 덮지 않게) 마지막에 양식 표시 {{토큰}}로 돌린다.
@@ -58,36 +58,69 @@ var LAND_PARAS=[
   {tok:'{{요항_도로1방위}}',keys:{'요항_도로1방위':'road1dir','요항_도로1노폭':'road1w','요항_도로2방위':'road2dir','요항_도로2노폭':'road2w'},road:true}];
 function splitLandParas(doc,red){
   var lands=(typeof yohangLands==='function')?yohangLands():[];
-  if(lands.length<2)return;
   var runsOf=function(p){return Array.from(p.children).filter(function(n){return n.localName==='run';});};
   var tsOf=function(el){return Array.from(el.getElementsByTagNameNS('*','t'));};
+  // 앞머리 런: 문단의 첫 검정 런을 복제해 글자를 바꿔 맨 앞에 넣는다(값 칸의 빨강을 물려받지 않게)
+  var prefix=function(p,label){
+    var black=runsOf(p).find(function(r){return !red.has(r.getAttribute('charPrIDRef'))&&tsOf(r).length;});
+    if(!black)return;
+    var pre=black.cloneNode(true);
+    tsOf(pre).forEach(function(n,j){n.textContent=j?'':label;});
+    p.insertBefore(pre,runsOf(p)[0]);
+  };
+  var dropBon=function(p){var t0=runsOf(p).length?tsOf(runsOf(p)[0])[0]:null;if(t0)t0.textContent=t0.textContent.replace(/^본건\s*/,'');};
+  var paraOf=function(tok){
+    var t=tsOf(doc).find(function(n){return n.textContent.indexOf(tok)>=0;});
+    var p=t&&t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
+    return p||null;
+  };
+  // 일단지·묶기 여러 필지(yohangCommonLabel) — 문단은 하나 그대로, 1. 지세 및 형상·2. 이용상황 앞에만 "[기호1,2,3 공히] ".
+  // 접면도로는 일단지 전체가 접하는 도로라 기호 없이 종전 "본건 …" 문장 그대로(사용자 2026-09-29). 값 채움·한 면 처리는 뒤 단계가 종전대로.
+  var common=(typeof yohangCommonLabel==='function')?yohangCommonLabel():'';
+  if(common&&lands.length<2){
+    LAND_PARAS.forEach(function(spec){
+      if(spec.road)return;
+      var p=paraOf(spec.tok);if(!p)return;
+      prefix(p,common);
+      Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+    });
+    return;
+  }
+  if(lands.length<2)return;
   LAND_PARAS.forEach(function(spec){
-    var t=tsOf(doc).find(function(n){return n.textContent.indexOf(spec.tok)>=0;});
-    if(!t)return;
-    var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
-    if(!p)return;
+    var p=paraOf(spec.tok);if(!p)return;
     lands.forEach(function(ld,i){
       var c=p.cloneNode(true);
       if(spec.road){
         if(ld.roadCnt==='1')dropSecondRoadIn(c);
-        var t0=runsOf(c).length?tsOf(runsOf(c)[0])[0]:null;
-        if(t0)t0.textContent=t0.textContent.replace(/^본건\s*/,'');
+        dropBon(c);
       }
       tsOf(c).forEach(function(n){n.textContent=n.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
         if(!Object.prototype.hasOwnProperty.call(spec.keys,k))return full;
         var v=String(ld[spec.keys[k]]||'').trim();if(k==='요항_지세')v=v.replace(/한$/,'');
         return v||'{{'+k+'#'+(i+1)+'}}';
       });});
-      var black=runsOf(c).find(function(r){return !red.has(r.getAttribute('charPrIDRef'))&&tsOf(r).length;});
-      if(black){
-        var pre=black.cloneNode(true);
-        tsOf(pre).forEach(function(n,j){n.textContent=j?'':'('+(i+1)+') 기호'+(i+1)+' : ';});
-        c.insertBefore(pre,runsOf(c)[0]);
-      }
+      prefix(c,'('+(i+1)+') 기호'+(i+1)+' : ');
       Array.from(c.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
       p.parentNode.insertBefore(c,p);
     });
     p.remove();
+  });
+}
+// 조사 '로/으로' 맞추기 — 채운 값(빨강 런) 바로 뒤 런이 '로'·'으로'로 시작하면 값 끝 글자 받침대로 바꾼다(답로 → 답으로).
+// 판단은 토지건물.html josaRo(한글이 아니거나 {{토큰}}이 남은 칸은 양식 그대로).
+function fixJosa(doc,red){
+  if(typeof josaRo!=='function')return;
+  Array.from(doc.getElementsByTagNameNS('*','p')).forEach(function(p){
+    var runs=Array.from(p.children).filter(function(n){return n.localName==='run';}),hit=false;
+    runs.forEach(function(r,i){
+      var nx=runs[i+1];if(!nx||!red.has(r.getAttribute('charPrIDRef'))||red.has(nx.getAttribute('charPrIDRef')))return;
+      var t=Array.from(nx.getElementsByTagNameNS('*','t'))[0];if(!t)return;
+      var m=t.textContent.match(/^(으로|로)(?![가-힣])/);if(!m)return;
+      var j=josaRo(r.textContent);if(!j||j===m[1])return;
+      t.textContent=j+t.textContent.slice(m[1].length);hit=true;
+    });
+    if(hit)Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
   });
 }
 // 이용상태 항목(가·나·다) — 요항표 탭 첫 칸 + 추가 항목(y_usestateMore, JSON 배열). 빈 항목은 뺀다.
@@ -187,6 +220,7 @@ async function buildYohang(){
           return map[k];});                             // 채운 값도 빨강 글자모양 그대로 둔다
       });
     });
+    fixJosa(d,red);
     var out=ser(d).replace(/\{\{([^{}#]+)#\d+\}\}/g,'{{$1}}');   // 기호2부터 빈 칸 표시를 양식 표시로
     // 토지이용계획은 여러 줄 → 문단을 줄 수만큼 복제하고, 복제본 글자색은 빨강으로(다른 채움 자리와 같게)
     out=expandPara(out,'{{요항_용도지역}}',toice,redOf);
