@@ -53,10 +53,11 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       renderStds();renderLands();
       for(const [k,v] of Object.entries({ov_client:'토지검증',ov_caseNo:'',base_gijun:'2026.01.01',base_gongsi:'2026.01.01',base_josa:'2026.01.02',bt_useApr:'2018.01.01',jb_factor:'1.02',eTime:'1.02',eArea:'1',eSaj1:'1',eSaj2:'1',eArea2:'1',eInd2:'1',ga_time:'1.03',ga_area:'1',ga_sajeong:'1'}))set(k,v);
       calcGongsi();renderBldCalc();calcFinal();
-      return {land:LAND_FINAL,bld:BLD_RESULT.total,total:document.getElementById('fn_total').textContent,parcels:GONGSI_RESULT.rows.map(r=>r.total)};},{mode,n});
+      return {unit:won(GONGSI_RESULT.applyUnit),land:LAND_FINAL,bld:BLD_RESULT.total,total:document.getElementById('fn_total').textContent,parcels:GONGSI_RESULT.rows.map(r=>r.total)};},{mode,n});
     // ② 의견서 3가지
+    let lastUnit;
     for(const [mode,n] of [['single',1],['multi',3],['ildanji',3]]){
-      const v=await fill(mode,n);
+      const v=await fill(mode,n);lastUnit=v.unit;
       assert.equal(v.bld,0,'토지만 건물가액 0');
       assert.equal(v.total.replace(/[^\d]/g,''),String(v.land),'감정평가액 = 토지');
       const bytes=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data())));
@@ -66,19 +67,22 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       assert(!/건물면적|사용승인일|재조달원가\(원|건물금액/.test(r.text),mode+' 거래사례 표 건물 칸 없음');
       assert(r.text.includes('원가법'),'원가법 정의 문단 유지');
       assert(r.text.includes('본건 토지에 대하여')&&r.text.includes('현황 토지의 면적'),'오타 수정');
-      assert(!r.text.includes('토지 및 건물의 특성'),'결정의견 토지의 특성');
+      assert(!r.text.includes('토지 및 건물의 특성')&&r.text.includes('목적으로서 수요성, 환가성, 공시지가와 인근지역의 현지조사 가격수준, 토지 특성 등을'),'결정의견 = 정답 샘플 문구');
       const iv=r.tables.find(t=>t[0][0]==='구분'&&t[0].join('').includes('감정평가액(원)'));
       assert(iv,'Ⅳ 결정표');
       const fmt=x=>x.toLocaleString('ko-KR');
-      if(mode==='multi'){
-        assert.equal(iv.length,1+3+1,'머리+필지3+합계');
-        v.parcels.forEach((amt,i)=>{assert.equal(iv[1+i][0],'토지 기호'+(i+1));assert.equal(iv[1+i][3],fmt(amt));});
-        assert.equal(iv[4][0],'합계');assert.equal(iv[4][1],'450');assert.equal(iv[4][3],fmt(v.land));
-        assert.equal((r.text.match(/필지\d 표준지 비교/g)||[]).length,3);
-      }else{
-        assert.equal(iv.length,3,mode+' 머리+토지+합계');assert.equal(iv[1][0],'토지');assert.equal(iv[1][3],fmt(v.land));
-        assert.equal(iv[2][1],mode==='single'?'100':'450','합계 사정면적');
-      }
+      // Ⅳ 결정표 — 정답 샘플: 한 줄 「토지 | 사정면적 합계 | 단가(여러 필지면 '-') | 금액」 + 합계 줄(금액만)
+      assert.equal(iv.length,3,mode+' 머리+토지+합계');assert.equal(iv[1][0],'토지');assert.equal(iv[1][3],fmt(v.land));
+      assert.equal(iv[1][1],mode==='single'?'100':'450');
+      assert.equal(iv[1][2],mode==='multi'?'-':v.unit,mode+' Ⅳ 단가');
+      assert.equal(iv[2][1],'','합계 줄 사정면적 빈칸');
+      // 시산가액 표(공시·거래) — 여러 필지면 합계 행
+      const sis=r.tables.filter(t=>t[0].join('').includes('시산가액(원)')&&t[0].join('').includes('공부면적'));
+      assert.equal(sis.length,2,'시산가액 표 2개');
+      sis.forEach(t=>{const last=t[t.length-1];
+        if(mode==='multi'){assert.equal(t.length,1+3+1);assert.deepEqual(last.slice(0,4),['합계','450','450','-']);assert.equal(last[5],'-');}
+        else assert.notEqual(last[0],'합계');});
+      if(mode==='multi'){assert.equal(sis[0][4][4],fmt(v.land),'공시 합계 = 토지감정평가액');assert.equal((r.text.match(/필지\d 표준지 비교/g)||[]).length,3);}
     }
     // ③ 괄호감정표 — 건물 줄 없음, 평가내역 세로 합침 4줄, 일반건축물대장 없음
     const gbytes=await page.evaluate(async()=>Array.from(await ArapCheonggu.buildTokenHwpx(await gwalTplB64(),gwalMap(),{})));
@@ -86,8 +90,17 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     const g=await check(page,gbytes);
     assert.deepEqual(g.bad,[],'괄감 표 구조');
     const gt=g.tables.find(t=>t.some(r=>r[0]==='평가내역'));
-    assert(!gt.some(r=>r.includes('건물')),'괄감 건물 줄 없음');assert.equal(gt.length,11);
-    assert(!g.text.includes('일반건축물대장')&&g.text.includes('토지대장, 귀 제시자료'),'목록표시근거');
+    // 정답 샘플: 건물 줄은 남기되 비움 ['', '', '', '-', '-', '-'], 일단지면 단가 하나
+    assert(!gt.some(r=>r.includes('건물')),'괄감 건물 글자 없음');assert.equal(gt.length,12);
+    assert.deepEqual(gt[9],['','','','-','-','-'],'괄감 건물 줄 비움');
+    assert.equal(gt[8][4],lastUnit,'일단지 괄감 단가 하나');
+    assert(!g.text.includes('일반건축물대장')&&g.text.includes('토지대장,귀 제시자료'),'목록표시근거');
+    // 여러 필지(일단지 아님)면 괄감 단가 '-'
+    await fill('multi',3);
+    const g2=await check(page,await page.evaluate(async()=>Array.from(await ArapCheonggu.buildTokenHwpx(await gwalTplB64(),gwalMap(),{}))));
+    assert.equal(g2.tables.find(t=>t.some(r=>r[0]==='평가내역'))[8][4],'-','여러 필지 괄감 단가 -');
+    // 표지 건명 — 토지만이면 끝에 ' 토지' 없음
+    assert.equal(await page.evaluate(()=>pyojiMap()['건명']),'검증동 10 외 2필지');
     // ④ 요항표 — Ⅲ 건물의 개황 없음
     const ybytes=await page.evaluate(async()=>Array.from(await ArapTojiDocuments.buildYohang()));
     fs.writeFileSync(path.join(out,'토지만_요항표.hwpx'),Buffer.from(ybytes));
@@ -96,6 +109,9 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     // ⑤ 명세표 — 토지 행만
     const rows=await page.evaluate(()=>ArapTojiDocuments.statementRows());
     assert.equal(rows.length,3);assert(rows.every(r=>!r.header));
+    const title=await page.evaluate(async()=>{const b=await ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());const es=await ArapCheonggu.parseZip(b.buffer);
+      return new TextDecoder().decode(es.find(e=>e.name==='xl/sharedStrings.xml').data);});
+    assert(title.includes('(토지)감정평가명세표')&&!title.includes('토지·건물'),'명세표 제목 (토지)');
     // ⑥ 저장·복원 + 평가대상 전환
     await page.evaluate(()=>{document.getElementById('ov_caseNo').value='LAND-TEST';doSave();});
     await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);

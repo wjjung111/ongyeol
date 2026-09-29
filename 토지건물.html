@@ -2676,7 +2676,8 @@ function bldGrpCell(i){
 // 건별로 저장(o.landOnly). 첫 화면 「토지」 링크는 토지건물.html?mode=land.
 var LAND_ONLY=false;
 var FN_OPINION_TB='본건은 수요성·환가성·공시지가와 인근지역의 현지조사 가격수준, 토지 및 건물의 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음.';
-var FN_OPINION_LAND=FN_OPINION_TB.replace('토지 및 건물의 특성','토지의 특성');
+// 토지만 결정의견 기본 문구 — 토지만 정답 샘플(2026-09-29 사용자 제공)과 같은 말
+var FN_OPINION_LAND='본건은 일반거래(시가참고) 목적으로서 수요성, 환가성, 공시지가와 인근지역의 현지조사 가격수준, 토지 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음.';
 var TAB_LABELS={tb:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'4. 토지건물 평가액 결정',jido:'5. 위치도',yohang:'6. 요항표',doc:'7. 감정평가서 다운로드',cheonggu:'8. 청구서 다운로드'},
   land:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'3. 토지 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'}};
 function setLandOnly(v,quiet){
@@ -2696,6 +2697,13 @@ function setLandOnly(v,quiet){
   renderBldCalc();calcFinal();try{renderCheonggu();}catch(e){}saveForm();
 }
 // 의견서 양식 — 토지만이면 토지 전용(건물 절·거래사례 건물 칸 없음, Ⅳ 결정표 필지별 행)
+// 서류의 토지 단가 한 칸(괄호감정표 평가내역·의견서 Ⅳ 결정표) — 여러 필지(일단지·묶기 아님)면 필지마다 달라 '-',
+// 1필지·일단지(묶기 포함)는 단가 하나(사용자 2026-09-29)
+function landUnitDoc(){
+  var gs=window.GONGSI_RESULT||{};
+  if(LANDS.length>1&&!(ILDANJI||isLandGroup()))return '-';
+  return gs.applyUnit?won(gs.applyUnit):'-';
+}
 function opinionTplPath(){return LAND_ONLY?'템플릿/토지 의견서(산출근거) 템플릿.hwpx':'템플릿/토건 의견서(산출근거) 템플릿.hwpx';}
 
 // ================= 4. 토지건물 평가액 결정(최종) =================
@@ -3206,8 +3214,9 @@ function gwalMap(){
     '기타참고사항':'-',
     '감정평가액':won(total),'감정평가액한글':(total?A.numberToKoreanMoney(total)+'원':''),
     '괄_토지_공부면적':docArea(gs.gongbuSize||gs.size),'괄_토지_사정면적':docArea(gs.size),
-    '괄_토지_단가':gs.applyUnit?won(gs.applyUnit):'-','괄_토지_금액':land?won(land):'-',
-    '괄_건물_공부면적':(br.gongbuSize||br.size)?docArea(br.gongbuSize||br.size):'-','괄_건물_사정면적':br.size?docArea(br.size):'-',
+    '괄_토지_단가':landUnitDoc(),'괄_토지_금액':land?won(land):'-',
+    // 토지만 — 건물 줄은 지우지 않고 비운다(종별·공부면적 빈칸, 사정면적·단가·금액 '-', 토지만 정답 샘플과 같게)
+    '괄_건물_공부면적':LAND_ONLY?'':(br.gongbuSize||br.size)?docArea(br.gongbuSize||br.size):'-','괄_건물_사정면적':br.size?docArea(br.size):'-',
     '괄_건물_단가':bldUnit?won(bldUnit):'-','괄_건물_금액':bld?won(bld):'-'
   };
 }
@@ -3223,7 +3232,8 @@ async function gwalTplB64(){
   return LAND_ONLY?ArapTojiDocuments.landOnlyGwal(b64):b64;
 }
 // 표지 토큰맵 — 의뢰인·건명(본건 소재지)·접수번호
-function pyojiMap(){return {'의뢰인':cgVal('ov_client'),'건명':cheongguAddr(),'접수번호':cgVal('ov_caseNo')};}
+// 토지만이면 건명 끝의 ' 토지'를 붙이지 않는다(「…220-2 외 3필지」 — 토지만 정답 샘플). 청구서 건명은 종전대로.
+function pyojiMap(){return {'의뢰인':cgVal('ov_client'),'건명':LAND_ONLY?cheongguAddr().replace(/ 토지$/,''):cheongguAddr(),'접수번호':cgVal('ov_caseNo')};}
 function downloadPyoji(){return makeDoc('템플릿/토건 표지 템플릿.hwpx',pyojiMap(),'1. 표지');}
 // 1~5 일괄 받기 — 다섯 문서를 먼저 전부 만들어 두고(하나라도 못 만들면 그 문서만 빼고 알린다) 순서대로 내려받는다.
 // 파일마다 잠깐 간격을 두어 브라우저가 첫 파일만 받고 나머지를 막는 일을 줄인다(그래도 「여러 파일 다운로드 허용」은 사용자가 한 번 눌러야 함).

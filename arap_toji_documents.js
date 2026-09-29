@@ -201,34 +201,16 @@ function dropBldSection(doc){
     p.remove();
   });
 }
-// 한글 표에서 행 하나를 뺀다 — 위에서 이 행까지 세로로 합쳐진 칸은 한 줄 줄이고, 아래 행 번호·표 높이·행 수를 맞춘다.
-function dropHwpxRow(tbl,tr){
-  var kids=function(el,n){return Array.from(el.children).filter(function(x){return x.localName===n;});};
-  var rows=kids(tbl,'tr'),idx=rows.indexOf(tr);if(idx<0)return;
-  var h=Math.max.apply(null,kids(tr,'tc').map(function(c){var sp=+kids(c,'cellSpan')[0].getAttribute('rowSpan');return sp===1?+kids(c,'cellSz')[0].getAttribute('height'):0;}).concat([0]));
-  rows.slice(0,idx).forEach(function(r){kids(r,'tc').forEach(function(c){
-    var ad=kids(c,'cellAddr')[0],sp=kids(c,'cellSpan')[0],sz=kids(c,'cellSz')[0],r0=+ad.getAttribute('rowAddr'),n=+sp.getAttribute('rowSpan');
-    if(r0+n>idx){sp.setAttribute('rowSpan',String(n-1));sz.setAttribute('height',String(Math.max(0,+sz.getAttribute('height')-h)));}
-  });});
-  tr.remove();
-  kids(tbl,'tr').forEach(function(r,i){kids(r,'tc').forEach(function(c){kids(c,'cellAddr')[0].setAttribute('rowAddr',String(i));});});
-  tbl.setAttribute('rowCnt',String(kids(tbl,'tr').length));
-  var tsz=kids(tbl,'sz')[0];if(tsz)tsz.setAttribute('height',String(Math.max(0,+tsz.getAttribute('height')-h)));
-  var host=tbl.parentNode;while(host&&host.localName!=='p')host=host.parentNode;
-  if(host)Array.from(host.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){if(n.parentNode===host)n.remove();});
-}
-// 괄호감정표(토건 양식) → 토지만: 평가내역의 건물 줄을 빼고, 목록표시근거에서 일반건축물대장을 뺀다. base64로 돌려준다.
+// 괄호감정표(토건 양식) → 토지만: 평가내역의 건물 줄은 지우지 않고 종별 '건물' 글자만 비운다(값 칸은 gwalMap이 빈칸·'-'),
+// 목록표시근거에서 일반건축물대장을 뺀다. base64로 돌려준다(토지만 정답 샘플과 같은 모양).
 async function landOnlyGwal(b64){
   var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
     Array.from(d.getElementsByTagNameNS('*','tr')).filter(function(tr){return tr.textContent.indexOf('{{괄_건물_')>=0;}).forEach(function(tr){
-      var tbl=tr.parentNode;while(tbl&&tbl.localName!=='tbl')tbl=tbl.parentNode;if(tbl)dropHwpxRow(tbl,tr);});
-    var ts=Array.from(d.getElementsByTagNameNS('*','t'));
-    ts.forEach(function(t,ti){
+      Array.from(tr.getElementsByTagNameNS('*','t')).forEach(function(t){if(t.textContent.trim()==='건물')t.textContent='';});});
+    Array.from(d.getElementsByTagNameNS('*','t')).forEach(function(t){
       if(t.textContent.indexOf('일반건축물대장')>=0){t.textContent=t.textContent.replace(/,\s*일반건축물대장\s*,\s*/,', ').replace(/일반건축물대장\s*,\s*/,'');
-        // 양식은 "토지대장," / "일반건축물대장, 귀 제시자료"로 글자 조각이 나뉘어 있다 — 앞 조각이 쉼표로 끝나면 띄어 쓴다
-        var prev=ts[ti-1];if(prev&&/,$/.test(prev.textContent)&&t.textContent&&!/^\s/.test(t.textContent))t.textContent=' '+t.textContent;
         var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;if(p)Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});}});
     e.data=enc.encode(ser(d));
   });
@@ -333,6 +315,9 @@ function chunks(v,n){return String(v||'').split('\n').flatMap(function(line){
 });}
 async function buildStatement(rows){
   var raw=await fetchTplB64('템플릿/토건 명세표 템플릿.xlsx'),entries=await A.parseZip(Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
+  // 토지만 — 제목 「(토지·건물)감정평가명세표」 → 「(토지)감정평가명세표」(앞 공백은 그대로)
+  if(landOnly())entries.filter(function(e){return e.name==='xl/sharedStrings.xml';}).forEach(function(e){
+    e.data=enc.encode(dec.decode(e.data).split('(토지·건물)감정평가명세표').join('(토지)감정평가명세표'));});
   var entry=entries.find(function(e){return /^xl\/worksheets\/sheet\d+\.xml$/.test(e.name);}),d=xml(dec.decode(entry.data)),sd=nodes(d,'sheetData')[0],original=nodes(sd,'row');
   // 양식에서 첫 데이터행(플레이스홀더가 있는 행)과 합계행(SUM 수식이 있는 행)을 찾아 쓴다 — 행 번호를 코드에 고정하지 않는다.
   var sample=original.find(function(row){return nodes(row,'t').some(function(t){return /\{\{명세_/.test(t.textContent);});});
