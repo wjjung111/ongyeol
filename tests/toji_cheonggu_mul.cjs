@@ -68,23 +68,23 @@ const FEE=['1  예상평가액  1,775,270,360',
   assert.ok(x15.onFee&&!x15.onSp);
   assert.ok(x15.note.includes('1.5배'));
 
-  // ③ 상한-하한으로 바꾸면 차액 615,580이 채워지고 × 1.5 = 923,370 이 적용액 칸에 뜬다
+  // ③ 상한-하한으로 바꾸면 차액 615,580이 채워지고 × 1.5 = 923,370 → 천원 반올림 923,000 이 적용액 칸에 뜬다
   await set('cg_specialMode','상한-하한');
   const diff=await read();
   console.log('③ 상한-하한 × 1.5',diff);
   assert.equal(diff.special,'615,580');
   assert.equal(diff.eqHidden,false);assert.equal(diff.spMulHidden,false);
-  assert.equal(diff.applied,'923,370');
-  assert.equal(diff.doc,923370);
+  assert.equal(diff.applied,'923,000');
+  assert.equal(diff.doc,923000);
   assert.ok(diff.onSp&&!diff.onAp);
-  assert.equal(diff.sub,'993,370 원');
+  assert.equal(diff.sub,'993,000 원');
 
   // ④ 적용액을 손으로 923,000 으로 고치면 그 값이 청구서에 나간다
-  await set('cg_specialApplied','923,000');
+  await set('cg_specialApplied','923,370');
   const man=await read();
   console.log('④ 적용액 수정',man);
-  assert.equal(man.applied,'923,000');assert.equal(man.doc,923000);assert.ok(man.onAp,'고친 적용액은 강조');
-  assert.equal(man.sub,'993,000 원');
+  assert.equal(man.applied,'923,370');assert.equal(man.doc,923370);assert.ok(man.onAp,'고친 적용액은 강조');
+  assert.equal(man.sub,'993,370 원');
 
   // ⑤ 저장·복원해도 고친 적용액이 유지된다
   const round=await page.evaluate(()=>{
@@ -96,18 +96,18 @@ const FEE=['1  예상평가액  1,775,270,360',
   console.log('⑤ 저장·복원',round);
   assert.equal(round.feeMul,'1.5');assert.equal(round.spMul,'1.5');
   assert.equal(round.fee,'2,269,000 원');
-  assert.equal(round.applied,'923,000');assert.equal(round.special,923000);
+  assert.equal(round.applied,'923,370');assert.equal(round.special,923370);
 
   // ⑥ 배수를 다시 고치면 적용액은 자동값으로 돌아간다(특용비 배수만 1.2 → 738,696). 적용액을 비워도 자동
   await set('cg_specialMul','1.2');
   const re=await read();
   console.log('⑥ 배수 재수정',re);
-  assert.equal(re.applied,'738,696');assert.equal(re.doc,738696);assert.ok(!re.onAp);
+  assert.equal(re.applied,'739,000');assert.equal(re.doc,739000);assert.ok(!re.onAp);
   assert.equal(re.fee,'2,269,000 원','수수료는 1.5배 유지');
   await set('cg_specialApplied','700,000');await set('cg_specialApplied','');
   await page.evaluate(()=>document.getElementById('cg_specialApplied').blur());
   const emp=await read();
-  assert.equal(emp.applied,'738,696','비우면 자동값 복귀');
+  assert.equal(emp.applied,'739,000','비우면 자동값 복귀');
 
   // ⑦ 차액(기초값)을 고쳐도 적용액은 자동 재계산. ↺ 누르면 차액·적용액 모두 자동
   await set('cg_specialApplied','700,000');
@@ -117,13 +117,13 @@ const FEE=['1  예상평가액  1,775,270,360',
   assert.equal(bs.applied,'720,000');assert.equal(bs.doc,720000);
   await page.evaluate(()=>cgResetSpecial());
   const rs=await read();
-  assert.equal(rs.special,'615,580');assert.equal(rs.applied,'738,696');
+  assert.equal(rs.special,'615,580');assert.equal(rs.applied,'739,000');
 
   // ⑧ 이상한 값(0·문자)은 1배로 본다
   await set('cg_feeMul','0');await set('cg_specialMul','abc');
   const bad=await page.evaluate(()=>{const c=cgFee();return {수수료:c.평가수수료,특용비:c.특별용역비};});
   console.log('⑧ 0·문자',bad);
-  assert.equal(bad.수수료,1512000);assert.equal(bad.특용비,615580);
+  assert.equal(bad.수수료,1512000);assert.equal(bad.특용비,616000);
 
   // ⑨ 다시 직접입력으로 돌아오면 칸의 금액(차액이 남아 있음)이 그대로 나간다
   await set('cg_specialMode','직접입력');await set('cg_specialMul','1.5');
