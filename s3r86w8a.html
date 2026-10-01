@@ -62,12 +62,15 @@
     .rsz-grip:hover::after{background:#2563eb!important;}
     body.rsz-dragging{cursor:col-resize;user-select:none;-webkit-user-select:none;}
     body.rsz-dragging *{cursor:col-resize!important;}
-    /* ④ 가격산출 2단 — 사례 선택·가치형성요인·시산가액(왼쪽) | 청구서(오른쪽, 스크롤해도 따라다님). 본문 폭이 1100px 미만이면 한 줄로 쌓는다(사이드바를 접고 펴도 본문 폭 기준으로 반응) */
+    /* ④ 가격산출 2단 — 사례 선택·가치형성요인·시산가액(왼쪽) | 청구서(오른쪽). 본문 폭이 모자라면 한 줄로 쌓는다(사이드바·메모를 접고 펴도 본문 폭 기준으로 반응).
+       단일호수 1300px 미만 / 여러호수 1460px 미만(적용단가 표가 약 980px 필요)에서 한 줄. 단일호수는 청구서가 스크롤해도 따라온다(sticky) — 여러호수는 페이지 전체가 스크롤되는 구조라 sticky 없이 같이 스크롤 */
     .k4-wrap{container-type:inline-size;}
     .k4-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(440px,30%);gap:12px;align-items:start;}
     .k4-left,.k4-right{min-width:0;}
-    .k4-right{position:sticky;top:0;max-height:calc(100vh - 24px);overflow-y:auto;}
-    @container (max-width:1099px){.k4-split{grid-template-columns:minmax(0,1fr);}.k4-right{position:static;max-height:none;overflow:visible;}}
+    .k4-right{position:sticky;top:0;max-height:calc(100vh - 80px);overflow-y:auto;}
+    .k4-multi .k4-right{position:static;max-height:none;overflow:visible;}
+    @container (max-width:1299px){.k4-split{grid-template-columns:minmax(0,1fr);}.k4-right{position:static;max-height:none;overflow:visible;}}
+    @container (max-width:1459px){.k4-multi .k4-split{grid-template-columns:minmax(0,1fr);}}
     table.rsz-on td{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:3px!important;padding-right:3px!important;}   /* 자동 너비는 글자 폭에 딱 맞춰져 있어 고정 뒤 소수점 이하 차이로 '…'가 뜨지 않게 좌우 여백을 줄여 여유를 둔다 */
   </style>
   <script>
@@ -1235,18 +1238,27 @@ function LeftSidebar({ov,collapsed,setCollapsed}){
 // ── 오른쪽 메모장 ──
 const MEMO_KEY_PREFIX="appraisal-memo:";
 // 메모 이미지 줄이기 — 화면 캡처 원본(PNG 1~3MB)을 그대로 저장하면 브라우저 저장 공간(약 5MB)이 금방 차서 새로고침 때 사라진다.
-// 긴 변 1600px 이하 JPEG(0.85)로 줄여 저장한다(120KB 미만 작은 이미지는 원본 그대로).
+// 긴 변 1600px 이하로 줄여 [원본 / JPEG(0.85) / 줄인 PNG] 중 가장 작은 것을 저장한다(글자 많은 캡처는 PNG가, 사진·큰 화면은 JPEG가 작다). 120KB 미만은 원본 그대로.
 function memoShrinkImage(file){return new Promise(res=>{
-  const raw=()=>{const r=new FileReader();r.onload=ev=>res(ev.target.result);r.onerror=()=>res(null);r.readAsDataURL(file);};
-  if(!file||file.size<120000)return raw();
-  let url="";
-  try{url=URL.createObjectURL(file);const im=new Image();
-    im.onload=()=>{try{const sc=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(1,Math.round(im.naturalWidth*sc)),h=Math.max(1,Math.round(im.naturalHeight*sc));
-      const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",0.85));}
-      catch(e){URL.revokeObjectURL(url);raw();}};
-    im.onerror=()=>{URL.revokeObjectURL(url);raw();};im.src=url;}
-  catch(e){try{URL.revokeObjectURL(url);}catch(e2){}raw();}
+  const rd=cb=>{const r=new FileReader();r.onload=ev=>cb(ev.target.result);r.onerror=()=>cb(null);r.readAsDataURL(file);};
+  if(!file||file.size<120000)return rd(res);
+  rd(orig=>{
+    if(!orig)return res(null);
+    let url="";
+    try{url=URL.createObjectURL(file);const im=new Image();
+      im.onload=()=>{try{const sc=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(1,Math.round(im.naturalWidth*sc)),h=Math.max(1,Math.round(im.naturalHeight*sc));
+        const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);URL.revokeObjectURL(url);
+        const cands=[orig,c.toDataURL("image/jpeg",0.85)];if(sc<1)cands.push(c.toDataURL("image/png"));
+        res(cands.reduce((m,v)=>v.length<m.length?v:m));}
+        catch(e){URL.revokeObjectURL(url);res(orig);}};
+      im.onerror=()=>{URL.revokeObjectURL(url);res(orig);};im.src=url;}
+    catch(e){try{URL.revokeObjectURL(url);}catch(e2){}res(orig);}
+  });
 });}
+// 접수번호를 입력하기 전(_temp)에 붙여넣은 메모는 그 건이 처음 저장되는 순간 그 건의 메모로 옮긴다(예전엔 번호를 치는 순간 메모창이 비고 새로고침해도 안 돌아왔다)
+function memoAdoptTemp(id){try{const tk=MEMO_KEY_PREFIX+"_temp",raw=localStorage.getItem(tk);if(!raw)return;const t=JSON.parse(raw)||[];
+  if(t.length){const k=MEMO_KEY_PREFIX+id,cur=JSON.parse(localStorage.getItem(k)||"[]")||[];localStorage.setItem(k,JSON.stringify([...t,...cur]));}
+  localStorage.removeItem(tk);}catch(e){console.warn('memo adopt failed',e);}}
 // 브라우저 저장 공간이 부족해 메모를 못 저장했을 때의 안내 — 사용량과 큰 항목을 같이 보여 무엇을 지우면 되는지 알게 한다
 function memoFullMsg(){
   let tot=0;const by={};
@@ -1261,14 +1273,15 @@ function RightMemo({caseId,collapsed,setCollapsed}){
   const [text,setText]=useState("");
   const [viewer,setViewer]=useState(null); // 이미지 크게 보기
   const [saveErr,setSaveErr]=useState(""); // 저장 실패 안내(비어 있으면 정상)
-  const notesRef=React.useRef([]),keyRef=React.useRef(memoKey);keyRef.current=memoKey;   // 이미지는 줄이는 동안 비동기라 최신 목록·키를 ref로 본다
+  const notesRef=React.useRef([]),keyRef=React.useRef(memoKey),dirtyRef=React.useRef(false);keyRef.current=memoKey;   // 이미지는 줄이는 동안 비동기라 최신 목록·키를 ref로 본다
   // 메모 로드
   useEffect(()=>{
+    if(dirtyRef.current){dirtyRef.current=false;alert("저장하지 못한 메모(이미지)가 있었는데 다른 건으로 옮겨져 사라졌습니다. 저장 공간을 비운 뒤 그 건에서 다시 붙여넣어 주세요.");}
     let l=[];try{const raw=localStorage.getItem(memoKey);if(raw)l=JSON.parse(raw)||[];}catch(e){l=[];}
     notesRef.current=l;setNotes(l);setSaveErr("");
   },[memoKey]);
   // 메모 저장 — 실패(저장 공간 부족 등)를 조용히 넘기지 않고 화면에 알린다(예전엔 화면엔 보이는데 새로고침하면 사라졌음)
-  const save=(list)=>{notesRef.current=list;setNotes(list);try{localStorage.setItem(keyRef.current,JSON.stringify(list));setSaveErr("");return true;}catch(e){console.warn('memo save failed',e);setSaveErr(memoFullMsg());return false;}};
+  const save=(list)=>{notesRef.current=list;setNotes(list);try{localStorage.setItem(keyRef.current,JSON.stringify(list));setSaveErr("");dirtyRef.current=false;return true;}catch(e){console.warn('memo save failed',e);dirtyRef.current=true;setSaveErr(memoFullMsg());return false;}};
   // 텍스트 추가
   const addText=()=>{if(!text.trim())return;save([{id:Date.now(),type:"text",content:text,time:new Date().toLocaleString("ko-KR")},...notesRef.current]);setText("");};
   // 이미지 붙여넣기 — 줄인 뒤 저장. 줄이는 사이 다른 건으로 옮겨 갔으면 붙여넣은 그 건의 메모에 넣는다
@@ -4092,6 +4105,7 @@ function App(){
           storageSet(LIST_KEY,JSON.stringify(newList));
           return newList;
         });
+        if(!currentId)memoAdoptTemp(id);   // 접수번호 입력 전에 붙여넣은 메모를 이 건으로 옮긴다
         setCurrentId(id);
         setSaveStatus("✅");
       }catch(e){setSaveStatus("❌ "+String(e.message||e));}
@@ -4331,7 +4345,7 @@ function App(){
       {step<4?<button style={{...S.btn,...BTN.p}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
     </div>
     </div>{/* 중앙 메인 끝 */}
-    <RightMemo caseId={currentId||ov.caseNo} collapsed={rightCollapsed} setCollapsed={setRightCollapsed}/>
+    <RightMemo caseId={currentId} collapsed={rightCollapsed} setCollapsed={setRightCollapsed}/>
   </div>);
 }
 
@@ -4746,18 +4760,27 @@ function LeftSidebar({ov,collapsed,setCollapsed}){
 // ── 오른쪽 메모장 ──
 const MEMO_KEY_PREFIX="v2:appraisal-memo:";
 // 메모 이미지 줄이기 — 화면 캡처 원본(PNG 1~3MB)을 그대로 저장하면 브라우저 저장 공간(약 5MB)이 금방 차서 새로고침 때 사라진다.
-// 긴 변 1600px 이하 JPEG(0.85)로 줄여 저장한다(120KB 미만 작은 이미지는 원본 그대로).
+// 긴 변 1600px 이하로 줄여 [원본 / JPEG(0.85) / 줄인 PNG] 중 가장 작은 것을 저장한다(글자 많은 캡처는 PNG가, 사진·큰 화면은 JPEG가 작다). 120KB 미만은 원본 그대로.
 function memoShrinkImage(file){return new Promise(res=>{
-  const raw=()=>{const r=new FileReader();r.onload=ev=>res(ev.target.result);r.onerror=()=>res(null);r.readAsDataURL(file);};
-  if(!file||file.size<120000)return raw();
-  let url="";
-  try{url=URL.createObjectURL(file);const im=new Image();
-    im.onload=()=>{try{const sc=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(1,Math.round(im.naturalWidth*sc)),h=Math.max(1,Math.round(im.naturalHeight*sc));
-      const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",0.85));}
-      catch(e){URL.revokeObjectURL(url);raw();}};
-    im.onerror=()=>{URL.revokeObjectURL(url);raw();};im.src=url;}
-  catch(e){try{URL.revokeObjectURL(url);}catch(e2){}raw();}
+  const rd=cb=>{const r=new FileReader();r.onload=ev=>cb(ev.target.result);r.onerror=()=>cb(null);r.readAsDataURL(file);};
+  if(!file||file.size<120000)return rd(res);
+  rd(orig=>{
+    if(!orig)return res(null);
+    let url="";
+    try{url=URL.createObjectURL(file);const im=new Image();
+      im.onload=()=>{try{const sc=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(1,Math.round(im.naturalWidth*sc)),h=Math.max(1,Math.round(im.naturalHeight*sc));
+        const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);URL.revokeObjectURL(url);
+        const cands=[orig,c.toDataURL("image/jpeg",0.85)];if(sc<1)cands.push(c.toDataURL("image/png"));
+        res(cands.reduce((m,v)=>v.length<m.length?v:m));}
+        catch(e){URL.revokeObjectURL(url);res(orig);}};
+      im.onerror=()=>{URL.revokeObjectURL(url);res(orig);};im.src=url;}
+    catch(e){try{URL.revokeObjectURL(url);}catch(e2){}res(orig);}
+  });
 });}
+// 접수번호를 입력하기 전(_temp)에 붙여넣은 메모는 그 건이 처음 저장되는 순간 그 건의 메모로 옮긴다(예전엔 번호를 치는 순간 메모창이 비고 새로고침해도 안 돌아왔다)
+function memoAdoptTemp(id){try{const tk=MEMO_KEY_PREFIX+"_temp",raw=localStorage.getItem(tk);if(!raw)return;const t=JSON.parse(raw)||[];
+  if(t.length){const k=MEMO_KEY_PREFIX+id,cur=JSON.parse(localStorage.getItem(k)||"[]")||[];localStorage.setItem(k,JSON.stringify([...t,...cur]));}
+  localStorage.removeItem(tk);}catch(e){console.warn('memo adopt failed',e);}}
 // 브라우저 저장 공간이 부족해 메모를 못 저장했을 때의 안내 — 사용량과 큰 항목을 같이 보여 무엇을 지우면 되는지 알게 한다
 function memoFullMsg(){
   let tot=0;const by={};
@@ -4772,14 +4795,15 @@ function RightMemo({caseId,collapsed,setCollapsed}){
   const [text,setText]=useState("");
   const [viewer,setViewer]=useState(null); // 이미지 크게 보기
   const [saveErr,setSaveErr]=useState(""); // 저장 실패 안내(비어 있으면 정상)
-  const notesRef=React.useRef([]),keyRef=React.useRef(memoKey);keyRef.current=memoKey;   // 이미지는 줄이는 동안 비동기라 최신 목록·키를 ref로 본다
+  const notesRef=React.useRef([]),keyRef=React.useRef(memoKey),dirtyRef=React.useRef(false);keyRef.current=memoKey;   // 이미지는 줄이는 동안 비동기라 최신 목록·키를 ref로 본다
   // 메모 로드
   useEffect(()=>{
+    if(dirtyRef.current){dirtyRef.current=false;alert("저장하지 못한 메모(이미지)가 있었는데 다른 건으로 옮겨져 사라졌습니다. 저장 공간을 비운 뒤 그 건에서 다시 붙여넣어 주세요.");}
     let l=[];try{const raw=localStorage.getItem(memoKey);if(raw)l=JSON.parse(raw)||[];}catch(e){l=[];}
     notesRef.current=l;setNotes(l);setSaveErr("");
   },[memoKey]);
   // 메모 저장 — 실패(저장 공간 부족 등)를 조용히 넘기지 않고 화면에 알린다(예전엔 화면엔 보이는데 새로고침하면 사라졌음)
-  const save=(list)=>{notesRef.current=list;setNotes(list);try{localStorage.setItem(keyRef.current,JSON.stringify(list));setSaveErr("");return true;}catch(e){console.warn('memo save failed',e);setSaveErr(memoFullMsg());return false;}};
+  const save=(list)=>{notesRef.current=list;setNotes(list);try{localStorage.setItem(keyRef.current,JSON.stringify(list));setSaveErr("");dirtyRef.current=false;return true;}catch(e){console.warn('memo save failed',e);dirtyRef.current=true;setSaveErr(memoFullMsg());return false;}};
   // 텍스트 추가
   const addText=()=>{if(!text.trim())return;save([{id:Date.now(),type:"text",content:text,time:new Date().toLocaleString("ko-KR")},...notesRef.current]);setText("");};
   // 이미지 붙여넣기 — 줄인 뒤 저장. 줄이는 사이 다른 건으로 옮겨 갔으면 붙여넣은 그 건의 메모에 넣는다
@@ -6955,7 +6979,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
 
 
-  return(<div className="k4-wrap"><div className="k4-split"><div className="k4-left">
+  return(<div className="k4-wrap k4-multi"><div className="k4-split"><div className="k4-left">
     {/* 사례 선택 */}
     <div style={S.card}><div style={S.h2}>사례 선택</div>
       <table style={S.tbl}><thead><tr><th style={{...S.th,width:40}}>선정</th><th style={S.th}>기호</th><th style={S.th}>소재지</th><th style={S.th}>건물명</th><th style={S.th}>동/층/호</th><th style={S.th}>전유면적</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
@@ -7364,6 +7388,7 @@ function App(){
           storageSet(LIST_KEY,JSON.stringify(newList));
           return newList;
         });
+        if(!currentId)memoAdoptTemp(id);   // 접수번호 입력 전에 붙여넣은 메모를 이 건으로 옮긴다
         setCurrentId(id);
         // 관리자 사용기록: 건 요약 전송 — 결정단가·시산가액은 ④탭(Step4)과 동일 산식 (이 스코프엔 fT가 없어 재계산)
         try{
@@ -7591,7 +7616,7 @@ function App(){
       {step<4?<button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>setStep(step+1)}>다음 →</button>:<div/>}
     </div>
     </div>{/* 중앙 메인 끝 */}
-    <RightMemo caseId={currentId||ov.caseNo} collapsed={rightCollapsed} setCollapsed={setRightCollapsed}/>
+    <RightMemo caseId={currentId} collapsed={rightCollapsed} setCollapsed={setRightCollapsed}/>
   </div>);
 }
 
