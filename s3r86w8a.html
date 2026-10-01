@@ -54,6 +54,15 @@
     /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
     .arapmapstatus{font-size:11.5px;color:#555;min-height:14px;margin-top:6px;}
     .arapmapstatus.err{color:#dc2626;font-weight:700;}
+    /* 표 열 너비 조절 손잡이 — 머리글 칸 오른쪽 끝(거래사례·평가전례·여러호수 상세물건정보) */
+    table.rsz th{position:relative;}
+    .rsz-grip{position:absolute;top:0;right:-4px;bottom:0;width:9px;cursor:col-resize;z-index:2;touch-action:none;user-select:none;}
+    .rsz-grip::after{content:'';position:absolute;left:4px;top:18%;bottom:18%;width:2px;border-radius:2px;background:transparent;transition:background .12s;}
+    table.rsz th:hover > .rsz-grip::after{background:#cbd5e1;}
+    .rsz-grip:hover::after{background:#2563eb!important;}
+    body.rsz-dragging{cursor:col-resize;user-select:none;-webkit-user-select:none;}
+    body.rsz-dragging *{cursor:col-resize!important;}
+    table.rsz-on td{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:3px!important;padding-right:3px!important;}   /* 자동 너비는 글자 폭에 딱 맞춰져 있어 고정 뒤 소수점 이하 차이로 '…'가 뜨지 않게 좌우 여백을 줄여 여유를 둔다 */
   </style>
   <script>
   // ── 집합건물 위치도 (본건만) ──
@@ -1143,6 +1152,33 @@ function PrecNumberInput({label,value,onChange,scale=1}){
     onBlur={()=>setEditing(false)}/>);
 }
 
+// ── 열 너비 조절 — 머리글 칸 오른쪽 끝을 끌면 그 열 너비가 바뀐다(더블클릭 = 기본 너비로). 너비는 표별로 이 브라우저에만 저장(arap-colw-키, 건 저장 데이터와 무관). 한 번도 안 끌었으면 표는 예전과 똑같이 자동 너비.
+// 끄는 동안 이벤트는 window에서 받는다 — CSortTh/PSortTh가 컴포넌트 안에서 만들어져 다시 그릴 때마다 th가 새로 만들어지므로 손잡이 요소에 붙들어 두면 끊긴다.
+function useColResize(key,ncols){
+  const ref=React.useRef(null);
+  const [w,setW]=useState(()=>{try{const a=JSON.parse(localStorage.getItem("arap-colw-"+key)||"null");return Array.isArray(a)&&a.length===ncols&&a.every(x=>typeof x==="number"&&x>0)?a:null;}catch(e){return null;}});
+  const cur=w&&w.length===ncols?w:null;
+  const persist=a=>{try{if(a)localStorage.setItem("arap-colw-"+key,JSON.stringify(a));else localStorage.removeItem("arap-colw-"+key);}catch(e){console.warn("열 너비 저장 실패",e);}};
+  const grip=i=>(<span className="rsz-grip" title="드래그: 열 너비 조절 / 더블클릭: 기본 너비"
+    onClick={e=>e.stopPropagation()}
+    onDoubleClick={e=>{e.stopPropagation();setW(null);persist(null);}}
+    onPointerDown={e=>{
+      if(e.button!==0)return;
+      e.preventDefault();e.stopPropagation();
+      const tb=ref.current;if(!tb)return;
+      const base=cur||[...tb.querySelectorAll("thead > tr:first-child > th")].map(t=>Math.ceil(t.getBoundingClientRect().width));
+      if(base.length!==ncols)return;
+      const x0=e.clientX,w0=base[i];let last=null;
+      setW(base);   // 지금 보이는 너비 그대로 고정 → 표가 튀지 않는다
+      document.body.classList.add("rsz-dragging");
+      const mv=ev=>{const a=base.slice();a[i]=Math.max(24,Math.round(w0+ev.clientX-x0));last=a;setW(a);};
+      const up=()=>{window.removeEventListener("pointermove",mv);window.removeEventListener("pointerup",up);window.removeEventListener("pointercancel",up);document.body.classList.remove("rsz-dragging");
+        if(last)persist(last);else setW(cur);};   // 안 움직였으면(더블클릭의 첫 클릭 등) 원래 상태로
+      window.addEventListener("pointermove",mv);window.addEventListener("pointerup",up);window.addEventListener("pointercancel",up);
+    }}/>);
+  return{ref,cls:"rsz"+(cur?" rsz-on":""),style:cur?{tableLayout:"fixed",width:cur.reduce((a,x)=>a+x,0)}:null,cols:cur?<colgroup>{cur.map((x,j)=><col key={j} style={{width:x}}/>)}</colgroup>:null,grip};
+}
+
 function DragRow({children,index,onDrop,style}){
   const [hov,setHov]=useState(false);
   return(<tr style={style} draggable onDragStart={e=>e.dataTransfer.setData("text/plain",index)}
@@ -1779,11 +1815,12 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   // ── 정렬 ──
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
+  const crC=useColResize("cases",14),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
   const sortAndApply=(arr,setArr,sort,isPrec)=>{const sorted=[...arr].sort((a,b)=>{let va=a[sort.key],vb=b[sort.key];if(typeof va==="string")va=va||"";if(typeof vb==="string")vb=vb||"";const na=parseFloat(String(va).replace(/,/g,"")),nb=parseFloat(String(vb).replace(/,/g,""));if(!isNaN(na)&&!isNaN(nb))return sort.asc?na-nb:nb-na;return sort.asc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});setArr(reIdx(sorted,isPrec));};
   const toggleCSort=(key)=>{const next=cSort.key===key?{key,asc:!cSort.asc}:{key,asc:true};setCSort(next);sortAndApply(cases,setCases,next,false);};
   const togglePSort=(key)=>{const next=pSort.key===key?{key,asc:!pSort.asc}:{key,asc:true};setPSort(next);sortAndApply(precs,setPrecs,next,true);};
-  const CSortTh=({label,sortKey,style:st})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>toggleCSort(sortKey)}>{label}{cSort.key===sortKey?(cSort.asc?" ▲":" ▼"):""}</th>;
-  const PSortTh=({label,sortKey,style:st})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>togglePSort(sortKey)}>{label}{pSort.key===sortKey?(pSort.asc?" ▲":" ▼"):""}</th>;
+  const CSortTh=({label,sortKey,style:st,i})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>toggleCSort(sortKey)}>{label}{cSort.key===sortKey?(cSort.asc?" ▲":" ▼"):""}{crC.grip(i)}</th>;
+  const PSortTh=({label,sortKey,style:st,i})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>togglePSort(sortKey)}>{label}{pSort.key===sortKey?(pSort.asc?" ▲":" ▼"):""}{crP.grip(i)}</th>;
   const extractDates=(text)=>{const result={tradeDate:null,baseDate:null};const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm)result.tradeDate=tm[1];const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm)result.baseDate=bm[1];return result;};
   const normDate=(d)=>{if(!d)return"";return d.replace(/-/g,".").replace(/\s/g,"").replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,(_,y,m,dd)=>`${y}.${m.padStart(2,"0")}.${dd.padStart(2,"0")}`);};
   const checkTimeWarnings=(text,caseItem)=>{const warns=[];const dates=extractDates(text);if(dates.tradeDate&&caseItem){const cd=normDate(fmtDate(caseItem.tradeDate));const td=normDate(dates.tradeDate);if(cd&&td&&cd!==td)warns.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}if(dates.baseDate&&ov.baseDate){const ob=normDate(ov.baseDate);const tb=normDate(dates.baseDate);if(ob&&tb&&ob!==tb)warns.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setTimeWarnings(warns);};
@@ -1864,19 +1901,19 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
       </div>}
     </div>
     {cases.length>0&&(<div style={{overflowX:"auto",marginBottom:16}}>{cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 거래사례 {cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length}건 — 시점수정 불가, 거래시점을 확인하세요</div>}
-      <table style={S.tbl}><thead><tr>
-        <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={{...S.th,width:28}}>선정</th>
-        <th style={{...S.th,width:36}}>기호</th>
-        <CSortTh label="소재지" sortKey="location"/>
-        <th style={S.th}>동/층/호</th>
-        <CSortTh label="건물명" sortKey="aptName"/>
-        <CSortTh label="전유면적" sortKey="exclusiveArea"/>
-        <CSortTh label="사례가격" sortKey="price"/>
-        <CSortTh label="단가" sortKey="unitPrice"/>
-        <CSortTh label="거래시점" sortKey="tradeDate"/>
-        <CSortTh label="사용승인일" sortKey="approvalDate"/>
-        <CSortTh label="시점수정치" sortKey="timeAdj" style={{width:75}}/>
-        <th style={{...S.th,width:24}}></th>
+      <table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
+        <th style={{...S.th,width:24}}>{crC.grip(0)}</th><th style={{...S.th,width:28}}>표시{crC.grip(1)}</th><th style={{...S.th,width:28}}>선정{crC.grip(2)}</th>
+        <th style={{...S.th,width:36}}>기호{crC.grip(3)}</th>
+        <CSortTh i={4} label="소재지" sortKey="location"/>
+        <th style={S.th}>동/층/호{crC.grip(5)}</th>
+        <CSortTh i={6} label="건물명" sortKey="aptName"/>
+        <CSortTh i={7} label="전유면적" sortKey="exclusiveArea"/>
+        <CSortTh i={8} label="사례가격" sortKey="price"/>
+        <CSortTh i={9} label="단가" sortKey="unitPrice"/>
+        <CSortTh i={10} label="거래시점" sortKey="tradeDate"/>
+        <CSortTh i={11} label="사용승인일" sortKey="approvalDate"/>
+        <CSortTh i={12} label="시점수정치" sortKey="timeAdj" style={{width:75}}/>
+        <th style={{...S.th,width:24}}>{crC.grip(13)}</th>
       </tr></thead><tbody>
         {cases.map((c,i)=>(<DragRow key={c.id} index={i} onDrop={dropC} style={{background:dateAfterWarn(c.tradeDate,ov)?"#fee2e2":c.isSelected?C.sel:c.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={c.isShown} onChange={()=>togC(c.id,"isShown")}/></td>
@@ -1960,17 +1997,17 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
       </div>}
     </div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
-      <table style={S.tbl}><thead><tr>
-        <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={S.th}>기호</th>
-        <PSortTh label="소재지" sortKey="location"/>
-        <th style={S.th}>동/층/호</th>
-        <PSortTh label="건물명" sortKey="buildingName"/>
-        <PSortTh label="전유면적" sortKey="exclusiveArea"/>
-        <PSortTh label="사례가격(천원)" sortKey="appraiseAmount"/>
-        <PSortTh label="단가(원/㎡)" sortKey="unitPrice"/>
-        <PSortTh label="기준시점" sortKey="baseDate"/>
-        <PSortTh label="목적" sortKey="purpose"/>
-        <th style={{...S.th,width:24}}></th>
+      <table ref={crP.ref} className={crP.cls} style={{...S.tbl,...crP.style}}>{crP.cols}<thead><tr>
+        <th style={{...S.th,width:24}}>{crP.grip(0)}</th><th style={{...S.th,width:28}}>표시{crP.grip(1)}</th><th style={S.th}>기호{crP.grip(2)}</th>
+        <PSortTh i={3} label="소재지" sortKey="location"/>
+        <th style={S.th}>동/층/호{crP.grip(4)}</th>
+        <PSortTh i={5} label="건물명" sortKey="buildingName"/>
+        <PSortTh i={6} label="전유면적" sortKey="exclusiveArea"/>
+        <PSortTh i={7} label="사례가격(천원)" sortKey="appraiseAmount"/>
+        <PSortTh i={8} label="단가(원/㎡)" sortKey="unitPrice"/>
+        <PSortTh i={9} label="기준시점" sortKey="baseDate"/>
+        <PSortTh i={10} label="목적" sortKey="purpose"/>
+        <th style={{...S.th,width:24}}>{crP.grip(11)}</th>
       </tr></thead><tbody>
         {precs.map((p,i)=>(<DragRow key={p.id} index={i} onDrop={dropP} style={{background:dateAfterWarn(p.baseDate,ov)?"#fee2e2":p.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={p.isShown} onChange={()=>togP(p.id)}/></td>
@@ -4577,6 +4614,33 @@ function PrecNumberInput({label,value,onChange,scale=1}){
     onBlur={()=>setEditing(false)}/>);
 }
 
+// ── 열 너비 조절 — 머리글 칸 오른쪽 끝을 끌면 그 열 너비가 바뀐다(더블클릭 = 기본 너비로). 너비는 표별로 이 브라우저에만 저장(arap-colw-키, 건 저장 데이터와 무관). 한 번도 안 끌었으면 표는 예전과 똑같이 자동 너비.
+// 끄는 동안 이벤트는 window에서 받는다 — CSortTh/PSortTh가 컴포넌트 안에서 만들어져 다시 그릴 때마다 th가 새로 만들어지므로 손잡이 요소에 붙들어 두면 끊긴다.
+function useColResize(key,ncols){
+  const ref=React.useRef(null);
+  const [w,setW]=useState(()=>{try{const a=JSON.parse(localStorage.getItem("arap-colw-"+key)||"null");return Array.isArray(a)&&a.length===ncols&&a.every(x=>typeof x==="number"&&x>0)?a:null;}catch(e){return null;}});
+  const cur=w&&w.length===ncols?w:null;
+  const persist=a=>{try{if(a)localStorage.setItem("arap-colw-"+key,JSON.stringify(a));else localStorage.removeItem("arap-colw-"+key);}catch(e){console.warn("열 너비 저장 실패",e);}};
+  const grip=i=>(<span className="rsz-grip" title="드래그: 열 너비 조절 / 더블클릭: 기본 너비"
+    onClick={e=>e.stopPropagation()}
+    onDoubleClick={e=>{e.stopPropagation();setW(null);persist(null);}}
+    onPointerDown={e=>{
+      if(e.button!==0)return;
+      e.preventDefault();e.stopPropagation();
+      const tb=ref.current;if(!tb)return;
+      const base=cur||[...tb.querySelectorAll("thead > tr:first-child > th")].map(t=>Math.ceil(t.getBoundingClientRect().width));
+      if(base.length!==ncols)return;
+      const x0=e.clientX,w0=base[i];let last=null;
+      setW(base);   // 지금 보이는 너비 그대로 고정 → 표가 튀지 않는다
+      document.body.classList.add("rsz-dragging");
+      const mv=ev=>{const a=base.slice();a[i]=Math.max(24,Math.round(w0+ev.clientX-x0));last=a;setW(a);};
+      const up=()=>{window.removeEventListener("pointermove",mv);window.removeEventListener("pointerup",up);window.removeEventListener("pointercancel",up);document.body.classList.remove("rsz-dragging");
+        if(last)persist(last);else setW(cur);};   // 안 움직였으면(더블클릭의 첫 클릭 등) 원래 상태로
+      window.addEventListener("pointermove",mv);window.addEventListener("pointerup",up);window.addEventListener("pointercancel",up);
+    }}/>);
+  return{ref,cls:"rsz"+(cur?" rsz-on":""),style:cur?{tableLayout:"fixed",width:cur.reduce((a,x)=>a+x,0)}:null,cols:cur?<colgroup>{cur.map((x,j)=><col key={j} style={{width:x}}/>)}</colgroup>:null,grip};
+}
+
 function DragRow({children,index,onDrop,style}){
   const [hov,setHov]=useState(false);
   return(<tr style={style} draggable onDragStart={e=>e.dataTransfer.setData("text/plain",index)}
@@ -4957,6 +5021,7 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
 // ── Step 2 ──
 function Step2({ov,setOv,propType,setPropType}){
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
+  const crU=useColResize("units",13);   // 상세물건정보(호 단위) 표 열 너비
   const MIRROR_KEYS=["dong","floor","ho","area","commonArea","landArea","mainUseJeonyu"];
   // units 동기화 - 저장된 건 불러올 때 units 배열이 없으면 ov scalar에서 재구성
   useEffect(()=>{
@@ -5246,21 +5311,21 @@ function Step2({ov,setOv,propType,setPropType}){
         <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"4px 10px"}} onClick={addUnit}>+ 호수 추가</button>
       </div>
       <div style={{overflowX:"auto"}}>
-        <table style={S.tbl}>
+        <table ref={crU.ref} className={crU.cls} style={{...S.tbl,...crU.style}}>{crU.cols}
           <thead><tr>
-            <th style={{...S.th,width:36}}>기호</th>
-            <th style={{...S.th,width:60}}>동</th>
-            <th style={{...S.th,width:50}}>층</th>
-            <th style={{...S.th,width:60}}>호</th>
-            <th style={{...S.th,width:80}}>전유면적</th>
-            <th style={{...S.th,width:80}}>공용면적</th>
-            <th style={{...S.th,width:80}}>대지권면적</th>
-            <th style={{...S.th,width:130}}>주용도(전유부)</th>
-            <th style={{...S.th,width:90}}>평가대상면적</th>
-            <th style={{...S.th,width:90}}>사정면적</th>
-            <th style={{...S.th,width:200}}>탁상가격</th>
-            <th style={{...S.th,width:110}}>탁상단가</th>
-            <th style={{...S.th,width:30}}></th>
+            <th style={{...S.th,width:36}}>기호{crU.grip(0)}</th>
+            <th style={{...S.th,width:60}}>동{crU.grip(1)}</th>
+            <th style={{...S.th,width:50}}>층{crU.grip(2)}</th>
+            <th style={{...S.th,width:60}}>호{crU.grip(3)}</th>
+            <th style={{...S.th,width:80}}>전유면적{crU.grip(4)}</th>
+            <th style={{...S.th,width:80}}>공용면적{crU.grip(5)}</th>
+            <th style={{...S.th,width:80}}>대지권면적{crU.grip(6)}</th>
+            <th style={{...S.th,width:130}}>주용도(전유부){crU.grip(7)}</th>
+            <th style={{...S.th,width:90}}>평가대상면적{crU.grip(8)}</th>
+            <th style={{...S.th,width:90}}>사정면적{crU.grip(9)}</th>
+            <th style={{...S.th,width:200}}>탁상가격{crU.grip(10)}</th>
+            <th style={{...S.th,width:110}}>탁상단가{crU.grip(11)}</th>
+            <th style={{...S.th,width:30}}>{crU.grip(12)}</th>
           </tr></thead>
           <tbody>
             {(ov.units||[]).map((unit,i)=>{
@@ -5356,11 +5421,12 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   // ── 정렬 ──
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
+  const crC=useColResize("cases",14),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
   const sortAndApply=(arr,setArr,sort,isPrec)=>{const sorted=[...arr].sort((a,b)=>{let va=a[sort.key],vb=b[sort.key];if(typeof va==="string")va=va||"";if(typeof vb==="string")vb=vb||"";const na=parseFloat(String(va).replace(/,/g,"")),nb=parseFloat(String(vb).replace(/,/g,""));if(!isNaN(na)&&!isNaN(nb))return sort.asc?na-nb:nb-na;return sort.asc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});setArr(reIdx(sorted,isPrec));};
   const toggleCSort=(key)=>{const next=cSort.key===key?{key,asc:!cSort.asc}:{key,asc:true};setCSort(next);sortAndApply(cases,setCases,next,false);};
   const togglePSort=(key)=>{const next=pSort.key===key?{key,asc:!pSort.asc}:{key,asc:true};setPSort(next);sortAndApply(precs,setPrecs,next,true);};
-  const CSortTh=({label,sortKey,style:st})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>toggleCSort(sortKey)}>{label}{cSort.key===sortKey?(cSort.asc?" ▲":" ▼"):""}</th>;
-  const PSortTh=({label,sortKey,style:st})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>togglePSort(sortKey)}>{label}{pSort.key===sortKey?(pSort.asc?" ▲":" ▼"):""}</th>;
+  const CSortTh=({label,sortKey,style:st,i})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>toggleCSort(sortKey)}>{label}{cSort.key===sortKey?(cSort.asc?" ▲":" ▼"):""}{crC.grip(i)}</th>;
+  const PSortTh=({label,sortKey,style:st,i})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>togglePSort(sortKey)}>{label}{pSort.key===sortKey?(pSort.asc?" ▲":" ▼"):""}{crP.grip(i)}</th>;
   const extractDates=(text)=>{const result={tradeDate:null,baseDate:null};const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm)result.tradeDate=tm[1];const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm)result.baseDate=bm[1];return result;};
   const normDate=(d)=>{if(!d)return"";return d.replace(/-/g,".").replace(/\s/g,"").replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,(_,y,m,dd)=>`${y}.${m.padStart(2,"0")}.${dd.padStart(2,"0")}`);};
   const checkTimeWarnings=(text,caseItem)=>{const warns=[];const dates=extractDates(text);if(dates.tradeDate&&caseItem){const cd=normDate(fmtDate(caseItem.tradeDate));const td=normDate(dates.tradeDate);if(cd&&td&&cd!==td)warns.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}if(dates.baseDate&&ov.baseDate){const ob=normDate(ov.baseDate);const tb=normDate(dates.baseDate);if(ob&&tb&&ob!==tb)warns.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setTimeWarnings(warns);};
@@ -5472,19 +5538,19 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
       </div>}
     </div>
     {cases.length>0&&(<div style={{overflowX:"auto",marginBottom:16}}>{cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 거래사례 {cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length}건 — 시점수정 불가, 거래시점을 확인하세요</div>}
-      <table style={S.tbl}><thead><tr>
-        <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={{...S.th,width:28}}>선정</th>
-        <th style={{...S.th,width:36}}>기호</th>
-        <CSortTh label="소재지" sortKey="location"/>
-        <th style={S.th}>동/층/호</th>
-        <CSortTh label="건물명" sortKey="aptName"/>
-        <CSortTh label="전유면적" sortKey="exclusiveArea"/>
-        <CSortTh label="사례가격" sortKey="price"/>
-        <CSortTh label="단가" sortKey="unitPrice"/>
-        <CSortTh label="거래시점" sortKey="tradeDate"/>
-        <CSortTh label="사용승인일" sortKey="approvalDate"/>
-        <CSortTh label="시점수정치" sortKey="timeAdj" style={{width:75}}/>
-        <th style={{...S.th,width:24}}></th>
+      <table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
+        <th style={{...S.th,width:24}}>{crC.grip(0)}</th><th style={{...S.th,width:28}}>표시{crC.grip(1)}</th><th style={{...S.th,width:28}}>선정{crC.grip(2)}</th>
+        <th style={{...S.th,width:36}}>기호{crC.grip(3)}</th>
+        <CSortTh i={4} label="소재지" sortKey="location"/>
+        <th style={S.th}>동/층/호{crC.grip(5)}</th>
+        <CSortTh i={6} label="건물명" sortKey="aptName"/>
+        <CSortTh i={7} label="전유면적" sortKey="exclusiveArea"/>
+        <CSortTh i={8} label="사례가격" sortKey="price"/>
+        <CSortTh i={9} label="단가" sortKey="unitPrice"/>
+        <CSortTh i={10} label="거래시점" sortKey="tradeDate"/>
+        <CSortTh i={11} label="사용승인일" sortKey="approvalDate"/>
+        <CSortTh i={12} label="시점수정치" sortKey="timeAdj" style={{width:75}}/>
+        <th style={{...S.th,width:24}}>{crC.grip(13)}</th>
       </tr></thead><tbody>
         {cases.map((c,i)=>(<DragRow key={c.id} index={i} onDrop={dropC} style={{background:dateAfterWarn(c.tradeDate,ov)?"#fee2e2":c.isSelected?C.sel:c.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={c.isShown} onChange={()=>togC(c.id,"isShown")}/></td>
@@ -5572,17 +5638,17 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
       </div>}
     </div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
-      <table style={S.tbl}><thead><tr>
-        <th style={{...S.th,width:24}}></th><th style={{...S.th,width:28}}>표시</th><th style={S.th}>기호</th>
-        <PSortTh label="소재지" sortKey="location"/>
-        <th style={S.th}>동/층/호</th>
-        <PSortTh label="건물명" sortKey="buildingName"/>
-        <PSortTh label="전유면적" sortKey="exclusiveArea"/>
-        <PSortTh label="사례가격(천원)" sortKey="appraiseAmount"/>
-        <PSortTh label="단가(원/㎡)" sortKey="unitPrice"/>
-        <PSortTh label="기준시점" sortKey="baseDate"/>
-        <PSortTh label="목적" sortKey="purpose"/>
-        <th style={{...S.th,width:24}}></th>
+      <table ref={crP.ref} className={crP.cls} style={{...S.tbl,...crP.style}}>{crP.cols}<thead><tr>
+        <th style={{...S.th,width:24}}>{crP.grip(0)}</th><th style={{...S.th,width:28}}>표시{crP.grip(1)}</th><th style={S.th}>기호{crP.grip(2)}</th>
+        <PSortTh i={3} label="소재지" sortKey="location"/>
+        <th style={S.th}>동/층/호{crP.grip(4)}</th>
+        <PSortTh i={5} label="건물명" sortKey="buildingName"/>
+        <PSortTh i={6} label="전유면적" sortKey="exclusiveArea"/>
+        <PSortTh i={7} label="사례가격(천원)" sortKey="appraiseAmount"/>
+        <PSortTh i={8} label="단가(원/㎡)" sortKey="unitPrice"/>
+        <PSortTh i={9} label="기준시점" sortKey="baseDate"/>
+        <PSortTh i={10} label="목적" sortKey="purpose"/>
+        <th style={{...S.th,width:24}}>{crP.grip(11)}</th>
       </tr></thead><tbody>
         {precs.map((p,i)=>(<DragRow key={p.id} index={i} onDrop={dropP} style={{background:dateAfterWarn(p.baseDate,ov)?"#fee2e2":p.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={p.isShown} onChange={()=>togP(p.id)}/></td>
