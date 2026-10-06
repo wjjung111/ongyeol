@@ -164,8 +164,26 @@ function buildingMaps(rows){
       // 물건 표는 공부(연)면적과 사정면적을 나란히 적는다
       '건물_면적':area(g.rows.reduce(function(s,r){return s+(r.gongbu!=null?r.gongbu:r.size);},0)),
       '건물_사정면적':area(g.rows.reduce(function(s,r){return s+r.size;},0)),
-      '건물_승인일':docDot(val('bt_useApr')),'건물_비고':'-'};   // 비고는 비워두지 않고 '-'
+      '건물_승인일':docDot(val('bt_useApr')),'건물_비고':'-',   // 비고는 비워두지 않고 '-'
+      // 도로명주소 — 건물만 양식의 소재지 칸(지번 아래 [도로명주소] 줄). 칸이 비면 토지 조회 때 받은 값(명세표와 같은 규칙)
+      '건물_도로명':bldRoad()};
   });
+}
+function bldRoad(){return text(val('bt_roadAddr')).trim()||text((LANDS[0]||{}).roadAddr).trim();}
+function bldOnly(){return typeof BLD_ONLY!=='undefined'&&!!BLD_ONLY;}
+// 건물만 평가(토지건물.html BLD_ONLY) — 토지 계산(공시지가·거래사례·그 밖의 요인) 없이 건물 원가법만으로 의견서 자료를 만든다.
+// 양식(템플릿/건물 의견서(산출근거) 템플릿.hwpx)에는 토지 토큰이 없다. 감정평가액 = 건물가액.
+function bldOnlyData(br){
+  if(!(br.rows||[]).length)throw new Error('건물평가 탭에서 건물 층별 목록(건축물대장)과 재조달원가를 먼저 입력해 주세요.');
+  var m={
+    '소재지_동':dongAddr(),'인근위치설명':val('op_location')||'[인근 위치 기입]','지대':val('g_daegu'),
+    '평가구분':val('ov_kind'),'평가목적':val('ov_purpose'),'기준시점':docDot(val('base_gijun')),'조사기간':docDot(val('base_josa')),
+    '건물_합계면적':area(br.size),'건물가액':money(br.total),'감정평가액':money(br.total)
+  };
+  return {global:m,detail:m,parcels:[],subject:[],landGroup:false,landOnly:false,bldOnly:true,bldRoad:bldRoad(),standards:[],
+    buildings:buildingMaps(br.rows||[]),appraisals:[],floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),trades:[],
+    tradeNote:'',observed:!!br.observed,
+    etcItems:Array.isArray(window.ETC_ITEMS)?window.ETC_ITEMS.map(function(s){return {text:text(s).trim(),user:typeof etcIsUser==='function'&&etcIsUser(s)};}).filter(function(x){return x.text;}):null};
 }
 function newCostMaps(){
   var rows=val('op_costRows').split(/\r?\n/).filter(function(s){return s.trim();});
@@ -178,6 +196,7 @@ function newCostMaps(){
 function opinionData(){
   var gs=window.GONGSI_RESULT,ga=window.GEORAE_RESULT||{};
   var br=(typeof bldResult==='function'?bldResult():null)||window.BLD_RESULT||{rows:[],total:0,size:0};
+  if(bldOnly())return bldOnlyData(br);
   if(!gs||!gs.rows||!gs.rows.length||!gs.total)throw new Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
   var etc=gs.etc,choice=etcCase(),choiceName=!choice?'':ETC.type==='t'?'거래사례 #'+(ETC.idx+1):'평가사례 '+text(choice&&choice.no);
   var tm=etcTimeMeta(),selected=TRADES[GA.idx]||{},gt=(ga.rows||[])[0]||{};
@@ -627,7 +646,12 @@ function opinionXml(xml,data){
       if(data.standards.length>1)data.standards.forEach(function(sd,i){if(!sd._selected)return;
         children(tbl,'tr').slice(2+2*i,4+2*i).forEach(function(r){descendants(r,'run').forEach(function(run){if(descendants(run,'t').length)markRun(run,'b');});});});
     }
-    else if(hasToken(tbl,'건물_소재지'))resizeRows(tbl,1,1,1,data.buildings.length?data.buildings:[blankMap(tbl)],state);
+    else if(hasToken(tbl,'건물_소재지')){
+      // 건물만 양식 — 소재지 칸의 [도로명주소] 두 줄은 도로명주소가 없으면 뺀다
+      if(hasToken(tbl,'건물_도로명')&&!data.bldRoad)descendants(tbl,'p').filter(function(p){
+        return !descendants(p,'tbl').length&&(p.textContent.trim()==='[도로명주소]'||p.textContent.indexOf('{{건물_도로명}}')>=0);}).forEach(function(p){p.remove();});
+      resizeRows(tbl,1,1,1,data.buildings.length?data.buildings:[blankMap(tbl)],state);
+    }
     else if(hasToken(tbl,'공시시점_설명'))resizeRows(tbl,1,1,1,data.standards,state);
     // 본건/표준지 개별요인 표: 필지마다 [요인 행 + 의견 행] 두 줄 묶음으로 늘린다(일련번호 칸은 두 줄 세로 병합)
     else if(hasToken(tbl,'공시개별_번호'))resizeRows(tbl,1,2,2,data.parcels,state);
@@ -718,7 +742,7 @@ function opinionXml(xml,data){
   replacePlain(doc,'헙계','합계');
   if(ETC.type==='a')replacePlain(doc,'상기와 같이 거래사례를 기준한','상기와 같이 평가사례를 기준한');
   descendants(doc,'p').filter(function(p){return p.parentNode===doc.documentElement;}).forEach(function(p){
-    if(p.textContent.indexOf('본건은 ')===0&&/토지( 및 건물의|의)? 특성/.test(p.textContent)&&val('fn_opinion')){   // 토지 전용 양식은 '토지의 특성'
+    if(p.textContent.indexOf('본건은 ')===0&&/(토지( 및 건물의|의)?|건물의) 특성/.test(p.textContent)&&val('fn_opinion')){   // 토지 전용 양식은 '토지의 특성', 건물만 양식은 '건물의 특성'
       var ts=descendants(p,'t');if(ts.length){ts[0].textContent=val('fn_opinion');ts.slice(1).forEach(function(t){t.textContent='';});clearLines(p);}
     }
   });
