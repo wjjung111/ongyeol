@@ -829,8 +829,8 @@
             <textarea id="y_locationEtc" rows="2" placeholder="해당사항 없음."></textarea>
           </div>
 
-          <h3>Ⅱ. 토지의 개황</h3>
-          <div class="y-location y-land">
+          <h3 class="land-calc">Ⅱ. 토지의 개황</h3>
+          <div class="y-location y-land land-calc">
             <h4>1. 지세 및 형상</h4>
             <!-- 본건 필지가 둘 이상이면(묶기 아님) 1~3항을 기호별로: 기호1 = 아래 기존 칸, 기호2부터 = LANDS[i].yh (renderYohangLands) -->
             <p><span class="y-kiho" hidden>(1) 기호1 : </span>인접토지 및 인접도로 대비 <input type="text" id="y_jise" class="y-inline y-terrain" aria-label="지세" placeholder="등고평탄한"> <input type="text" id="y_shape" class="y-inline y-shape" aria-label="형상" placeholder="정방형">의 토지임.</p>
@@ -844,7 +844,7 @@
             <div id="y_landMore3"></div>
           </div>
 
-          <h3 class="bld-only">Ⅲ. 건물의 개황</h3>
+          <h3 class="bld-only"><span id="y_bldNo">Ⅲ</span>. 건물의 개황</h3>
           <!-- 양식 문장 그대로: "{{요항_건물구조}} 건물로서 / - 외벽 : {{요항_외벽}} 등 / - 창호 : {{요항_창호}}창호 등임. / 공부상 {{요항_이용상태}}로 이용 중임." -->
           <div class="y-location y-bld bld-only">
             <h4>1. 건물의 구조</h4>
@@ -862,7 +862,7 @@
           <div class="row" style="margin-top:12px"><button class="btn" id="btnYohang2">📄 5. 요항표 받기 (.hwpx)</button><span class="hint" id="y_status" role="status"></span></div>
         </div>
 
-        <div class="card">
+        <div class="card land-calc">
           <h2>토지이용계획 (요항표 4번 칸)</h2>
           <div class="note"><a href="https://www.eum.go.kr/web/am/amMain.jsp" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">토지이음(eum.go.kr)</a> 「지역·지구등 지정여부」를 필지별로 붙여넣으세요.</div>
           <div id="toiceBox"></div>
@@ -2702,6 +2702,7 @@ function setEvalKind(k,quiet){
   Object.keys(lab).forEach(function(n){var b=document.getElementById('tabbtn-'+n);if(b)b.textContent=lab[n];});
   var t=document.getElementById('mbTitle');if(t)t.textContent='🏞️ Ongyeol v1.0 · EXACT '+EVAL_TITLES[k];
   document.title='EXACT '+EVAL_TITLES[k];
+  var yb=document.getElementById('y_bldNo');if(yb)yb.textContent=BLD_ONLY?'Ⅱ':'Ⅲ';   // 요항표 — 건물만이면 토지의 개황이 빠져 건물의 개황이 Ⅱ
   // 결정의견 기본 문구만 바꾼다(직접 고친 문구는 그대로)
   var fo=document.getElementById('fn_opinion');
   if(fo&&Object.keys(FN_OPINIONS).some(function(x){return FN_OPINIONS[x]===fo.value;}))fo.value=FN_OPINIONS[k];
@@ -3238,7 +3239,9 @@ function gwalMap(){
     '괄_토지_단가':landUnitDoc(),'괄_토지_금액':land?won(land):'-',
     // 토지만 — 건물 줄은 지우지 않고 비운다(종별·공부면적 빈칸, 사정면적·단가·금액 '-', 토지만 정답 샘플과 같게)
     '괄_건물_공부면적':LAND_ONLY?'':(br.gongbuSize||br.size)?docArea(br.gongbuSize||br.size):'-','괄_건물_사정면적':br.size?docArea(br.size):'-',
-    '괄_건물_단가':bldUnit?won(bldUnit):'-','괄_건물_금액':bld?won(bld):'-'
+    '괄_건물_단가':bldUnit?won(bldUnit):'-','괄_건물_금액':bld?won(bld):'-',
+    // 건물만 — 둘째 줄(양식의 건물 자리)은 비운 줄: 종별·공부면적 빈칸, 사정면적·단가·금액 '-' (bldOnlyGwal)
+    '괄_빈_공부면적':'','괄_빈_사정면적':'-','괄_빈_단가':'-','괄_빈_금액':'-'
   };
 }
 function downloadGwal(){
@@ -3247,10 +3250,11 @@ function downloadGwal(){
   if(br.size&&!br.total&&!confirm('건물 재조달원가가 입력되지 않아 건물가액이 빈칸으로 나갑니다.\n건물 탭에서 층별 재조달원가를 입력하세요.\n\n그래도 지금 받으시겠습니까?'))return;
   return makeDoc('템플릿/토건 괄호감정표 템플릿.hwpx',gwalMap(),'2. 괄호감정표',gwalTplB64);
 }
-// 괄호감정표 양식 — 토지만이면 평가내역의 건물 줄을 빼고 목록표시근거에서 일반건축물대장을 뺀다(arap_toji_documents.js)
+// 괄호감정표 양식 — 토지만이면 평가내역의 건물 줄을 비우고 목록표시근거에서 일반건축물대장을 뺀다,
+// 건물만이면 첫 줄에 건물·둘째 줄 비움, 목록표시근거에서 토지대장을 뺀다(arap_toji_documents.js)
 async function gwalTplB64(){
   var b64=await fetchTplB64('템플릿/토건 괄호감정표 템플릿.hwpx');
-  return LAND_ONLY?ArapTojiDocuments.landOnlyGwal(b64):b64;
+  return LAND_ONLY?ArapTojiDocuments.landOnlyGwal(b64):BLD_ONLY?ArapTojiDocuments.bldOnlyGwal(b64):b64;
 }
 // 표지 토큰맵 — 의뢰인·건명(본건 소재지)·접수번호
 // 토지만이면 건명 끝의 ' 토지'를 붙이지 않는다(「…220-2 외 3필지」 — 토지만 정답 샘플). 청구서 건명은 종전대로.

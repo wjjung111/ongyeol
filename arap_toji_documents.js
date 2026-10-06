@@ -218,6 +218,43 @@ async function landOnlyGwal(b64){
   var u=new Uint8Array(bytes.buffer||bytes),s='';for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
   return btoa(s);
 }
+// ── 건물만 평가(토지건물.html BLD_ONLY) ──
+function bldOnly(){return typeof BLD_ONLY!=='undefined'&&!!BLD_ONLY;}
+// 요항표: 「Ⅱ. 토지의 개황」 제목부터 「Ⅲ. 건물의 개황」 앞까지 본문 문단을 빼고 Ⅲ → Ⅱ로 번호를 당긴다.
+function dropLandSection(doc){
+  var ps=Array.from(doc.documentElement.children).filter(function(p){return p.localName==='p';});
+  var at=ps.findIndex(function(p){return /^Ⅱ\.\s*토지의 개황/.test(p.textContent.trim());});
+  var to=ps.findIndex(function(p){return /^Ⅲ\.\s*건물의 개황/.test(p.textContent.trim());});
+  if(at<0||to<at)return;
+  ps.slice(at,to).forEach(function(p){
+    if(p.getElementsByTagNameNS('*','secPr').length||p.getElementsByTagNameNS('*','ctrl').length||p.getElementsByTagNameNS('*','tbl').length)return;
+    p.remove();
+  });
+  Array.from(ps[to].getElementsByTagNameNS('*','t')).some(function(t){
+    if(t.textContent.indexOf('Ⅲ.')<0)return false;t.textContent=t.textContent.replace('Ⅲ.','Ⅱ.');return true;});
+}
+// 괄호감정표(토건 양식) → 건물만: 평가내역 첫 줄(토지 자리)에 건물 값을 넣고, 둘째 줄(건물 자리)은 지우지 않고 비운다
+// (빈 줄이 위에 오지 않게 — 토지만은 건물 줄이 아래라 그대로 비웠다). 비운 줄 값은 {{괄_빈_*}} → gwalMap이 빈칸·'-'.
+// 목록표시근거에서 토지대장을 뺀다. base64로 돌려준다.
+async function bldOnlyGwal(b64){
+  var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
+  var lines=function(el){var p=el;while(p&&p.localName!=='p')p=p.parentNode;if(p)Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});};
+  entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
+    var d=xml(dec.decode(e.data));
+    var trs=Array.from(d.getElementsByTagNameNS('*','tr'));
+    var bRow=trs.find(function(tr){return tr.textContent.indexOf('{{괄_건물_')>=0;}),lRow=trs.find(function(tr){return tr.textContent.indexOf('{{괄_토지_')>=0;});
+    if(bRow)Array.from(bRow.getElementsByTagNameNS('*','t')).forEach(function(t){
+      if(t.textContent.trim()==='건물')t.textContent='';else if(t.textContent.indexOf('{{괄_건물_')>=0){t.textContent=t.textContent.split('{{괄_건물_').join('{{괄_빈_');lines(t);}});
+    if(lRow)Array.from(lRow.getElementsByTagNameNS('*','t')).forEach(function(t){
+      if(t.textContent.trim()==='토지')t.textContent='건물';else if(t.textContent.indexOf('{{괄_토지_')>=0){t.textContent=t.textContent.split('{{괄_토지_').join('{{괄_건물_');lines(t);}});
+    Array.from(d.getElementsByTagNameNS('*','t')).forEach(function(t){
+      if(/토지대장\s*,/.test(t.textContent)){t.textContent=t.textContent.replace(/\s*토지대장\s*,/,'');lines(t);}});
+    e.data=enc.encode(ser(d));
+  });
+  var bytes=A.createZipStored(entries);if(bytes instanceof Promise)bytes=await bytes;
+  var u=new Uint8Array(bytes.buffer||bytes),s='';for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
+  return btoa(s);
+}
 async function buildYohang(){
   var b64=await fetchTplB64('템플릿/토건 요항표 템플릿.hwpx');
   var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer);
@@ -238,6 +275,7 @@ async function buildYohang(){
   entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
     var d=xml(dec.decode(e.data));
     if(landOnly())dropBldSection(d);   // 토지만 — 「Ⅲ. 건물의 개황」 절 없음
+    if(bldOnly())dropLandSection(d);   // 건물만 — 「Ⅱ. 토지의 개황」 절 없음, 건물의 개황이 Ⅱ
     fillLocationNarrative(d);
     splitLandParas(d,red);   // 여러 필지면 토지의 개황 1~3항을 기호별 문단으로(이 뒤 dropSecondRoad는 할 일이 없어진다)
     dropSecondRoad(d);
@@ -264,10 +302,12 @@ async function buildYohang(){
 function statementRows(){
   calcGongsi();renderBldCalc();calcFinal();
   var gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{rows:[]};
-  if(!gs.rows||!gs.total)throw Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
+  if(bldOnly()){if(!br.rows.some(function(r){return r.size>0;}))throw Error('건물평가 탭에서 건물 층별 목록(건축물대장)을 먼저 입력해 주세요.');}
+  else if(!gs.rows||!gs.total)throw Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
   if(bldRows().some(function(r){return num(r['연면적'])>0;})&&br.rows.some(function(r){return r.size>0&&!r.reCost;}))throw Error('건물평가 탭에서 모든 층의 재조달원가를 입력해 주세요.');
   var loc=function(L){return (typeof landLoc==='function')?landLoc(L):String((L||{})['소재지']||'');};
-  var rows=LANDS.map(function(l,i){var g=gs.rows[i];return {'명세_기호':String(i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),'명세_사정면적':landArea(l),'명세_단가':g.apply,'명세_평가액':g.total,'명세_비고':l['비고']||''};});
+  // 건물만 — 토지 행 없이 건물 행만(지번은 '상동' 대신 실제 지번)
+  var rows=bldOnly()?[]:LANDS.map(function(l,i){var g=gs.rows[i];return {'명세_기호':String(i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),'명세_사정면적':landArea(l),'명세_단가':g.apply,'명세_평가액':g.total,'명세_비고':l['비고']||''};});
   var land=LANDS[0]||{};
   // 건물은 발송 양식대로: 「가」 머리행(소재지 + [도로명주소] / 지번은 필지와 같으면 '상동' / 주용도 / 구조·층수)
   // 아래에 층별 행(용도·층·면적·단가·금액·비고, 3행씩)만 이어 붙인다. 동이 여럿이면 동마다 머리행.
@@ -279,7 +319,7 @@ function statementRows(){
   var marks='가나다라마바사아자차카타파하';
   groups.forEach(function(g,gi){
     var d0=g.rows[0].data,bLoc=(d0['소재지']||'').trim()||loc(land),bJb=(d0['지번']||'').trim()||land['지번']||'';
-    var same=bLoc===loc(land)&&String(bJb)===String(land['지번']||'');
+    var same=!bldOnly()&&bLoc===loc(land)&&String(bJb)===String(land['지번']||'');
     rows.push({'명세_기호':g.dong||marks.charAt(gi)||String(gi+1),'명세_소재지':bLoc+(road?'\n\n[도로명주소]\n'+road:''),'명세_지번':same?'상동':bJb,
       '명세_지목용도':cgVal('bt_purps').trim()||d0['용도']||'','명세_지역구조':[d0['구조']||cgVal('bt_strct'),floors].filter(Boolean).join('\n'),
       '명세_공부면적':null,'명세_사정면적':null,'명세_단가':null,'명세_평가액':0,'명세_비고':'',header:true});
@@ -318,6 +358,8 @@ async function buildStatement(rows){
   // 토지만 — 제목 「(토지·건물)감정평가명세표」 → 「(토지)감정평가명세표」(앞 공백은 그대로)
   if(landOnly())entries.filter(function(e){return e.name==='xl/sharedStrings.xml';}).forEach(function(e){
     e.data=enc.encode(dec.decode(e.data).split('(토지·건물)감정평가명세표').join('(토지)감정평가명세표'));});
+  if(bldOnly())entries.filter(function(e){return e.name==='xl/sharedStrings.xml';}).forEach(function(e){
+    e.data=enc.encode(dec.decode(e.data).split('(토지·건물)감정평가명세표').join('(건물)감정평가명세표'));});
   var entry=entries.find(function(e){return /^xl\/worksheets\/sheet\d+\.xml$/.test(e.name);}),d=xml(dec.decode(entry.data)),sd=nodes(d,'sheetData')[0],original=nodes(sd,'row');
   // 양식에서 첫 데이터행(플레이스홀더가 있는 행)과 합계행(SUM 수식이 있는 행)을 찾아 쓴다 — 행 번호를 코드에 고정하지 않는다.
   var sample=original.find(function(row){return nodes(row,'t').some(function(t){return /\{\{명세_/.test(t.textContent);});});
@@ -380,5 +422,5 @@ $('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=a
 function downloadYohang(btn,statusId){return run(btn,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'5. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');},statusId);}
 $('btnYohang').onclick=function(){return downloadYohang(this);};
 if($('btnYohang2'))$('btnYohang2').onclick=function(){return downloadYohang(this,'y_status');};
-window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang,landOnlyGwal:landOnlyGwal};
+window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang,landOnlyGwal:landOnlyGwal,bldOnlyGwal:bldOnlyGwal};
 })();

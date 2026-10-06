@@ -97,6 +97,37 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       const body=calc.slice(1).filter(x=>!/합계/.test(x.join('')));assert.equal(body.length,floors,'층별 행 '+JSON.stringify(calc));
       assert(calc[calc.length-1].includes(fmt(v.bld)),'건물가액 산출 표 합계');
     }
+    // ③-1 괄호감정표 — 첫 줄 = 건물 값, 둘째 줄 비움, 목록표시근거에서 토지대장 뺌
+    const v2=await fill('서울특별시 강남구 검증로 45',2);
+    const gbytes=await page.evaluate(async()=>Array.from(await ArapCheonggu.buildTokenHwpx(await gwalTplB64(),gwalMap(),{})));
+    fs.writeFileSync(path.join(out,'건물만_괄호감정표.hwpx'),Buffer.from(gbytes));
+    const g=await check(page,gbytes);
+    assert.deepEqual(g.left,[],'괄감 남은 토큰');assert.deepEqual(g.bad,[],'괄감 표 구조');
+    const gt=g.tables.find(t=>t.some(r=>r[0].replace(/\|/g,'')==='평가내역'));
+    assert.equal(gt.length,12,'괄감 12행');
+    assert.equal(gt[8][0],'건물');assert.equal(gt[8][2],'건물');assert.equal(gt[8][3],fmt(v2.size));assert.equal(gt[8][5],fmt(v2.bld),'첫 줄 건물 금액');
+    assert.deepEqual(gt[9],['','','','-','-','-'],'둘째 줄 비움');
+    assert(!g.text.includes('토지'),'괄감 토지 글자 없음');
+    assert(g.text.includes('등기사항전부증명서,')&&g.text.includes('일반건축물대장, 귀 제시자료'),'목록표시근거');
+    assert(g.text.includes(fmt(v2.bld)),'감정평가액');
+    // ③-2 요항표 — 토지의 개황 없음, 건물의 개황이 Ⅱ
+    const ybytes=await page.evaluate(async()=>Array.from(await ArapTojiDocuments.buildYohang()));
+    fs.writeFileSync(path.join(out,'건물만_요항표.hwpx'),Buffer.from(ybytes));
+    const y=await check(page,ybytes);
+    assert(!y.text.includes('토지의 개황')&&!y.text.includes('지세 및 형상')&&!y.text.includes('접면도로'),'요항표 토지 절 없음');
+    assert(y.top.some(t=>t.trim().startsWith('Ⅱ. 건물의 개황'))&&!y.text.includes('Ⅲ.'),'건물의 개황 = Ⅱ');
+    assert(y.text.includes('입지조건'));
+    await page.evaluate(()=>showTab('yohang'));
+    assert(await page.locator('.y-land').isHidden()&&await page.locator('#toiceBox').isHidden(),'요항표 화면 토지 숨김');
+    assert(await page.locator('.y-bld').isVisible());assert.equal(await page.locator('#y_bldNo').textContent(),'Ⅱ');
+    // ③-3 명세표 — 건물 행만, 제목 (건물), 지번은 '상동'이 아니라 실제 지번
+    const rows=await page.evaluate(()=>ArapTojiDocuments.statementRows());
+    assert(rows[0].header,'첫 행 = 건물 머리행');assert.equal(rows.filter(r=>r.header).length,1);
+    assert.equal(rows.length,3,'머리행 + 층 2');assert.equal(rows[0]['명세_지번'],'12-3');
+    assert(rows[0]['명세_소재지'].includes('[도로명주소]'));
+    const ss=await page.evaluate(async()=>{const b=await ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());const es=await ArapCheonggu.parseZip(b.buffer);
+      return new TextDecoder().decode(es.find(e=>e.name==='xl/sharedStrings.xml').data);});
+    assert(ss.includes('(건물)감정평가명세표')&&!ss.includes('토지·건물'),'명세표 제목 (건물)');
     // ③ 평가대상 전환 — 그 밖의 사항 물적 동일성 문구·결정의견 기본 문구가 따라 바뀐다
     assert.equal(await page.evaluate(()=>ETC_ITEMS[1]),await page.evaluate(()=>ETC_ITEM_BLD));
     assert.equal(await page.locator('#fn_opinion').inputValue(),await page.evaluate(()=>FN_OPINION_BLD));
