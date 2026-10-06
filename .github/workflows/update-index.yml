@@ -5,6 +5,10 @@ name: 지수 자동갱신
 on:
   schedule:
     - cron: '0 21 * * *'   # UTC 21:00 = KST 06:00
+  # 받는 지역·표 설정(arap_launch.ps1)이 main에 바뀌면 바로 한 번 받음 — 다음날 6시까지 안 기다리게 (2026-10-06 인천 아파트 추가 때 도입)
+  push:
+    branches: [main]
+    paths: ['arap_launch.ps1']
   workflow_dispatch:
     inputs:
       cap_only:
