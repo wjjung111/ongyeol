@@ -54,7 +54,7 @@
   .lede{margin-top:7px; font-size:13.5px; color:var(--muted); line-height:1.6; max-width:62ch;}
 
   /* ── Workspace: input | result ───────────────────────── */
-  .workspace{display:grid; grid-template-columns:minmax(0,400px) 1fr; background:var(--surface); border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .workspace{display:grid; grid-template-columns:minmax(0,500px) 1fr; background:var(--surface); border:1px solid var(--line); border-radius:5px; overflow:hidden;}
   .panel{padding:22px 24px;}
   .panel-input{border-right:1px solid var(--line);}
   .panel-head{font-size:11px; font-weight:700; letter-spacing:.09em; color:var(--faint); padding-bottom:11px; border-bottom:1px solid var(--line); margin-bottom:18px;}
@@ -78,6 +78,10 @@
   .fields{margin-top:20px;}
   .field-pair{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   .field-pair + .field-pair{margin-top:14px;}
+  /* 주거용: 유형 + 지역 3단을 한 줄에 (유형은 좁게) */
+  .field-pair.quad{grid-template-columns:104px 1fr 1fr 1.35fr; gap:8px;}
+  .field-pair.quad select{padding:0 6px 0 8px; font-size:13.5px;}
+  .field-pair.quad label{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .field label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:6px; letter-spacing:.005em;}
   select, input[type=text]{width:100%; height:40px; padding:0 11px; font:inherit; font-size:14px; color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:4px; transition:border-color .12s, box-shadow .12s;}
   select{cursor:pointer;}
@@ -130,8 +134,12 @@
   @media (max-width:560px){
     .appbar-brand{display:none;}
   }
+  @media (max-width:560px){
+    .field-pair.quad{grid-template-columns:1fr 1fr;}
+  }
   @media (max-width:400px){
     .field-pair{grid-template-columns:1fr;}
+    .field-pair.quad{grid-template-columns:1fr 1fr;}
     .segmented{display:flex;}
     .tabs-top .tab{flex:1; text-align:center;}
     .tabs-sub .segmented{flex:1;}
@@ -179,7 +187,7 @@
       <p class="seg-note" id="segNote">산정 기준 · 매매가격지수 (한국부동산원)</p>
 
       <div class="fields">
-        <div class="field-pair">
+        <div class="field-pair" id="pair-kind">
           <div class="field">
             <label for="kind" id="lbl-kind">유형</label>
             <select id="kind"></select>
@@ -192,14 +200,12 @@
             <label for="r1">지역 ① 시도</label>
             <select id="r1"></select>
           </div>
-        </div>
-        <div class="field-pair" id="pair-r23" style="display:none">
-          <div class="field">
-            <label for="r2">지역 ② 권역</label>
+          <div class="field" id="fld-r2" style="display:none">
+            <label for="r2">② 권역</label>
             <select id="r2"></select>
           </div>
-          <div class="field">
-            <label for="r3">지역 ③ 세부지역</label>
+          <div class="field" id="fld-r3" style="display:none">
+            <label for="r3">③ 세부지역</label>
             <select id="r3"></select>
           </div>
         </div>
@@ -617,7 +623,7 @@ function refreshSelectors(){
   if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillSelect($("region"),idxRegionList($("kind").value),lsGet(LS_REG.res));fillRegion3(lsGet(LS_REG.res));}
   else if(mode==="nr"){const ts=capTypeList();fillSelect($("kind"),ts.length?ts:["집합상가"],lsGet(LS_KIND.nr));fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));}
   else{fillLandSelectors();}
-  $("fld-region").style.display=mode==="res"?"none":"";$("fld-r1").style.display=$("pair-r23").style.display=mode==="res"?"":"none";
+  $("fld-region").style.display=mode==="res"?"none":"";["fld-r1","fld-r2","fld-r3"].forEach(id=>$(id).style.display=mode==="res"?"":"none");$("pair-kind").classList.toggle("quad",mode==="res");
   $("lbl-kind").textContent=mode==="land"?"용도지역":"유형";
   $("lbl-region").textContent=mode==="land"?"지역 (시군구)":"지역";
   updateMeta();

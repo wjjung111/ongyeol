@@ -15,7 +15,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   res.end(body);});
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL});try{
-  const ctx=await browser.newContext();
+  const ctx=await browser.newContext({viewport:{width:1100,height:800}});
   await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/,r=>r.abort());
   await ctx.addInitScript(()=>{try{localStorage.setItem('arap-user-name','테스트');}catch(e){}});
   const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
@@ -23,10 +23,13 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   await p.goto(url);await p.waitForSelector('#r1');
   const st=()=>p.evaluate(()=>{const g=id=>document.getElementById(id);const o=s=>[...s.options].map(x=>x.textContent);
     return {r1:g('r1').value,r2:g('r2').selectedOptions[0].textContent,r3:g('r3').selectedOptions[0].textContent,d2:g('r2').disabled,d3:g('r3').disabled,
-      o1:o(g('r1')),o2:o(g('r2')),o3:o(g('r3')),region:g('region').value,vis:getComputedStyle(g('fld-region')).display,vis3:getComputedStyle(g('pair-r23')).display};});
+      o1:o(g('r1')),o2:o(g('r2')),o3:o(g('r3')),region:g('region').value,vis:getComputedStyle(g('fld-region')).display,vis3:getComputedStyle(g('fld-r3')).display};});
   const pick=async(id,label)=>{await p.selectOption('#'+id,{label});};
   let s=await st();
   assert.equal(s.vis,'none');assert.notEqual(s.vis3,'none');
+  // 유형 + ①②③ 한 줄, 글자 안 잘림
+  const row=await p.evaluate(()=>['kind','r1','r2','r3'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return [Math.round(r.top),Math.round(r.width)];}));
+  assert.equal(new Set(row.map(x=>x[0])).size,1,'네 칸 같은 줄: '+JSON.stringify(row));
   assert.deepEqual(s.o1.slice(0,3),['서울','경기','인천']);
   // 서울 동북권 강북구
   await pick('r1','서울');await pick('r2','동북권');s=await st();
