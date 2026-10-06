@@ -81,6 +81,7 @@
   .field label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:6px; letter-spacing:.005em;}
   select, input[type=text]{width:100%; height:40px; padding:0 11px; font:inherit; font-size:14px; color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:4px; transition:border-color .12s, box-shadow .12s;}
   select{cursor:pointer;}
+  select:disabled{cursor:not-allowed; color:#9aa1ab; background:#eceef1; border-color:var(--line);}
   input::placeholder{color:#b3b9c2;}
   input:focus, select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(44,90,140,.13);}
   .field-hint{margin-top:11px; font-size:11.5px; color:var(--faint); line-height:1.5;}
@@ -183,9 +184,23 @@
             <label for="kind" id="lbl-kind">유형</label>
             <select id="kind"></select>
           </div>
-          <div class="field">
+          <div class="field" id="fld-region">
             <label for="region" id="lbl-region">지역</label>
             <select id="region"></select>
+          </div>
+          <div class="field" id="fld-r1" style="display:none">
+            <label for="r1">지역 ① 시도</label>
+            <select id="r1"></select>
+          </div>
+        </div>
+        <div class="field-pair" id="pair-r23" style="display:none">
+          <div class="field">
+            <label for="r2">지역 ② 권역</label>
+            <select id="r2"></select>
+          </div>
+          <div class="field">
+            <label for="r3">지역 ③ 세부지역</label>
+            <select id="r3"></select>
           </div>
         </div>
         <div class="field-pair">
@@ -262,6 +277,19 @@ const idxRegionList=kind=>{const D=idxData();if(!D||!D.tables[kind])return[];con
     if(pa.length!==pb.length&&(pa.length===1||pb.length===1))return pa.length-pb.length; // 시도 전체 먼저
     return a.localeCompare(b,"ko");
   });};
+// 주거용 지역 3단 드롭다운: ① 시도 ② 권역(이름이 '권'·'지역'으로 끝나는 칸) ③ 세부지역(권역 아래 시·구).
+// 표마다 공표 단위가 달라(연립·오피스텔은 인천 전체만 등) 그 표에 있는 지역으로만 만들고, 고를 게 없는 칸은 회색으로 잠근다.
+const idxTree=kind=>{const D=idxData();if(!D||!D.tables[kind])return null;const rs=D.tables[kind].regions;
+  const byFull={};Object.keys(rs).forEach(k=>{byFull[rs[k].full.split(">").map(s=>s.trim()).join(">")]=k;});
+  const nodes=Object.keys(byFull).map(f=>({full:f,key:byFull[f],p:f.split(">")}));
+  const isGwon=n=>n.p.length>1&&/(권|지역)$/.test(n.p[n.p.length-1]);
+  const roots=[...new Set(nodes.map(n=>n.p[0]))].sort((a,b)=>{const ra=ROOT_ORDER.indexOf(a),rb=ROOT_ORDER.indexOf(b);return(ra<0?99:ra)-(rb<0?99:rb)||a.localeCompare(b,"ko");});
+  const under=(n,anc)=>n.full.startsWith(anc+">");
+  return{byFull,roots,
+    gwons:r=>nodes.filter(n=>n.p[0]===r&&isGwon(n)).sort((a,b)=>a.full.localeCompare(b.full,"ko")),
+    // 권역을 골랐으면 그 아래, 시도 전체면 어느 권역에도 안 속한 시도 바로 아래 지역(예: 인천>중구)
+    details:(r,g)=>nodes.filter(n=>n.p[0]===r&&!isGwon(n)&&n.p.length>1&&(g?under(n,g):!nodes.some(x=>isGwon(x)&&under(n,x.full))))
+      .sort((a,b)=>a.full.localeCompare(b.full,"ko"))};};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터(arap_index_data.js)가 없습니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
@@ -586,9 +614,10 @@ const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){console.error('ls g
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){console.error('ls set',e);}};
 function fillSelect(sel,opts,saved){sel.innerHTML="";opts.forEach(o=>{const el=document.createElement("option");el.value=el.textContent=o;sel.appendChild(el);});if(saved&&opts.includes(saved))sel.value=saved;}
 function refreshSelectors(){
-  if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillSelect($("region"),idxRegionList($("kind").value),lsGet(LS_REG.res));}
+  if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillSelect($("region"),idxRegionList($("kind").value),lsGet(LS_REG.res));fillRegion3(lsGet(LS_REG.res));}
   else if(mode==="nr"){const ts=capTypeList();fillSelect($("kind"),ts.length?ts:["집합상가"],lsGet(LS_KIND.nr));fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));}
   else{fillLandSelectors();}
+  $("fld-region").style.display=mode==="res"?"none":"";$("fld-r1").style.display=$("pair-r23").style.display=mode==="res"?"":"none";
   $("lbl-kind").textContent=mode==="land"?"용도지역":"유형";
   $("lbl-region").textContent=mode==="land"?"지역 (시군구)":"지역";
   updateMeta();
@@ -627,8 +656,35 @@ $("tab-bld").onclick=()=>setMode(lastBld);$("tab-land").onclick=()=>setMode("lan
 $("tab-res").onclick=()=>setMode("res");$("tab-nr").onclick=()=>setMode("nr");
 $("kind").onchange=()=>{lsSet(LS_KIND[mode],$("kind").value);
   if(mode==="land")return;   // 토지는 용도지역이 바뀌어도 지역 목록은 그대로
-  fillSelect($("region"),mode==="nr"?capRegionList($("kind").value):idxRegionList($("kind").value),lsGet(LS_REG[mode]));updateMeta();};
+  fillSelect($("region"),mode==="nr"?capRegionList($("kind").value):idxRegionList($("kind").value),lsGet(LS_REG[mode]));
+  if(mode==="res")fillRegion3(lsGet(LS_REG.res));updateMeta();};
 $("region").onchange=()=>lsSet(LS_REG[mode],$("region").value);
+// 3단 드롭다운 → 숨은 #region(지역 키)에 반영. 저장 키(arap-sjidx-region)·값 형식은 그대로
+function setOpts(sel,items,val){sel.innerHTML="";items.forEach(([v,t])=>{const el=document.createElement("option");el.value=v;el.textContent=t;sel.appendChild(el);});
+  if(items.some(([v])=>v===val))sel.value=val;sel.disabled=items.length<2;}
+function fillRegion3(savedKey,level){
+  const T=idxTree($("kind").value);if(!T){[$("r1"),$("r2"),$("r3")].forEach(s=>setOpts(s,[["","지수 데이터 없음"]],""));return;}
+  let r,g,d;
+  if(savedKey!=null){
+    // 이 유형에 없는 지역(예: 연립에서 인천 서구)은 상위 지역으로 거슬러 올라감 — 다른 표의 경로를 빌려 찾음
+    const D=idxData();let full=null;
+    for(const t of [$("kind").value,...Object.keys(D.tables)]){const rg=D.tables[t]&&D.tables[t].regions[savedKey];if(rg){full=rg.full.split(">").map(x=>x.trim()).join(">");break;}}
+    while(full&&!T.byFull[full])full=full.includes(">")?full.slice(0,full.lastIndexOf(">")):null;
+    if(full){const p=full.split(">");r=p[0];const gw=T.gwons(r).filter(n=>full===n.full||full.startsWith(n.full+">"));const gn=gw[gw.length-1];
+      g=gn?gn.full:"";d=gn&&gn.full===full?"":(p.length>1?full:"");}}
+  if(level!=null){r=$("r1").value;g=level>=2?$("r2").value:"";d=level>=3?$("r3").value:"";}
+  if(!r||!T.roots.includes(r))r=T.roots[0];
+  setOpts($("r1"),T.roots.map(x=>[x,x]),r);r=$("r1").value;
+  const GW=T.gwons(r);
+  setOpts($("r2"),[["",GW.length?`${r} 전체`:"해당 없음"],...GW.map(n=>[n.full,n.p[n.p.length-1]])],g||"");g=$("r2").value;
+  const DT=T.details(r,g);const base=g||r;
+  setOpts($("r3"),[["",DT.length?`${g?g.split(">").pop():r} 전체`:"해당 없음"],...DT.map(n=>[n.full,n.full.slice(base.length+1).split(">").join(" ")])],d||"");d=$("r3").value;
+  const key=T.byFull[d||g||r];
+  if(key){if(![...$("region").options].some(o=>o.value===key))fillSelect($("region"),idxRegionList($("kind").value));$("region").value=key;if(level!=null)lsSet(LS_REG.res,key);}
+}
+$("r1").onchange=()=>fillRegion3(null,1);
+$("r2").onchange=()=>fillRegion3(null,2);
+$("r3").onchange=()=>fillRegion3(null,3);
 let calcBusy=false;
 $("btn-calc").onclick=async()=>{
   if(calcBusy)return;
