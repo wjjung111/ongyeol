@@ -190,7 +190,8 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
   <section class="card">
     <h2><span class="step">0</span>지번으로 불러오기 <span class="chip">V-World 토지 · 건축HUB 대장</span></h2>
     <div class="apirow">
-      <input type="text" id="apiQuery" aria-label="지번 주소" autocomplete="off">
+      <input type="text" id="apiQuery" aria-label="지번 주소" autocomplete="off" list="qHist">
+      <datalist id="qHist"></datalist>
       <button type="button" class="btn primary" id="apiGo">조회</button>
     </div>
     <p class="hint">지번 주소(경기도 안산시 단원구 선부동 1017-11 형식)를 넣으면 토지특성(면적·개별공시지가)과 건축물대장(표제부·층별개요), 개별주택가격을 불러와 아래 칸을 채웁니다. 자동 매핑된 용도지수·층 특성에는 근거가 표시되니 반드시 검토하세요. 위반건축물·용도변경 시점은 대장 API에 없으므로 정부24 발급본으로 확인합니다.</p>
@@ -648,9 +649,16 @@ async function importByAddress(q){
     else if(!(houseD&&houseD.err)) notes.push("개별주택가격 없음 (주택 부분이 없거나 미공시)");
     renderRef(); calc();
     st.className="status ok"; st.textContent="✅ 불러옴: "+(s.addr||q)+" · 층 "+fl.length+"개 · '검토' 태그가 붙은 행과 용도지수를 확인하세요";
+    histAdd(s.addr||q);
   }catch(e){ console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); }
   finally{ btn.disabled=false; $("apiLog").hidden=false; $("apiRaw").textContent=notes.join("\n")+"\n\n"+JSON.stringify(raw,null,1).slice(0,20000); }
 }
+// ── 검색 기록 (자동완성) — 조회 성공한 주소를 최근 30개까지 저장, 입력칸을 누르면 datalist로 보인다. 저장키는 건축물대장.html과 공유 ──
+const HIST_KEY="arap-bld-history-parcel";
+function histRead(){ try{ const a=JSON.parse(localStorage.getItem(HIST_KEY)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function histAdd(v){ v=String(v||"").trim(); if(!v) return; const a=histRead().filter(x=>x!==v); a.unshift(v); try{ localStorage.setItem(HIST_KEY,JSON.stringify(a.slice(0,30))); }catch(e){} histRender(); }
+function histRender(){ $("qHist").innerHTML=histRead().map(v=>`<option value="${v.replace(/"/g,"&quot;")}">`).join(""); }
+histRender();
 $("apiGo").addEventListener("click",()=>{ const q=$("apiQuery").value.trim(); if(!q){ alert("지번 주소를 입력하세요"); return; } importByAddress(q); });
 $("apiQuery").addEventListener("keydown",e=>{ if(e.key==="Enter") $("apiGo").click(); });
 // 간편 계산: 평가기준일 + 소재지 → 지번 조회 → 결과 표
