@@ -41,7 +41,7 @@ function Invoke-Rone($url) {
 # 이전의 '전체조회 거부'는 잘못된 API 키(ERROR-290)가 원인이었음)
 # 아파트는 구 단위까지, 연립다세대는 권역 단위까지만 공표됨. 오피스텔은 A_2024_00615 (설계문서 §API 사실관계).
 $tables = [ordered]@{
-  "아파트"     = @{ id = "A_2024_00045"; roots = @("서울","경기") }
+  "아파트"     = @{ id = "A_2024_00045"; roots = @("서울","경기","인천") }
   "연립다세대" = @{ id = "A_2024_00080"; roots = @("서울","경기","인천","수도권") }
   "오피스텔"   = @{ id = "A_2024_00615"; roots = @("서울","경기","인천","수도권","전국","지방","부산","대구","광주","대전","울산","세종"); decimals = 2 }
 }
@@ -420,10 +420,14 @@ function Fetch-IndexData {
       continue
     }
     # 표시명 = 마지막 구간. 시도 간 동명(예: 서울 중구/인천 중구) 충돌 시 '시도 이름'으로 구분
+    # 동명은 서울 쪽이 맨 이름을 가짐(수신 순서와 무관) — 저장된 건의 '중구'(서울)가 '서울 중구'로 바뀌지 않게
+    $nameCnt = @{}
+    foreach ($full in $byFull.Keys) { $n = ($full -split ">")[-1].Trim(); $nameCnt[$n] = 1 + [int]$nameCnt[$n] }
     $regions = [ordered]@{}
     foreach ($full in $byFull.Keys) {
       $parts = $full -split ">"
       $name = $parts[-1].Trim()
+      if ($nameCnt[$name] -gt 1 -and $parts.Count -gt 1 -and $parts[0].Trim() -ne "서울") { $name = "{0} {1}" -f $parts[0].Trim(), $name }
       if ($regions.Contains($name)) { $name = "{0} {1}" -f $parts[0].Trim(), $name }
       $regions[$name] = $byFull[$full]
     }
