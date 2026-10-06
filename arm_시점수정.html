@@ -269,8 +269,10 @@ const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   if(!tbl.regions[rk]){
     // 연립다세대는 권역 단위까지만 공표 → 구 선택 시 소속 권역 지수로 대체
     const aptReg=D.tables["아파트"].regions[regionKey];
-    const gwon=aptReg?aptReg.full.split(">")[2]:null;
-    if(gwon&&tbl.regions[gwon]){rk=gwon;note.push(`※ ${kind} 지수는 권역 단위로 공표되어 ${gwon} 지수를 적용함`);}
+    // 아파트 지역 경로를 아래→위로 거슬러 같은 시도의 권역·시도 전체 지수를 찾음 (인천은 '인천' 전체만 공표)
+    const path=aptReg?aptReg.full.split(">").map(s=>s.trim()):[];
+    const gwon=[...path].reverse().find(k=>tbl.regions[k]&&tbl.regions[k].full.split(">")[0]===path[0]);
+    if(gwon){rk=gwon;note.push(`※ ${kind} 지수는 ${regionKey} 단위로 공표되지 않아 ${tbl.regions[gwon].full.replace(/>/g," ")} 지수를 적용함`);}
     else return{err:`${kind} 지수에 '${regionKey}' 지역이 없습니다.`};
   }
   const reg=tbl.regions[rk];
