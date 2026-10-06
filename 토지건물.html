@@ -335,6 +335,8 @@
   #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
   /* 「토지만」 평가(평가대상 선택) — 건물 관련 화면을 모두 숨긴다 */
   body.land-only .bld-only{display:none!important;}
+  /* 「건물만」 평가 — 토지 계산 화면(2. 토지평가·토지 단가/평가액)을 숨긴다 */
+  body.bld-mode .land-calc{display:none!important;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
 </style>
 </head>
@@ -364,8 +366,8 @@
     <h3>소재지</h3><div class="v sm" id="sd_addr">-</div>
     <h3>기준시점</h3><div class="v sm" id="sd_gijun">-</div>
     <hr>
-    <h3>토지 적용단가</h3><div class="v" id="sd_landUnit">-</div>
-    <h3>토지감정평가액</h3><div class="v money" id="sd_landAmt">-</div>
+    <h3 class="land-calc">토지 적용단가</h3><div class="v land-calc" id="sd_landUnit">-</div>
+    <h3 class="land-calc">토지감정평가액</h3><div class="v money land-calc" id="sd_landAmt">-</div>
     <h3 class="bld-only">건물가액</h3><div class="v money bld-only" id="sd_bldAmt">-</div>
     <hr>
     <h3>감정평가액</h3><div class="v money" id="sd_total" style="font-size:16px">-</div>
@@ -398,7 +400,7 @@
 
     <div class="tabs">
       <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">1. 대상물건 개요</button>
-      <button id="tabbtn-land" onclick="showTab('land')">2. 토지평가</button>
+      <button id="tabbtn-land" class="land-calc" onclick="showTab('land')">2. 토지평가</button>
       <button id="tabbtn-bld" class="bld-only" onclick="showTab('bld')">3. 건물평가</button>
       <button id="tabbtn-final" onclick="showTab('final')">4. 토지건물 평가액 결정</button>
       <button id="tabbtn-jido" onclick="showTab('jido')">5. 위치도</button>
@@ -423,8 +425,8 @@
         <h2>감정평가 개요</h2>
         <div class="grid2">
           <span class="fld"><label>평가대상</label>
-            <select id="ov_evalKind" onchange="setLandOnly(this.value==='land')" title="토지만: 건물평가·건물 칸을 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)">
-              <option value="tb">토지+건물</option><option value="land">토지만</option></select></span>
+            <select id="ov_evalKind" onchange="setEvalKind(this.value)" title="토지만: 건물평가·건물 칸을 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)&#10;건물만: 토지평가를 숨기고 건물(원가법)만으로 감정평가액을 결정합니다(의견서는 건물 전용 양식)">
+              <option value="tb">토지+건물</option><option value="land">토지만</option><option value="bld">건물만</option></select></span>
           <span class="fld"><label>접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
           <span class="fld"><label>의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
           <span class="fld"><label>의뢰일(청구서용)</label><input type="text" id="ov_orderDay" data-date data-date-sep="/" placeholder="2026/06/08"></span>
@@ -795,7 +797,7 @@
           <h2>감정평가액의 결정</h2>
           <div class="tw"><table>
             <tr><th>구분</th><th>면적</th><th>적용단가</th><th>감정평가액(원)</th></tr>
-            <tr><td>토지</td><td id="fn_landSize">-</td><td id="fn_landUnit">-</td><td class="calc-c" id="fn_landAmt">-</td></tr>
+            <tr class="land-calc"><td>토지</td><td id="fn_landSize">-</td><td id="fn_landUnit">-</td><td class="calc-c" id="fn_landAmt">-</td></tr>
             <tr class="bld-only"><td>건물</td><td id="fn_bldSize">-</td><td>-</td><td class="calc-c" id="fn_bldAmt">-</td></tr>
             <tr class="sumrow"><td colspan="3" class="sum-label">합계</td><td class="sum-amt" id="fn_total">-</td></tr>
           </table></div>
@@ -2528,7 +2530,7 @@ function calcGyeoljeong(){
   var chosen=a;   // 토지감정평가액은 항상 공시지가기준법(주방식). 거래사례비교법은 합리성 검토용 (결정기록 2026-09-09)
   document.getElementById('gj_final').textContent=chosen?won(chosen)+' 원':'-';
   document.getElementById('resGyeoljeong').textContent=chosen?won(chosen)+' 원':'-';
-  window.LAND_FINAL=chosen;
+  window.LAND_FINAL=BLD_ONLY?0:chosen;   // 건물만 — 토지 입력이 남아 있어도 토지가액은 0
   calcFinal();
 }
 
@@ -2670,30 +2672,45 @@ function bldGrpCell(i){
     +'</select></td>';
 }
 
-// ================= 평가대상: 토지+건물 / 토지만 =================
+// ================= 평가대상: 토지+건물 / 토지만 / 건물만 =================
 // 토지만이면 건물 화면(3. 건물평가 탭·본건 건물·요항표 Ⅲ·결정표 건물 줄·사이드바 건물가액)을 숨기고 건물가액 0.
 // 서류: 의견서는 토지 전용 양식, 괄호감정표·요항표는 건물 줄·절을 빼고, 명세표는 토지 행만. 표지·청구서는 같다(결정기록 2026-09-29).
 // 건별로 저장(o.landOnly). 첫 화면 「토지」 링크는 토지건물.html?mode=land.
 var LAND_ONLY=false;
+// 건물만(2026-10-06) — 2. 토지평가 탭·토지 단가/평가액(사이드바·결정표)을 숨기고 토지가액 0, 감정평가액 = 건물가액(원가법).
+// 본건 토지 카드는 남긴다(소재지·지번으로 건축물대장 조회, 의견서 건물 표의 지번). 건별 저장(o.bldOnly), 링크 ?mode=bld.
+var BLD_ONLY=false;
 var FN_OPINION_TB='본건은 수요성·환가성·공시지가와 인근지역의 현지조사 가격수준, 토지 및 건물의 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음.';
 // 토지만 결정의견 기본 문구 — 토지만 정답 샘플(2026-09-29 사용자 제공)과 같은 말
 var FN_OPINION_LAND='본건은 일반거래(시가참고) 목적으로서 수요성, 환가성, 공시지가와 인근지역의 현지조사 가격수준, 토지 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음.';
+// 건물만 결정의견 기본 문구 — 건물 전용 의견서 양식의 Ⅳ 문장과 같은 말
+var FN_OPINION_BLD='본건은 일반거래(시가참고) 목적으로서 건물의 구조·용도·사용승인일 및 관리상태 등 건물의 특성을 종합적으로 고려하여 원가법에 의한 시산가액을 감정평가액으로 결정하였음.';
+var FN_OPINIONS={tb:FN_OPINION_TB,land:FN_OPINION_LAND,bld:FN_OPINION_BLD};
 var TAB_LABELS={tb:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'4. 토지건물 평가액 결정',jido:'5. 위치도',yohang:'6. 요항표',doc:'7. 감정평가서 다운로드',cheonggu:'8. 청구서 다운로드'},
-  land:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'3. 토지 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'}};
-function setLandOnly(v,quiet){
-  LAND_ONLY=!!v;
+  land:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'3. 토지 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'},
+  bld:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'2. 건물평가',final:'3. 건물 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'}};
+var EVAL_TITLES={tb:'토지건물',land:'토지',bld:'건물'};
+function evalKind(){return LAND_ONLY?'land':BLD_ONLY?'bld':'tb';}
+function setLandOnly(v,quiet){setEvalKind(v?'land':'tb',quiet);}   // 종전 호출(토지만 체크) 호환
+function setEvalKind(k,quiet){
+  if(!TAB_LABELS[k])k='tb';
+  LAND_ONLY=k==='land';BLD_ONLY=k==='bld';
   document.body.classList.toggle('land-only',LAND_ONLY);
-  var sel=document.getElementById('ov_evalKind');if(sel)sel.value=LAND_ONLY?'land':'tb';
-  var lab=TAB_LABELS[LAND_ONLY?'land':'tb'];
-  Object.keys(lab).forEach(function(k){var b=document.getElementById('tabbtn-'+k);if(b)b.textContent=lab[k];});
-  var t=document.getElementById('mbTitle');if(t)t.textContent='🏞️ Ongyeol v1.0 · EXACT '+(LAND_ONLY?'토지':'토지건물');
-  document.title=LAND_ONLY?'EXACT 토지':'EXACT 토지건물';
+  document.body.classList.toggle('bld-mode',BLD_ONLY);
+  var sel=document.getElementById('ov_evalKind');if(sel)sel.value=k;
+  var lab=TAB_LABELS[k];
+  Object.keys(lab).forEach(function(n){var b=document.getElementById('tabbtn-'+n);if(b)b.textContent=lab[n];});
+  var t=document.getElementById('mbTitle');if(t)t.textContent='🏞️ Ongyeol v1.0 · EXACT '+EVAL_TITLES[k];
+  document.title='EXACT '+EVAL_TITLES[k];
   // 결정의견 기본 문구만 바꾼다(직접 고친 문구는 그대로)
   var fo=document.getElementById('fn_opinion');
-  if(fo){if(LAND_ONLY&&fo.value===FN_OPINION_TB)fo.value=FN_OPINION_LAND;else if(!LAND_ONLY&&fo.value===FN_OPINION_LAND)fo.value=FN_OPINION_TB;}
+  if(fo&&Object.keys(FN_OPINIONS).some(function(x){return FN_OPINIONS[x]===fo.value;}))fo.value=FN_OPINIONS[k];
   if(quiet)return;
   etcSyncLandOnly();
-  var cur=document.querySelector('.tab.active');if(LAND_ONLY&&cur&&cur.id==='tab-bld')showTab('final');
+  var cur=document.querySelector('.tab.active');
+  if(LAND_ONLY&&cur&&cur.id==='tab-bld')showTab('final');
+  if(BLD_ONLY&&cur&&LAND_TABS.indexOf(cur.id.replace(/^tab-/,''))>=0)showTab('bld');
+  try{calcGongsi();}catch(e){}   // 토지가액(LAND_FINAL)을 평가대상에 맞게 다시(건물만 → 0)
   renderBldCalc();calcFinal();try{renderCheonggu();}catch(e){}saveForm();
 }
 // 의견서 양식 — 토지만이면 토지 전용(건물 절·거래사례 건물 칸 없음, Ⅳ 결정표 필지별 행)
@@ -2704,7 +2721,7 @@ function landUnitDoc(){
   if(LANDS.length>1&&!(ILDANJI||isLandGroup()))return '-';
   return gs.applyUnit?won(gs.applyUnit):'-';
 }
-function opinionTplPath(){return LAND_ONLY?'템플릿/토지 의견서(산출근거) 템플릿.hwpx':'템플릿/토건 의견서(산출근거) 템플릿.hwpx';}
+function opinionTplPath(){return LAND_ONLY?'템플릿/토지 의견서(산출근거) 템플릿.hwpx':BLD_ONLY?'템플릿/건물 의견서(산출근거) 템플릿.hwpx':'템플릿/토건 의견서(산출근거) 템플릿.hwpx';}
 
 // ================= 4. 토지건물 평가액 결정(최종) =================
 function calcFinal(){
@@ -2731,6 +2748,7 @@ function calcFinal(){
     ['감정평가액','토지 + 건물',total?won(total)+' 원':'-']
   ];
   if(LAND_ONLY){checks.splice(4,1);checks[4][1]='토지';}
+  if(BLD_ONLY){checks=checks.slice(4);checks[1][1]='건물';}
   var h='<tr><th>검증 항목</th><th>계산 방법</th><th>값</th></tr>';
   checks.forEach(function(c){h+='<tr><td>'+c[0]+'</td><td>'+c[1]+'</td><td class="calc-c">'+(c[2]==='decided'?(window.LAND_FINAL?won(window.LAND_FINAL)+' 원':'-'):c[2])+'</td></tr>';});
   document.getElementById('tblCheck').innerHTML=h;
@@ -2804,10 +2822,12 @@ function showTab(name){
 var STEP_ORDER=['daesang','gongsi','georae','gyeoljeong','bld','final','jido','yohang','doc','cheonggu'];
 var CUR_TAB='daesang';
 function updateStepNav(){
-  var i=STEP_ORDER.indexOf(CUR_TAB),p=document.getElementById('btnPrevTab'),n=document.getElementById('btnNextTab');
-  if(p)p.hidden=i<=0; if(n)n.hidden=i<0||i>=STEP_ORDER.length-1;
+  var o=stepOrder(),i=o.indexOf(CUR_TAB),p=document.getElementById('btnPrevTab'),n=document.getElementById('btnNextTab');
+  if(p)p.hidden=i<=0; if(n)n.hidden=i<0||i>=o.length-1;
 }
-function stepTab(d){var i=STEP_ORDER.indexOf(CUR_TAB);var t=STEP_ORDER[i+d];if(t==='bld'&&LAND_ONLY)t=STEP_ORDER[i+2*d];if(t)showTab(t);}   // 토지만이면 건물평가 건너뜀
+// 토지만이면 건물평가, 건물만이면 토지평가 세 단계를 건너뛴다
+function stepOrder(){return STEP_ORDER.filter(function(t){return !(LAND_ONLY&&t==='bld')&&!(BLD_ONLY&&LAND_TABS.indexOf(t)>=0);});}
+function stepTab(d){var o=stepOrder(),i=o.indexOf(CUR_TAB);var t=i<0?o[0]:o[i+d];if(t)showTab(t);}
 // 좌측 요약판 접기/펴기 (집합건물과 같은 모양, 상태는 이 브라우저에 기억)
 var SIDE_COLLAPSE_KEY='tojigeonmul-side-collapsed';
 function toggleSide(force){
@@ -2852,6 +2872,7 @@ function cheongguAddr(){
   var L0=LANDS[0]||{},a=(L0.fullAddr||((L0['소재지']||'')+' '+(L0['지번']||''))).trim();
   var more=LANDS.length>1?(' 외 '+(LANDS.length-1)+'필지'):'';
   var hasBld=/[1-9]/.test((document.getElementById('resBld')||{}).textContent||'');
+  if(BLD_ONLY)return (a||'-')+more+' 건물';   // 건물만 평가
   return (a||'-')+more+(hasBld?' 토지 및 건물':' 토지');
 }
 // ── 배수(할증) — 수수료 요율 옆·특별용역비 옆 칸 ──
@@ -3284,11 +3305,14 @@ var ETC_ITEMS_DEFAULT=[
 var ETC_ITEMS_OLD_ORDER=[ETC_ITEMS_DEFAULT[1],ETC_ITEMS_DEFAULT[0],ETC_ITEMS_DEFAULT[2]];
 // 토지만 평가의 물적 동일성 문구(토지 전용 의견서 양식과 같은 말) — 기본 문구 둘째 항목 자리
 var ETC_ITEM_LAND='본건 토지에 대하여 공부(등기사항전부증명서와 토지대장 등)와 현황 토지의 면적 등을 종합적으로 검토한 결과 물적 동일성이 인정됨.';
-function etcDefaults(){var d=ETC_ITEMS_DEFAULT.slice();if(typeof LAND_ONLY!=='undefined'&&LAND_ONLY)d[1]=ETC_ITEM_LAND;return d;}
+// 건물만 평가의 물적 동일성 문구(건물 전용 의견서 양식과 같은 말)
+var ETC_ITEM_BLD='본건 건물에 대하여 공부(등기사항전부증명서와 일반건축물대장 등)와 현황 건물의 면적·구조 등을 종합적으로 검토한 결과 물적 동일성이 인정됨.';
+function etcSameItem(){return (typeof LAND_ONLY!=='undefined'&&LAND_ONLY)?ETC_ITEM_LAND:(typeof BLD_ONLY!=='undefined'&&BLD_ONLY)?ETC_ITEM_BLD:ETC_ITEMS_DEFAULT[1];}
+function etcDefaults(){var d=ETC_ITEMS_DEFAULT.slice();d[1]=etcSameItem();return d;}
 // 평가대상을 바꾸면 손대지 않은 물적 동일성 기본 문구만 그 평가대상의 문구로 바꾼다
 function etcSyncLandOnly(){
-  var from=LAND_ONLY?ETC_ITEMS_DEFAULT[1]:ETC_ITEM_LAND,to=LAND_ONLY?ETC_ITEM_LAND:ETC_ITEMS_DEFAULT[1],hit=false;
-  ETC_ITEMS=ETC_ITEMS.map(function(t){if(t===from){hit=true;return to;}return t;});
+  var to=etcSameItem(),froms=[ETC_ITEMS_DEFAULT[1],ETC_ITEM_LAND,ETC_ITEM_BLD],hit=false;
+  ETC_ITEMS=ETC_ITEMS.map(function(t){if(t!==to&&froms.indexOf(t)>=0){hit=true;return to;}return t;});
   if(hit){window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();}
 }
 function etcMigrate(items){return JSON.stringify(items)===JSON.stringify(ETC_ITEMS_OLD_ORDER)?ETC_ITEMS_DEFAULT.slice():items;}
@@ -3324,7 +3348,7 @@ var ETC_ITEMS=ETC_ITEMS_DEFAULT.slice();
 window.ETC_ITEMS=ETC_ITEMS;
 function etcLabel(i){return (i<ETC_LABELS.length?ETC_LABELS[i]:String(i+1))+'.';}
 // 양식 기본 문구가 아닌 것(끼워 넣었거나 고친 것) — 빈 칸은 아직 안 쓴 것이라 제외
-function etcIsUser(t){t=String(t==null?'':t).trim();return !!t&&ETC_ITEMS_DEFAULT.indexOf(t)<0&&t!==ETC_ITEM_LAND;}
+function etcIsUser(t){t=String(t==null?'':t).trim();return !!t&&ETC_ITEMS_DEFAULT.indexOf(t)<0&&t!==ETC_ITEM_LAND&&t!==ETC_ITEM_BLD;}
 function etcItemsChanged(){window.ETC_ITEMS=ETC_ITEMS;saveForm();}
 function renderEtcItems(){
   var box=document.getElementById('etcItemsBox');if(!box)return;
@@ -3385,6 +3409,7 @@ function collect(){
   o.cgTravelManual=CG_TRAVEL_MANUAL;o.cgSpecialManual=CG_SPECIAL_MANUAL;
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   o.landOnly=LAND_ONLY;   // 평가대상: 토지만(true) / 토지+건물(false·없음)
+  o.bldOnly=BLD_ONLY;     // 평가대상: 건물만(true)
   o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;
   return o;
 }
@@ -3566,7 +3591,7 @@ function applyForm(o){
     (hasV(cgVal('cg_travel'))&&num(cgVal('cg_travel'))!==40000&&num(cgVal('cg_travel'))!==cgTravelAuto());
   CG_SPECIAL_MANUAL=o.cgSpecialManual===true;
   TRADES=o.TRADES||[];APPRS=o.APPRS||[];ETC=o.ETC||{type:'t',idx:-1};GA=o.GA||{idx:-1};window.BLD_STATE=o.BLD_STATE||{};
-  setLandOnly(o.landOnly===true,true);
+  setEvalKind(o.landOnly===true?'land':o.bldOnly===true?'bld':'tb',true);
   // 그 밖의 사항 — 이 기능 전에 저장된 건(etcItems 없음)은 양식 기본 문구로
   ETC_ITEMS=Array.isArray(o.etcItems)?etcMigrate(o.etcItems.map(function(s){return String(s==null?'':s);})):etcDefaults();
   window.ETC_ITEMS=ETC_ITEMS;renderEtcItems();
@@ -3948,12 +3973,13 @@ calcGongsi();
 renderCheonggu();   // 청구서 탭 초기화(감정평가액·여비 자동채움·미리보기)
 // 첫 화면 「토지」 링크(?mode=land) — 토지만 평가로 연다. 지금 열린 건이 토지건물이고 내용이 있으면:
 // 저장된 건(접수번호 있음)은 목록에 남아 있으니 바로 새 평가서로, 저장 안 된 작업이면 먼저 묻는다.
+// 「건물」 링크(?mode=bld)도 같은 방식으로 건물만 평가로 연다.
 (function(){
   var m=(location.search.match(/[?&]mode=([a-z]+)/)||[])[1];
-  if(m!=='land'||LAND_ONLY)return;
+  if((m!=='land'&&m!=='bld')||evalKind()===m)return;
   var empty=!String((LANDS[0]||{})['소재지']||'').trim()&&!document.getElementById('ov_caseNo').value.trim();
-  if(empty){setLandOnly(true);return;}
-  if(currentId||confirm('지금 열린 토지건물 작업(접수번호 없음)을 두고 「토지만」 새 평가서로 시작할까요?\n(취소하면 지금 건을 그대로 엽니다)')){newCase();setLandOnly(true);}
+  if(empty){setEvalKind(m);return;}
+  if(currentId||confirm('지금 열린 '+EVAL_TITLES[evalKind()]+' 작업(접수번호 없음)을 두고 「'+(m==='land'?'토지만':'건물만')+'」 새 평가서로 시작할까요?\n(취소하면 지금 건을 그대로 엽니다)')){newCase();setEvalKind(m);}
 })();
 histReset();       // 되돌리기 기록 시작점 = 켰을 때 화면
 
