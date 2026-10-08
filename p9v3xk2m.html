@@ -112,16 +112,34 @@
   .addloc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
   .addloc .box{flex:1 1 200px;min-width:0;}
   .addloc .pst{margin-top:0;flex:1 1 100%;}
+  /* 오른쪽 구역 — 왼쪽 색 띠로 구분(① 본건 빨강 · ② 사례 초록 · ③ 표준지 파랑) */
+  .sec{background:#fff;border:1px solid #e2e5ea;border-left:4px solid var(--c);border-radius:6px;padding:10px 12px;margin-bottom:10px;}
+  .sec-h{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:14px;font-weight:800;color:#1a2744;margin-bottom:8px;}
+  .sec-h small{font-size:11.5px;font-weight:400;color:#626b78;}
+  .sec-n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--c);color:#fff;font-size:12px;}
+  .sub{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;margin-bottom:8px;}
+  .sub-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:5px;}
+  .sub textarea{width:100%;height:40px;border:1px dashed #94a3b8;border-radius:4px;padding:6px 8px;font-size:12px;font-family:inherit;resize:vertical;background:#fff;}
+  .sub .addloc{margin-bottom:0;}
+  .seg{display:inline-flex;border:1px solid #cbd5e1;border-radius:14px;overflow:hidden;font-weight:600;font-size:11.5px;}
+  .seg label{padding:2px 10px;cursor:pointer;color:#64748b;}
+  .seg input{display:none;}
+  .seg label:has(input:checked){background:#1a2744;color:#fff;}
+  .tabs button b{font-weight:800;margin-left:3px;}
+  .tbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .tbar .cnt{font-size:12px;font-weight:700;}
   td.calc input{color:#2563eb;}                 /* 자동 계산 값(직접 고치면 검정) */
   tr.busy td{background:#fffbeb;}
 </style>
 </head>
 <body>
+<script src="arap_name.js"></script><!-- 이름 게이트(시점수정과 같은 방식) — 누가 썼는지 접속 기록에 남긴다 -->
 
 <div id="mode-bar">
   <a class="mb-home" href="index.html">🏠 홈</a>
   <span class="mb-title">🗺️ Ongyeol · 거래사례 위치도</span>
   <span class="mb-tag">토지 · 집합건물</span>
+  <span id="arap-name-badge" title="눌러서 이름 바꾸기" style="color:#cbd5e1;font-size:12px;cursor:pointer;margin-left:6px"></span>
 </div>
 
 <div class="wrap split" id="split">
@@ -147,6 +165,8 @@
       <span><i class="arap-lgd" style="background:#dc2626"></i>본건</span>
       <span><i class="arap-lgd" style="background:#16a34a"></i>토지 거래사례</span>
       <span><i class="arap-lgd" style="background:#7c3aed"></i>집합건물 거래사례</span>
+      <span><i class="arap-lgd" style="background:#ea580c"></i>평가사례</span>
+      <span><i class="arap-lgd" style="background:#2563eb"></i>표준지</span>
       <span style="color:#626b78;font-weight:400">토지는 <b>필지 테두리</b>로(속은 비워 둡니다 — 본건만 옅게 칠함), 집합건물은 점으로 표시합니다(집건 필지는 단지 전체라 너무 커짐). <b>이름표를 끌면 이름표만</b> 움직입니다 — 화살촉과 필지는 제자리(두 번 누르면 원위치). 집합건물 점은 끌면 그 자리로 위치가 고쳐집니다. 표의 <b>표시</b> 체크를 끄면 지도에서 빠집니다. <b>말풍선</b>에 나올 칸은 표 머리글의 체크로 고르고, 말풍선 ✕로 끄고 사례 칩의 💬로 다시 켭니다.</span>
     </div>
     <!-- 지도 바로 위 — 체크한 것만 지도에 뜨고, ✕로 그 사례를 지운다(표와 같은 데이터) -->
@@ -170,65 +190,96 @@
   </div>
   <div class="splitter" id="splitter" title="끌어서 지도와 입력란 너비를 조절합니다. 두 번 누르면 7:3으로"></div>
   <div class="pane-side" id="paneSide">
-  <!-- ── 본건 (거리 기준점) ── -->
-  <div class="card">
-    <h2>본건 <span style="font-weight:400;font-size:11.5px;color:#626b78">— 안 넣어도 됩니다. 넣으면 사례마다 본건에서의 직선거리가 함께 나옵니다.</span></h2>
+  <!-- ── ① 본건 (거리 기준점) ── -->
+  <section class="sec" style="--c:#dc2626">
+    <div class="sec-h"><span class="sec-n">①</span>본건 <small>안 넣어도 됩니다 — 넣으면 사례마다 본건에서의 직선거리가 함께 나옵니다</small></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input class="box" id="baseLoc" style="flex:1 1 320px" placeholder="예) 서울특별시 광진구 자양동 600-1" oninput="saveAll()" onchange="baseChanged()">
+      <input class="box" id="baseLoc" style="flex:1 1 200px;min-width:0" placeholder="예) 서울특별시 광진구 자양동 600-1" oninput="saveAll()" onchange="baseChanged()">
       <button class="btn pri" onclick="baseChanged()">지도에 표시</button>
     </div>
     <!-- 일단지 관련지번: 본건 주소의 건축물대장 「지번 관련 주소」(부속지번)를 받아 본건 필지와 함께 그린다 -->
     <div class="relrow" id="relRow"></div>
-    <div class="note" style="margin-top:7px"><b>일단지</b>면 본건 주소의 건축물대장 「지번 관련 주소」(예 17-6 → 17-21·17-22·17-23)를 자동으로 받아 함께 테두리를 그리고 이름표 「본건」은 하나만 붙입니다. 대장에 없는 필지는 「+ 지번」 칸에 넣으세요.<br>본건을 넣으면 <b>시·군·구가 없는 사례 주소</b>(예 “자양동 617-33”)를 본건과 같은 시군구에서 먼저 찾습니다 — 다른 지역 같은 동 이름에 잘못 찍히는 걸 막아 줍니다.</div>
-  </div>
+    <div class="note" style="margin-top:7px"><b>일단지</b>면 건축물대장 「지번 관련 주소」(예 17-6 → 17-21·17-22·17-23)를 자동으로 받아 함께 그리고 이름표 「본건」은 하나만 붙입니다. 대장에 없는 필지는 「+ 지번」에.<br>시·군·구가 없는 사례 주소(예 “자양동 617-33”)는 본건과 같은 시군구에서 먼저 찾습니다.</div>
+  </section>
 
-  <!-- ── 사례 입력 ── -->
-  <div class="card">
-    <div class="tabs">
-      <button id="tabbtn-land" class="active" onclick="showTab('land')">토지 거래사례</button>
-      <button id="tabbtn-jip" onclick="showTab('jip')">집합건물 거래사례</button>
+  <!-- ── ② 사례: KAIS 거래사례 / KAPA 평가사례 / 직접 입력 → 아래 목록 ── -->
+  <section class="sec" style="--c:#16a34a">
+    <div class="sec-h"><span class="sec-n">②</span>사례 <small>거래사례 · 평가사례</small></div>
+
+    <div class="sub">
+      <div class="sub-h">📋 KAIS 거래사례 붙여넣기
+        <span class="seg"><label><input type="radio" name="kaisMode" value="land" checked onchange="setKaisMode(this.value)">토지</label><label><input type="radio" name="kaisMode" value="jip" onchange="setKaisMode(this.value)">집합건물</label></span>
+      </div>
+      <textarea id="pasteKais" placeholder="국토부 실거래가·KAIS 엑셀에서 머리글째 복사 → 여기에 Ctrl+V" onpaste="pasteKais(event)" onkeydown="if(event.key==='Enter')event.preventDefault()"></textarea>
+      <div class="pst" id="msgKais">토지: 토지 행과 건물 행을 한꺼번에 붙여도 같은 소재지·거래일·금액이면 한 사례로 합칩니다. 집합건물: 동·층·호를 뽑고 단가 = 물건금액 ÷ 전용면적.</div>
     </div>
 
-    <!-- 토지 -->
-    <div id="tab-land" class="tab active">
-      <div class="pastebox">
-        <div style="font-size:12px;font-weight:700;margin-bottom:4px">📋 국토부 실거래가·KAIS 엑셀에서 <b>머리글째</b> 복사 → 여기에 Ctrl+V</div>
-        <textarea id="pasteLand" placeholder="여기에 Ctrl+V — 붙이는 즉시 아래 표에 쌓이고 지도에 찍힙니다" onpaste="pasteLand(event)" onkeydown="if(event.key==='Enter')event.preventDefault()"></textarea>
-        <div class="pst" id="msgLand">토지 행과 건물 행을 한꺼번에 붙여도 됩니다 — 같은 소재지·거래일·금액이면 한 사례로 합칩니다.</div>
-      </div>
+    <div class="sub">
+      <div class="sub-h">📋 KAPA 평가사례 붙여넣기</div>
+      <textarea id="pasteAppr" placeholder="감정평가정보센터 평가사례 검색 결과를 머리글째 복사 → 여기에 Ctrl+V" onpaste="pasteAppr(event)" onkeydown="if(event.key==='Enter')event.preventDefault()"></textarea>
+      <div class="pst" id="msgAppr">평가목적·기준시점·단가·용도지역·지목·이용상황·공시지가를 그대로 옮깁니다.</div>
+    </div>
+
+    <div class="sub">
+      <div class="sub-h">✍️ 거래사례 직접 입력</div>
       <!-- 소재지만 넣어 추가 — 토지특성(브이월드)·건축물대장(프록시)에서 채울 수 있는 칸은 자동으로 채운다 -->
       <div class="addloc">
-        <input class="box" id="addLoc" placeholder="소재지로 추가 — 예) 여의도동 15-22 (쉼표·줄바꿈으로 여러 건)" onkeydown="if(event.key==='Enter'){event.preventDefault();addByLoc();}">
+        <input class="box" id="addLoc" placeholder="예) 여의도동 15-22 (쉼표·줄바꿈으로 여러 건)" onkeydown="if(event.key==='Enter'){event.preventDefault();addByLoc();}">
         <button class="btn pri" onclick="addByLoc()">추가</button>
-        <span class="pst" id="msgAuto">용도지역·지목·토지면적·개별공시지가·건물면적·사용승인일은 자동으로 채웁니다. 일단지면 건축물대장 관련지번까지 한 사례로 묶어(소재지 「… 외」, 토지면적 합계) 지도에 함께 그립니다. 거래금액·거래일자는 공개 자료에 지번이 가려져 있어 직접 넣거나 KAIS로 붙여 주세요.</span>
+        <span class="pst" id="msgAuto">용도지역·지목·토지면적·개별공시지가·건물면적·사용승인일은 자동으로 채웁니다. 일단지면 관련지번까지 한 사례로(소재지 「… 외」, 토지면적 합계). 거래금액·거래일자는 직접 넣거나 KAIS로 붙여 주세요.</span>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
-        <span style="font-size:12px;font-weight:700" id="cntLand">0건</span>
-        <button class="btn" onclick="addRow('land')">+ 빈 행</button>
-        <button class="btn" onclick="autoFillAll()" title="표의 모든 토지 사례에서 비어 있는 칸만 토지특성·건축물대장으로 채웁니다(적어 둔 값은 안 건드림)">⚡ 빈칸 자동 채우기</button>
-        <button class="btn dng" style="margin-left:auto" onclick="clearRows('land')">🗑 전체 지우기</button>
+    </div>
+
+    <div class="tabs">
+      <button id="tabbtn-land" class="active" onclick="showTab('land')">토지 거래사례 <b id="cntLand">0</b></button>
+      <button id="tabbtn-jip" onclick="showTab('jip')">집합건물 거래사례 <b id="cntJip">0</b></button>
+      <button id="tabbtn-appr" onclick="showTab('appr')">평가사례 <b id="cntAppr">0</b></button>
+    </div>
+    <div id="tab-land" class="tab active">
+      <div class="tbar">
+        <button class="btn sm" onclick="addRow('land')">+ 빈 행</button>
+        <button class="btn sm" onclick="autoFillAll()" title="표의 모든 토지 사례에서 비어 있는 칸만 토지특성·건축물대장으로 채웁니다(적어 둔 값은 안 건드림)">⚡ 빈칸 자동 채우기</button>
+        <button class="btn sm dng" style="margin-left:auto" onclick="clearRows('land')">🗑 전체 지우기</button>
       </div>
       <div class="tw"><table id="tblLand"></table></div>
     </div>
-
-    <!-- 집합건물 -->
     <div id="tab-jip" class="tab">
-      <div class="pastebox">
-        <div style="font-size:12px;font-weight:700;margin-bottom:4px">📋 카이스에서 <b>머리글째</b> 복사 → 여기에 Ctrl+V</div>
-        <textarea id="pasteJip" placeholder="여기에 Ctrl+V — 붙이는 즉시 아래 표에 쌓이고 지도에 찍힙니다" onpaste="pasteJip(event)" onkeydown="if(event.key==='Enter')event.preventDefault()"></textarea>
-        <div class="pst" id="msgJip">기타주소에서 동·층·호를 자동으로 뽑고, 단가는 물건금액 ÷ 전용면적으로 채웁니다.</div>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
-        <span style="font-size:12px;font-weight:700" id="cntJip">0건</span>
-        <button class="btn" onclick="addRow('jip')">+ 빈 행</button>
-        <button class="btn dng" style="margin-left:auto" onclick="clearRows('jip')">🗑 전체 지우기</button>
+      <div class="tbar">
+        <button class="btn sm" onclick="addRow('jip')">+ 빈 행</button>
+        <button class="btn sm dng" style="margin-left:auto" onclick="clearRows('jip')">🗑 전체 지우기</button>
       </div>
       <div class="tw"><table id="tblJip"></table></div>
     </div>
-  </div>
+    <div id="tab-appr" class="tab">
+      <div class="tbar">
+        <button class="btn sm" onclick="addRow('appr')">+ 빈 행</button>
+        <button class="btn sm dng" style="margin-left:auto" onclick="clearRows('appr')">🗑 전체 지우기</button>
+      </div>
+      <div class="tw"><table id="tblAppr"></table></div>
+    </div>
+  </section>
+
+  <!-- ── ③ 표준지 (비교표준지) ── -->
+  <section class="sec" style="--c:#2563eb">
+    <div class="sec-h"><span class="sec-n">③</span>표준지 <small>토지·토지건물 평가 때 비교표준지</small></div>
+    <div class="addloc">
+      <input class="box" id="addStd" placeholder="예) 여의도동 17-26 (쉼표·줄바꿈으로 여러 건)" onkeydown="if(event.key==='Enter'){event.preventDefault();addStd();}">
+      <button class="btn pri" onclick="addStd()">추가</button>
+      <span class="pst" id="msgStd">지번만 넣으면 토지특성에서 용도지역·지목·면적·이용상황·도로교통·형상·지세·공시지가(최신 연도)를 채웁니다. 표준지는 그 해 개별공시지가 = 표준지공시지가입니다.</span>
+    </div>
+    <div class="tbar">
+      <span class="cnt"><b id="cntStd">0</b>건</span>
+      <button class="btn sm" onclick="addRow('std')">+ 빈 행</button>
+      <button class="btn sm" onclick="autoFillStdAll()" title="표준지 표에서 비어 있는 칸만 토지특성으로 채웁니다">⚡ 빈칸 자동 채우기</button>
+      <button class="btn sm dng" style="margin-left:auto" onclick="clearRows('std')">🗑 전체 지우기</button>
+    </div>
+    <div class="tw"><table id="tblStd"></table></div>
+  </section>
   </div>
 </div>
 
+<script>window.ARAP_VISIT_PAGE='거래사례 위치도';</script>
+<script src="arap_visit.js"></script><!-- 접속·주요 동작을 관리자 수신함 '접속' 탭에 기록 -->
 <script src="arap_map.js"></script>
 <script src="arap_kais.js"></script>
 <script>
@@ -236,7 +287,7 @@
 
 var VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';   // 브이월드 키 — 다른 화면과 같은 값
 var STORE='arap-map-cases-v1';
-var DATA={base:'',land:[],jip:[]};
+var DATA={base:'',land:[],jip:[],appr:[],std:[]};
 
 function num(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;}
 function won(n){return n?Math.round(n).toLocaleString('ko-KR'):'';}
@@ -253,18 +304,20 @@ function doSave(){
 function restore(){
   try{
     var o=JSON.parse(localStorage.getItem(STORE)||'null');
-    if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];DATA.baseShow=o.baseShow!==false;
+    if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];DATA.appr=o.appr||[];DATA.std=o.std||[];DATA.baseShow=o.baseShow!==false;
+      if(o.kaisMode)DATA.kaisMode=o.kaisMode;
       if(o.rel&&Array.isArray(o.rel.list))DATA.rel=o.rel;
       if(o.labCols)DATA.labCols=o.labCols;   // 말풍선에 넣을 칸
-      DATA.land.forEach(function(r){delete r._busy;});   // 조회 중에 닫혔으면 표시만 남는다
+      KLIST.forEach(function(k){DATA[k].forEach(function(r){delete r._busy;});});   // 조회 중에 닫혔으면 표시만 남는다
       if(o._xy)DATA._xy=o._xy;}   // 본건 좌표도 되살린다(안 그러면 열 때마다 다시 조회)
   }catch(e){console.error('restore',e);}
   document.getElementById('baseLoc').value=DATA.base;
+  setKaisMode(DATA.kaisMode||'land',true);
 }
 
 // ── 탭 ──
 function showTab(name){
-  ['land','jip'].forEach(function(n){
+  ['land','jip','appr'].forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
     document.getElementById('tabbtn-'+n).classList.toggle('active',n===name);
   });
@@ -292,14 +345,31 @@ var JIP_COLS=[['소재지','location','wide'],['지번','jibun',''],['건물명'
   ['동','dong',''],['층','floor',''],['호','ho',''],['전용면적(㎡)','exclusiveArea','num'],
   ['거래금액(원)','price','num',1],['단가(원/㎡)','unitPrice','num',1],['거래일자','tradeDate',''],['비고','memo','wide']];
 
-function colsOf(kind){return kind==='land'?LAND_COLS:JIP_COLS;}
-function rowsOf(kind){return kind==='land'?DATA.land:DATA.jip;}
+// 평가사례(KAPA) — 키 이름은 토지건물.html 평가사례와 같게(loc·purp·base·unit…). 단가는 KAPA 값 그대로.
+var APPR_COLS=[['소재지','loc','wide'],['평가목적','purp',''],['물건','obj',''],['용도지역','use',''],['지목','jimok',''],
+  ['이용상황','cond',''],['면적(㎡)','area','num'],['단가(원/㎡)','unit','num',1],['감정평가총액(원)','total','num',1],
+  ['기준시점','base',''],['개별공시지가(원/㎡)','gongsi','num',1],['비고','memo','wide']];
+// 표준지 — 토지건물.html 표준지 표(STD_COLS)와 같은 항목. 공시지가는 토지특성의 최신 연도 값(표준지는 개별공시지가 = 표준지공시지가)
+var STD_COLS=[['소재지','loc','wide'],['용도지역','use',''],['지목','jimok',''],['면적(㎡)','area','num'],
+  ['이용상황','cond',''],['도로교통','road',''],['형상','shape',''],['지세','slope',''],
+  ['공시지가(원/㎡)','gongsi','num',1],['기준연도','gongsiYear',''],['비고','memo','wide']];
+// 사례 종류 — 표·칩·지도·말풍선이 모두 이 표를 본다. 색·이름은 토지건물 위치도와 같게(표준지 파랑·평가 주황)
+var KINDS={
+  land:{name:'토지 거래사례',short:'사례',color:'#16a34a',cols:LAND_COLS,tbl:'tblLand',cnt:'cntLand',empty:'KAIS로 붙이거나 「직접 입력」으로 추가하세요.'},
+  jip:{name:'집합건물 거래사례',short:'집건',color:'#7c3aed',cols:JIP_COLS,tbl:'tblJip',cnt:'cntJip',empty:'KAIS 붙여넣기에서 「집합건물」을 고르고 붙이세요.'},
+  appr:{name:'평가사례',short:'평가',color:'#ea580c',cols:APPR_COLS,tbl:'tblAppr',cnt:'cntAppr',empty:'KAPA 평가사례를 머리글째 붙이세요.'},
+  std:{name:'표준지',short:'표준지',color:'#2563eb',cols:STD_COLS,tbl:'tblStd',cnt:'cntStd',empty:'위 칸에 표준지 지번을 넣고 「추가」를 누르세요.'}
+};
+var KLIST=['land','jip','appr','std'];
+function colsOf(kind){return KINDS[kind].cols;}
+function rowsOf(kind){return DATA[kind];}
+function locOf(kind,r){return kind==='jip'?jipLoc(r):String(r.loc||'').trim();}
 
 function render(kind){
-  var cols=colsOf(kind),rows=rowsOf(kind),tbl=document.getElementById(kind==='land'?'tblLand':'tblJip');
-  document.getElementById(kind==='land'?'cntLand':'cntJip').textContent=rows.length+'건';
+  var K=KINDS[kind],cols=colsOf(kind),rows=rowsOf(kind),tbl=document.getElementById(K.tbl);
+  document.getElementById(K.cnt).textContent=rows.length;
   if(!rows.length){
-    tbl.innerHTML='<tr><td class="empty">아직 사례가 없습니다 — 위 칸에 붙여넣거나 「+ 빈 행」을 누르세요.</td></tr>';
+    tbl.innerHTML='<tr><td class="empty">아직 없습니다 — '+K.empty+'</td></tr>';
     return;
   }
   var h='<tr><th style="width:34px">표시</th><th style="width:34px">#</th>'+
@@ -336,7 +406,7 @@ function refreshCalc(i){
     else if(!auto&&inp&&inp!==document.activeElement)inp.value=won(num(r[k]));
   });
 }
-function renderAll(){render('land');render('jip');}
+function renderAll(){KLIST.forEach(render);}
 
 // 글자를 칠 때는 저장만 한다. 지도를 다시 찍는 건 칸을 벗어날 때(cellDone) —
 // 한 글자마다 주소 조회가 나가면 "자양동 6", "자양동 61" 같은 토막 주소로 헛조회가 쌓인다.
@@ -344,7 +414,7 @@ function editCell(kind,i,key,val){
   var r=rowsOf(kind)[i];if(!r)return;
   r[key]=val;saveAll();
 }
-function isLocKey(kind,key){return kind==='land'?key==='loc':(key==='location'||key==='jibun');}
+function isLocKey(kind,key){return kind==='jip'?(key==='location'||key==='jibun'):key==='loc';}
 function cellDone(kind,key,i){
   if(!isLocKey(kind,key)&&(labCols(kind).indexOf(key)>=0||(kind==='land'&&/^(total|bldAmt|landA)$/.test(key))))setTimeout(restyle,0);   // 말풍선 내용 갱신
   if(kind==='land'&&/^(total|bldAmt|landA|landAmt|landUnit)$/.test(key))refreshCalc(i);   // 토지금액·단가 다시 계산
@@ -357,6 +427,7 @@ function cellDone(kind,key,i){
       else if(b2===lr.loc.trim()&&lr.rel&&lr.rel.length){lr.rel=[];lr.relOff=true;}   // 「외」를 지움 → 대표 지번만
     }
     if(kind==='land'&&rowsOf('land')[i])autoFill(rowsOf('land')[i]).then(function(){render('land');});   // 새 소재지면 빈칸 채움
+    if(kind==='std'&&rowsOf('std')[i])autoFillStd(rowsOf('std')[i]).then(function(){render('std');restyle();});
   }
 }
 function toggleShow(kind,i,on){var r=rowsOf(kind)[i];if(!r)return;r.show=!!on;saveAll();refresh();}
@@ -366,27 +437,27 @@ function addRow(kind){rowsOf(kind).push({show:true});saveAll();render(kind);}
 // 지우기 전 목록을 통째로 담아 둔다(한 건 삭제·전체 지우기 모두 같은 방식) — 되돌리기 한 번이면 원래대로.
 var UNDO=[];
 function pushUndo(what){
-  try{UNDO.push({what:what,land:JSON.parse(JSON.stringify(DATA.land)),jip:JSON.parse(JSON.stringify(DATA.jip))});}
+  try{var u={what:what};KLIST.forEach(function(k){u[k]=JSON.parse(JSON.stringify(DATA[k]));});UNDO.push(u);}
   catch(e){console.error('undo',e);return;}
   if(UNDO.length>20)UNDO.shift();
 }
 function undoLast(){
   var u=UNDO.pop();if(!u)return;
-  DATA.land=u.land;DATA.jip=u.jip;
+  KLIST.forEach(function(k){if(u[k])DATA[k]=u[k];});
   saveAll();refresh();
   setMapNote('↩ '+u.what+' 되돌렸습니다.');
 }
 function delRow(kind,i){
   var r=rowsOf(kind)[i];if(!r)return;
-  pushUndo((kind==='land'?'토지':'집건')+' 사례 '+(i+1)+'번 삭제를');
+  pushUndo(KINDS[kind].name+' '+(i+1)+'번 삭제를');
   rowsOf(kind).splice(i,1);saveAll();refresh();
-  setMapNote('🗑 '+(kind==='land'?'토지':'집건')+' #'+(i+1)+' 삭제 — 「↩ 되돌리기」로 살릴 수 있습니다.');
+  setMapNote('🗑 '+KINDS[kind].short+' #'+(i+1)+' 삭제 — 「↩ 되돌리기」로 살릴 수 있습니다.');
 }
 function clearRows(kind){
   var rows=rowsOf(kind);
   if(!rows.length)return;
-  if(!confirm((kind==='land'?'토지':'집합건물')+' 거래사례 '+rows.length+'건을 모두 지울까요?\n(「↩ 되돌리기」로 살릴 수 있습니다)'))return;
-  pushUndo((kind==='land'?'토지':'집합건물')+' 사례 '+rows.length+'건 전체 삭제를');
+  if(!confirm(KINDS[kind].name+' '+rows.length+'건을 모두 지울까요?\n(「↩ 되돌리기」로 살릴 수 있습니다)'))return;
+  pushUndo(KINDS[kind].name+' '+rows.length+'건 전체 삭제를');
   rows.length=0;saveAll();refresh();
 }
 // 표·칩목록·지도를 한꺼번에 맞춘다
@@ -398,12 +469,12 @@ function pickRows(){
   var out=[],baseLoc=String((document.getElementById('baseLoc')||{}).value||'').trim();
   var nRel=relOn().length;
   if(baseLoc)out.push({kind:'base',i:-1,label:'본건',color:'#dc2626',loc:baseLoc,more:nRel?(' 외 '+nRel+'필지'):'',show:DATA.baseShow!==false});
-  DATA.land.forEach(function(r,i){
-    if(hasV(r.loc))out.push({kind:'land',i:i,label:'사례 #'+(i+1),color:'#16a34a',loc:r.loc,show:r.show!==false,bub:!r.labOff});
-  });
-  DATA.jip.forEach(function(r,i){
-    var loc=jipLoc(r);
-    if(loc)out.push({kind:'jip',i:i,label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,show:r.show!==false,bub:!r.labOff});
+  KLIST.forEach(function(kind){
+    var K=KINDS[kind];
+    DATA[kind].forEach(function(r,i){
+      var loc=locOf(kind,r);
+      if(loc)out.push({kind:kind,i:i,label:K.short+' #'+(i+1),color:K.color,loc:loc,show:r.show!==false,bub:!r.labOff});
+    });
   });
   return out;
 }
@@ -436,30 +507,52 @@ function pickToggle(kind,i,on){
 }
 function showAllPins(on){
   DATA.baseShow=!!on;
-  DATA.land.forEach(function(r){r.show=!!on;});
-  DATA.jip.forEach(function(r){r.show=!!on;});
+  KLIST.forEach(function(k){DATA[k].forEach(function(r){r.show=!!on;});});
   saveAll();refresh();
 }
 
 // ── 붙여넣기 ──
-function pasteLand(e){
-  var text=(e.clipboardData||window.clipboardData).getData('text');
-  e.preventDefault();if(e.target)e.target.value='';
-  var msg=document.getElementById('msgLand'),res=ArapKais.parseLand(text,'토지');
-  if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
-  res.out.forEach(function(c){c.show=true;DATA.land.push(c);});
-  saveAll();refresh();
-  msg.className='pst ok';
-  msg.textContent='✅ '+res.out.length+'건 추가'+(res.merged?' (토지+건물 일괄 '+res.merged+'건은 한 사례로 합침)':'')+' — 지도에 찍는 중…';
+// KAIS 붙여넣기 칸 하나 — 「토지 / 집합건물」 선택에 따라 파서를 고른다(선택은 저장). 붙이면 그 목록 탭으로 넘어간다.
+function setKaisMode(m,quiet){
+  DATA.kaisMode=m==='jip'?'jip':'land';
+  document.querySelectorAll('input[name=kaisMode]').forEach(function(x){x.checked=x.value===DATA.kaisMode;});
+  if(!quiet){saveAll();showTab(DATA.kaisMode);}
 }
-function pasteJip(e){
+function vlog(action,detail){try{if(window.arapVisitLog)window.arapVisitLog(action,detail);}catch(e){console.error('visit',e);}}
+function pmsg(id,ok,text){var m=document.getElementById(id);m.className='pst '+(ok?'ok':'err');m.textContent=text;}
+function pasteKais(e){
   var text=(e.clipboardData||window.clipboardData).getData('text');
   e.preventDefault();if(e.target)e.target.value='';
-  var msg=document.getElementById('msgJip'),res=ArapKais.parseJip(text);
-  if(res.err){msg.className='pst err';msg.textContent=res.err;return;}
-  res.out.forEach(function(c){c.show=true;DATA.jip.push(c);});
-  saveAll();refresh();
-  msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 추가 — 지도에 찍는 중…';
+  if(DATA.kaisMode==='jip'){
+    var rj=ArapKais.parseJip(text);
+    if(rj.err)return pmsg('msgKais',false,rj.err);
+    rj.out.forEach(function(c){c.show=true;DATA.jip.push(c);});
+    pmsg('msgKais',true,'✅ 집합건물 거래사례 '+rj.out.length+'건 추가 — 지도에 찍는 중…');
+    vlog('KAIS 붙여넣기','집합건물 '+rj.out.length+'건');
+  }else{
+    var res=ArapKais.parseLand(text,'토지');
+    if(res.err)return pmsg('msgKais',false,res.err);
+    res.out.forEach(function(c){c.show=true;DATA.land.push(c);});
+    vlog('KAIS 붙여넣기','토지 '+res.out.length+'건');
+    pmsg('msgKais',true,'✅ 토지 거래사례 '+res.out.length+'건 추가'+(res.merged?' (토지+건물 일괄 '+res.merged+'건은 한 사례로 합침)':'')+' — 지도에 찍는 중…');
+  }
+  saveAll();refresh();showTab(DATA.kaisMode);
+}
+// KAPA 평가사례 — 지도 조회는 시·구까지 있는 소재지(locFull)로. 원본 파서의 '동 + 지번'은 칸에 안 남긴다.
+function pasteAppr(e){
+  var text=(e.clipboardData||window.clipboardData).getData('text');
+  e.preventDefault();if(e.target)e.target.value='';
+  var res=ArapKais.parseAppr(text);
+  if(res.err)return pmsg('msgAppr',false,res.err);
+  res.out.forEach(function(a){
+    var r={show:true,loc:a.locFull||a.loc,purp:a.purp,obj:a.obj,use:a.use,jimok:a.jimok,cond:a.cond,area:a.area,
+      unit:a.unit,total:a.total,base:ArapKais.dot(a.base),gongsi:a.gongsi,gongsiYear:a.gongsiYear,road:a.road,shape:a.shape};
+    if(a.masked)r.memo='지번 일부 가림(*) — 위치 확인';
+    DATA.appr.push(r);
+  });
+  saveAll();refresh();showTab('appr');
+  pmsg('msgAppr',true,'✅ 평가사례 '+res.out.length+'건 추가 — 지도에 찍는 중…');
+  vlog('KAPA 붙여넣기','평가사례 '+res.out.length+'건');
 }
 
 // ── 소재지만으로 사례 추가 + 빈칸 자동 채우기 ──
@@ -562,16 +655,20 @@ async function autoFillRows(list){
   }
   autoMsg((fail.length?'⚠️ ':'✅ ')+list.length+'건 중 '+n+'건 빈칸 채움'+(fail.length?' — 못 찾음: '+fail.join(', '):'')+' · 거래금액·거래일자·건물금액은 직접 넣으세요.',fail.length?'err':'ok');
 }
-function addByLoc(){
-  var el=document.getElementById('addLoc'),txt=String(el.value||'').trim();if(!txt)return;
-  // '여의도동 15-22, 15-23' → 앞 지번의 동 이름을 뒤 지번에 이어 붙인다
-  var pre='',list=[];
-  txt.split(/[,，\n]+/).map(function(t){return t.trim();}).filter(Boolean).forEach(function(t){
+// '여의도동 15-22, 15-23' → ['여의도동 15-22','여의도동 15-23'] (앞 지번의 동 이름을 뒤 지번에 이어 붙인다)
+function splitLocs(txt){
+  var pre='',out=[];
+  String(txt||'').split(/[,，\n]+/).map(function(t){return t.trim();}).filter(Boolean).forEach(function(t){
     var p=addrPrefix(t);
     if(p)pre=p;else if(pre&&/^(?:산\s*)?\d+(?:-\d+)?(?:번지)?$/.test(t))t=pre+' '+t;
-    t=t.replace(/번지$/,'');
-    var r={loc:t,show:true};DATA.land.push(r);list.push(r);
+    out.push(t.replace(/번지$/,''));
   });
+  return out;
+}
+function addByLoc(){
+  var el=document.getElementById('addLoc'),list=splitLocs(el.value).map(function(t){var r={loc:t,show:true};DATA.land.push(r);return r;});
+  if(!list.length)return;
+  vlog('사례 직접 입력',list.map(function(r){return r.loc;}).join(', '));
   el.value='';saveAll();refresh();
   autoFillRows(list).then(function(){refresh();});
 }
@@ -579,6 +676,54 @@ function autoFillAll(){
   var list=DATA.land.filter(function(r){return hasV(r.loc);});
   if(!list.length){autoMsg('소재지가 있는 토지 사례가 없습니다.','err');return;}
   autoFillRows(list).then(function(){refresh();});
+}
+
+// ── 표준지 ── 지번만 넣으면 토지특성(최신 연도)으로 빈칸을 채운다. 표준지는 그 해 개별공시지가 = 표준지공시지가.
+var STD_AUTO=['use','jimok','area','cond','road','shape','slope','gongsi','gongsiYear'];
+async function lookupStd(loc){
+  loc=stripOe(loc);
+  var region=ArapMap.sggOfAddr(baseVal()),q=ArapMap.query(loc,region);
+  var g=await ArapMap.geocode(q,VKEY);
+  if((!g||!g.pnu)&&q!==loc)g=await ArapMap.geocode(loc,VKEY);
+  if(!g||!/^\d{19}$/.test(g.pnu||''))throw new Error('주소를 찾지 못함');
+  var c=await landChar(g.pnu);
+  if(!c)throw new Error('토지특성 없음');
+  return {use:useOf(c).join(', '),jimok:c.lndcgrCodeNm||'',area:areaStr(c.lndpclAr),cond:c.ladUseSittnNm||'',
+    road:c.roadSideCodeNm||'',shape:c.tpgrphFrmCodeNm||'',slope:c.tpgrphHgCodeNm||'',
+    gongsi:c.pblntfPclnd?String(c.pblntfPclnd):'',gongsiYear:c.stdrYear||''};
+}
+async function autoFillStd(r){
+  if(!r||!hasV(r.loc))return [];
+  r._busy=true;render('std');
+  var filled=[];
+  try{
+    var d=await lookupStd(r.loc);
+    STD_AUTO.forEach(function(k){if(!hasV(r[k])&&hasV(d[k])){r[k]=d[k];filled.push(k);}});
+    r._autoMsg=filled.length?'':'채울 빈칸 없음';
+  }catch(e){r._autoMsg=e.message||'조회 실패';}
+  delete r._busy;saveAll();
+  return filled;
+}
+async function autoFillStdRows(list){
+  var n=0,fail=[],m=function(t,c){var el=document.getElementById('msgStd');el.className='pst'+(c?' '+c:'');el.textContent=t;};
+  for(var k=0;k<list.length;k++){
+    m('⏳ '+(k+1)+'/'+list.length+' '+list[k].loc+' 조회 중…');
+    var f=await autoFillStd(list[k]);if(f.length)n++;else if(list[k]._autoMsg&&list[k]._autoMsg!=='채울 빈칸 없음')fail.push(list[k].loc+'('+list[k]._autoMsg+')');
+    render('std');
+  }
+  m((fail.length?'⚠️ ':'✅ ')+'표준지 '+list.length+'건 중 '+n+'건 채움'+(fail.length?' — 못 찾음: '+fail.join(', '):''),fail.length?'err':'ok');
+}
+function addStd(){
+  var el=document.getElementById('addStd'),list=splitLocs(el.value).map(function(t){var r={loc:t,show:true};DATA.std.push(r);return r;});
+  if(!list.length)return;
+  vlog('표준지 추가',list.map(function(r){return r.loc;}).join(', '));
+  el.value='';saveAll();refresh();
+  autoFillStdRows(list).then(function(){refresh();});
+}
+function autoFillStdAll(){
+  var list=DATA.std.filter(function(r){return hasV(r.loc);});
+  if(!list.length)return;
+  autoFillStdRows(list).then(function(){refresh();});
 }
 
 // ── 지도 ──
@@ -600,6 +745,7 @@ function landInfo(r){
   if(num(r.gongsi))p.push('공시 @'+won(num(r.gongsi)));
   return p.join(' · ');
 }
+function infoOf(a){return a.filter(function(x){return hasV(x);}).join(' · ');}
 function jipInfo(r){
   var p=[];
   if(hasV(r.tradeDate))p.push(r.tradeDate);
@@ -632,6 +778,17 @@ function mapItems(){
     var loc=jipLoc(r);
     if(r.show===false||!loc)return;
     out.push(Object.assign({o:r,kind:'집합건물 거래사례',label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,region:region,info:jipInfo(r)},bubbleOf('jip',r)));
+  });
+  // 평가사례 — 토지면 필지 테두리, 집합건물(물건에 '집합'·'구분')이면 점
+  DATA.appr.forEach(function(r,i){
+    if(r.show===false||!hasV(r.loc))return;
+    out.push(Object.assign({o:r,kind:'평가사례',label:'평가 #'+(i+1),color:KINDS.appr.color,loc:stripOe(r.loc),region:region,
+      info:infoOf([r.purp,r.base,num(r.unit)?'@'+won(num(r.unit)):'']),poly:!/집합|구분/.test(r.obj||'')},bubbleOf('appr',r)));
+  });
+  DATA.std.forEach(function(r,i){
+    if(r.show===false||!hasV(r.loc))return;
+    out.push(Object.assign({o:r,kind:'표준지',label:'표준지 #'+(i+1),color:KINDS.std.color,loc:stripOe(r.loc),region:region,
+      info:infoOf([r.use,r.cond,num(r.gongsi)?'공시 @'+won(num(r.gongsi))+(r.gongsiYear?' ('+r.gongsiYear+')':''):'']),poly:true},bubbleOf('std',r)));
   });
   return out;
 }
@@ -754,16 +911,20 @@ function renderRel(){
      '<button class="btn sm" onclick="loadRel(true)" title="건축물대장 부속지번을 다시 받습니다(직접 넣은 지번은 그대로)">↻ 대장 다시 조회</button>';
   el.innerHTML=h;
 }
-function baseChanged(){loadRel(false);renderRel();renderPick();redraw(false);}
+var lastBaseLogged='';
+function baseChanged(){
+  var b=baseVal();if(b&&b!==lastBaseLogged){lastBaseLogged=b;vlog('본건 지정',b);}
+  loadRel(false);renderRel();renderPick();redraw(false);}
 
 // force=true면 저장해 둔 좌표(직접 옮긴 핀 포함)를 버리고 주소로 다시 찾는다
 var drawTimer=null;
 // ── 말풍선 ──
 // 첫 줄 「사례 #n」, 둘째 줄 지번(시·구 뗀 동-지번), 그 아래 표 머리에서 체크한 칸(표 순서대로).
 // 체크 목록은 DATA.labCols(토지·집건 따로), 사례별 끄기는 r.labOff. 켜고 끌 때는 지도 화면을 그대로 둔다(restyle).
-var LAB_DEFAULT={land:['use','jimok','date','landUnit'],jip:['floor','exclusiveArea','tradeDate','unitPrice']};
+var LAB_DEFAULT={land:['use','jimok','date','landUnit'],jip:['floor','exclusiveArea','tradeDate','unitPrice'],
+  appr:['purp','base','unit'],std:['use','cond','gongsi']};
 function labCols(kind){var c=DATA.labCols&&DATA.labCols[kind];return Array.isArray(c)?c:LAB_DEFAULT[kind];}
-var PER_M2={gongsi:1,landUnit:1,unitPrice:1},WON_KEYS={total:1,bldAmt:1,landAmt:1,price:1},AREA_KEYS={landA:1,bldA:1,exclusiveArea:1};
+var PER_M2={gongsi:1,landUnit:1,unitPrice:1,unit:1},WON_KEYS={total:1,bldAmt:1,landAmt:1,price:1},AREA_KEYS={landA:1,bldA:1,exclusiveArea:1,area:1};
 function labVal(kind,r,key,cal){
   var v=(cal&&(key==='landAmt'||key==='landUnit')&&!manualNum(r[key]))?cal[key]:r[key];
   if(!hasV(v)||(PER_M2[key]||WON_KEYS[key])&&!num(v))return '';
@@ -779,7 +940,7 @@ function labVal(kind,r,key,cal){
 function dongJibun(loc){var t=String(loc||'').trim(),p=addrPrefix(t);return p?(p.split(/\s+/).pop()+' '+t.slice(p.length).trim()):t;}
 function bubbleOf(kind,r){
   var cal=kind==='land'?landCalc(r):null,sel=labCols(kind);
-  var where=kind==='land'?dongJibun(r.loc):(dongJibun(jipLoc(r))+(hasV(r.aptName)?' '+r.aptName:''));
+  var where=kind==='jip'?(dongJibun(jipLoc(r))+(hasV(r.aptName)?' '+r.aptName:'')):dongJibun(r.loc);
   var lines=[where];
   colsOf(kind).forEach(function(c){if(sel.indexOf(c[1])>=0){var t=labVal(kind,r,c[1],cal);if(t)lines.push(t);}});
   return {lines:lines,labelHidden:!!r.labOff,onCloseLabel:function(){r.labOff=true;saveAll();renderPick();restyle();}};
@@ -793,7 +954,7 @@ function toggleLabCol(kind,key,on){
 }
 function toggleBubble(kind,i){var r=rowsOf(kind)[i];if(!r)return;r.labOff=!r.labOff;saveAll();renderPick();restyle();}
 function setAllBubbles(on){
-  DATA.land.forEach(function(r){r.labOff=!on;});DATA.jip.forEach(function(r){r.labOff=!on;});
+  KLIST.forEach(function(k){DATA[k].forEach(function(r){r.labOff=!on;});});
   saveAll();renderPick();restyle();
   setMapNote(on?'💬 말풍선을 모두 켰습니다.':'말풍선을 모두 껐습니다 — 사례 칩의 💬로 하나씩 켤 수 있습니다.');
 }

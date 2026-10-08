@@ -26,7 +26,7 @@ try{
     const item=oldProxy?[{flrNo:'1',flrGbCdNm:'지상'}]:[atch('11000','0017','0021'),atch('11000','0017','0022'),atch('11000','0017','0023'),atch('11000','0017','0022'),atch('11000','0017','0006'),atch('11100','0005','0000')];
     r.fulfill({contentType:'application/json',body:JSON.stringify({response:{header:{resultCode:'00'},body:{items:{item},totalCount:item.length}}})});});
   await page.goto(base+'/p9v3xk2m.html');
-  await page.evaluate(()=>localStorage.clear());await page.reload();
+  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('arap-user-name','테스트');});await page.reload();
   await page.fill('#baseLoc','여의도동 17-6');await page.click('text=지도에 표시');
   await page.waitForFunction(()=>window.DATA.rel&&window.DATA.rel.done);
   // 1. 대장 부속지번 → 칩 (본건 자신·중복 제외, 다른 동은 동 이름까지)

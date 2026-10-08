@@ -28,7 +28,7 @@ try{
     const item=pnu.endsWith('0022')?[{mainAtchGbCdNm:'부속건축물',totArea:'20.5',useAprDay:'19900101'},{mainAtchGbCdNm:'주건축물',totArea:'3300.25',useAprDay:'20050312'}]:[];
     r.fulfill(json({response:{header:{resultCode:'00'},body:{items:item.length?{item}:''}}}));});
   await page.goto(base+'/p9v3xk2m.html');
-  await page.evaluate(()=>localStorage.clear());await page.reload();
+  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('arap-user-name','테스트');});await page.reload();
   // 1. 소재지만으로 2건 추가
   await page.fill('#addLoc','여의도동 15-22, 15-23');await page.click('.addloc .btn.pri');
   await page.waitForFunction(()=>/건 중/.test(document.getElementById('msgAuto').textContent));

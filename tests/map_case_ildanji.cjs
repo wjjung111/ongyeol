@@ -31,7 +31,7 @@ try{
     if(op==='getBrAtchJibunInfo'){atchCalls++;if(pnu===pnuOf('13-6'))item=['31','30','29'].map(j=>({atchSigunguCd:'11560',atchBjdongCd:'11000',atchPlatGbCd:'0',atchBun:'0013',atchJi:'00'+j}));}
     r.fulfill(json({response:{header:{resultCode:'00'},body:{items:item.length?{item}:''}}}));});
   await page.goto(base+'/p9v3xk2m.html');
-  await page.evaluate(()=>localStorage.clear());await page.reload();
+  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('arap-user-name','테스트');});await page.reload();
   await page.fill('#addLoc','여의도동 13-6');await page.click('.addloc .btn.pri');
   await page.waitForFunction(()=>/건 중/.test(document.getElementById('msgAuto').textContent));
   let r=await page.evaluate(()=>{const r=DATA.land[0];return {loc:r.loc,landA:r.landA,use:r.use,gongsi:r.gongsi,rel:(r.rel||[]).map(p=>p.loc)};});
