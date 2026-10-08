@@ -14,6 +14,7 @@
  *  /bld?op=getBrBasisOulnInfo&pnu=...  기본개요
  *  /bld?op=getBrExposInfo&pnu=...&dongNm=101동            전유부 (집합건물 호 목록 — 동 이름으로 거름)
  *  /bld?op=getBrExposPubuseAreaInfo&pnu=...&dongNm=101동&hoNm=102호   전유공용면적 (호 하나의 전유·공용 내역)
+ *  /bld?op=getBrAtchJibunInfo&pnu=...  부속지번 (대장 「지번 관련 주소」 — 일단지 관련지번, 3판부터)
  *    공통 추가 파라미터: pageNo(기본 1), numOfRows(기본 200, 최대 1000), dongNm, hoNm — 있으면 그대로 국토부 API에 전달
  *  /rone?...                          부동산원 R-ONE (지가변동률 등 — 쿼리 그대로 전달)
  *
@@ -62,6 +63,7 @@ export default {
           "getBrBasisOulnInfo",      // 기본개요
           "getBrExposPubuseAreaInfo",// 전유공용면적 (호별 전유·공용 내역)
           "getBrExposInfo",          // 전유부 (호 목록)
+          "getBrAtchJibunInfo",      // 부속지번 (지번 관련 주소 — 일단지 관련지번)
         ];
         const op = ALLOWED_OPS.includes(url.searchParams.get("op")) ? url.searchParams.get("op") : "getBrFlrOulnInfo";
         const sigungu = pnu.slice(0, 5), bjdong = pnu.slice(5, 10);
@@ -101,7 +103,7 @@ export default {
       }
 
       // ── 상태 확인: / ──
-      return json({ ok: true, service: "ongyeol-proxy", ver: 2, paths: ["/bld?pnu=", "/rone?..."] }, 200, cors);
+      return json({ ok: true, service: "ongyeol-proxy", ver: 3, paths: ["/bld?pnu=", "/rone?..."] }, 200, cors);
     } catch (e) {
       return json({ error: String(e && e.message || e) }, 502, cors);
     }
