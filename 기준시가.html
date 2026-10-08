@@ -151,6 +151,8 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
 @media (prefers-reduced-motion:no-preference){.btn,.mode button{transition:background .15s,border-color .15s}}
 </style>
 
+<script src="arap_name.js"></script><!-- 사용자 이름 최초 1회 입력 (이름 없으면 화면 안 열림) -->
+<script>window.ARAP_VISIT_PAGE='기준시가';</script><script src="arap_visit.js"></script><!-- 접속·조회 기록 → 관리자 「기준시가계산기」 탭 -->
 <header class="top">
   <div class="top-inner">
     <div>
@@ -595,6 +597,7 @@ function pickYear(fields,year){ if(!fields.length) return null; const y=fields.f
 const mapStructure=G.mapStructure, mapRoof=G.mapRoof, mapUse=G.mapUse;
 
 async function importByAddress(q){
+  if(window.arapVisitLog)window.arapVisitLog('조회',q);
   const st=$("apiStatus"), btn=$("apiGo"), key=getKey(); btn.disabled=true; st.className="status"; st.textContent="주소 검색 중… "+q;
   const raw={}; const notes=[]; let fl=[]; basis={};
   try{

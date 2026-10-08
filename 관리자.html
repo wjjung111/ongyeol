@@ -63,10 +63,14 @@
   </div>
   <div id="panel">
     <div class="tabs">
-      <button type="button" id="tab-usage" class="on" onclick="showTab('usage')">📋 사용 기록</button>
-      <button type="button" id="tab-visit" onclick="showTab('visit')">📈 접속 기록</button>
+      <!-- EXACT(집합건물) 사용 기록 탭은 주소를 바꿔 아무도 안 쓰므로 숨김(코드는 남겨 둠) -->
+      <button type="button" id="tab-usage" style="display:none" onclick="showTab('usage')">📋 사용 기록</button>
+      <button type="button" class="vtab on" data-pg="시점수정" onclick="showTab('시점수정')">📈 시점수정</button>
+      <button type="button" class="vtab" data-pg="거래사례 위치도" onclick="showTab('거래사례 위치도')">🗺️ 위치도</button>
+      <button type="button" class="vtab" data-pg="건축물대장" onclick="showTab('건축물대장')">🏢 건축물대장</button>
+      <button type="button" class="vtab" data-pg="기준시가" onclick="showTab('기준시가')">🧮 기준시가계산기</button>
     </div>
-    <div class="card" id="view-usage">
+    <div class="card" id="view-usage" style="display:none;">
       <div class="stats" id="stats"></div>
       <div class="bar">
         <b id="viewTitle">건별 최신 현황</b>
@@ -78,7 +82,7 @@
       <div style="overflow-x:auto;"><table id="tbl"></table></div>
       <div class="muted">저장·다운로드 때마다 기록되며, 같은 내용이면 중복 전송하지 않습니다. 샘플 건은 기록에서 제외.</div>
     </div>
-    <div class="card" id="view-visit" style="display:none;">
+    <div class="card" id="view-visit">
       <div class="warn" id="visitWarn"></div>
       <div class="stats" id="vstats"></div>
       <div class="bar">
@@ -86,14 +90,14 @@
         <span><span class="toggle" onclick="load()">🔄 새로고침</span></span>
       </div>
       <div style="overflow-x:auto;"><table id="vtbl"></table></div>
-      <div class="muted">시점수정 페이지를 열 때(접속)와 계산 버튼을 누를 때(계산) 기록됩니다. 이름은 시점수정 첫 화면에서 적은 이름(집합건물·입주권 앱에서 고른 이름과 같은 저장값)이며, 이름 입력 전 옛 기록은 "(이름 미등록)".<br>
+      <div class="muted">페이지를 열 때(접속)와 계산·조회 버튼을 누를 때 기록됩니다. 이름은 시점수정 첫 화면에서 적은 이름(집합건물·입주권 앱에서 고른 이름과 같은 저장값)이며, 이름 입력 전 옛 기록은 "(이름 미등록)".<br>
         IP·지역은 IP 조회 서비스가 알려준 값이라 통신사 기준이며 시·구 단위까지만 맞습니다. 휴대폰 데이터는 실제 위치와 달리 통신사 소재지(주로 서울)로 잡힐 수 있습니다.</div>
     </div>
   </div>
 </div>
 <script>
 const URL_="https://script.google.com/macros/s/AKfycbxx2D6-vWHBS7UPUrhdd4Fz5iayqUlgM4IZcqlNCAuERxY3Wpijdo3xw29Xz3_gs_7Leg/exec";
-let ROWS=[],VISITS=[],visitOld=false,showAll=false,curTab="usage";
+let ROWS=[],VISITS=[],visitOld=false,showAll=false,curTab="시점수정";
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtT=v=>{const d=new Date(v);return isNaN(d)?esc(v):`${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
 const fmtA=v=>{const n=Number(String(v).replace(/[^0-9.-]/g,""));return v&&!isNaN(n)&&n?n.toLocaleString("ko-KR")+"원":"";};
@@ -142,22 +146,25 @@ async function loadVisits(pw){
 function showTab(t){
   curTab=t;
   document.getElementById("tab-usage").classList.toggle("on",t==="usage");
-  document.getElementById("tab-visit").classList.toggle("on",t==="visit");
+  document.querySelectorAll(".vtab").forEach(b=>b.classList.toggle("on",b.dataset.pg===t));
   document.getElementById("view-usage").style.display=t==="usage"?"block":"none";
-  document.getElementById("view-visit").style.display=t==="visit"?"block":"none";
+  document.getElementById("view-visit").style.display=t==="usage"?"none":"block";
+  if(t!=="usage")renderVisits();
 }
 function renderVisits(){
   const warn=document.getElementById("visitWarn");
   warn.style.display=visitOld?"block":"none";
   warn.innerHTML=visitOld?"⚠️ 수신함이 구버전이라 접속 기록을 받지 못합니다. <b>문서/관리자_수신함.gs</b>를 앱스 스크립트에 다시 붙여넣고 <b>새 버전</b>으로 배포하세요 (주소는 그대로).":"";
-  const cur=[...VISITS].sort((a,b)=>new Date(b.t)-new Date(a.t));
-  const byUser={},byDev={},byPage={};let calcN=0;
-  cur.forEach(r=>{byPage[r.page||'?']=(byPage[r.page||'?']||0)+1;byUser[r.user]=(byUser[r.user]||0)+1;const d=String(r.device||"").split(" · ")[0]||"?";byDev[d]=(byDev[d]||0)+1;if(r.action==="계산")calcN++;});
-  document.getElementById("vTitle").textContent=`접속 기록 — 시점수정·거래사례 위치도 (${cur.length}건)`;
+  // 탭(페이지)별로 나눠 본다 — 탭 이름 옆 숫자는 그 페이지 기록 건수
+  const pg=curTab==="usage"?"시점수정":curTab;
+  document.querySelectorAll(".vtab").forEach(b=>{if(!b.dataset.lbl)b.dataset.lbl=b.textContent;const n=VISITS.filter(r=>r.page===b.dataset.pg).length;b.textContent=b.dataset.lbl+" ("+n+")";});
+  const cur=VISITS.filter(r=>r.page===pg).sort((a,b)=>new Date(b.t)-new Date(a.t));
+  const byUser={},byDev={};let calcN=0;
+  cur.forEach(r=>{byUser[r.user]=(byUser[r.user]||0)+1;const d=String(r.device||"").split(" · ")[0]||"?";byDev[d]=(byDev[d]||0)+1;if(r.action&&r.action!=="접속")calcN++;});
+  document.getElementById("vTitle").textContent=`${pg} 접속 기록 (${cur.length}건)`;
   document.getElementById("vstats").innerHTML=
     `<div class="stat"><div class="n">${cur.length}</div><div class="l">전체 기록</div></div>`+
-    `<div class="stat"><div class="n">${calcN}</div><div class="l">계산 횟수</div></div>`+
-    Object.entries(byPage).sort((a,b)=>b[1]-a[1]).map(([pg,n])=>`<div class="stat" style="background:#eff6ff;border-color:#bfdbfe;"><div class="n" style="color:#1d4ed8;">${n}</div><div class="l">${esc(pg)}</div></div>`).join("")+
+    `<div class="stat"><div class="n">${calcN}</div><div class="l">계산·조회 등</div></div>`+
     Object.entries(byUser).sort((a,b)=>b[1]-a[1]).map(([u,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${esc(u)}</div></div>`).join("")+
     Object.entries(byDev).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<div class="stat" style="background:#f0fdf4;border-color:#bbf7d0;"><div class="n" style="color:#15803d;">${n}</div><div class="l">${esc(d)}</div></div>`).join("");
   document.getElementById("vtbl").innerHTML=
