@@ -40,7 +40,7 @@ try{
   assert.equal(await page.$eval('#tblLand tr:nth-child(2) td:nth-child(3) input',x=>x.value),'여의도동 13-6 외');
   // 지도: 네 필지 한 묶음, 대표 지번은 「외」 없이 조회
   let it=await page.evaluate(()=>mapItems().filter(x=>x.kind==='토지 거래사례').map(x=>[x.loc,x.labelGroup,x.label]));
-  assert.equal(it.length,4);assert.deepEqual(it[0],['여의도동 13-6','land0','토지 #1']);assert.ok(it.every(x=>x[1]==='land0'&&x[2]==='토지 #1'));
+  assert.equal(it.length,4);assert.deepEqual(it[0],['여의도동 13-6','land0','사례 #1']);assert.ok(it.every(x=>x[1]==='land0'&&x[2]==='사례 #1'));
   // ⚡ 다시 눌러도 「외」가 겹치지 않음
   await page.click('text=⚡ 빈칸 자동 채우기');await page.waitForFunction(()=>/✅ 1건 중/.test(document.getElementById('msgAuto').textContent));
   assert.equal(await page.evaluate(()=>DATA.land[0].loc),'여의도동 13-6 외');
