@@ -27,7 +27,7 @@ try{
     r.fulfill(json({response:{status:'OK',result:{featureCollection:{features:k?[{geometry:{type:'Polygon',coordinates:[[[x,y],[x+d,y],[x+d,y+d],[x,y+d],[x,y]]]}}]:[]}}}}));});
   await page.route(/workers\.dev|ned\/data/,r=>r.fulfill(json({})));
   await page.goto(base+'/p9v3xk2m.html');
-  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('arap-map-cases-v1',JSON.stringify({base:'',land:[
+  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('arap-user-name','테스트');localStorage.setItem('arap-map-cases-v1',JSON.stringify({base:'',land:[
     {loc:'여의도동 15-22',use:'일반상업지역',jimok:'대',landA:'100',total:'4350000000',date:'2026.04.23',gongsi:'14450000',show:true},
     {loc:'여의도동 15-23',use:'일반상업지역',jimok:'대',landA:'200',show:true}],
     jip:[{location:'서울특별시 영등포구 여의도동',jibun:'44',aptName:'광장',floor:'7',exclusiveArea:'84.9',price:'1500000000',unitPrice:'17667844',tradeDate:'2026.05.01',show:true}]}));});

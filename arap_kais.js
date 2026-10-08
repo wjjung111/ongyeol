@@ -4,6 +4,8 @@
   거래사례 지도 페이지가 쓴다. 두 ARM 앱의 붙여넣기 파서를 옮겨 온 것이다.
     ArapKais.parseLand(text, defKind)  ← 토지건물.html 의 parseTradeText  (토지·건물 일괄 거래를 한 사례로 합침)
     ArapKais.parseJip(text)            ← s3r86w8a.html 의 parseKaisRow    (집합건물 — 동·층·호 분해, 단가 계산)
+    ArapKais.parseAppr(text)           ← 토지건물.html 의 parseApprText   (감정평가정보센터(KAPA) 평가사례)
+                                          + 지도 페이지용 추가 칸(locFull·물건·면적·총액·공시지가·도로·형상) — 원본 칸은 그대로
 
   ⚠ 원본(토지건물.html·s3r86w8a.html)이 이 파일의 주인이다.
      원본 파서를 고치면 **이 파일도 같이 고쳐야** 지도 페이지 결과가 어긋나지 않는다.
@@ -115,5 +117,34 @@ function parseJip(text){
   return {out:out};
 }
 
-window.ArapKais={parseLand:parseLand,parseJip:parseJip,parseTsv:parseTsv,pick:pick,dot:dot,shortY:shortY};
+// ── 평가사례(감정평가정보센터 KAPA) ── 토지건물.html 의 parseApprText 와 같은 로직 + 추가 칸
+// 원본 칸: no, loc(동 + 지번), use, jimok, cond(이용상황), unit(단가), base(기준시점), purp(평가목적)
+// 추가 칸: locFull(시·구까지 + 지번 — 지도 조회용), obj(물건: 토지·집합건물…), area, total, gongsi, gongsiYear, road, shape
+// 면적은 「평가액/면적」 머리에 잘못 걸리지 않게 이름이 딱 맞는 칸만 본다.
+function pickExact(head,r,names){
+  for(var i=0;i<names.length;i++){var t=norm(names[i]);for(var j=0;j<head.length;j++)if(norm(head[j])===t)return r[j]||'';}
+  return '';
+}
+function parseAppr(text){
+  var rows=parseTsv(text);
+  var hi=-1;for(var i=0;i<Math.min(rows.length,4);i++)if(rows[i].join('').indexOf('평가목적')>=0){hi=i;break;}
+  if(hi<0)return {err:'머리글(평가목적 등)을 찾지 못했습니다. 감정평가정보센터에서 머리글째 복사하세요.'};
+  var head=rows[hi],out=[];
+  for(var i=hi+1;i<rows.length;i++){var r=rows[i];
+    var full=pick(head,r,['소재지']).trim(),loc=full.split(' ').filter(Boolean).pop()||'';
+    var raw=pick(head,r,['지번'])||pick(head,r,['지번(*)']),jib=raw.replace(/\*/g,'').trim();   // 온전한 지번 칸이 비면 가린 칸이라도
+    out.push({no:'',loc:(loc+' '+jib).trim(),use:pick(head,r,['(개별)용도지역','용도지역/구조','용도지역']),
+      jimok:pick(head,r,['(개별)지목','지목/건물용도','지목']),cond:pick(head,r,['(개별)이용상황','이용상황']),
+      unit:pick(head,r,['단가']),base:pick(head,r,['기준시점']),purp:pick(head,r,['평가목적']),
+      masked:/\*/.test(raw),locFull:(full+' '+jib.replace(/\s+/g,'')).trim(),obj:pickExact(head,r,['물건','물건구분']),
+      area:pickExact(head,r,['면적','토지면적','평가면적','공부면적']),
+      total:pick(head,r,['감정평가총액','평가액(개별)']),gongsi:pick(head,r,['(개별)공시지가','개별공시지가','공시지가']),
+      gongsiYear:pick(head,r,['(개별)공시연도','공시연도']),road:pick(head,r,['(개별)도로교통','도로교통','도로조건']),
+      shape:pick(head,r,['(개별)형상','형상'])});}
+  out=out.filter(function(a){return a.loc.trim()||num(a.unit);});
+  if(!out.length)return {err:'데이터 행을 읽지 못했습니다. 머리글째 다시 복사해보세요.'};
+  return {out:out};
+}
+
+window.ArapKais={parseAppr:parseAppr,parseLand:parseLand,parseJip:parseJip,parseTsv:parseTsv,pick:pick,dot:dot,shortY:shortY};
 })();

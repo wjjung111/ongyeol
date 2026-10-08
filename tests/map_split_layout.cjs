@@ -18,7 +18,7 @@ try{
   await page.route(/api\.vworld\.kr\/req\/search/,r=>r.fulfill(json({response:{status:'OK',result:{items:[{id:'1156011000100150022',point:{x:'126.92',y:'37.528'},address:{parcel:'서울특별시 영등포구 여의도동 15-22'}}]}}})));
   await page.route(/api\.vworld\.kr\/req\/data|workers\.dev|ned\/data/,r=>r.fulfill(json({})));
   await page.goto(base+'/p9v3xk2m.html');
-  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('arap-map-cases-v1',JSON.stringify({base:'',land:[{loc:'여의도동 15-22',show:true}],jip:[]}));});
+  await page.evaluate(()=>{localStorage.clear();localStorage.setItem('arap-user-name','테스트');localStorage.setItem('arap-map-cases-v1',JSON.stringify({base:'',land:[{loc:'여의도동 15-22',show:true}],jip:[]}));});
   await page.reload();
   await page.waitForFunction(()=>window.MAPV&&MAPV.leaflet(),null,{timeout:20000});
   const box=sel=>page.$eval(sel,e=>{const r=e.getBoundingClientRect();return {x:r.left,w:r.width,y:r.top,h:r.height,b:r.bottom};});
