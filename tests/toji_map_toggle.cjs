@@ -19,7 +19,7 @@ function fakeData(pnu){
   return {response:{status:'OK',result:{featureCollection:{type:'FeatureCollection',features:[{type:'Feature',properties:{pnu:pnu},
     geometry:{type:'Polygon',coordinates:[[[x-d,y-d],[x+d,y-d],[x+d,y+d],[x-d,y+d],[x-d,y-d]]]}}]}}}};
 }
-const labelsOf=page=>page.evaluate(()=>[...document.querySelectorAll('#mapBox .mkr .lab')].map(e=>e.innerText.trim()).sort());
+const labelsOf=page=>page.evaluate(()=>[...document.querySelectorAll('#mapBox .mkr .lab')].map(e=>((e.querySelector('b')||e).innerText||'').trim()).sort());
 
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
