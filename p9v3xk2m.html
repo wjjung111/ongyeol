@@ -60,7 +60,26 @@
 
   .mapchk{font-size:12px;color:#475569;font-weight:600;cursor:pointer;user-select:none;}
   .mapchk input{vertical-align:-2px;margin-right:3px;cursor:pointer;}
-  #mapBox{height:660px;border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5;}
+  #mapBox{flex:1 1 auto;min-height:420px;border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5;}
+
+  /* 좌우 배치 — 지도(왼쪽)는 화면 높이를 꽉 채우고, 입력란(오른쪽)은 따로 스크롤 */
+  html,body{height:100%;}
+  body{display:flex;flex-direction:column;}
+  #mode-bar{flex:none;}
+  .wrap.split{display:flex;align-items:stretch;flex:1 1 auto;min-height:0;padding:8px 10px;}
+  .pane-map{flex:0 0 70%;min-width:320px;display:flex;flex-direction:column;}
+  .pane-map>.card{flex:1 1 auto;display:flex;flex-direction:column;margin-bottom:0;min-height:0;}
+  .pane-side{flex:1 1 0;min-width:280px;overflow:auto;padding-right:2px;}
+  .splitter{flex:0 0 9px;cursor:col-resize;margin:0 2px;border-radius:4px;background:linear-gradient(90deg,transparent 3px,#cbd5e1 3px,#cbd5e1 6px,transparent 6px);}
+  .splitter:hover,.splitter.drag{background:linear-gradient(90deg,transparent 2px,#2563eb 2px,#2563eb 7px,transparent 7px);}
+  body.splitting{cursor:col-resize;user-select:none;}
+  body.splitting #mapBox{pointer-events:none;}
+  @media (max-width:900px){
+    html,body{height:auto;} body{display:block;}
+    .wrap.split{display:block;}
+    .pane-map{min-width:0;} .pane-side{min-width:0;overflow:visible;} .splitter{display:none;}
+    #mapBox{height:560px;flex:none;}
+  }
   #mapMiss{margin-top:6px;font-size:12px;color:#b45309;}
   #mapMiss b{color:#92400e;}
   .lgd-row{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 6px;font-size:12px;font-weight:600;align-items:center;}
@@ -91,8 +110,8 @@
   .relrow .rmsg.err{color:#b45309;font-weight:600;}
   .relrow .box{width:120px;padding:3px 7px;font-size:12px;}
   .addloc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
-  .addloc .box{flex:0 1 380px;}
-  .addloc .pst{margin-top:0;flex:1 1 300px;}
+  .addloc .box{flex:1 1 200px;min-width:0;}
+  .addloc .pst{margin-top:0;flex:1 1 100%;}
   td.calc input{color:#2563eb;}                 /* 자동 계산 값(직접 고치면 검정) */
   tr.busy td{background:#fffbeb;}
 </style>
@@ -105,8 +124,52 @@
   <span class="mb-tag">토지 · 집합건물</span>
 </div>
 
-<div class="wrap">
-
+<div class="wrap split" id="split">
+  <!-- 왼쪽 = 위치도(기본 70%), 오른쪽 = 본건·사례 입력(30%). 가운데 막대를 끌어 너비 조절(두 번 누르면 7:3), 좁은 화면은 위아래로 -->
+  <div class="pane-map" id="paneMap">
+  <!-- ── 지도 ── -->
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <h2 style="margin-right:auto;border:none;padding:0">위치도</h2>
+      <label class="mapchk"><input type="checkbox" id="mapCadastre" checked onchange="MAPV.toggleOverlay()"> 지적선</label>
+      <label class="mapchk"><input type="checkbox" id="mapZoning" onchange="MAPV.toggleOverlay()"> 용도지역</label>
+      <select class="box" id="mapBaseSel" onchange="MAPV.setBase()">
+        <option value="kakao">카카오맵</option>
+        <option value="kakaoSky">카카오 스카이뷰</option>
+        <option value="Base">브이월드 일반지도</option>
+        <option value="Satellite">브이월드 위성</option>
+        <option value="Hybrid">브이월드 위성+지명</option>
+        <option value="osm">OSM(대체)</option>
+      </select>
+      <button class="btn" onclick="redraw(true)" title="표의 소재지로 주소를 다시 조회합니다(직접 옮긴 핀도 초기화)">↻ 주소 다시 찾기</button>
+    </div>
+    <div class="lgd-row">
+      <span><i class="arap-lgd" style="background:#dc2626"></i>본건</span>
+      <span><i class="arap-lgd" style="background:#16a34a"></i>토지 거래사례</span>
+      <span><i class="arap-lgd" style="background:#7c3aed"></i>집합건물 거래사례</span>
+      <span style="color:#626b78;font-weight:400">토지는 <b>필지 테두리</b>로(속은 비워 둡니다 — 본건만 옅게 칠함), 집합건물은 점으로 표시합니다(집건 필지는 단지 전체라 너무 커짐). <b>이름표를 끌면 이름표만</b> 움직입니다 — 화살촉과 필지는 제자리(두 번 누르면 원위치). 집합건물 점은 끌면 그 자리로 위치가 고쳐집니다. 표의 <b>표시</b> 체크를 끄면 지도에서 빠집니다. <b>말풍선</b>에 나올 칸은 표 머리글의 체크로 고르고, 말풍선 ✕로 끄고 사례 칩의 💬로 다시 켭니다.</span>
+    </div>
+    <!-- 지도 바로 위 — 체크한 것만 지도에 뜨고, ✕로 그 사례를 지운다(표와 같은 데이터) -->
+    <div class="pickpanel">
+      <div class="pickhead">
+        <span>지도에 보일 사례</span>
+        <span id="pickCount" style="font-weight:400;color:#64748b"></span>
+        <span id="pickMsg" style="font-weight:600;color:#166534"></span>
+        <button class="btn sm" onclick="showAllPins(true)">모두 켜기</button>
+        <button class="btn sm" onclick="showAllPins(false)">모두 끄기</button>
+        <button class="btn sm" onclick="setAllBubbles(true)" title="모든 사례의 말풍선을 켭니다">💬 말풍선 모두 켜기</button>
+        <button class="btn sm" onclick="setAllBubbles(false)" title="모든 사례의 말풍선을 끕니다(필지 테두리·점은 그대로)">말풍선 모두 끄기</button>
+        <button class="btn sm" id="btnUndo" style="display:none" onclick="undoLast()">↩ 되돌리기</button>
+      </div>
+      <div class="chips" id="pickChips"></div>
+    </div>
+    <div id="mapBox"></div>
+    <div class="status" id="mapStatus">사례를 붙여넣으면 지도에 찍힙니다.</div>
+    <div id="mapMiss"></div>
+  </div>
+  </div>
+  <div class="splitter" id="splitter" title="끌어서 지도와 입력란 너비를 조절합니다. 두 번 누르면 7:3으로"></div>
+  <div class="pane-side" id="paneSide">
   <!-- ── 본건 (거리 기준점) ── -->
   <div class="card">
     <h2>본건 <span style="font-weight:400;font-size:11.5px;color:#626b78">— 안 넣어도 됩니다. 넣으면 사례마다 본건에서의 직선거리가 함께 나옵니다.</span></h2>
@@ -163,48 +226,7 @@
       <div class="tw"><table id="tblJip"></table></div>
     </div>
   </div>
-
-  <!-- ── 지도 ── -->
-  <div class="card">
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <h2 style="margin-right:auto;border:none;padding:0">위치도</h2>
-      <label class="mapchk"><input type="checkbox" id="mapCadastre" checked onchange="MAPV.toggleOverlay()"> 지적선</label>
-      <label class="mapchk"><input type="checkbox" id="mapZoning" onchange="MAPV.toggleOverlay()"> 용도지역</label>
-      <select class="box" id="mapBaseSel" onchange="MAPV.setBase()">
-        <option value="kakao">카카오맵</option>
-        <option value="kakaoSky">카카오 스카이뷰</option>
-        <option value="Base">브이월드 일반지도</option>
-        <option value="Satellite">브이월드 위성</option>
-        <option value="Hybrid">브이월드 위성+지명</option>
-        <option value="osm">OSM(대체)</option>
-      </select>
-      <button class="btn" onclick="redraw(true)" title="표의 소재지로 주소를 다시 조회합니다(직접 옮긴 핀도 초기화)">↻ 주소 다시 찾기</button>
-    </div>
-    <div class="lgd-row">
-      <span><i class="arap-lgd" style="background:#dc2626"></i>본건</span>
-      <span><i class="arap-lgd" style="background:#16a34a"></i>토지 거래사례</span>
-      <span><i class="arap-lgd" style="background:#7c3aed"></i>집합건물 거래사례</span>
-      <span style="color:#626b78;font-weight:400">토지는 <b>필지 테두리</b>로(속은 비워 둡니다 — 본건만 옅게 칠함), 집합건물은 점으로 표시합니다(집건 필지는 단지 전체라 너무 커짐). <b>이름표를 끌면 이름표만</b> 움직입니다 — 화살촉과 필지는 제자리(두 번 누르면 원위치). 집합건물 점은 끌면 그 자리로 위치가 고쳐집니다. 표의 <b>표시</b> 체크를 끄면 지도에서 빠집니다. <b>말풍선</b>에 나올 칸은 표 머리글의 체크로 고르고, 말풍선 ✕로 끄고 사례 칩의 💬로 다시 켭니다.</span>
-    </div>
-    <!-- 지도 바로 위 — 체크한 것만 지도에 뜨고, ✕로 그 사례를 지운다(표와 같은 데이터) -->
-    <div class="pickpanel">
-      <div class="pickhead">
-        <span>지도에 보일 사례</span>
-        <span id="pickCount" style="font-weight:400;color:#64748b"></span>
-        <span id="pickMsg" style="font-weight:600;color:#166534"></span>
-        <button class="btn sm" onclick="showAllPins(true)">모두 켜기</button>
-        <button class="btn sm" onclick="showAllPins(false)">모두 끄기</button>
-        <button class="btn sm" onclick="setAllBubbles(true)" title="모든 사례의 말풍선을 켭니다">💬 말풍선 모두 켜기</button>
-        <button class="btn sm" onclick="setAllBubbles(false)" title="모든 사례의 말풍선을 끕니다(필지 테두리·점은 그대로)">말풍선 모두 끄기</button>
-        <button class="btn sm" id="btnUndo" style="display:none" onclick="undoLast()">↩ 되돌리기</button>
-      </div>
-      <div class="chips" id="pickChips"></div>
-    </div>
-    <div id="mapBox"></div>
-    <div class="status" id="mapStatus">사례를 붙여넣으면 지도에 찍힙니다.</div>
-    <div id="mapMiss"></div>
   </div>
-
 </div>
 
 <script src="arap_map.js"></script>
@@ -780,6 +802,46 @@ function redraw(force){
   clearTimeout(drawTimer);
   drawTimer=setTimeout(function(){MAPV.open(mapItems(),force);},force?0:250);
 }
+
+// ── 좌우 너비 조절 ── 지도 칸 비율(%)을 이 브라우저에 기억한다(arap-map-split, 기본 70)
+var SPLIT_KEY='arap-map-split';
+function mapResized(){
+  var m=MAPV&&MAPV.leaflet();if(m)m.invalidateSize();
+  var k=MAPV&&MAPV.kakao&&MAPV.kakao();if(k&&k.relayout)k.relayout();
+}
+function setSplit(pct,save){
+  pct=Math.max(35,Math.min(85,pct||70));
+  document.getElementById('paneMap').style.flexBasis=pct+'%';
+  if(save)try{localStorage.setItem(SPLIT_KEY,String(Math.round(pct*10)/10));}catch(e){}
+  mapResized();
+}
+(function(){
+  var sp=document.getElementById('splitter'),wrap=document.getElementById('split'),raf=0;
+  var saved=70;try{saved=parseFloat(localStorage.getItem(SPLIT_KEY))||70;}catch(e){}
+  document.getElementById('paneMap').style.flexBasis=Math.max(35,Math.min(85,saved))+'%';
+  function pctAt(x){var r=wrap.getBoundingClientRect();return (x-r.left-10)/(r.width-20)*100;}
+  function move(e){
+    var p=(e.touches&&e.touches[0])||e;
+    document.getElementById('paneMap').style.flexBasis=Math.max(35,Math.min(85,pctAt(p.clientX)))+'%';
+    if(!raf)raf=requestAnimationFrame(function(){raf=0;mapResized();});
+    e.preventDefault();
+  }
+  function up(){
+    document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);
+    document.removeEventListener('touchmove',move);document.removeEventListener('touchend',up);
+    document.body.classList.remove('splitting');sp.classList.remove('drag');
+    setSplit(parseFloat(document.getElementById('paneMap').style.flexBasis),true);
+  }
+  function down(e){
+    document.body.classList.add('splitting');sp.classList.add('drag');
+    document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
+    document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',up);
+    e.preventDefault();
+  }
+  sp.addEventListener('mousedown',down);sp.addEventListener('touchstart',down,{passive:false});
+  sp.addEventListener('dblclick',function(){setSplit(70,true);});
+  window.addEventListener('resize',function(){if(!raf)raf=requestAnimationFrame(function(){raf=0;mapResized();});});
+})();
 
 // ── 시작 ──
 restore();refresh();renderRel();loadRel(false);
