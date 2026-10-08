@@ -133,7 +133,7 @@
       <div class="addloc">
         <input class="box" id="addLoc" placeholder="소재지로 추가 — 예) 여의도동 15-22 (쉼표·줄바꿈으로 여러 건)" onkeydown="if(event.key==='Enter'){event.preventDefault();addByLoc();}">
         <button class="btn pri" onclick="addByLoc()">추가</button>
-        <span class="pst" id="msgAuto">용도지역·지목·토지면적·개별공시지가·건물면적·사용승인일은 자동으로 채웁니다. 거래금액·거래일자는 공개 자료에 지번이 가려져 있어 직접 넣거나 KAIS로 붙여 주세요.</span>
+        <span class="pst" id="msgAuto">용도지역·지목·토지면적·개별공시지가·건물면적·사용승인일은 자동으로 채웁니다. 일단지면 건축물대장 관련지번까지 한 사례로 묶어(소재지 「… 외」, 토지면적 합계) 지도에 함께 그립니다. 거래금액·거래일자는 공개 자료에 지번이 가려져 있어 직접 넣거나 KAIS로 붙여 주세요.</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
         <span style="font-size:12px;font-weight:700" id="cntLand">0건</span>
@@ -315,6 +315,12 @@ function cellDone(kind,key,i){
   if(kind==='land'&&/^(total|bldAmt|landA|landAmt|landUnit)$/.test(key))refreshCalc(i);   // 토지금액·단가 다시 계산
   if(isLocKey(kind,key)){
     renderPick();redraw(false);
+    var lr=kind==='land'&&rowsOf('land')[i];
+    if(lr&&lr.relFor){
+      var b2=stripOe(lr.loc);
+      if(b2!==lr.relFor){delete lr.rel;delete lr.relFor;lr.relOff=false;}            // 다른 필지로 바뀜 → 새로 조회
+      else if(b2===lr.loc.trim()&&lr.rel&&lr.rel.length){lr.rel=[];lr.relOff=true;}   // 「외」를 지움 → 대표 지번만
+    }
     if(kind==='land'&&rowsOf('land')[i])autoFill(rowsOf('land')[i]).then(function(){render('land');});   // 새 소재지면 빈칸 채움
   }
 }
@@ -436,23 +442,43 @@ function latestOf(fields){var b=null;fields.forEach(function(f){
   if(!b||(f.stdrYear||'')>(b.stdrYear||'')||((f.stdrYear||'')===(b.stdrYear||'')&&(f.lastUpdtDt||'')>(b.lastUpdtDt||'')))b=f;});return b;}
 function areaStr(v){var n=Number(v);return (v===''||v==null||isNaN(n))?'':String(Number(n.toFixed(4)));}
 function ymdDot(v){var m=String(v||'').match(/(\d{4})\D?(\d{2})\D?(\d{2})/);return m?(m[1]+'.'+m[2]+'.'+m[3]):'';}
+// '여의도동 13-6 외' / '… 외 3필지' → '여의도동 13-6' (조회·지도는 대표 지번으로)
+function stripOe(loc){return String(loc||'').replace(/\s*외(?:\s*\d+\s*필지)?\s*$/,'').trim();}
+async function landChar(pnu){
+  var d=await vget('https://api.vworld.kr/ned/data/getLandCharacteristics?key='+VKEY+'&domain='+encodeURIComponent(location.origin)+
+    '&pnu='+pnu+'&format=json&numOfRows=100&pageNo=1');
+  return latestOf((d&&d.landCharacteristicss&&d.landCharacteristicss.field)||[]);
+}
+function useOf(c){var u2=c.prposArea2Nm&&c.prposArea2Nm!=='지정되지않음'?c.prposArea2Nm:'';return [c.prposArea1Nm||'',u2].filter(Boolean);}
 async function lookupLand(loc){
+  loc=stripOe(loc);
   var region=ArapMap.sggOfAddr(baseVal()),q=ArapMap.query(loc,region);
   var g=await ArapMap.geocode(q,VKEY);
   if((!g||!g.pnu)&&q!==loc)g=await ArapMap.geocode(loc,VKEY);
   if(!g||!/^\d{19}$/.test(g.pnu||''))throw new Error('주소를 찾지 못함');
   var out={},got=[];
+  var uses=[],area=0;
   try{
-    var d=await vget('https://api.vworld.kr/ned/data/getLandCharacteristics?key='+VKEY+'&domain='+encodeURIComponent(location.origin)+
-      '&pnu='+g.pnu+'&format=json&numOfRows=100&pageNo=1');
-    var c=latestOf((d&&d.landCharacteristicss&&d.landCharacteristicss.field)||[]);
+    var c=await landChar(g.pnu);
     if(c){
-      out.jimok=c.lndcgrCodeNm||'';out.landA=areaStr(c.lndpclAr);out.gongsi=c.pblntfPclnd?String(c.pblntfPclnd):'';out.gongsiYear=c.stdrYear||'';
-      var u2=c.prposArea2Nm&&c.prposArea2Nm!=='지정되지않음'?c.prposArea2Nm:'';
-      out.use=[c.prposArea1Nm||'',u2].filter(Boolean).join(', ');
-      got.push('토지특성');
+      out.jimok=c.lndcgrCodeNm||'';area=Number(c.lndpclAr)||0;out.gongsi=c.pblntfPclnd?String(c.pblntfPclnd):'';out.gongsiYear=c.stdrYear||'';
+      uses=useOf(c);got.push('토지특성');
     }
   }catch(e){console.error('토지특성',loc,e);}
+  // 일단지: 건축물대장 관련지번(부속지번)까지 한 사례로 — 토지면적은 합계, 용도지역은 모아서. 지목·공시지가는 대표 지번 값.
+  try{
+    var fa=await fetchAtch(g,addrPrefix(g.addr)||addrPrefix(loc));
+    if(!fa.old){
+      out.rel=fa.list;
+      for(var k=0;k<fa.list.length;k++){
+        try{var rc=await landChar(fa.list[k].pnu);
+          if(rc){area+=Number(rc.lndpclAr)||0;useOf(rc).forEach(function(u){if(uses.indexOf(u)<0)uses.push(u);});}}
+        catch(e){console.error('관련지번 토지특성',fa.list[k].loc,e);}
+      }
+    }
+  }catch(e){console.error('관련지번',loc,e);}
+  if(area)out.landA=areaStr(area);
+  if(uses.length)out.use=uses.join(', ');
   try{
     var t=await fetch(PROXY+'/bld?op=getBrTitleInfo&numOfRows=100&pnu='+g.pnu).then(function(r){return r.json();});
     var it=t&&t.response&&t.response.body&&t.response.body.items&&t.response.body.items.item;
@@ -474,7 +500,14 @@ async function autoFill(r){
   r._busy=true;render('land');
   var filled=[];
   try{
-    var d=await lookupLand(r.loc);
+    var base=stripOe(r.loc),d=await lookupLand(base);
+    // 관련지번 — 사용자가 「외」를 지워 단독으로 돌린 사례(relOff)는 그대로 둔다
+    if(d.rel&&!(r.relOff&&r.relFor===base)){
+      var old={};(r.rel||[]).forEach(function(p){old[p.jibun]=p;});
+      r.rel=d.rel.map(function(q){var p=old[q.jibun]||{};p.jibun=q.jibun;p.loc=q.loc;return p;});
+      r.relFor=base;r.relOff=false;
+      if(r.rel.length&&!/\s외(?:\s*\d+\s*필지)?\s*$/.test(r.loc)){r.loc=base+' 외';filled.push('rel');}
+    }
     AUTO_KEYS.forEach(function(k){if(!hasV(r[k])&&hasV(d[k])){r[k]=d[k];filled.push(k);}});
     if(d.gongsiYear&&filled.indexOf('gongsi')>=0)r.gongsiYear=d.gongsiYear;
     r._autoMsg=filled.length?'':(d._got.length?'채울 빈칸 없음':'조회 결과 없음');
@@ -552,7 +585,12 @@ function mapItems(){
   }
   DATA.land.forEach(function(r,i){
     if(r.show===false||!hasV(r.loc))return;
-    out.push({o:r,kind:'토지 거래사례',label:'토지 #'+(i+1),color:'#16a34a',loc:r.loc,region:region,info:landInfo(r),poly:true});
+    // 일단지 사례: 관련지번까지 테두리, 이름표는 하나(본건과 같은 묶음 방식)
+    var rel=(r.rel||[]).filter(function(p){return hasV(p.loc);}),grp=rel.length?'land'+i:'',info=landInfo(r);
+    out.push({o:r,kind:'토지 거래사례',label:'토지 #'+(i+1),labelGroup:grp,boundaryLeader:!!grp,color:'#16a34a',loc:stripOe(r.loc),region:region,info:info,poly:true});
+    rel.forEach(function(p){
+      out.push({o:p,kind:'토지 거래사례',label:'토지 #'+(i+1),labelGroup:grp,boundaryLeader:true,color:'#16a34a',loc:p.loc,region:region,info:info,poly:true});
+    });
   });
   DATA.jip.forEach(function(r,i){
     var loc=jipLoc(r);
@@ -588,6 +626,28 @@ function parcelAddr(pnu){
     return (f&&f.properties&&f.properties.addr)||'';
   }).catch(function(){return '';});
 }
+// 건축물대장 부속지번(관련지번) — g = ArapMap.geocode 결과({pnu, addr}), prefix = 같은 동일 때 앞에 붙일 '시 구 동'
+// → {old:true}(프록시 2판) 또는 {list:[{jibun:'17-21'|'당산동 5', loc, pnu}]}. 본건 관련지번·일단지 거래사례가 같이 쓴다.
+async function fetchAtch(g,prefix){
+  var d=await fetch(PROXY+'/bld?op=getBrAtchJibunInfo&numOfRows=100&pnu='+g.pnu).then(function(r){return r.json();});
+  var h=d&&d.response&&d.response.header,body=d&&d.response&&d.response.body,it=body&&body.items&&body.items.item;
+  var rows=it?(Array.isArray(it)?it:[it]):[];
+  if(h&&h.resultCode&&!/^0+$/.test(String(h.resultCode)))throw new Error(h.resultMsg||h.resultCode);
+  // 옛 프록시(2판)는 모르는 조회를 층별개요로 돌려준다 — 부속지번 칸이 없으면 옛 판
+  if(rows.length&&!rows.some(function(x){return x&&x.atchBun!=null;}))return {old:true,list:[]};
+  var seen={},list=[];seen[g.pnu]=1;
+  for(var i=0;i<rows.length;i++){
+    var x=rows[i],jb=atchJibun(x.atchPlatGbCd,x.atchBun,x.atchJi);if(!jb)continue;
+    var pnu=(String(x.atchSigunguCd||'')||g.pnu.slice(0,5))+(String(x.atchBjdongCd||'')||g.pnu.slice(5,10))+
+            (String(x.atchPlatGbCd)==='1'?'2':'1')+pad4(x.atchBun)+pad4(x.atchJi);
+    if(seen[pnu])continue;seen[pnu]=1;
+    var loc=(pnu.slice(0,10)===g.pnu.slice(0,10))?'':await parcelAddr(pnu);
+    if(!loc)loc=(prefix?prefix+' ':'')+jb;
+    else{var lp=addrPrefix(loc);jb=lp?lp.split(/\s+/).pop()+' '+loc.slice(lp.length).trim():loc;}   // 다른 동이면 동 이름까지 보이게
+    list.push({jibun:jb,loc:loc,pnu:pnu});
+  }
+  return {list:list};
+}
 async function loadRel(force){
   var b=baseVal();if(!b){renderRel();return;}
   var cur=relCur();
@@ -603,27 +663,14 @@ async function loadRel(force){
     if(!g||!/^\d{19}$/.test(g.pnu||''))msg='nf';
     else{
       prefix=addrPrefix(g.addr)||prefix;
-      var d=await fetch(PROXY+'/bld?op=getBrAtchJibunInfo&numOfRows=100&pnu='+g.pnu).then(function(r){return r.json();});
+      var fa=await fetchAtch(g,prefix);
       if(seq!==relSeq)return;
-      var h=d&&d.response&&d.response.header,body=d&&d.response&&d.response.body,it=body&&body.items&&body.items.item;
-      var rows=it?(Array.isArray(it)?it:[it]):[];
-      if(h&&h.resultCode&&!/^0+$/.test(String(h.resultCode)))throw new Error(h.resultMsg||h.resultCode);
-      // 옛 프록시(2판)는 모르는 조회를 층별개요로 돌려준다 — 부속지번 칸이 없으면 옛 판
-      if(rows.length&&!rows.some(function(x){return x&&x.atchBun!=null;}))msg='old';
+      if(fa.old)msg='old';
       else{
-        var seen={};seen[g.pnu]=1;
-        for(var i=0;i<rows.length;i++){
-          var x=rows[i],jb=atchJibun(x.atchPlatGbCd,x.atchBun,x.atchJi);if(!jb)continue;
-          var pnu=(String(x.atchSigunguCd||'')||g.pnu.slice(0,5))+(String(x.atchBjdongCd||'')||g.pnu.slice(5,10))+
-                  (String(x.atchPlatGbCd)==='1'?'2':'1')+pad4(x.atchBun)+pad4(x.atchJi);
-          if(seen[pnu])continue;seen[pnu]=1;
-          var loc=(pnu.slice(0,10)===g.pnu.slice(0,10))?'':await parcelAddr(pnu);
-          if(seq!==relSeq)return;
-          if(!loc)loc=(prefix?prefix+' ':'')+jb;
-          else{var lp=addrPrefix(loc);jb=lp?lp.split(/\s+/).pop()+' '+loc.slice(lp.length).trim():loc;}   // 다른 동이면 동 이름까지 보이게
-          var p=old[jb]&&old[jb].src!=='직접'?old[jb]:{jibun:jb,show:true};
-          p.jibun=jb;p.loc=loc;p.src='대장';auto.push(p);
-        }
+        fa.list.forEach(function(q){
+          var p=old[q.jibun]&&old[q.jibun].src!=='직접'?old[q.jibun]:{jibun:q.jibun,show:true};
+          p.jibun=q.jibun;p.loc=q.loc;p.src='대장';auto.push(p);
+        });
         msg=auto.length?'ok':'none';
       }
     }
