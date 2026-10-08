@@ -66,22 +66,43 @@
     if(!changing)lock();
     var gate=document.createElement("div");
     gate.id="arap-name-gate";
-    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:#fff;font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
+    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:#fff radial-gradient(900px 420px at 50% -8%,#eaf1ff 0%,rgba(255,255,255,0) 70%);font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#0f172a;";
+    if(!document.getElementById("arap-name-gate-css")){
+      var gcss=document.createElement("style");gcss.id="arap-name-gate-css";
+      gcss.textContent=
+        "#arap-name-gate *{box-sizing:border-box;}"+
+        "#arap-name-gate .ng-wrap{width:100%;max-width:400px;text-align:center;}"+
+        "#arap-name-gate .ng-icon{width:60px;height:60px;margin:0 auto 18px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:28px;background:linear-gradient(145deg,#eff6ff,#dbeafe);box-shadow:inset 0 0 0 1px #dbeafe,0 6px 16px rgba(37,99,235,.12);}"+
+        "#arap-name-gate .ng-title{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0;}"+
+        "#arap-name-gate .ng-desc{font-size:14px;color:#64748b;margin:10px 0 28px;line-height:1.6;word-break:keep-all;}"+
+        "#arap-name-gate .ng-card{background:#fff;border:1px solid #e5e9f0;border-radius:18px;padding:28px 26px 26px;text-align:left;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px rgba(15,23,42,.08);}"+
+        "#arap-name-gate .ng-label{display:block;font-size:13px;font-weight:700;color:#334155;margin-bottom:8px;}"+
+        "#arap-name-gate .ng-input{width:100%;height:48px;padding:0 14px;font-size:16px;font-weight:600;color:#0f172a;background:#f8fafc;border:1px solid #d6dde7;border-radius:12px;outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s,background .15s;}"+
+        "#arap-name-gate .ng-input::placeholder{color:#a0aec0;font-weight:500;}"+
+        "#arap-name-gate .ng-input:focus{background:#fff;border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.14);}"+
+        "#arap-name-gate .ng-msg{min-height:18px;margin:8px 2px 0;font-size:12px;color:#dc2626;}"+
+        "#arap-name-gate .ng-btn{margin-top:8px;width:100%;height:50px;font-size:15px;font-weight:700;color:#fff;background:linear-gradient(180deg,#3b82f6,#2563eb);border:none;border-radius:12px;cursor:pointer;font-family:inherit;box-shadow:0 6px 16px rgba(37,99,235,.28);transition:transform .1s,box-shadow .15s;}"+
+        "#arap-name-gate .ng-btn:hover{box-shadow:0 8px 20px rgba(37,99,235,.36);}"+
+        "#arap-name-gate .ng-btn:active{transform:translateY(1px);}"+
+        "#arap-name-gate .ng-cancel{margin-top:10px;width:100%;height:42px;font-size:13px;color:#64748b;background:#fff;border:1px solid #d6dde7;border-radius:12px;cursor:pointer;font-family:inherit;}"+
+        "#arap-name-gate .ng-foot{position:absolute;left:16px;right:16px;bottom:24px;text-align:center;font-size:12px;color:#94a3b8;}";
+      document.head.appendChild(gcss);
+    }
+    function h(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");}
     gate.innerHTML=
-      '<div style="text-align:center;max-width:420px;padding:24px;">'+
-      '<div style="font-size:22px;color:#0f172a;font-weight:700;margin-bottom:26px;letter-spacing:1px;">'+String(window.ARAP_NAME_SUB||'감정평가 자동화 도구').replace(/</g,'&lt;')+'</div>'+
-      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:26px 22px;box-shadow:0 2px 10px rgba(15,23,42,.06);">'+
-      '<div style="font-size:13px;color:#334155;margin-bottom:14px;">'+(changing?'사용하실 이름을 다시 입력해주세요.':'처음 오셨네요! 사용하실 이름을 입력해주세요. <span style="color:#94a3b8;">(이 기기에서 최초 1회)</span>')+'</div>'+
-      '<div style="display:flex;align-items:center;justify-content:center;gap:8px;">'+
-      '<span style="color:#475569;font-size:14px;">사용자이름:</span>'+
-      '<input id="arap-name-input" type="text" maxlength="20" autocomplete="off" placeholder="이름" value="'+current.replace(/"/g,"&quot;")+'" style="width:190px;padding:9px 10px;font-size:16px;font-weight:700;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0f172a;text-align:center;font-family:inherit;">'+
+      '<div class="ng-wrap">'+
+      '<div class="ng-icon">'+h(window.ARAP_NAME_ICON||'👋')+'</div>'+
+      '<h1 class="ng-title">'+h(window.ARAP_NAME_SUB||'감정평가 자동화 도구')+'</h1>'+
+      '<p class="ng-desc">'+(changing?'사용하실 이름을 다시 입력해주세요.':'처음 오셨네요! 사용하실 이름을 입력해주세요.<br>이 기기에서 최초 1회만 입력합니다.')+'</p>'+
+      '<div class="ng-card">'+
+      '<label class="ng-label" for="arap-name-input">사용자이름</label>'+
+      '<input id="arap-name-input" class="ng-input" type="text" maxlength="20" autocomplete="off" placeholder="이름을 입력하세요" value="'+h(current)+'">'+
+      '<div id="arap-name-msg" class="ng-msg"></div>'+
+      '<button id="arap-name-btn" class="ng-btn" type="button">시작하기</button>'+
+      (changing?'<button id="arap-name-cancel" class="ng-cancel" type="button">취소</button>':'')+
       '</div>'+
-      '<div id="arap-name-msg" style="height:18px;margin-top:8px;font-size:12px;color:#f87171;"></div>'+
-      '<button id="arap-name-btn" type="button" style="margin-top:10px;width:100%;padding:11px;font-size:15px;font-weight:700;color:#fff;background:#2563eb;border:none;border-radius:8px;cursor:pointer;font-family:inherit;">시작하기</button>'+
-      (changing?'<button id="arap-name-cancel" type="button" style="margin-top:10px;width:100%;padding:9px;font-size:13px;color:#64748b;background:transparent;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-family:inherit;">취소</button>':'')+
       '</div>'+
-      '</div>'+
-      '<div style="position:absolute;left:0;right:0;bottom:24px;text-align:center;font-size:12px;color:#94a3b8;">입력한 이름은 사용자 기기에만 저장됩니다.</div>';
+      '<div class="ng-foot">🔒 입력한 이름은 사용자 기기에만 저장됩니다.</div>';
     function mount(){
       if(!document.body){setTimeout(mount,10);return;}
       document.body.appendChild(gate);
