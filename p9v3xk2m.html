@@ -79,6 +79,13 @@
   .chip input{cursor:pointer;margin:0;}
   .dotc{display:inline-block;width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
   .chips .none{color:#94a3b8;font-size:12px;padding:2px 0;}
+
+  /* 본건 관련지번(일단지) — 건축물대장 「지번 관련 주소」 */
+  .relrow{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:7px;font-size:12px;}
+  .relrow .rlab{font-weight:700;color:#334155;}
+  .relrow .rmsg{color:#64748b;}
+  .relrow .rmsg.err{color:#b45309;font-weight:600;}
+  .relrow .box{width:120px;padding:3px 7px;font-size:12px;}
 </style>
 </head>
 <body>
@@ -95,10 +102,12 @@
   <div class="card">
     <h2>본건 <span style="font-weight:400;font-size:11.5px;color:#626b78">— 안 넣어도 됩니다. 넣으면 사례마다 본건에서의 직선거리가 함께 나옵니다.</span></h2>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input class="box" id="baseLoc" style="flex:1 1 320px" placeholder="예) 서울특별시 광진구 자양동 600-1" oninput="saveAll()" onchange="renderPick();redraw(false)">
-      <button class="btn pri" onclick="renderPick();redraw(false)">지도에 표시</button>
+      <input class="box" id="baseLoc" style="flex:1 1 320px" placeholder="예) 서울특별시 광진구 자양동 600-1" oninput="saveAll()" onchange="baseChanged()">
+      <button class="btn pri" onclick="baseChanged()">지도에 표시</button>
     </div>
-    <div class="note" style="margin-top:7px">본건을 넣으면 <b>시·군·구가 없는 사례 주소</b>(예 “자양동 617-33”)를 본건과 같은 시군구에서 먼저 찾습니다 — 다른 지역 같은 동 이름에 잘못 찍히는 걸 막아 줍니다.</div>
+    <!-- 일단지 관련지번: 본건 주소의 건축물대장 「지번 관련 주소」(부속지번)를 받아 본건 필지와 함께 그린다 -->
+    <div class="relrow" id="relRow"></div>
+    <div class="note" style="margin-top:7px"><b>일단지</b>면 본건 주소의 건축물대장 「지번 관련 주소」(예 17-6 → 17-21·17-22·17-23)를 자동으로 받아 함께 테두리를 그리고 이름표 「본건」은 하나만 붙입니다. 대장에 없는 필지는 「+ 지번」 칸에 넣으세요.<br>본건을 넣으면 <b>시·군·구가 없는 사례 주소</b>(예 “자양동 617-33”)를 본건과 같은 시군구에서 먼저 찾습니다 — 다른 지역 같은 동 이름에 잘못 찍히는 걸 막아 줍니다.</div>
   </div>
 
   <!-- ── 사례 입력 ── -->
@@ -205,6 +214,7 @@ function restore(){
   try{
     var o=JSON.parse(localStorage.getItem(STORE)||'null');
     if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];DATA.baseShow=o.baseShow!==false;
+      if(o.rel&&Array.isArray(o.rel.list))DATA.rel=o.rel;
       if(o._xy)DATA._xy=o._xy;}   // 본건 좌표도 되살린다(안 그러면 열 때마다 다시 조회)
   }catch(e){console.error('restore',e);}
   document.getElementById('baseLoc').value=DATA.base;
@@ -302,7 +312,8 @@ function setMapNote(msg){var el=document.getElementById('pickMsg');if(el)el.text
 // ── 지도 위 사례 목록(칩) ──
 function pickRows(){
   var out=[],baseLoc=String((document.getElementById('baseLoc')||{}).value||'').trim();
-  if(baseLoc)out.push({kind:'base',i:-1,label:'본건',color:'#dc2626',loc:baseLoc,show:DATA.baseShow!==false});
+  var nRel=relOn().length;
+  if(baseLoc)out.push({kind:'base',i:-1,label:'본건',color:'#dc2626',loc:baseLoc,more:nRel?(' 외 '+nRel+'필지'):'',show:DATA.baseShow!==false});
   DATA.land.forEach(function(r,i){
     if(hasV(r.loc))out.push({kind:'land',i:i,label:'토지 #'+(i+1),color:'#16a34a',loc:r.loc,show:r.show!==false});
   });
@@ -329,7 +340,7 @@ function renderPick(){
       '<input type="checkbox" id="'+id+'" '+(r.show?'checked':'')+
         ' onchange="pickToggle(\''+r.kind+'\','+r.i+',this.checked)">'+
       '<label for="'+id+'"><i class="dotc" style="background:'+r.color+'"></i>'+esc(r.label)+
-        '<span class="loc">'+esc(shortLoc(r.loc))+'</span></label>'+
+        '<span class="loc">'+esc(shortLoc(r.loc)+(r.more||''))+'</span></label>'+
       (r.kind==='base'?'':'<span class="x" title="이 사례를 지웁니다" onclick="delRow(\''+r.kind+'\','+r.i+')">✕</span>')+
       '</span>';
   }).join('');
@@ -394,7 +405,14 @@ function jipInfo(r){
 function mapItems(){
   var baseLoc=String((document.getElementById('baseLoc')||{}).value||'').trim();
   var region=ArapMap.sggOfAddr(baseLoc),out=[];
-  if(baseLoc&&DATA.baseShow!==false)out.push({o:DATA,kind:'본건',label:'본건',color:'#dc2626',loc:baseLoc,region:'',pick:true,poly:true});
+  if(baseLoc&&DATA.baseShow!==false){
+    // 관련지번이 있으면 본건 필지 전부를 한 묶음으로 — 테두리는 필지마다, 이름표 「본건」은 하나만(화살촉은 묶음 경계)
+    var rel=relOn(),grp=rel.length?'subject':'';
+    out.push({o:DATA,kind:'본건',label:'본건',labelGroup:grp,boundaryLeader:!!grp,color:'#dc2626',loc:baseLoc,region:'',pick:true,poly:true});
+    rel.forEach(function(p){
+      out.push({o:p,kind:'본건',label:'본건',labelGroup:grp,boundaryLeader:true,color:'#dc2626',loc:p.loc,region:'',info:'관련지번 '+p.jibun,pick:true,poly:true});
+    });
+  }
   DATA.land.forEach(function(r,i){
     if(r.show===false||!hasV(r.loc))return;
     out.push({o:r,kind:'토지 거래사례',label:'토지 #'+(i+1),color:'#16a34a',loc:r.loc,region:region,info:landInfo(r),poly:true});
@@ -406,6 +424,118 @@ function mapItems(){
   });
   return out;
 }
+// ── 본건 관련지번(일단지) ──
+// 본건 주소 → 브이월드 PNU → 프록시 건축물대장 부속지번(getBrAtchJibunInfo, 대장 2쪽 「지번 관련 주소」).
+// 결과는 DATA.rel={base, prefix, list:[{jibun,loc,show,src:'대장'|'직접', _xy}], msg} 에 담아 본건 주소가 같으면 다시 묻지 않는다.
+// 대장에 안 나오는 일단지 필지(도로 등)는 「+ 지번」 칸으로 직접 더한다.
+var PROXY='https://ongyeol-proxy.woojin-apr.workers.dev';
+var relSeq=0;
+function baseVal(){return String((document.getElementById('baseLoc')||{}).value||'').trim();}
+function relCur(){var b=baseVal();return (b&&DATA.rel&&DATA.rel.base===b)?DATA.rel:null;}
+function relOn(){var r=relCur();return r?r.list.filter(function(p){return p.show!==false&&hasV(p.loc);}):[];}
+function pad4(n){return ('0000'+(parseInt(n,10)||0)).slice(-4);}
+// 대장 번·지(0017·0021) → '17-21', 산이면 '산17-21'
+function atchJibun(gb,bun,ji){
+  bun=parseInt(bun,10)||0;ji=parseInt(ji,10)||0;if(!bun)return '';
+  return (String(gb)==='1'?'산':'')+bun+(ji?'-'+ji:'');
+}
+// '서울특별시 영등포구 여의도동 17-6' → '서울특별시 영등포구 여의도동' (당산동6가 같은 '가'도)
+function addrPrefix(a){var m=String(a||'').match(/^(.*?[동읍면리가])\s+(?:산\s*)?\d/);return m?m[1].trim():'';}
+// 다른 법정동에 걸친 관련지번은 PNU로 연속지적도에서 주소를 받는다
+function parcelAddr(pnu){
+  var url='https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LP_PA_CBND_BUBUN&version=2.0'+
+    '&key='+VKEY+'&domain='+encodeURIComponent(location.origin)+'&format=json&errorformat=json&size=1&page=1'+
+    '&geometry=false&attribute=true&attrFilter=pnu:=:'+pnu;
+  return fetch(url).then(function(r){return r.json();}).then(function(d){
+    var fc=d&&d.response&&d.response.result&&d.response.result.featureCollection,f=fc&&fc.features&&fc.features[0];
+    return (f&&f.properties&&f.properties.addr)||'';
+  }).catch(function(){return '';});
+}
+async function loadRel(force){
+  var b=baseVal();if(!b){renderRel();return;}
+  var cur=relCur();
+  if(!force&&cur&&cur.done)return;
+  var old={};(cur?cur.list:[]).forEach(function(p){old[p.jibun]=p;});
+  var manual=(cur?cur.list:[]).filter(function(p){return p.src==='직접';});
+  var seq=++relSeq;
+  DATA.rel={base:b,prefix:cur&&cur.prefix||addrPrefix(b),list:manual,msg:'busy'};renderRel();
+  var msg='err',auto=[],prefix=DATA.rel.prefix;
+  try{
+    var g=await ArapMap.geocode(b,VKEY);
+    if(seq!==relSeq)return;
+    if(!g||!/^\d{19}$/.test(g.pnu||''))msg='nf';
+    else{
+      prefix=addrPrefix(g.addr)||prefix;
+      var d=await fetch(PROXY+'/bld?op=getBrAtchJibunInfo&numOfRows=100&pnu='+g.pnu).then(function(r){return r.json();});
+      if(seq!==relSeq)return;
+      var h=d&&d.response&&d.response.header,body=d&&d.response&&d.response.body,it=body&&body.items&&body.items.item;
+      var rows=it?(Array.isArray(it)?it:[it]):[];
+      if(h&&h.resultCode&&!/^0+$/.test(String(h.resultCode)))throw new Error(h.resultMsg||h.resultCode);
+      // 옛 프록시(2판)는 모르는 조회를 층별개요로 돌려준다 — 부속지번 칸이 없으면 옛 판
+      if(rows.length&&!rows.some(function(x){return x&&x.atchBun!=null;}))msg='old';
+      else{
+        var seen={};seen[g.pnu]=1;
+        for(var i=0;i<rows.length;i++){
+          var x=rows[i],jb=atchJibun(x.atchPlatGbCd,x.atchBun,x.atchJi);if(!jb)continue;
+          var pnu=(String(x.atchSigunguCd||'')||g.pnu.slice(0,5))+(String(x.atchBjdongCd||'')||g.pnu.slice(5,10))+
+                  (String(x.atchPlatGbCd)==='1'?'2':'1')+pad4(x.atchBun)+pad4(x.atchJi);
+          if(seen[pnu])continue;seen[pnu]=1;
+          var loc=(pnu.slice(0,10)===g.pnu.slice(0,10))?'':await parcelAddr(pnu);
+          if(seq!==relSeq)return;
+          if(!loc)loc=(prefix?prefix+' ':'')+jb;
+          else{var lp=addrPrefix(loc);jb=lp?lp.split(/\s+/).pop()+' '+loc.slice(lp.length).trim():loc;}   // 다른 동이면 동 이름까지 보이게
+          var p=old[jb]&&old[jb].src!=='직접'?old[jb]:{jibun:jb,show:true};
+          p.jibun=jb;p.loc=loc;p.src='대장';auto.push(p);
+        }
+        msg=auto.length?'ok':'none';
+      }
+    }
+  }catch(e){console.error('관련지번 조회',e);msg='err';}
+  if(seq!==relSeq)return;
+  var have={};auto.forEach(function(p){have[p.jibun]=1;});
+  DATA.rel={base:b,prefix:prefix,list:auto.concat(manual.filter(function(p){return !have[p.jibun];})),msg:msg,
+            done:msg==='ok'||msg==='none'};   // 옛 프록시·오류면 다음에 열 때 다시 묻는다
+  saveAll();renderRel();renderPick();redraw(false);
+}
+function relToggle(k,on){var r=relCur();if(!r||!r.list[k])return;r.list[k].show=!!on;saveAll();renderRel();renderPick();redraw(false);}
+function relDel(k){var r=relCur();if(!r||!r.list[k])return;r.list.splice(k,1);saveAll();renderRel();renderPick();redraw(false);}
+function relAdd(el){
+  var v=String(el.value||'').replace(/번지/g,'').trim(),b=baseVal();if(!v||!b)return;
+  if(!relCur())DATA.rel={base:b,prefix:addrPrefix(b),list:[],msg:''};
+  var r=DATA.rel,pre=addrPrefix(v),rest=pre?v.slice(v.indexOf(pre)+pre.length):v;
+  if(!pre)pre=r.prefix;
+  var dong=(pre&&pre!==r.prefix)?pre.split(/\s+/).pop()+' ':'';   // 본건과 다른 동이면 칩에 동 이름도
+  rest.split(/[,，\s]+/).forEach(function(t){
+    t=t.replace(/^산\s*/,'산');if(!/^(?:산)?\d+(?:-\d+)?$/.test(t))return;
+    var loc=(pre?pre+' ':'')+t;
+    if(r.list.some(function(p){return p.loc===loc;}))return;
+    r.list.push({jibun:dong+t,loc:loc,show:true,src:'직접'});
+  });
+  el.value='';saveAll();renderRel();renderPick();redraw(false);
+}
+var REL_MSG={busy:'건축물대장에서 관련지번 찾는 중…',none:'건축물대장에 관련지번이 없습니다(단독 필지).',
+  nf:'본건 주소를 찾지 못해 관련지번을 못 불러왔습니다.',err:'관련지번 조회 실패 — 잠시 뒤 「↻ 대장 다시 조회」를 눌러 보세요.',
+  old:'프록시가 옛 판(2판)이라 관련지번을 못 받습니다 — 문서/클라우드플레어_프록시_설정.md 6번대로 재배포하면 됩니다.'};
+function renderRel(){
+  var el=document.getElementById('relRow');if(!el)return;
+  var b=baseVal(),r=relCur();
+  if(!b){el.innerHTML='';return;}
+  var h='<span class="rlab">관련지번</span>';
+  (r?r.list:[]).forEach(function(p,k){
+    var id='rl'+k;
+    h+='<span class="chip'+(p.show===false?' off':'')+'" title="'+esc(p.loc)+(p.src==='직접'?' (직접 넣음)':' (건축물대장)')+'">'+
+      '<input type="checkbox" id="'+id+'" '+(p.show===false?'':'checked')+' onchange="relToggle('+k+',this.checked)">'+
+      '<label for="'+id+'"><i class="dotc" style="background:#dc2626"></i>'+esc(p.jibun)+'</label>'+
+      (p.src==='직접'?'<span class="x" title="이 지번을 뺍니다" onclick="relDel('+k+')">✕</span>':'<span style="width:4px"></span>')+'</span>';
+  });
+  var m=r&&REL_MSG[r.msg];
+  if(m)h+='<span class="rmsg'+(/^(old|err|nf)$/.test(r.msg)?' err':'')+'">'+esc(m)+'</span>';
+  h+='<input class="box" placeholder="+ 지번 (예 17-21)" title="대장에 없는 일단지 필지를 직접 더합니다 — 쉼표로 여러 개, Enter" onkeydown="if(event.key===\'Enter\'){event.preventDefault();relAdd(this);}">'+
+     '<button class="btn sm" onclick="loadRel(true)" title="건축물대장 부속지번을 다시 받습니다(직접 넣은 지번은 그대로)">↻ 대장 다시 조회</button>';
+  el.innerHTML=h;
+}
+function baseChanged(){loadRel(false);renderRel();renderPick();redraw(false);}
+
 // force=true면 저장해 둔 좌표(직접 옮긴 핀 포함)를 버리고 주소로 다시 찾는다
 var drawTimer=null;
 function redraw(force){
@@ -414,7 +544,7 @@ function redraw(force){
 }
 
 // ── 시작 ──
-restore();refresh();
+restore();refresh();renderRel();loadRel(false);
 window.addEventListener('pagehide',function(){if(saveTimer)doSave();});
 window.addEventListener('beforeunload',function(){if(saveTimer)doSave();});
 </script>
