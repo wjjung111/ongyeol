@@ -8,6 +8,7 @@
   - 주소 뒤에 ?user=이름 을 붙이면 그 이름으로 바로 저장하고 통과한다.
   - 사용 방법: <body> 바로 다음 줄에  <script src="arap_name.js"></script>
     이름이 확정된 뒤 할 일은  window.arapNameReady(function(name){...})  로 걸어둔다(이미 확정돼 있으면 즉시 실행).
+    이름 화면 부제목은 arap_name.js 앞에서  <script>window.ARAP_NAME_SUB='건축물대장 간편조회';</script>  로 페이지마다 지정.
     이름 바꾸기는  window.arapAskName()  (상단바의 이름 표시를 클릭해도 된다: id="arap-name-badge" 요소가 있으면 자동 연결)
 */
 (function(){
@@ -65,23 +66,22 @@
     if(!changing)lock();
     var gate=document.createElement("div");
     gate.id="arap-name-gate";
-    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a 0%,#1e293b 60%,#0f172a 100%);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
+    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:#fff;font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
     gate.innerHTML=
       '<div style="text-align:center;max-width:420px;padding:24px;">'+
-      '<div style="font-size:34px;letter-spacing:6px;color:#f8fafc;font-weight:700;">온 결</div>'+
-      '<div style="font-size:13px;color:#94a3b8;margin:8px 0 34px;letter-spacing:1px;">감정평가 자동화 도구</div>'+
-      '<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:26px 22px;">'+
-      '<div style="font-size:13px;color:#cbd5e1;margin-bottom:14px;">'+(changing?'사용하실 이름을 다시 입력해주세요.':'처음 오셨네요! 사용하실 이름을 입력해주세요. <span style="color:#64748b;">(이 기기에서 최초 1회)</span>')+'</div>'+
+      '<div style="font-size:22px;color:#0f172a;font-weight:700;margin-bottom:26px;letter-spacing:1px;">'+String(window.ARAP_NAME_SUB||'감정평가 자동화 도구').replace(/</g,'&lt;')+'</div>'+
+      '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:26px 22px;box-shadow:0 2px 10px rgba(15,23,42,.06);">'+
+      '<div style="font-size:13px;color:#334155;margin-bottom:14px;">'+(changing?'사용하실 이름을 다시 입력해주세요.':'처음 오셨네요! 사용하실 이름을 입력해주세요. <span style="color:#94a3b8;">(이 기기에서 최초 1회)</span>')+'</div>'+
       '<div style="display:flex;align-items:center;justify-content:center;gap:8px;">'+
-      '<span style="color:#94a3b8;font-size:14px;">사용자이름:</span>'+
-      '<input id="arap-name-input" type="text" maxlength="20" autocomplete="off" placeholder="이름" value="'+current.replace(/"/g,"&quot;")+'" style="width:190px;padding:9px 10px;font-size:16px;font-weight:700;border:1px solid #475569;border-radius:6px;background:#fff;color:#0f172a;text-align:center;font-family:inherit;">'+
+      '<span style="color:#475569;font-size:14px;">사용자이름:</span>'+
+      '<input id="arap-name-input" type="text" maxlength="20" autocomplete="off" placeholder="이름" value="'+current.replace(/"/g,"&quot;")+'" style="width:190px;padding:9px 10px;font-size:16px;font-weight:700;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0f172a;text-align:center;font-family:inherit;">'+
       '</div>'+
       '<div id="arap-name-msg" style="height:18px;margin-top:8px;font-size:12px;color:#f87171;"></div>'+
       '<button id="arap-name-btn" type="button" style="margin-top:10px;width:100%;padding:11px;font-size:15px;font-weight:700;color:#fff;background:#2563eb;border:none;border-radius:8px;cursor:pointer;font-family:inherit;">시작하기</button>'+
-      (changing?'<button id="arap-name-cancel" type="button" style="margin-top:10px;width:100%;padding:9px;font-size:13px;color:#94a3b8;background:transparent;border:1px solid #334155;border-radius:8px;cursor:pointer;font-family:inherit;">취소</button>':'')+
+      (changing?'<button id="arap-name-cancel" type="button" style="margin-top:10px;width:100%;padding:9px;font-size:13px;color:#64748b;background:transparent;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer;font-family:inherit;">취소</button>':'')+
       '</div>'+
-      '<div style="margin-top:22px;font-size:12px;color:#64748b;">입력한 이름은 이 기기에만 저장되며, 사내 관리 목적의 사용 기록에 표시됩니다.</div>'+
-      '</div>';
+      '</div>'+
+      '<div style="position:absolute;left:0;right:0;bottom:24px;text-align:center;font-size:12px;color:#94a3b8;">입력한 이름은 사용자 기기에만 저장됩니다.</div>';
     function mount(){
       if(!document.body){setTimeout(mount,10);return;}
       document.body.appendChild(gate);
