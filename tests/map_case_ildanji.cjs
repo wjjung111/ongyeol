@@ -37,7 +37,7 @@ try{
   let r=await page.evaluate(()=>{const r=DATA.land[0];return {loc:r.loc,landA:r.landA,use:r.use,gongsi:r.gongsi,rel:(r.rel||[]).map(p=>p.loc)};});
   assert.deepEqual(r,{loc:'여의도동 13-6 외',landA:'1400',use:'일반상업지역, 준주거지역',gongsi:'20000000',
     rel:['서울특별시 영등포구 여의도동 13-31','서울특별시 영등포구 여의도동 13-30','서울특별시 영등포구 여의도동 13-29']});
-  assert.equal(await page.$eval('#tblLand tr:nth-child(2) td:nth-child(3) input',x=>x.value),'여의도동 13-6 외');
+  assert.equal(await page.$eval('#tblLand td[data-i="0"][data-k="loc"] input',x=>x.value),'여의도동 13-6 외');
   // 지도: 네 필지 한 묶음, 대표 지번은 「외」 없이 조회
   let it=await page.evaluate(()=>mapItems().filter(x=>x.kind==='토지 거래사례').map(x=>[x.loc,x.labelGroup,x.label]));
   assert.equal(it.length,4);assert.deepEqual(it[0],['여의도동 13-6','land0','사례 #1']);assert.ok(it.every(x=>x[1]==='land0'&&x[2]==='사례 #1'));
@@ -45,7 +45,8 @@ try{
   await page.click('text=⚡ 빈칸 자동 채우기');await page.waitForFunction(()=>/✅ 1건 중/.test(document.getElementById('msgAuto').textContent));
   assert.equal(await page.evaluate(()=>DATA.land[0].loc),'여의도동 13-6 외');
   // 「외」를 지우면 대표 지번만 — 다시 채워도 안 붙음
-  const set=async(i,col,v)=>{const s=`#tblLand tr:nth-child(${i+2}) td:nth-child(${col+3}) input`;await page.fill(s,v);await page.$eval(s,x=>x.blur());};
+  const LK=['loc','use','jimok','landA','gongsi','bldA','appr','total','date','bldAmt','landAmt','landUnit','memo'];
+  const set=async(i,col,v)=>{const s=`#tblLand td[data-i="${i}"][data-k="${LK[col]}"] input`;await page.fill(s,v);await page.$eval(s,x=>x.blur());};
   await set(0,0,'여의도동 13-6');await page.waitForTimeout(400);
   it=await page.evaluate(()=>mapItems().filter(x=>x.kind==='토지 거래사례').length);assert.equal(it,1);
   assert.equal(await page.evaluate(()=>DATA.land[0].loc),'여의도동 13-6');

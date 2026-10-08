@@ -20,7 +20,11 @@ try{
   page.on('pageerror',e=>{console.error('pageerror',e.message);process.exitCode=1;});
   await page.route(/unpkg\.com|dapi\.kakao|openstreetmap|xdworld/,r=>r.abort());
   await page.route(/api\.vworld\.kr\/req\/search/,r=>{const q=new URL(r.request().url()).searchParams.get('query');
-    r.fulfill(json({response:{status:'OK',result:{items:/17-26$/.test(q)?[{id:'1156011000100170026',point:{x:'126.92',y:'37.53'},address:{parcel:'서울특별시 영등포구 여의도동 17-26'}}]:[]}}}));});
+    const m=q.match(/(17-26|16-1)$/);
+    r.fulfill(json({response:{status:'OK',result:{items:m?[{id:m[1]==='17-26'?'1156011000100170026':'1156011000100160001',point:{x:'126.92',y:'37.53'},address:{parcel:'서울특별시 영등포구 여의도동 '+m[1]}}]:[]}}}));});
+  // 표준지 확인: 17-26만 표준지(표준지공시지가 응답 있음), 16-1은 실제 필지지만 표준지 아님(빈 응답)
+  await page.route(/getReferLandPriceAttr/,r=>{const pnu=new URL(r.request().url()).searchParams.get('pnu');
+    r.fulfill(json({referLandPrices:{field:pnu==='1156011000100170026'?[{pnu,stdrYear:'2025',pblntfPclnd:'13900000'},{pnu,stdrYear:'2026',pblntfPclnd:'14450000'}]:[],totalCount:pnu==='1156011000100170026'?'2':'0'}}));});
   await page.route(/getLandCharacteristics/,r=>r.fulfill(json({landCharacteristicss:{field:[
     {stdrYear:'2025',lastUpdtDt:'2025-05-30',lndcgrCodeNm:'대',lndpclAr:'793',ladUseSittnNm:'업무용',roadSideCodeNm:'중로한면',tpgrphFrmCodeNm:'세로장방',tpgrphHgCodeNm:'평지',pblntfPclnd:'13900000',prposArea1Nm:'일반상업지역',prposArea2Nm:'지정되지않음'},
     {stdrYear:'2026',lastUpdtDt:'2026-05-29',lndcgrCodeNm:'대',lndpclAr:'793',ladUseSittnNm:'업무용',roadSideCodeNm:'중로한면',tpgrphFrmCodeNm:'세로장방',tpgrphHgCodeNm:'평지',pblntfPclnd:'14450000',prposArea1Nm:'일반상업지역',prposArea2Nm:'지정되지않음'}]}})));
@@ -53,9 +57,15 @@ try{
   await page.waitForFunction(()=>/건 중/.test(document.getElementById('msgStd').textContent));
   const s=await page.evaluate(()=>{const r=DATA.std[0];return [r.use,r.jimok,r.area,r.cond,r.road,r.shape,r.slope,r.gongsi,r.gongsiYear];});
   assert.deepEqual(s,['일반상업지역','대','793','업무용','중로한면','세로장방','평지','14450000','2026']);
-  assert.equal(await page.$eval('#tblStd tr:nth-child(2) td:nth-child(11) input',x=>x.value),'14,450,000');
+  assert.equal(await page.$eval('#tblStd td[data-i="0"][data-k="gongsi"] input',x=>x.value),'14,450,000');
   it=await page.evaluate(()=>mapItems().filter(x=>x.kind==='표준지').map(x=>[x.label,x.color,x.lines.join('|')]));
   assert.deepEqual(it,[['표준지 #1','#2563eb','여의도동 17-26|일반상업지역|업무용|14,450,000 원/㎡']]);
+  // 실제 있는 필지지만 표준지가 아님 → 아무것도 안 채우고 비고·지도에서 뺌
+  await page.fill('#addStd','여의도동 16-1');await page.click('#paneSide .sec:nth-of-type(3) .addloc .btn.pri');
+  await page.waitForFunction(()=>/표준지 아님/.test(document.getElementById('msgStd').textContent));
+  const ns=await page.evaluate(()=>{const r=DATA.std[1];return [r.use||'',r.gongsi||'',r.area||'',r.show,r.memo];});
+  assert.deepEqual(ns,['','','',false,'⚠ 표준지 아님 — 채우지 않음']);
+  assert.equal(await page.evaluate(()=>mapItems().filter(x=>x.kind==='표준지').length),1);
   // 못 찾는 표준지
   await page.fill('#addStd','없는동 1');await page.click('#paneSide .sec:nth-of-type(3) .addloc .btn.pri');
   await page.waitForFunction(()=>/못 찾음/.test(document.getElementById('msgStd').textContent));
@@ -68,7 +78,7 @@ try{
   assert.ok(chips.includes('평가')&&chips.includes('표준지')&&chips.includes('집건'),chips.join(','));
   // 새로고침해도 유지(평가·표준지·KAIS 선택)
   await page.waitForTimeout(400);await page.reload();
-  assert.deepEqual(await page.evaluate(()=>[DATA.appr.length,DATA.std.length,DATA.kaisMode]),[2,2,'jip']);
+  assert.deepEqual(await page.evaluate(()=>[DATA.appr.length,DATA.std.length,DATA.kaisMode]),[2,3,'jip']);
   await page.evaluate(()=>showTab('land'));
   await page.screenshot({path:process.env.SHOT||'/dev/null',clip:{x:1030,y:40,width:470,height:1260}}).catch(()=>{});
   await page.waitForTimeout(300);

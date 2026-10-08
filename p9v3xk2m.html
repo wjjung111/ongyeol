@@ -128,7 +128,17 @@
   .tabs button b{font-weight:800;margin-left:3px;}
   .tbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
   .tbar .cnt{font-size:12px;font-weight:700;}
-  td.calc input{color:#2563eb;}                 /* 자동 계산 값(직접 고치면 검정) */
+  td.calc input{color:#2563eb;}
+  /* 세로 표 — 항목이 줄, 사례가 열 */
+  table.vt{width:auto;min-width:100%;}
+  table.vt th.rh{text-align:left;white-space:nowrap;position:sticky;left:0;z-index:1;background:#f0f2f5;min-width:96px;}
+  table.vt th.ch{min-width:118px;white-space:nowrap;}
+  table.vt th.ch label{cursor:pointer;margin-right:4px;}
+  table.vt th.ch input{width:auto;vertical-align:-2px;margin-right:3px;}
+  table.vt th.ch.off,table.vt td.off{opacity:.42;}
+  table.vt th.ch.busy{background:#fef3c7;}
+  table.vt td input{min-width:104px;}
+  table.vt td.wide input{min-width:150px;text-align:left;}                 /* 자동 계산 값(직접 고치면 검정) */
   tr.busy td{background:#fffbeb;}
 </style>
 </head>
@@ -199,6 +209,8 @@
     </div>
     <!-- 일단지 관련지번: 본건 주소의 건축물대장 「지번 관련 주소」(부속지번)를 받아 본건 필지와 함께 그린다 -->
     <div class="relrow" id="relRow"></div>
+    <!-- 본건 토지 표 — 토지건물 ARM 본건 표와 같은 항목, 세로(필지가 열). 토지특성 최신 연도로 빈칸 자동 채움 -->
+    <div class="tw" style="margin-top:7px"><table id="tblBase"></table></div>
     <div class="note" style="margin-top:7px"><b>일단지</b>면 건축물대장 「지번 관련 주소」(예 17-6 → 17-21·17-22·17-23)를 자동으로 받아 함께 그리고 이름표 「본건」은 하나만 붙입니다. 대장에 없는 필지는 「+ 지번」에.<br>시·군·구가 없는 사례 주소(예 “자양동 617-33”)는 본건과 같은 시군구에서 먼저 찾습니다.</div>
   </section>
 
@@ -265,7 +277,7 @@
     <div class="addloc">
       <input class="box" id="addStd" placeholder="예) 여의도동 17-26 (쉼표·줄바꿈으로 여러 건)" onkeydown="if(event.key==='Enter'){event.preventDefault();addStd();}">
       <button class="btn pri" onclick="addStd()">추가</button>
-      <span class="pst" id="msgStd">지번만 넣으면 토지특성에서 용도지역·지목·면적·이용상황·도로교통·형상·지세·공시지가(최신 연도)를 채웁니다. 표준지는 그 해 개별공시지가 = 표준지공시지가입니다.</span>
+      <span class="pst" id="msgStd">지번을 넣으면 먼저 <b>표준지인지 확인</b>합니다. 표준지면 표준지공시지가·용도지역·지목·면적·이용상황·도로교통·형상·지세를 채우고, 표준지가 아니면 아무것도 채우지 않습니다.</span>
     </div>
     <div class="tbar">
       <span class="cnt"><b id="cntStd">0</b>건</span>
@@ -308,6 +320,7 @@ function restore(){
       if(o.kaisMode)DATA.kaisMode=o.kaisMode;
       if(o.rel&&Array.isArray(o.rel.list))DATA.rel=o.rel;
       if(o.labCols)DATA.labCols=o.labCols;   // 말풍선에 넣을 칸
+      if(o.baseInfo)DATA.baseInfo=o.baseInfo;   // 본건 토지 표
       KLIST.forEach(function(k){DATA[k].forEach(function(r){delete r._busy;});});   // 조회 중에 닫혔으면 표시만 남는다
       if(o._xy)DATA._xy=o._xy;}   // 본건 좌표도 되살린다(안 그러면 열 때마다 다시 조회)
   }catch(e){console.error('restore',e);}
@@ -365,42 +378,48 @@ function colsOf(kind){return KINDS[kind].cols;}
 function rowsOf(kind){return DATA[kind];}
 function locOf(kind,r){return kind==='jip'?jipLoc(r):String(r.loc||'').trim();}
 
+// 표는 세로(항목이 줄, 사례가 열) — 토지건물 ARM 표와 같은 모양. 맨 윗줄 = 사례 번호·지도 표시 체크·✕,
+// 왼쪽 열 = 항목 이름(+ 말풍선에 넣을지 체크). 칸마다 data-i(사례 순번)·data-k(항목)를 달아 둔다.
 function render(kind){
   var K=KINDS[kind],cols=colsOf(kind),rows=rowsOf(kind),tbl=document.getElementById(K.tbl);
   document.getElementById(K.cnt).textContent=rows.length;
+  tbl.className='vt';
   if(!rows.length){
     tbl.innerHTML='<tr><td class="empty">아직 없습니다 — '+K.empty+'</td></tr>';
     return;
   }
-  var h='<tr><th style="width:34px">표시</th><th style="width:34px">#</th>'+
-    cols.map(function(c){
-      if(c[1]==='loc'||c[1]==='location')return '<th>'+c[0]+'</th>';   // 소재지는 말풍선 둘째 줄에 늘 들어간다
+  var cals=rows.map(function(r){return kind==='land'?landCalc(r):null;});
+  var h='<tr><th class="rh">항목</th>'+rows.map(function(r,i){
+    return '<th class="ch'+(r.show===false?' off':'')+(r._busy?' busy':'')+'"'+(r._busy?' title="자동 채우는 중…"':'')+'>'+
+      '<label title="지도에 표시"><input type="checkbox" '+(r.show===false?'':'checked')+' onchange="toggleShow(\''+kind+'\','+i+',this.checked)">#'+(i+1)+'</label>'+
+      '<span class="del" title="이 사례 삭제" onclick="delRow(\''+kind+'\','+i+')">✕</span></th>';
+  }).join('')+'</tr>';
+  cols.forEach(function(c){
+    var head=c[0];
+    if(c[1]!=='loc'&&c[1]!=='location'){   // 소재지는 말풍선 둘째 줄에 늘 들어간다
       var on=labCols(kind).indexOf(c[1])>=0;
-      return '<th title="체크하면 지도 말풍선에 이 칸이 나옵니다"><label><input type="checkbox" class="labck" '+(on?'checked':'')+
-        ' onchange="toggleLabCol(\''+kind+'\',\''+c[1]+'\',this.checked)">'+c[0]+'</label></th>';
-    }).join('')+'<th style="width:28px"></th></tr>';
-  rows.forEach(function(r,i){
-    var cal=kind==='land'?landCalc(r):null;
-    h+='<tr class="'+(r.show===false?'off':'')+(r._busy?' busy':'')+'"'+(r._busy?' title="자동 채우는 중…"':'')+'>';
-    h+='<td><input type="checkbox" style="width:auto" '+(r.show===false?'':'checked')+' onchange="toggleShow(\''+kind+'\','+i+',this.checked)"></td>';
-    h+='<td style="font-weight:700;color:#475569">'+(i+1)+'</td>';
-    cols.forEach(function(c){
+      head='<label title="체크하면 지도 말풍선에 이 칸이 나옵니다"><input type="checkbox" class="labck" '+(on?'checked':'')+
+        ' onchange="toggleLabCol(\''+kind+'\',\''+c[1]+'\',this.checked)">'+c[0]+'</label>';
+    }
+    h+='<tr><th class="rh">'+head+'</th>';
+    rows.forEach(function(r,i){
       var v=r[c[1]],auto=c[4]==='calc'&&!manualNum(v);
-      if(auto)v=cal[c[1]]||'';
+      if(auto)v=cals[i][c[1]]||'';
       var shown=(c[3]&&v!=null&&v!=='')?won(num(v)):(v==null?'':v);
-      h+='<td class="'+(auto?c[2]:c[2].replace(' calc',''))+'"'+(c[4]?' data-k="'+c[1]+'"':'')+'><input value="'+esc(shown)+'" oninput="editCell(\''+kind+'\','+i+',\''+c[1]+'\',this.value)"'+
+      h+='<td class="'+(auto?c[2]:c[2].replace(' calc',''))+(r.show===false?' off':'')+'" data-i="'+i+'" data-k="'+c[1]+'"><input value="'+esc(shown)+'" oninput="editCell(\''+kind+'\','+i+',\''+c[1]+'\',this.value)"'+
          ' onchange="cellDone(\''+kind+'\',\''+c[1]+'\','+i+')"></td>';
     });
-    h+='<td><span class="del" title="이 사례 삭제" onclick="delRow(\''+kind+'\','+i+')">✕</span></td></tr>';
+    h+='</tr>';
   });
   tbl.innerHTML=h;
 }
 // 자동 계산 칸만 그 자리에서 고친다 — 표를 통째로 다시 그리면 Tab으로 옮겨 간 칸의 커서가 날아간다
 function refreshCalc(i){
-  var r=DATA.land[i],tr=document.querySelectorAll('#tblLand tr')[i+1];if(!r||!tr)return;
+  var r=DATA.land[i];if(!r)return;
   var cal=landCalc(r);
-  tr.querySelectorAll('td[data-k]').forEach(function(td){
-    var k=td.getAttribute('data-k'),auto=!manualNum(r[k]),inp=td.querySelector('input');
+  ['landAmt','landUnit'].forEach(function(k){
+    var td=document.querySelector('#tblLand td[data-i="'+i+'"][data-k="'+k+'"]');if(!td)return;
+    var auto=!manualNum(r[k]),inp=td.querySelector('input');
     td.classList.toggle('calc',auto);
     if(auto&&inp&&inp!==document.activeElement)inp.value=cal[k]?won(cal[k]):'';
     else if(!auto&&inp&&inp!==document.activeElement)inp.value=won(num(r[k]));
@@ -678,19 +697,40 @@ function autoFillAll(){
   autoFillRows(list).then(function(){refresh();});
 }
 
-// ── 표준지 ── 지번만 넣으면 토지특성(최신 연도)으로 빈칸을 채운다. 표준지는 그 해 개별공시지가 = 표준지공시지가.
+// ── 표준지 ── 지번만 넣으면 먼저 **표준지인지 확인**한다(브이월드 「표준지공시지가속성조회」 getReferLandPriceAttr).
+// 표준지가 아니면 아무 칸도 채우지 않고(개별공시지가로 대신 채우지 않음) 비고에 「표준지 아님」, 지도에서도 뺀다.
+// 확인 자체가 안 되면(키 권한·통신) 역시 채우지 않는다 — 표준지가 아닌 값이 표준지 칸에 들어가는 걸 막는 게 우선.
+// 표준지면 공시지가·연도는 표준지공시지가 응답에서, 나머지(용도지역·지목·면적·이용상황·도로·형상·지세)는 토지특성 최신 연도에서.
 var STD_AUTO=['use','jimok','area','cond','road','shape','slope','gongsi','gongsiYear'];
+// 응답 모양이 문서마다 조금 달라 「field 를 가진 칸」을 찾아 읽는다(…s.field). 그런 칸이 없으면 확인 실패.
+async function referLand(pnu){
+  var d=await vget('https://api.vworld.kr/ned/data/getReferLandPriceAttr?key='+VKEY+'&domain='+encodeURIComponent(location.origin)+
+    '&pnu='+pnu+'&format=json&numOfRows=100&pageNo=1');
+  var box=null;
+  if(d&&typeof d==='object')Object.keys(d).forEach(function(k){var v=d[k];if(v&&typeof v==='object'&&!Array.isArray(v)&&('field' in v||'totalCount' in v))box=v;});
+  if(!box)throw new Error('표준지 확인 실패');
+  var f=box.field;return f?(Array.isArray(f)?f:[f]):[];
+}
+function priceOf(rec){
+  if(rec.pblntfPclnd)return String(rec.pblntfPclnd);
+  var k=Object.keys(rec).find(function(x){return /pclnd|price/i.test(x)&&num(rec[x]);});
+  return k?String(rec[k]):'';
+}
 async function lookupStd(loc){
   loc=stripOe(loc);
   var region=ArapMap.sggOfAddr(baseVal()),q=ArapMap.query(loc,region);
   var g=await ArapMap.geocode(q,VKEY);
   if((!g||!g.pnu)&&q!==loc)g=await ArapMap.geocode(loc,VKEY);
   if(!g||!/^\d{19}$/.test(g.pnu||''))throw new Error('주소를 찾지 못함');
-  var c=await landChar(g.pnu);
-  if(!c)throw new Error('토지특성 없음');
-  return {use:useOf(c).join(', '),jimok:c.lndcgrCodeNm||'',area:areaStr(c.lndpclAr),cond:c.ladUseSittnNm||'',
-    road:c.roadSideCodeNm||'',shape:c.tpgrphFrmCodeNm||'',slope:c.tpgrphHgCodeNm||'',
-    gongsi:c.pblntfPclnd?String(c.pblntfPclnd):'',gongsiYear:c.stdrYear||''};
+  var recs;
+  try{recs=await referLand(g.pnu);}catch(e){console.error('표준지 확인',loc,e);throw new Error('표준지 여부 확인 실패');}
+  if(!recs.length)return {notStd:true};
+  var ref=latestOf(recs),c=null;
+  try{c=await landChar(g.pnu);}catch(e){console.error('토지특성',loc,e);}
+  var out={gongsi:priceOf(ref)||(c&&c.pblntfPclnd?String(c.pblntfPclnd):''),gongsiYear:ref.stdrYear||(c&&c.stdrYear)||''};
+  if(c){out.use=useOf(c).join(', ');out.jimok=c.lndcgrCodeNm||'';out.area=areaStr(c.lndpclAr);out.cond=c.ladUseSittnNm||'';
+    out.road=c.roadSideCodeNm||'';out.shape=c.tpgrphFrmCodeNm||'';out.slope=c.tpgrphHgCodeNm||'';}
+  return out;
 }
 async function autoFillStd(r){
   if(!r||!hasV(r.loc))return [];
@@ -698,20 +738,31 @@ async function autoFillStd(r){
   var filled=[];
   try{
     var d=await lookupStd(r.loc);
-    STD_AUTO.forEach(function(k){if(!hasV(r[k])&&hasV(d[k])){r[k]=d[k];filled.push(k);}});
-    r._autoMsg=filled.length?'':'채울 빈칸 없음';
+    if(d.notStd){
+      r.notStd=true;r.show=false;r._autoMsg='표준지 아님';
+      if(!/표준지 아님/.test(r.memo||''))r.memo=('⚠ 표준지 아님 — 채우지 않음 '+(r.memo||'')).trim();
+    }else{
+      delete r.notStd;
+      if(/표준지 아님/.test(r.memo||''))r.memo=String(r.memo).replace(/⚠ 표준지 아님 — 채우지 않음\s*/,'');
+      STD_AUTO.forEach(function(k){if(!hasV(r[k])&&hasV(d[k])){r[k]=d[k];filled.push(k);}});
+      r._autoMsg=filled.length?'':'채울 빈칸 없음';
+    }
   }catch(e){r._autoMsg=e.message||'조회 실패';}
   delete r._busy;saveAll();
   return filled;
 }
 async function autoFillStdRows(list){
-  var n=0,fail=[],m=function(t,c){var el=document.getElementById('msgStd');el.className='pst'+(c?' '+c:'');el.textContent=t;};
+  var n=0,fail=[],notStd=[],m=function(t,c){var el=document.getElementById('msgStd');el.className='pst'+(c?' '+c:'');el.textContent=t;};
   for(var k=0;k<list.length;k++){
     m('⏳ '+(k+1)+'/'+list.length+' '+list[k].loc+' 조회 중…');
-    var f=await autoFillStd(list[k]);if(f.length)n++;else if(list[k]._autoMsg&&list[k]._autoMsg!=='채울 빈칸 없음')fail.push(list[k].loc+'('+list[k]._autoMsg+')');
+    var f=await autoFillStd(list[k]);if(f.length)n++;
+    else if(list[k]._autoMsg==='표준지 아님')notStd.push(list[k].loc);
+    else if(list[k]._autoMsg&&list[k]._autoMsg!=='채울 빈칸 없음')fail.push(list[k].loc+'('+list[k]._autoMsg+')');
     render('std');
   }
-  m((fail.length?'⚠️ ':'✅ ')+'표준지 '+list.length+'건 중 '+n+'건 채움'+(fail.length?' — 못 찾음: '+fail.join(', '):''),fail.length?'err':'ok');
+  m(((fail.length||notStd.length)?'⚠️ ':'✅ ')+'표준지 '+list.length+'건 중 '+n+'건 채움'+
+    (notStd.length?' — 표준지 아님(채우지 않고 지도에서 뺌): '+notStd.join(', '):'')+
+    (fail.length?' — 못 찾음: '+fail.join(', '):''),(fail.length||notStd.length)?'err':'ok');
 }
 function addStd(){
   var el=document.getElementById('addStd'),list=splitLocs(el.value).map(function(t){var r={loc:t,show:true};DATA.std.push(r);return r;});
@@ -896,7 +947,7 @@ var REL_MSG={busy:'건축물대장에서 관련지번 찾는 중…',none:'건�
 function renderRel(){
   var el=document.getElementById('relRow');if(!el)return;
   var b=baseVal(),r=relCur();
-  if(!b){el.innerHTML='';return;}
+  if(!b){el.innerHTML='';renderBase();return;}
   var h='<span class="rlab">관련지번</span>';
   (r?r.list:[]).forEach(function(p,k){
     var id='rl'+k;
@@ -910,8 +961,54 @@ function renderRel(){
   h+='<input class="box" placeholder="+ 지번 (예 17-21)" title="대장에 없는 일단지 필지를 직접 더합니다 — 쉼표로 여러 개, Enter" onkeydown="if(event.key===\'Enter\'){event.preventDefault();relAdd(this);}">'+
      '<button class="btn sm" onclick="loadRel(true)" title="건축물대장 부속지번을 다시 받습니다(직접 넣은 지번은 그대로)">↻ 대장 다시 조회</button>';
   el.innerHTML=h;
+  renderBase();
 }
 var lastBaseLogged='';
+// ── 본건 토지 표 ── 본건 + 켜 둔 관련지번이 열. 값은 DATA.baseInfo[소재지]에 두고(직접 고친 값 우선) 빈칸만 토지특성으로 채운다.
+var BASE_COLS=[['지목','jimok',''],['면적(㎡)','area','num'],['용도지역','use',''],['이용상황','cond',''],['도로교통','road',''],
+  ['형상','shape',''],['지세','slope',''],['공시지가(원/㎡)','gongsi','num',1],['기준연도','gongsiYear',''],['비고','memo','wide']];
+var baseBusy={};
+function baseParcels(){
+  var b=baseVal();if(!b)return [];
+  return [{loc:b,name:'본건 '+dongJibun(b)}].concat(relOn().map(function(p){return {loc:p.loc,name:p.jibun};}));
+}
+function baseInfoOf(loc){if(!DATA.baseInfo)DATA.baseInfo={};return DATA.baseInfo[loc]||(DATA.baseInfo[loc]={});}
+function renderBase(){
+  var tbl=document.getElementById('tblBase');if(!tbl)return;
+  var ps=baseParcels();tbl.className='vt';
+  if(!ps.length){tbl.innerHTML='';return;}
+  var h='<tr><th class="rh">항목</th>'+ps.map(function(p){return '<th class="ch'+(baseBusy[p.loc]?' busy':'')+'">'+esc(p.name)+'</th>';}).join('')+'</tr>';
+  BASE_COLS.forEach(function(c){
+    h+='<tr><th class="rh">'+c[0]+'</th>';
+    ps.forEach(function(p,i){
+      var v=baseInfoOf(p.loc)[c[1]],shown=(c[3]&&hasV(v))?won(num(v)):(v==null?'':v);
+      h+='<td class="'+c[2]+'" data-i="'+i+'" data-k="'+c[1]+'"><input value="'+esc(shown)+'" oninput="editBase('+i+',\''+c[1]+'\',this.value)"></td>';
+    });
+    h+='</tr>';
+  });
+  tbl.innerHTML=h;
+  ps.forEach(function(p){fillBase(p.loc);});
+}
+function editBase(i,k,v){var p=baseParcels()[i];if(!p)return;baseInfoOf(p.loc)[k]=v;saveAll();}
+async function fillBase(loc){
+  var o=baseInfoOf(loc);if(o._done||baseBusy[loc])return;
+  baseBusy[loc]=1;
+  try{
+    var g=await ArapMap.geocode(stripOe(loc),VKEY);
+    if(g&&/^\d{19}$/.test(g.pnu||'')){
+      var c=await landChar(g.pnu);
+      if(c){
+        var d={jimok:c.lndcgrCodeNm||'',area:areaStr(c.lndpclAr),use:useOf(c).join(', '),cond:c.ladUseSittnNm||'',road:c.roadSideCodeNm||'',
+          shape:c.tpgrphFrmCodeNm||'',slope:c.tpgrphHgCodeNm||'',gongsi:c.pblntfPclnd?String(c.pblntfPclnd):'',gongsiYear:c.stdrYear||''};
+        Object.keys(d).forEach(function(k){if(!hasV(o[k])&&hasV(d[k]))o[k]=d[k];});
+      }
+      o._done=1;saveAll();
+    }
+  }catch(e){console.error('본건 토지특성',loc,e);}
+  delete baseBusy[loc];
+  if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#tblBase'))return;   // 적는 중이면 다시 그리지 않음
+  renderBase();
+}
 function baseChanged(){
   var b=baseVal();if(b&&b!==lastBaseLogged){lastBaseLogged=b;vlog('본건 지정',b);}
   loadRel(false);renderRel();renderPick();redraw(false);}

@@ -34,6 +34,9 @@ try{
   assert.deepEqual(chips,['17-21','17-22','17-23','당산동 5']);
   const locs=await page.evaluate(()=>DATA.rel.list.map(p=>p.loc));
   assert.deepEqual(locs,['서울특별시 영등포구 여의도동 17-21','서울특별시 영등포구 여의도동 17-22','서울특별시 영등포구 여의도동 17-23','서울특별시 영등포구 당산동 5']);
+  // 1-1. 본건 토지 표(세로): 본건 + 관련지번 4개가 열
+  assert.deepEqual(await page.$$eval('#tblBase th.ch',a=>a.map(x=>x.textContent)),['본건 여의도동 17-6','17-21','17-22','17-23','당산동 5']);
+  assert.deepEqual(await page.$$eval('#tblBase th.rh',a=>a.map(x=>x.textContent)).then(x=>x.slice(1,4)),['지목','면적(㎡)','용도지역']);
   // 2. 지도 항목: 본건 + 관련 4 = 한 묶음, 이름표 '본건', 모두 kind 본건(거리 기준은 첫 항목)
   let it=await page.evaluate(()=>mapItems().filter(x=>x.kind==='본건').map(x=>({g:x.labelGroup,l:x.label,loc:x.loc,b:x.boundaryLeader})));
   assert.equal(it.length,5);assert.ok(it.every(x=>x.g==='subject'&&x.l==='본건'&&x.b));assert.equal(it[0].loc,'여의도동 17-6');
