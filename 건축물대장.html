@@ -223,7 +223,7 @@ function n1(v){var x=Number(v);return (v===''||v==null||isNaN(x))?'':x.toLocaleS
 function txt(v){return String(v==null?'':v).trim();}
 function joinPurps(main,etc){var a=txt(main),b=txt(etc);return b?(a?a+'('+b+')':b):a;}
 
-var STATE={addr:'',pnu:'',titles:[],flrs:[],jijigu:[],dongIdx:0,hoList:[],hoRows:[],hoDong:'',hoNm:'',hoAll:null,proxyOld:false};
+var STATE={addr:'',pnu:'',titles:[],flrs:[],jijigu:[],atch:[],atchOld:false,dongIdx:0,hoList:[],hoRows:[],hoDong:'',hoNm:'',hoAll:null,proxyOld:false};
 
 function setStatus(msg,cls){var el=document.getElementById('status');el.textContent=msg;el.className='status'+(cls?' '+cls:'');}
 function hidePick(){document.getElementById('pick').style.display='none';document.getElementById('pickList').innerHTML='';}
@@ -373,11 +373,16 @@ async function lookup(pnu,addr){
     var res=await Promise.all([
       callApi(bldUrl('getBrTitleInfo')),
       callApi(bldUrl('getBrFlrOulnInfo')),
-      callApi(bldUrl('getBrJijiguInfo')).catch(function(){return null;})
+      callApi(bldUrl('getBrJijiguInfo')).catch(function(){return null;}),
+      callApi(bldUrl('getBrAtchJibunInfo')).catch(function(){return null;})   // 부속지번(대장의 '관련지번')
     ]);
     STATE.titles=items(res[0]);
     STATE.flrs=items(res[1]);
     STATE.jijigu=res[2]?items(res[2]):[];
+    // 구판 프록시는 모르는 op를 층별개요로 바꿔 돌려준다 → 층 행(flrNo)이 오면 구판으로 보고 재배포 안내
+    var at=res[3]?items(res[3]):[];
+    STATE.atchOld=!!(PROXY_BASE&&at.length&&at[0].atchBun==null&&at[0].flrNo!=null);
+    STATE.atch=STATE.atchOld?[]:at;
 
     if(!STATE.titles.length&&!STATE.flrs.length)
       // 무엇으로 조회했는지 보여준다 — V-World가 다른 동네·다른 지번으로 잡았는지, 단지 대표지번이 아닌지 사용자가 바로 판단할 수 있게
@@ -616,7 +621,8 @@ function renderDong(){
   var addrParts=(txt(t.platPlc)||STATE.addr).trim();
   var jibun=(txt(t.bun)?String(Number(t.bun)):'')+(txt(t.ji)&&Number(t.ji)?('-'+Number(t.ji)):'');
   document.getElementById('tblInfo').innerHTML=
-    row2('대지위치',addrParts.replace(/\s*\d+(-\d+)?\s*$/,''),'지번',jibun||'-')+
+    row2('대지위치',addrParts.replace(/\s*\d+(-\d+)?\s*$/,''),'지번',(jibun||'-')+(atchList().length?' 외 '+atchList().length+'필지':''))+
+    '<tr><th class="lbl">지번 관련 주소</th><td class="l" colspan="3">'+esc(atchText())+'</td></tr>'+
     row2('용도지역',jj.join(', ')||'-','용도지구',jg.join(', ')||'-')+
     row2('구역',gy.join(', ')||'-','도로명주소',txt(t.newPlatPlc)||'-')+
     row2('대지면적(㎡)',n1(t.platArea),'연면적(㎡)',n1(t.totArea),true)+
@@ -638,6 +644,22 @@ function renderDong(){
     '<td colspan="2">비상용 '+(txt(t.emgenUseElvtCnt)||'0')+'대</td></tr>';
 
   renderFlr();
+}
+// 관련지번(부속지번) — 동마다 같은 지번이 반복돼 오므로 중복 제거. 다른 법정동이면 그 동 이름(atchEtcJibunNm 등)이 없어 코드로 표시
+function atchList(){
+  var bj=STATE.pnu.slice(5,10),seen={},out=[];
+  STATE.atch.forEach(function(x){
+    var b=Number(x.atchBun),j=Number(x.atchJi),v;
+    if(b){v=(String(x.atchPlatGbCd)==='1'?'산':'')+b+(j?'-'+j:'');
+      if(txt(x.atchBjdongCd)&&txt(x.atchBjdongCd)!==bj)v='(법정동 '+txt(x.atchBjdongCd)+') '+v;}
+    else v=txt(x.atchEtcJibunNm)||[txt(x.atchSplotNm),txt(x.atchBlock)&&txt(x.atchBlock)+'블록',txt(x.atchLot)&&txt(x.atchLot)+'로트'].filter(Boolean).join(' ');
+    if(v&&!seen[v]){seen[v]=1;out.push(v);}
+  });
+  return out;
+}
+function atchText(){
+  if(STATE.atchOld)return '프록시가 구버전이라 못 불러왔습니다 — 문서/클라우드플레어_프록시_설정.md 6번 「재배포」대로 새 코드를 올려주세요.';
+  var a=atchList();return a.length?a.join(', '):'없음';
 }
 function row2(l1,v1,l2,v2,num,hl){
   return '<tr><th class="lbl">'+l1+'</th><td class="'+(num?'num':'l')+(hl?' hl':'')+'">'+esc(v1||'-')+'</td>'+
