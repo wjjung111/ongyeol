@@ -86,6 +86,11 @@
   .relrow .rmsg{color:#64748b;}
   .relrow .rmsg.err{color:#b45309;font-weight:600;}
   .relrow .box{width:120px;padding:3px 7px;font-size:12px;}
+  .addloc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
+  .addloc .box{flex:0 1 380px;}
+  .addloc .pst{margin-top:0;flex:1 1 300px;}
+  td.calc input{color:#2563eb;}                 /* 자동 계산 값(직접 고치면 검정) */
+  tr.busy td{background:#fffbeb;}
 </style>
 </head>
 <body>
@@ -124,9 +129,16 @@
         <textarea id="pasteLand" placeholder="여기에 Ctrl+V — 붙이는 즉시 아래 표에 쌓이고 지도에 찍힙니다" onpaste="pasteLand(event)" onkeydown="if(event.key==='Enter')event.preventDefault()"></textarea>
         <div class="pst" id="msgLand">토지 행과 건물 행을 한꺼번에 붙여도 됩니다 — 같은 소재지·거래일·금액이면 한 사례로 합칩니다.</div>
       </div>
+      <!-- 소재지만 넣어 추가 — 토지특성(브이월드)·건축물대장(프록시)에서 채울 수 있는 칸은 자동으로 채운다 -->
+      <div class="addloc">
+        <input class="box" id="addLoc" placeholder="소재지로 추가 — 예) 여의도동 15-22 (쉼표·줄바꿈으로 여러 건)" onkeydown="if(event.key==='Enter'){event.preventDefault();addByLoc();}">
+        <button class="btn pri" onclick="addByLoc()">추가</button>
+        <span class="pst" id="msgAuto">용도지역·지목·토지면적·개별공시지가·건물면적·사용승인일은 자동으로 채웁니다. 거래금액·거래일자는 공개 자료에 지번이 가려져 있어 직접 넣거나 KAIS로 붙여 주세요.</span>
+      </div>
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
         <span style="font-size:12px;font-weight:700" id="cntLand">0건</span>
         <button class="btn" onclick="addRow('land')">+ 빈 행</button>
+        <button class="btn" onclick="autoFillAll()" title="표의 모든 토지 사례에서 비어 있는 칸만 토지특성·건축물대장으로 채웁니다(적어 둔 값은 안 건드림)">⚡ 빈칸 자동 채우기</button>
         <button class="btn dng" style="margin-left:auto" onclick="clearRows('land')">🗑 전체 지우기</button>
       </div>
       <div class="tw"><table id="tblLand"></table></div>
@@ -215,6 +227,7 @@ function restore(){
     var o=JSON.parse(localStorage.getItem(STORE)||'null');
     if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];DATA.baseShow=o.baseShow!==false;
       if(o.rel&&Array.isArray(o.rel.list))DATA.rel=o.rel;
+      DATA.land.forEach(function(r){delete r._busy;});   // 조회 중에 닫혔으면 표시만 남는다
       if(o._xy)DATA._xy=o._xy;}   // 본건 좌표도 되살린다(안 그러면 열 때마다 다시 조회)
   }catch(e){console.error('restore',e);}
   document.getElementById('baseLoc').value=DATA.base;
@@ -232,9 +245,20 @@ function showTab(name){
 // ── 표 ──
 // [머리, 키, 정렬클래스, 돈?] — 'num'은 오른쪽 정렬, 'wide'는 넓게·왼쪽.
 // 돈=1인 칸만 천단위 쉼표를 찍는다. 면적은 소수점이 있어 쉼표를 찍으면 반올림돼 버리므로 그대로 둔다.
+// 넷째 칸 'calc' = 자동 계산 칸(비어 있으면 계산값을 파란 글씨로 보여 주고, 직접 적으면 그 값 우선 — 지우면 다시 자동)
 var LAND_COLS=[['소재지','loc','wide'],['용도지역','use',''],['지목','jimok',''],
-  ['토지면적(㎡)','landA','num'],['건물면적(㎡)','bldA','num'],['사용승인일','appr',''],
-  ['거래금액(원)','total','num',1],['거래일자','date',''],['비고','memo','wide']];
+  ['토지면적(㎡)','landA','num'],['개별공시지가(원/㎡)','gongsi','num',1],['건물면적(㎡)','bldA','num'],['사용승인일','appr',''],
+  ['거래금액(원)','total','num',1],['거래일자','date',''],
+  ['건물금액(원)','bldAmt','num',1],['토지금액(원)','landAmt','num calc',1,'calc'],['토지단가(원/㎡)','landUnit','num calc',1,'calc'],
+  ['비고','memo','wide']];
+// 토지 배분 — 토지건물 앱 거래사례와 같은 규칙: 토지금액 = 거래금액 − 건물금액, 토지단가 = 토지금액 ÷ 토지면적(원 미만 절사)
+// 건물금액은 재조달원가·내용연수(평가사 판단)가 필요해 직접 넣는다. 건물이 없으면 거래금액이 곧 토지금액.
+function manualNum(v){return hasV(v)&&/[0-9]/.test(String(v));}
+function landCalc(r){
+  var la=manualNum(r.landAmt)?num(r.landAmt):(num(r.total)?num(r.total)-num(r.bldAmt):0);
+  var lu=manualNum(r.landUnit)?num(r.landUnit):(la>0&&num(r.landA)>0?Math.trunc(la/num(r.landA)):0);
+  return {landAmt:la,landUnit:lu};
+}
 var JIP_COLS=[['소재지','location','wide'],['지번','jibun',''],['건물명','aptName','wide'],
   ['동','dong',''],['층','floor',''],['호','ho',''],['전용면적(㎡)','exclusiveArea','num'],
   ['거래금액(원)','price','num',1],['단가(원/㎡)','unitPrice','num',1],['거래일자','tradeDate',''],['비고','memo','wide']];
@@ -252,18 +276,31 @@ function render(kind){
   var h='<tr><th style="width:34px">표시</th><th style="width:34px">#</th>'+
     cols.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th style="width:28px"></th></tr>';
   rows.forEach(function(r,i){
-    h+='<tr class="'+(r.show===false?'off':'')+'">';
+    var cal=kind==='land'?landCalc(r):null;
+    h+='<tr class="'+(r.show===false?'off':'')+(r._busy?' busy':'')+'"'+(r._busy?' title="자동 채우는 중…"':'')+'>';
     h+='<td><input type="checkbox" style="width:auto" '+(r.show===false?'':'checked')+' onchange="toggleShow(\''+kind+'\','+i+',this.checked)"></td>';
     h+='<td style="font-weight:700;color:#475569">'+(i+1)+'</td>';
     cols.forEach(function(c){
-      var v=r[c[1]];
+      var v=r[c[1]],auto=c[4]==='calc'&&!manualNum(v);
+      if(auto)v=cal[c[1]]||'';
       var shown=(c[3]&&v!=null&&v!=='')?won(num(v)):(v==null?'':v);
-      h+='<td class="'+c[2]+'"><input value="'+esc(shown)+'" oninput="editCell(\''+kind+'\','+i+',\''+c[1]+'\',this.value)"'+
-         ' onchange="cellDone(\''+kind+'\',\''+c[1]+'\')"></td>';
+      h+='<td class="'+(auto?c[2]:c[2].replace(' calc',''))+'"'+(c[4]?' data-k="'+c[1]+'"':'')+'><input value="'+esc(shown)+'" oninput="editCell(\''+kind+'\','+i+',\''+c[1]+'\',this.value)"'+
+         ' onchange="cellDone(\''+kind+'\',\''+c[1]+'\','+i+')"></td>';
     });
     h+='<td><span class="del" title="이 사례 삭제" onclick="delRow(\''+kind+'\','+i+')">✕</span></td></tr>';
   });
   tbl.innerHTML=h;
+}
+// 자동 계산 칸만 그 자리에서 고친다 — 표를 통째로 다시 그리면 Tab으로 옮겨 간 칸의 커서가 날아간다
+function refreshCalc(i){
+  var r=DATA.land[i],tr=document.querySelectorAll('#tblLand tr')[i+1];if(!r||!tr)return;
+  var cal=landCalc(r);
+  tr.querySelectorAll('td[data-k]').forEach(function(td){
+    var k=td.getAttribute('data-k'),auto=!manualNum(r[k]),inp=td.querySelector('input');
+    td.classList.toggle('calc',auto);
+    if(auto&&inp&&inp!==document.activeElement)inp.value=cal[k]?won(cal[k]):'';
+    else if(!auto&&inp&&inp!==document.activeElement)inp.value=won(num(r[k]));
+  });
 }
 function renderAll(){render('land');render('jip');}
 
@@ -274,7 +311,13 @@ function editCell(kind,i,key,val){
   r[key]=val;saveAll();
 }
 function isLocKey(kind,key){return kind==='land'?key==='loc':(key==='location'||key==='jibun');}
-function cellDone(kind,key){if(isLocKey(kind,key)){renderPick();redraw(false);}}
+function cellDone(kind,key,i){
+  if(kind==='land'&&/^(total|bldAmt|landA|landAmt|landUnit)$/.test(key))refreshCalc(i);   // 토지금액·단가 다시 계산
+  if(isLocKey(kind,key)){
+    renderPick();redraw(false);
+    if(kind==='land'&&rowsOf('land')[i])autoFill(rowsOf('land')[i]).then(function(){render('land');});   // 새 소재지면 빈칸 채움
+  }
+}
 function toggleShow(kind,i,on){var r=rowsOf(kind)[i];if(!r)return;r.show=!!on;saveAll();refresh();}
 function addRow(kind){rowsOf(kind).push({show:true});saveAll();render(kind);}
 
@@ -377,6 +420,98 @@ function pasteJip(e){
   msg.className='pst ok';msg.textContent='✅ '+res.out.length+'건 추가 — 지도에 찍는 중…';
 }
 
+// ── 소재지만으로 사례 추가 + 빈칸 자동 채우기 ──
+// 소재지 → 브이월드 주소검색(PNU) → ① 토지특성(용도지역·지목·면적·개별공시지가, 최신 연도) ② 건축물대장 표제부(연면적 합·사용승인일).
+// 비어 있는 칸만 채운다 — KAIS로 붙인 값이나 직접 적은 값은 건드리지 않는다.
+// 거래금액·거래일자는 국토부 공개 실거래 자료가 지번을 가려(예 15-**) 특정 필지와 맞출 수 없어 자동으로 못 채운다.
+function vjsonp(u){return new Promise(function(res,rej){
+  var cb='__p9cb'+Math.floor(Math.random()*1e9),sc=document.createElement('script'),done=false;
+  function cl(){try{delete window[cb];}catch(e){window[cb]=undefined;}if(sc.parentNode)sc.parentNode.removeChild(sc);}
+  window[cb]=function(d){done=true;cl();res(d);};
+  sc.onerror=function(){if(!done){cl();rej(new Error('JSONP 실패'));}};
+  setTimeout(function(){if(!done){cl();rej(new Error('시간 초과'));}},10000);
+  sc.src=u+'&callback='+cb;document.head.appendChild(sc);});}
+function vget(u){return fetch(u).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(function(){return vjsonp(u);});}
+function latestOf(fields){var b=null;fields.forEach(function(f){
+  if(!b||(f.stdrYear||'')>(b.stdrYear||'')||((f.stdrYear||'')===(b.stdrYear||'')&&(f.lastUpdtDt||'')>(b.lastUpdtDt||'')))b=f;});return b;}
+function areaStr(v){var n=Number(v);return (v===''||v==null||isNaN(n))?'':String(Number(n.toFixed(4)));}
+function ymdDot(v){var m=String(v||'').match(/(\d{4})\D?(\d{2})\D?(\d{2})/);return m?(m[1]+'.'+m[2]+'.'+m[3]):'';}
+async function lookupLand(loc){
+  var region=ArapMap.sggOfAddr(baseVal()),q=ArapMap.query(loc,region);
+  var g=await ArapMap.geocode(q,VKEY);
+  if((!g||!g.pnu)&&q!==loc)g=await ArapMap.geocode(loc,VKEY);
+  if(!g||!/^\d{19}$/.test(g.pnu||''))throw new Error('주소를 찾지 못함');
+  var out={},got=[];
+  try{
+    var d=await vget('https://api.vworld.kr/ned/data/getLandCharacteristics?key='+VKEY+'&domain='+encodeURIComponent(location.origin)+
+      '&pnu='+g.pnu+'&format=json&numOfRows=100&pageNo=1');
+    var c=latestOf((d&&d.landCharacteristicss&&d.landCharacteristicss.field)||[]);
+    if(c){
+      out.jimok=c.lndcgrCodeNm||'';out.landA=areaStr(c.lndpclAr);out.gongsi=c.pblntfPclnd?String(c.pblntfPclnd):'';out.gongsiYear=c.stdrYear||'';
+      var u2=c.prposArea2Nm&&c.prposArea2Nm!=='지정되지않음'?c.prposArea2Nm:'';
+      out.use=[c.prposArea1Nm||'',u2].filter(Boolean).join(', ');
+      got.push('토지특성');
+    }
+  }catch(e){console.error('토지특성',loc,e);}
+  try{
+    var t=await fetch(PROXY+'/bld?op=getBrTitleInfo&numOfRows=100&pnu='+g.pnu).then(function(r){return r.json();});
+    var it=t&&t.response&&t.response.body&&t.response.body.items&&t.response.body.items.item;
+    var rows=it?(Array.isArray(it)?it:[it]):[];
+    if(rows.length){
+      var main=rows.filter(function(x){return !/부속/.test(String(x.mainAtchGbCdNm||''));});
+      var tot=rows.reduce(function(a,x){return a+(Number(x.totArea)||0);},0);
+      if(tot)out.bldA=areaStr(tot);
+      var ap=(main.length?main:rows).map(function(x){return ymdDot(x.useAprDay);}).filter(Boolean).sort()[0];
+      if(ap)out.appr=ap;
+      got.push('건축물대장');
+    }
+  }catch(e){console.error('건축물대장',loc,e);}
+  out._got=got;return out;
+}
+var AUTO_KEYS=['use','jimok','landA','gongsi','bldA','appr'];
+async function autoFill(r){
+  if(!r||!hasV(r.loc))return [];
+  r._busy=true;render('land');
+  var filled=[];
+  try{
+    var d=await lookupLand(r.loc);
+    AUTO_KEYS.forEach(function(k){if(!hasV(r[k])&&hasV(d[k])){r[k]=d[k];filled.push(k);}});
+    if(d.gongsiYear&&filled.indexOf('gongsi')>=0)r.gongsiYear=d.gongsiYear;
+    r._autoMsg=filled.length?'':(d._got.length?'채울 빈칸 없음':'조회 결과 없음');
+  }catch(e){r._autoMsg=e.message||'조회 실패';}
+  delete r._busy;saveAll();
+  return filled;
+}
+var AUTO_NAME={use:'용도지역',jimok:'지목',landA:'토지면적',gongsi:'공시지가',bldA:'건물면적',appr:'사용승인일'};
+function autoMsg(text,cls){var m=document.getElementById('msgAuto');if(m){m.className='pst'+(cls?' '+cls:'');m.textContent=text;}}
+async function autoFillRows(list){
+  var n=0,fail=[];
+  for(var k=0;k<list.length;k++){
+    autoMsg('⏳ '+(k+1)+'/'+list.length+' '+shortLoc(list[k].loc)+' 조회 중…');
+    var f=await autoFill(list[k]);if(f.length)n++;else if(list[k]._autoMsg&&list[k]._autoMsg!=='채울 빈칸 없음')fail.push(list[k].loc+'('+list[k]._autoMsg+')');
+    render('land');
+  }
+  autoMsg((fail.length?'⚠️ ':'✅ ')+list.length+'건 중 '+n+'건 빈칸 채움'+(fail.length?' — 못 찾음: '+fail.join(', '):'')+' · 거래금액·거래일자·건물금액은 직접 넣으세요.',fail.length?'err':'ok');
+}
+function addByLoc(){
+  var el=document.getElementById('addLoc'),txt=String(el.value||'').trim();if(!txt)return;
+  // '여의도동 15-22, 15-23' → 앞 지번의 동 이름을 뒤 지번에 이어 붙인다
+  var pre='',list=[];
+  txt.split(/[,，\n]+/).map(function(t){return t.trim();}).filter(Boolean).forEach(function(t){
+    var p=addrPrefix(t);
+    if(p)pre=p;else if(pre&&/^(?:산\s*)?\d+(?:-\d+)?(?:번지)?$/.test(t))t=pre+' '+t;
+    t=t.replace(/번지$/,'');
+    var r={loc:t,show:true};DATA.land.push(r);list.push(r);
+  });
+  el.value='';saveAll();refresh();
+  autoFillRows(list).then(function(){refresh();});
+}
+function autoFillAll(){
+  var list=DATA.land.filter(function(r){return hasV(r.loc);});
+  if(!list.length){autoMsg('소재지가 있는 토지 사례가 없습니다.','err');return;}
+  autoFillRows(list).then(function(){refresh();});
+}
+
 // ── 지도 ──
 var MAPV=ArapMap.create({
   box:'mapBox',status:'mapStatus',miss:'mapMiss',
@@ -392,6 +527,8 @@ function landInfo(r){
   if(hasV(r.date))p.push(r.date);
   if(num(r.total))p.push(won(num(r.total))+'원');
   if(num(r.landA))p.push('토지 '+r.landA+'㎡');
+  var lu=landCalc(r).landUnit;if(lu)p.push('토지단가 @'+won(lu));
+  if(num(r.gongsi))p.push('공시 @'+won(num(r.gongsi)));
   return p.join(' · ');
 }
 function jipInfo(r){
