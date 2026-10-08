@@ -338,6 +338,14 @@
   /* 「건물만」 평가 — 토지 계산 화면(2. 토지평가·토지 단가/평가액)을 숨긴다 */
   body.bld-mode .land-calc{display:none!important;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
+  /* 위치도 말풍선 설정 줄 */
+  .maplab{border:1px solid #e2e5ea;border-radius:6px;background:#f8fafc;padding:6px 9px;margin-bottom:8px;font-size:12px;}
+  .maplab .mlrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0;}
+  .maplab .mlk{font-weight:700;color:#334155;min-width:70px;}
+  .maplab label{cursor:pointer;white-space:nowrap;}
+  .maplab label input{width:auto;vertical-align:-2px;margin-right:2px;}
+  .maplab .mloff{cursor:pointer;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:1px 8px;}
+  .maplab .mloff:hover{border-color:#2563eb;color:#2563eb;}
 </style>
 </head>
 <body>
@@ -727,6 +735,8 @@
           <button class="btn gh sm" onclick="mapCheckKinds(true)">모두 체크</button>
           <button class="btn gh sm" onclick="mapCheckKinds(false)">모두 체크해제</button>
         </div>
+        <!-- 말풍선 — 거래사례 위치도와 같은 방식: 「이름 / 동-지번 / 고른 칸」. 칸 선택은 이 브라우저에 기억, 끈 말풍선은 건과 함께 저장 -->
+        <div id="mapLabPanel" class="maplab"></div>
         <!-- 지도 높이: 화면이 큰 모니터에선 세로로 더 길게(85vh), 노트북처럼 낮은 화면에서도 최소 760px -->
         <div id="mapBox" style="height:max(760px,85vh);border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5"></div>
         <div id="mapStatus" class="status" style="margin-top:7px">위치도 탭을 열면 주소를 조회합니다.</div>
@@ -4045,6 +4055,64 @@ function mapView(){
 function mapUnit(u,label){return u?(label+' '+won(u)+'원/㎡'):'';}
 function mapDate(v,label){return hasV(v)?(label+' '+String(v).trim()):'';}
 function mapInfo(parts){return parts.filter(function(s){return hasV(s);}).join(' · ');}
+// ── 말풍선 ── 첫 줄 이름(표준지 A·거래 #1·평가 1), 둘째 줄 동-지번, 그 아래 고른 칸(표 순서). 본건은 종전처럼 이름표만.
+// 칸 선택 = localStorage 'arap-toji-maplab'(평가사 취향 — 건마다 다르지 않음), 끈 말풍선 = 각 항목의 labOff(건과 함께 저장).
+var MAPLAB_KEY='arap-toji-maplab';
+var MAPLAB_FIELDS={
+  '비교표준지':[['용도지역','use'],['지목','jimok'],['면적','area'],['이용상황','cond'],['도로교통','road'],['형상','shape'],['공시지가','gongsi'],['공시기준일','gday']],
+  '거래사례':[['용도지역','use'],['지목','jimok'],['토지면적','landA'],['거래금액','total'],['거래시점','date'],['토지단가','landUnit']],
+  '평가사례':[['평가목적','purp'],['용도지역','use'],['지목','jimok'],['이용상황','cond'],['기준시점','base'],['사례단가','unit']]
+};
+var MAPLAB_DEFAULT={'비교표준지':['use','cond','gongsi'],'거래사례':['use','jimok','date','landUnit'],'평가사례':['purp','base','unit']};
+function mapLabSel(kind){
+  var o=null;try{o=JSON.parse(localStorage.getItem(MAPLAB_KEY)||'null');}catch(e){}
+  return (o&&Array.isArray(o[kind]))?o[kind]:MAPLAB_DEFAULT[kind];
+}
+function mapLabSet(kind,key,on){
+  var o={};try{o=JSON.parse(localStorage.getItem(MAPLAB_KEY)||'{}')||{};}catch(e){}
+  var c=mapLabSel(kind).slice(),k=c.indexOf(key);
+  if(on&&k<0)c.push(key);if(!on&&k>=0)c.splice(k,1);
+  o[kind]=c;try{localStorage.setItem(MAPLAB_KEY,JSON.stringify(o));}catch(e){console.error('maplab',e);}
+  mapRestyle();
+}
+// '서울특별시 영등포구 여의도동 15-22' → '여의도동 15-22'
+function mapDongJibun(loc){var t=String(loc||'').trim(),m=t.match(/^(.*?[동읍면리가])\s+((?:산\s*)?\d.*)$/);return m?(m[1].split(/\s+/).pop()+' '+m[2]):t;}
+// 값 → 말풍선 한 줄(단위 붙임). 값이 없으면 ''(그 줄 생략)
+function mapLabVal(key,v){
+  if(!hasV(v))return '';
+  if(key==='gongsi'||key==='landUnit'||key==='unit'){var n=num(v);return n?won(n)+' 원/㎡':'';}
+  if(key==='total'){var t=num(v);return t?won(t)+' 원':'';}
+  if(key==='area'||key==='landA')return String(v).trim()+' ㎡';
+  return String(v).trim();
+}
+function mapBubble(kind,o,loc,vals){
+  var lines=[mapDongJibun(loc)];
+  MAPLAB_FIELDS[kind].forEach(function(f){if(mapLabSel(kind).indexOf(f[1])>=0){var t=mapLabVal(f[1],vals[f[1]]);if(t)lines.push(t);}});
+  return {lines:lines,labelHidden:!!o.labOff,onCloseLabel:function(){o.labOff=true;saveForm();mapRestyle();}};
+}
+function mapRestyle(){if(MAPV){MAPV.restyle(mapItems());renderMapLab();}}
+function mapAllBubbles(on){
+  STDS.concat(TRADES,APPRS).forEach(function(o){if(o)o.labOff=!on;});
+  saveForm();mapRestyle();
+}
+function mapBubbleOn(kind,i){var o=(kind==='비교표준지'?STDS:kind==='거래사례'?TRADES:APPRS)[i];if(!o)return;o.labOff=false;saveForm();mapRestyle();}
+function renderMapLab(){
+  var el=document.getElementById('mapLabPanel');if(!el)return;
+  var h='<div class="mlrow"><b>💬 말풍선</b><button class="btn gh sm" onclick="mapAllBubbles(true)">모두 켜기</button><button class="btn gh sm" onclick="mapAllBubbles(false)">모두 끄기</button>';
+  var off=[];
+  [['비교표준지',STDS,function(i){return '표준지 '+(STD_TAG[i]||(i+1));}],['거래사례',TRADES,function(i){return '거래 #'+(i+1);}],['평가사례',APPRS,function(i,a){return '평가 '+(a.no||(i+1));}]].forEach(function(t){
+    t[1].forEach(function(o,i){if(o&&o.labOff)off.push('<span class="mloff" title="눌러서 이 말풍선 켜기" onclick="mapBubbleOn(\''+t[0]+'\','+i+')">💬 '+esc(t[2](i,o))+'</span>');});
+  });
+  if(off.length)h+='<span style="color:#64748b;font-weight:400">끈 말풍선(눌러서 켜기):</span>'+off.join('');
+  h+='</div>';
+  Object.keys(MAPLAB_FIELDS).forEach(function(kind){
+    var sel=mapLabSel(kind);
+    h+='<div class="mlrow"><span class="mlk">'+kind+'</span>'+MAPLAB_FIELDS[kind].map(function(f){
+      return '<label><input type="checkbox" '+(sel.indexOf(f[1])>=0?'checked':'')+' onchange="mapLabSet(\''+kind+'\',\''+f[1]+'\',this.checked)">'+f[0]+'</label>';
+    }).join('')+'</div>';
+  });
+  el.innerHTML=h;
+}
 function mapItems(){
   var region=subjectSgg(),out=[];
   var gs=window.GONGSI_RESULT||{},gijun=cgVal('base_gijun'),gongsiDay=cgVal('base_gongsi');
@@ -4060,24 +4128,27 @@ function mapItems(){
     var loc=((S['소재지']||'')+' '+(S['지번']||'')).trim();
     // 본건이 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)은 본건·채택 사례처럼 안쪽을 옅게 칠한다
     var picked=LANDS.some(function(L){return Math.min(L.stdIdx||0,STDS.length-1)===i;});
-    if(loc)out.push({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region,poly:true,
+    if(loc)out.push(Object.assign({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region,poly:true,
       pick:picked,
-      info:mapInfo([mapUnit(num(S['공시지가']),'공시지가'),mapDate(gongsiDay,'공시기준일')])});
+      info:mapInfo([mapUnit(num(S['공시지가']),'공시지가'),mapDate(gongsiDay,'공시기준일')])},
+      mapBubble('비교표준지',S,loc,{use:S['용도지역'],jimok:S['지목'],area:S['면적'],cond:S['이용상황'],road:S['도로교통'],shape:S['형상'],gongsi:S['공시지가'],gday:gongsiDay})));
   });
   TRADES.forEach(function(c,i){
     var cal=tradeCalc(c);
-    if(hasV(c.loc))out.push({o:c,kind:'거래사례',label:'거래 #'+(i+1),color:'#16a34a',loc:c.loc,region:region,poly:true,
+    if(hasV(c.loc))out.push(Object.assign({o:c,kind:'거래사례',label:'거래 #'+(i+1),color:'#16a34a',loc:c.loc,region:region,poly:true,
       pick:(ETC.type==='t'&&ETC.idx===i)||GA.idx===i,
-      info:mapInfo([mapUnit(cal.landUnit,'토지단가'),mapDate(c.date,'거래시점')])});
+      info:mapInfo([mapUnit(cal.landUnit,'토지단가'),mapDate(c.date,'거래시점')])},
+      mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})));
   });
   APPRS.forEach(function(a,i){
-    if(hasV(a.loc))out.push({o:a,kind:'평가사례',label:'평가 '+(a.no||(i+1)),color:'#ea580c',loc:a.loc,region:region,poly:true,
+    if(hasV(a.loc))out.push(Object.assign({o:a,kind:'평가사례',label:'평가 '+(a.no||(i+1)),color:'#ea580c',loc:a.loc,region:region,poly:true,
       pick:ETC.type==='a'&&ETC.idx===i,
-      info:mapInfo([mapUnit(leadNum(a.unit),'사례단가'),mapDate(a.base,'기준시점')])});
+      info:mapInfo([mapUnit(leadNum(a.unit),'사례단가'),mapDate(a.base,'기준시점')])},
+      mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,base:a.base,unit:leadNum(a.unit)})));
   });
   return out;
 }
-function mapOpen(){return mapView().open(mapItems());}
+function mapOpen(){renderMapLab();return mapView().open(mapItems());}
 function mapRefresh(force){return mapView().open(mapItems(),force);}   // force=true면 저장된 좌표를 버리고 주소로 다시 찾는다
 function mapSetBase(){mapView().setBase();}
 function mapToggleOverlay(){mapView().toggleOverlay();}

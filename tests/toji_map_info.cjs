@@ -70,7 +70,8 @@ function fakeData(pnu){
   for(let i=0;i<n;i++){
     await page.evaluate(()=>{try{mapView().leaflet().closePopup();}catch(e){}});
     await page.waitForTimeout(250);
-    const name=(await labels.nth(i).innerText()).trim();
+    const b=labels.nth(i).locator('b');   // 말풍선이면 첫 줄(굵게)이 이름
+    const name=((await b.count())?await b.innerText():await labels.nth(i).innerText()).trim();
     await labels.nth(i).click({force:true});   // 실제 누름-뗌 (이름표는 mouseup 때 설명창을 연다)
     await page.waitForFunction(t=>{const p=document.querySelector('.leaflet-popup-content');return !!p&&p.innerText.trim().indexOf(t)===0;},name,{timeout:5000});
     popups.push((await page.locator('.leaflet-popup-content').first().innerText()).replace(/\n/g,' | '));
@@ -80,6 +81,28 @@ function fakeData(pnu){
   assert.ok(popups.some(t=>t.includes('적용단가 3,500,000원/㎡')&&t.includes('기준시점 2026.01.01')),'본건 설명창');
   assert.ok(popups.some(t=>t.includes('공시지가 3,500,000원/㎡')),'표준지 설명창');
   assert.ok(popups.some(t=>t.includes('사례단가 4,100,000원/㎡')),'평가사례 설명창');
+
+  // 말풍선(거래사례 위치도와 같은 방식): 표준지·거래·평가는 「이름 / 동-지번 / 고른 칸」, 본건은 이름표만
+  const bubs=await page.$$eval('#mapBox .lab.bub',a=>a.map(x=>[...x.querySelectorAll('b,.ln')].map(y=>y.textContent)));
+  console.log('말풍선',JSON.stringify(bubs));
+  assert.equal(bubs.length,3,'표준지·거래·평가 3개');
+  assert.ok(bubs.some(l=>l[0].startsWith('거래')&&l.includes('9,599,393 원/㎡')&&l.includes('2025.03.30')),'거래 말풍선');
+  assert.ok(bubs.some(l=>l[0].startsWith('표준지')&&l.includes('3,500,000 원/㎡')),'표준지 말풍선');
+  // 칸 끄기 → 내용에서 빠짐, ✕ → 그 말풍선만 꺼지고 「끈 말풍선」에서 다시 켬
+  await page.locator('#mapLabPanel .mlrow',{hasText:'거래사례'}).locator('label',{hasText:'거래시점'}).locator('input').uncheck();
+  await page.waitForTimeout(200);
+  assert.ok(!(await page.$$eval('#mapBox .lab.bub',a=>a.map(x=>x.textContent).join('|'))).includes('2025.03.30'),'거래시점 칸 끔');
+  await page.evaluate(()=>{const lx=[...document.querySelectorAll('#mapBox .lab.bub')].find(x=>x.textContent.startsWith('✕거래')||/거래/.test(x.querySelector('b').textContent)).querySelector('.lx');lx.click();});
+  await page.waitForTimeout(200);
+  assert.equal(await page.$$eval('#mapBox .lab.bub',a=>a.length),2,'✕로 하나 끔');
+  assert.equal(await page.evaluate(()=>TRADES[0].labOff),true);
+  await page.click('#mapLabPanel .mloff');await page.waitForTimeout(200);
+  assert.equal(await page.$$eval('#mapBox .lab.bub',a=>a.length),3,'다시 켬');
+  await page.click('#mapLabPanel button:has-text("모두 끄기")');await page.waitForTimeout(200);
+  assert.equal(await page.$$eval('#mapBox .lab.bub',a=>a.length),0);
+  await page.click('#mapLabPanel button:has-text("모두 켜기")');await page.waitForTimeout(200);
+  assert.equal(await page.$$eval('#mapBox .lab.bub',a=>a.length),3);
+  await page.evaluate(()=>{try{localStorage.removeItem('arap-toji-maplab');}catch(e){}});
 
   // ⑤ 필지 채우기는 선정된 것(본건·채택 사례)에만, 나머지는 테두리만 — 그래도 안쪽 클릭은 먹는다
   const fills=await page.evaluate(()=>[...document.querySelectorAll('#mapBox path.leaflet-interactive')].map(p=>({
