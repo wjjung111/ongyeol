@@ -31,6 +31,10 @@
        loc    : 소재지 문자열
        region : 시·군·구가 없을 때 앞에 붙일 지역(본건 시군구) — 없으면 ''
        pick   : true면 굵게 강조 + 필지 안쪽을 옅게 칠한다(안 주면 테두리만)
+       lines  : (선택) 말풍선 줄 목록 — 주면 이름표가 「label(굵게) + 줄마다 한 줄」 말풍선이 된다
+       labelHidden : (선택) true면 이름표·화살표를 그리지 않는다(필지·점은 그대로)
+       onCloseLabel : (선택) 말풍선 오른쪽 위 ✕를 누를 때 부를 함수(it) — 숨김 저장은 호출한 쪽이
+    M.restyle(items)             // 좌표는 그대로 두고 이름표만 새로 그린다(화면 위치 유지 — 말풍선 켜기/끄기·내용 변경용)
 
   좌표는 `o._xy = {x:경도, y:위도, addr, q:조회에 쓴 질의문, manual:직접 옮김}`.
   `_xy.q`가 지금 만든 질의문과 같으면 다시 조회하지 않는다(통신 아낌 + 직접 옮긴 핀 보존).
@@ -62,6 +66,13 @@ var CSS=[
 // z-index로 이름표를 화살표 위에 올린다 — 안 그러면 선이 글자를 가로지른다
 '.mkr.par .lab{transform:translate(-50%,-50%);border:1.5px solid currentColor;background:#fff;padding:2px 7px;font-size:12px;z-index:2;}',
 '.mkr.par.pick .lab{background:#0f172a;color:#fff;border-color:#0f172a;}',
+// 말풍선(lines가 있는 이름표) — 첫 줄 굵게, 다음 줄부터 내용. ✕는 그 말풍선만 끈다
+'.mkr .lab.bub{white-space:nowrap;text-align:left;line-height:1.35;padding:3px 9px 4px 8px;font-weight:600;color:#0f172a;}',
+'.mkr .lab.bub{border:1.5px solid;}',
+'.mkr .lab.bub b{display:block;font-weight:800;padding-right:14px;}',
+'.mkr .lab.bub .ln{display:block;font-weight:500;font-size:11.5px;}',
+'.mkr .lab .lx{position:absolute;right:1px;top:0;padding:0 4px;font-size:11px;font-weight:700;color:#94a3b8;cursor:pointer;}',
+'.mkr .lab .lx:hover{color:#dc2626;}',
 '.arap-lgd{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;}'
 ].join('\n');
 
@@ -369,6 +380,7 @@ function create(opt){
       away=Math.min(tx,ty)+30;           // 필지 테두리에서 30px 떨어뜨린다
     }
     away=it.labelGroup?Math.max(44,away):Math.max(44,Math.min(away,150));  // 너무 붙지도, 화면 밖으로 날아가지도 않게
+    if(it.lines&&it.lines.length)away+=14+it.lines.length*8;              // 말풍선은 크니 그만큼 더 뺀다
     return [Math.round(d[0]*away),Math.round(d[1]*away)];
   }
   function labelOffset(it,n,poly){
@@ -415,17 +427,34 @@ function create(opt){
       '<polygon points="'+[tx+','+ty,(bx+px)+','+(by+py),(bx-px)+','+(by-py)].join(' ')+
       '" fill="'+color+'" stroke="#fff" stroke-width="1"/></svg>';
   }
+  // 이름표 속 — lines가 있으면 말풍선. ✕(data-lx)는 지도 상자에 건 위임 처리기가 받는다(끌기·설명창보다 먼저)
+  var lxReg={},lxN=0;
+  function labClass(it){return 'lab'+(it.lines?' bub':'');}
+  function labBorder(it){return it.lines?'border-color:'+it.color+';':'';}   // 말풍선 테두리 = 사례 색
+  function labInner(it){
+    if(!it.lines)return esc(it.label);
+    var x='';
+    if(it.onCloseLabel){if(!it._lx)it._lx=++lxN;lxReg[it._lx]=it;x='<span class="lx" data-lx="'+it._lx+'" title="이 말풍선 끄기">✕</span>';}
+    return x+'<b>'+esc(it.label)+'</b>'+it.lines.map(function(l){return '<span class="ln">'+esc(l)+'</span>';}).join('');
+  }
+  function onLx(e){
+    var t=e.target&&e.target.closest&&e.target.closest('[data-lx]');if(!t)return;
+    e.preventDefault();e.stopPropagation();
+    if(e.type!=='click')return;   // 누르는 순간(끌기 시작)은 막기만 하고 실제 끄기는 click 한 번에
+    var it=lxReg[t.getAttribute('data-lx')];if(it&&it.onCloseLabel)it.onCloseLabel(it);
+  }
   function dotHtml(it){
     return '<div class="mkr'+(it.pick?' pick':'')+'"><div class="dot" style="background:'+it.color+'"></div>'+
-           '<div class="lab">'+esc(it.label)+'</div></div>';
+           (it.labelHidden?'':'<div class="'+labClass(it)+'" style="'+labBorder(it)+'">'+labInner(it)+'</div>')+'</div>';
   }
   function dotIcon(it){
     return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html:dotHtml(it)});
   }
   var LAB_TIP='끌어서 이름표만 옮깁니다(필지와 화살촉은 그대로). 두 번 누르면 제자리로.';
   function parcelHtml(it,dx,dy,tip){
+    if(it.labelHidden)return '<div class="mkr par"></div>';
     return '<div class="mkr par'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color,tip)+
-           '<div class="lab" title="'+esc(it.boundaryLeader?'끌어서 이름표를 옮깁니다(화살촉은 필지 경계). 두 번 누르면 제자리로.':LAB_TIP)+'" style="left:'+dx+'px;top:'+dy+'px">'+esc(it.label)+'</div></div>';
+           '<div class="'+labClass(it)+'" title="'+esc(it.boundaryLeader?'끌어서 이름표를 옮깁니다(화살촉은 필지 경계). 두 번 누르면 제자리로.':LAB_TIP)+'" style="'+labBorder(it)+'left:'+dx+'px;top:'+dy+'px">'+labInner(it)+'</div></div>';
   }
   function parcelIcon(it,n,poly){
     var o=labelOffset(it,n,poly),dx=o[0],dy=o[1];
@@ -722,6 +751,7 @@ function create(opt){
         applyBase();   // 처음 띄울 때는 사용자 선택으로 치지 않는다(브이월드가 막히면 OSM 자동 대체 허용)
         L.control.scale({imperial:false}).addTo(map);
         map.on('zoomend',relabel);   // 확대·축소에 맞춰 이름표를 필지 바깥으로 다시 민다
+        ['mousedown','touchstart','click','dblclick'].forEach(function(t){map.getContainer().addEventListener(t,onLx,true);});
       }
       map.invalidateSize();
       if(kakaoOn())kmap.relayout();   // 숨은 탭에서 열렸으면 카카오도 크기를 다시 잡는다
@@ -729,8 +759,20 @@ function create(opt){
     }).catch(function(e){status(e.message,true);});
   }
 
+  // 좌표를 다시 조회하지 않고 이름표만 다시 그린다 — 새로 생긴(좌표 없는) 항목이 있으면 평소처럼 refresh
+  function restyle(list){
+    if(!window.L||!map)return Promise.resolve();
+    var next=(list||[]).filter(function(it){return it&&String(it.loc||'').trim();}),need=false;
+    next.forEach(function(it){
+      var c=it.o&&it.o._xy;
+      if(c&&isFinite(c.x)&&isFinite(c.y)&&c.q===query(it.loc,it.region)&&(!it.poly||c.geom||c.geomTried))it.xy=c;else need=true;
+    });
+    if(need)return refresh(next,false);
+    items=next;draw(true);return Promise.resolve();
+  }
+
   return {
-    open:open, refresh:refresh, setBase:setBase, toggleOverlay:toggleOverlay, setVisible:setVisible,
+    open:open, refresh:refresh, restyle:restyle, setBase:setBase, toggleOverlay:toggleOverlay, setVisible:setVisible,
     status:status, items:function(){return items;},
     leaflet:function(){return map;}, markers:function(){return markers;}, kakao:function(){return kmap;}
   };

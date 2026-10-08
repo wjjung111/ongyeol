@@ -76,6 +76,10 @@
   .chip .loc{font-weight:400;color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .chip .x{cursor:pointer;color:#dc2626;font-weight:700;padding:0 6px;border-radius:50%;}
   .chip .x:hover{background:#fee2e2;}
+  .chip .bub{cursor:pointer;font-size:11px;padding:0 3px;border-radius:8px;user-select:none;}
+  .chip .bub.off{filter:grayscale(1);opacity:.35;}
+  th .labck{width:auto;margin:0 3px 0 0;vertical-align:-2px;cursor:pointer;}
+  th label{cursor:pointer;}
   .chip input{cursor:pointer;margin:0;}
   .dotc{display:inline-block;width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
   .chips .none{color:#94a3b8;font-size:12px;padding:2px 0;}
@@ -180,7 +184,7 @@
       <span><i class="arap-lgd" style="background:#dc2626"></i>본건</span>
       <span><i class="arap-lgd" style="background:#16a34a"></i>토지 거래사례</span>
       <span><i class="arap-lgd" style="background:#7c3aed"></i>집합건물 거래사례</span>
-      <span style="color:#626b78;font-weight:400">토지는 <b>필지 테두리</b>로(속은 비워 둡니다 — 본건만 옅게 칠함), 집합건물은 점으로 표시합니다(집건 필지는 단지 전체라 너무 커짐). <b>이름표를 끌면 이름표만</b> 움직입니다 — 화살촉과 필지는 제자리(두 번 누르면 원위치). 집합건물 점은 끌면 그 자리로 위치가 고쳐집니다. 표의 <b>표시</b> 체크를 끄면 지도에서 빠집니다.</span>
+      <span style="color:#626b78;font-weight:400">토지는 <b>필지 테두리</b>로(속은 비워 둡니다 — 본건만 옅게 칠함), 집합건물은 점으로 표시합니다(집건 필지는 단지 전체라 너무 커짐). <b>이름표를 끌면 이름표만</b> 움직입니다 — 화살촉과 필지는 제자리(두 번 누르면 원위치). 집합건물 점은 끌면 그 자리로 위치가 고쳐집니다. 표의 <b>표시</b> 체크를 끄면 지도에서 빠집니다. <b>말풍선</b>에 나올 칸은 표 머리글의 체크로 고르고, 말풍선 ✕로 끄고 사례 칩의 💬로 다시 켭니다.</span>
     </div>
     <!-- 지도 바로 위 — 체크한 것만 지도에 뜨고, ✕로 그 사례를 지운다(표와 같은 데이터) -->
     <div class="pickpanel">
@@ -190,6 +194,8 @@
         <span id="pickMsg" style="font-weight:600;color:#166534"></span>
         <button class="btn sm" onclick="showAllPins(true)">모두 켜기</button>
         <button class="btn sm" onclick="showAllPins(false)">모두 끄기</button>
+        <button class="btn sm" onclick="setAllBubbles(true)" title="모든 사례의 말풍선을 켭니다">💬 말풍선 모두 켜기</button>
+        <button class="btn sm" onclick="setAllBubbles(false)" title="모든 사례의 말풍선을 끕니다(필지 테두리·점은 그대로)">말풍선 모두 끄기</button>
         <button class="btn sm" id="btnUndo" style="display:none" onclick="undoLast()">↩ 되돌리기</button>
       </div>
       <div class="chips" id="pickChips"></div>
@@ -227,6 +233,7 @@ function restore(){
     var o=JSON.parse(localStorage.getItem(STORE)||'null');
     if(o){DATA.base=o.base||'';DATA.land=o.land||[];DATA.jip=o.jip||[];DATA.baseShow=o.baseShow!==false;
       if(o.rel&&Array.isArray(o.rel.list))DATA.rel=o.rel;
+      if(o.labCols)DATA.labCols=o.labCols;   // 말풍선에 넣을 칸
       DATA.land.forEach(function(r){delete r._busy;});   // 조회 중에 닫혔으면 표시만 남는다
       if(o._xy)DATA._xy=o._xy;}   // 본건 좌표도 되살린다(안 그러면 열 때마다 다시 조회)
   }catch(e){console.error('restore',e);}
@@ -274,7 +281,12 @@ function render(kind){
     return;
   }
   var h='<tr><th style="width:34px">표시</th><th style="width:34px">#</th>'+
-    cols.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th style="width:28px"></th></tr>';
+    cols.map(function(c){
+      if(c[1]==='loc'||c[1]==='location')return '<th>'+c[0]+'</th>';   // 소재지는 말풍선 둘째 줄에 늘 들어간다
+      var on=labCols(kind).indexOf(c[1])>=0;
+      return '<th title="체크하면 지도 말풍선에 이 칸이 나옵니다"><label><input type="checkbox" class="labck" '+(on?'checked':'')+
+        ' onchange="toggleLabCol(\''+kind+'\',\''+c[1]+'\',this.checked)">'+c[0]+'</label></th>';
+    }).join('')+'<th style="width:28px"></th></tr>';
   rows.forEach(function(r,i){
     var cal=kind==='land'?landCalc(r):null;
     h+='<tr class="'+(r.show===false?'off':'')+(r._busy?' busy':'')+'"'+(r._busy?' title="자동 채우는 중…"':'')+'>';
@@ -312,6 +324,7 @@ function editCell(kind,i,key,val){
 }
 function isLocKey(kind,key){return kind==='land'?key==='loc':(key==='location'||key==='jibun');}
 function cellDone(kind,key,i){
+  if(!isLocKey(kind,key)&&(labCols(kind).indexOf(key)>=0||(kind==='land'&&/^(total|bldAmt|landA)$/.test(key))))setTimeout(restyle,0);   // 말풍선 내용 갱신
   if(kind==='land'&&/^(total|bldAmt|landA|landAmt|landUnit)$/.test(key))refreshCalc(i);   // 토지금액·단가 다시 계산
   if(isLocKey(kind,key)){
     renderPick();redraw(false);
@@ -364,11 +377,11 @@ function pickRows(){
   var nRel=relOn().length;
   if(baseLoc)out.push({kind:'base',i:-1,label:'본건',color:'#dc2626',loc:baseLoc,more:nRel?(' 외 '+nRel+'필지'):'',show:DATA.baseShow!==false});
   DATA.land.forEach(function(r,i){
-    if(hasV(r.loc))out.push({kind:'land',i:i,label:'토지 #'+(i+1),color:'#16a34a',loc:r.loc,show:r.show!==false});
+    if(hasV(r.loc))out.push({kind:'land',i:i,label:'사례 #'+(i+1),color:'#16a34a',loc:r.loc,show:r.show!==false,bub:!r.labOff});
   });
   DATA.jip.forEach(function(r,i){
     var loc=jipLoc(r);
-    if(loc)out.push({kind:'jip',i:i,label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,show:r.show!==false});
+    if(loc)out.push({kind:'jip',i:i,label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,show:r.show!==false,bub:!r.labOff});
   });
   return out;
 }
@@ -389,7 +402,8 @@ function renderPick(){
       '<input type="checkbox" id="'+id+'" '+(r.show?'checked':'')+
         ' onchange="pickToggle(\''+r.kind+'\','+r.i+',this.checked)">'+
       '<label for="'+id+'"><i class="dotc" style="background:'+r.color+'"></i>'+esc(r.label)+
-        '<span class="loc">'+esc(shortLoc(r.loc)+(r.more||''))+'</span></label>'+
+        '<span class="loc">'+esc((r.kind==='base'?shortLoc(r.loc):dongJibun(r.loc))+(r.more||''))+'</span></label>'+
+      (r.kind==='base'?'':'<span class="bub'+(r.bub?'':' off')+'" title="말풍선 '+(r.bub?'끄기':'켜기')+'" onclick="toggleBubble(\''+r.kind+'\','+r.i+')">💬</span>')+
       (r.kind==='base'?'':'<span class="x" title="이 사례를 지웁니다" onclick="delRow(\''+r.kind+'\','+r.i+')">✕</span>')+
       '</span>';
   }).join('');
@@ -586,16 +600,16 @@ function mapItems(){
   DATA.land.forEach(function(r,i){
     if(r.show===false||!hasV(r.loc))return;
     // 일단지 사례: 관련지번까지 테두리, 이름표는 하나(본건과 같은 묶음 방식)
-    var rel=(r.rel||[]).filter(function(p){return hasV(p.loc);}),grp=rel.length?'land'+i:'',info=landInfo(r);
-    out.push({o:r,kind:'토지 거래사례',label:'토지 #'+(i+1),labelGroup:grp,boundaryLeader:!!grp,color:'#16a34a',loc:stripOe(r.loc),region:region,info:info,poly:true});
+    var rel=(r.rel||[]).filter(function(p){return hasV(p.loc);}),grp=rel.length?'land'+i:'',info=landInfo(r),bub=bubbleOf('land',r);
+    out.push(Object.assign({o:r,kind:'토지 거래사례',label:'사례 #'+(i+1),labelGroup:grp,boundaryLeader:!!grp,color:'#16a34a',loc:stripOe(r.loc),region:region,info:info,poly:true},bub));
     rel.forEach(function(p){
-      out.push({o:p,kind:'토지 거래사례',label:'토지 #'+(i+1),labelGroup:grp,boundaryLeader:true,color:'#16a34a',loc:p.loc,region:region,info:info,poly:true});
+      out.push(Object.assign({o:p,kind:'토지 거래사례',label:'사례 #'+(i+1),labelGroup:grp,boundaryLeader:true,color:'#16a34a',loc:p.loc,region:region,info:info,poly:true},bub));
     });
   });
   DATA.jip.forEach(function(r,i){
     var loc=jipLoc(r);
     if(r.show===false||!loc)return;
-    out.push({o:r,kind:'집합건물 거래사례',label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,region:region,info:jipInfo(r)});
+    out.push(Object.assign({o:r,kind:'집합건물 거래사례',label:'집건 #'+(i+1),color:'#7c3aed',loc:loc,region:region,info:jipInfo(r)},bubbleOf('jip',r)));
   });
   return out;
 }
@@ -722,6 +736,46 @@ function baseChanged(){loadRel(false);renderRel();renderPick();redraw(false);}
 
 // force=true면 저장해 둔 좌표(직접 옮긴 핀 포함)를 버리고 주소로 다시 찾는다
 var drawTimer=null;
+// ── 말풍선 ──
+// 첫 줄 「사례 #n」, 둘째 줄 지번(시·구 뗀 동-지번), 그 아래 표 머리에서 체크한 칸(표 순서대로).
+// 체크 목록은 DATA.labCols(토지·집건 따로), 사례별 끄기는 r.labOff. 켜고 끌 때는 지도 화면을 그대로 둔다(restyle).
+var LAB_DEFAULT={land:['use','jimok','date','landUnit'],jip:['floor','exclusiveArea','tradeDate','unitPrice']};
+function labCols(kind){var c=DATA.labCols&&DATA.labCols[kind];return Array.isArray(c)?c:LAB_DEFAULT[kind];}
+var PER_M2={gongsi:1,landUnit:1,unitPrice:1},WON_KEYS={total:1,bldAmt:1,landAmt:1,price:1},AREA_KEYS={landA:1,bldA:1,exclusiveArea:1};
+function labVal(kind,r,key,cal){
+  var v=(cal&&(key==='landAmt'||key==='landUnit')&&!manualNum(r[key]))?cal[key]:r[key];
+  if(!hasV(v)||(PER_M2[key]||WON_KEYS[key])&&!num(v))return '';
+  if(PER_M2[key])return won(num(v))+' 원/㎡';
+  if(WON_KEYS[key])return won(num(v))+' 원';
+  if(AREA_KEYS[key])return String(v).trim()+' ㎡';
+  if(key==='floor')return /층$/.test(String(v).trim())?String(v).trim():String(v).trim()+'층';
+  if(key==='ho')return /호$/.test(String(v).trim())?String(v).trim():String(v).trim()+'호';
+  if(key==='dong')return /동$/.test(String(v).trim())?String(v).trim():String(v).trim()+'동';
+  return String(v).trim();
+}
+// '서울특별시 영등포구 여의도동 15-22 외' → '여의도동 15-22 외' (동 이름 + 지번)
+function dongJibun(loc){var t=String(loc||'').trim(),p=addrPrefix(t);return p?(p.split(/\s+/).pop()+' '+t.slice(p.length).trim()):t;}
+function bubbleOf(kind,r){
+  var cal=kind==='land'?landCalc(r):null,sel=labCols(kind);
+  var where=kind==='land'?dongJibun(r.loc):(dongJibun(jipLoc(r))+(hasV(r.aptName)?' '+r.aptName:''));
+  var lines=[where];
+  colsOf(kind).forEach(function(c){if(sel.indexOf(c[1])>=0){var t=labVal(kind,r,c[1],cal);if(t)lines.push(t);}});
+  return {lines:lines,labelHidden:!!r.labOff,onCloseLabel:function(){r.labOff=true;saveAll();renderPick();restyle();}};
+}
+function restyle(){clearTimeout(drawTimer);MAPV.restyle(mapItems());}
+function toggleLabCol(kind,key,on){
+  if(!DATA.labCols)DATA.labCols={};
+  var c=labCols(kind).slice(),k=c.indexOf(key);
+  if(on&&k<0)c.push(key);if(!on&&k>=0)c.splice(k,1);
+  DATA.labCols[kind]=c;saveAll();restyle();
+}
+function toggleBubble(kind,i){var r=rowsOf(kind)[i];if(!r)return;r.labOff=!r.labOff;saveAll();renderPick();restyle();}
+function setAllBubbles(on){
+  DATA.land.forEach(function(r){r.labOff=!on;});DATA.jip.forEach(function(r){r.labOff=!on;});
+  saveAll();renderPick();restyle();
+  setMapNote(on?'💬 말풍선을 모두 켰습니다.':'말풍선을 모두 껐습니다 — 사례 칩의 💬로 하나씩 켤 수 있습니다.');
+}
+
 function redraw(force){
   clearTimeout(drawTimer);
   drawTimer=setTimeout(function(){MAPV.open(mapItems(),force);},force?0:250);
