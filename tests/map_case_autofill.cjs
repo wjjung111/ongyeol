@@ -37,20 +37,21 @@ try{
   assert.equal(rows[1].loc,'여의도동 15-23');assert.equal(rows[1].bldA,undefined);assert.equal(rows[1].gongsi,'28000000');
   assert.equal(await page.evaluate(()=>DATA.land.some(r=>r._busy)),false);
   // 2. 표 머리 · 공시지가 쉼표
-  const heads=await page.$$eval('#tblLand th',a=>a.map(x=>x.textContent));
-  assert.deepEqual(heads.slice(2,-1),['소재지','용도지역','지목','토지면적(㎡)','개별공시지가(원/㎡)','건물면적(㎡)','사용승인일','거래금액(원)','거래일자','건물금액(원)','토지금액(원)','토지단가(원/㎡)','비고']);
-  const cell=(i,col)=>page.$eval(`#tblLand tr:nth-child(${i+2}) td:nth-child(${col+3}) input`,x=>x.value);
+  const heads=await page.$$eval('#tblLand th.rh',a=>a.map(x=>x.textContent));
+  assert.deepEqual(heads.slice(1),['소재지','용도지역','지목','토지면적(㎡)','개별공시지가(원/㎡)','건물면적(㎡)','사용승인일','거래금액(원)','거래일자','건물금액(원)','토지금액(원)','토지단가(원/㎡)','비고']);
+  const LK=['loc','use','jimok','landA','gongsi','bldA','appr','total','date','bldAmt','landAmt','landUnit','memo'];   // 세로 표 — 칸은 data-i(사례)·data-k(항목)로 찾는다
+  const cell=(i,col)=>page.$eval(`#tblLand td[data-i="${i}"][data-k="${LK[col]}"] input`,x=>x.value);
   assert.equal(await cell(0,4),'31,500,000');
   // 3. 토지 배분: 거래금액 50억 − 건물금액 10억 → 토지금액 40억, 단가 = trunc(40억/661.2)
-  const set=async(i,col,v)=>{const s=`#tblLand tr:nth-child(${i+2}) td:nth-child(${col+3}) input`;await page.fill(s,v);await page.$eval(s,x=>x.blur());};
+  const set=async(i,col,v)=>{const s=`#tblLand td[data-i="${i}"][data-k="${LK[col]}"] input`;await page.fill(s,v);await page.$eval(s,x=>x.blur());};
   await set(0,7,'5000000000');
   assert.equal(await cell(0,10),'5,000,000,000');            // 건물금액 없으면 거래금액 = 토지금액
   await set(0,9,'1000000000');
   assert.equal(await cell(0,10),'4,000,000,000');assert.equal(await cell(0,11),Math.trunc(4e9/661.2).toLocaleString('ko-KR'));
-  assert.equal(await page.$eval('#tblLand tr:nth-child(2) td:nth-child(14)',x=>x.className.includes('calc')),true);
+  assert.equal(await page.$eval('#tblLand td[data-i="0"][data-k="landUnit"]',x=>x.className.includes('calc')),true);
   // 직접 적으면 그 값 우선(파란 글씨 아님), 지우면 다시 자동
   await set(0,11,'6000000');assert.equal(await cell(0,11),'6,000,000');
-  assert.equal(await page.$eval('#tblLand tr:nth-child(2) td:nth-child(14)',x=>x.className.includes('calc')),false);
+  assert.equal(await page.$eval('#tblLand td[data-i="0"][data-k="landUnit"]',x=>x.className.includes('calc')),false);
   await set(0,11,'');assert.equal(await cell(0,11),Math.trunc(4e9/661.2).toLocaleString('ko-KR'));
   // 4. 직접 적은 값은 안 덮어씀
   await set(1,1,'준주거지역');
