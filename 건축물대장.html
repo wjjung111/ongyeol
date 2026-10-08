@@ -50,6 +50,7 @@
 </head>
 <body>
 <script src="arap_name.js"></script><!-- 접속코드 없이 사용자 이름만 최초 1회 입력 (이름 없으면 화면 안 열림) -->
+<script>window.ARAP_VISIT_PAGE='건축물대장';</script><script src="arap_visit.js"></script><!-- 접속·조회 기록 → 관리자 「건축물대장」 탭 -->
 <div id="mode-bar">
   <span class="mb-title">🏢 건축물대장 조회</span>
   <span id="arap-name-badge" style="margin-left:auto;color:#94a3b8;font-size:12px;"></span>
@@ -366,6 +367,7 @@ async function lookup(pnu,addr){
   var btn=document.getElementById('btnGo');btn.disabled=true;
   document.getElementById('result').style.display='none';
   STATE.pnu=pnu;STATE.addr=addr;STATE.proxyOld=false;
+  if(window.arapVisitLog)window.arapVisitLog('조회',addr);
   setStatus('건축물대장 조회 중… ('+STATE.addr+')');
   try{
     var bun=pnu.slice(11,15),ji=pnu.slice(15,19);
