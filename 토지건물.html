@@ -3823,13 +3823,25 @@ function renderCaseBar(){
   if(tag){if(id){tag.textContent=id+(id.indexOf('SAMPLE-')===0?' (샘플)':'');tag.hidden=false;}else tag.hidden=true;}
   var lc=document.getElementById('caseLandCnt');if(lc)lc.textContent=LANDS.length;
 }
+// 저장 목록 「물건」 칸 — 저장된 건 내용에서 지번주소 전체(시·구·동 + 지번, 여러 필지면 「외 N필지」) + [평가유형].
+// 예: 서울특별시 송파구 삼전동 6-7 [건물만]. 저장 데이터를 못 읽으면 종전 목록 이름(동 + 지번) 그대로(2026-10-13).
+var EVAL_TAGS={tb:'토지건물',land:'토지만',bld:'건물만'};
+function caseObjLabel(c){
+  var old=(c.label||'').replace(c.id,'').trim()||'-',o=null;
+  try{o=JSON.parse(localStorage.getItem(landCaseKey(c.id))||'null');}catch(e){}
+  if(!o)return old;
+  var Ls=Array.isArray(o.LANDS)?o.LANDS:[],L0=Ls[0]||{},jb=String(L0['지번']||'').trim();
+  var addr=(landLoc(L0)+' '+jb).trim();
+  if(addr&&Ls.length>1)addr+=' 외 '+(Ls.length-1)+'필지';
+  return (addr||old)+' ['+EVAL_TAGS[o.landOnly===true?'land':o.bldOnly===true?'bld':'tb']+']';
+}
 function renderCaseListPanel(){
   var p=document.getElementById('caseListPanel');
   if(!caseList.length){p.innerHTML='<div class="caselist-empty">저장된 평가서가 없습니다.'+(LAND_SYNC&&!LAND_SYNC.token()?' 크롬 기록을 지워 없어졌다면 아래 「☁️ GitHub 자동 백업」에서 연결하면 되살아나요.':'')+'</div>'+trashHtml()+syncHtml();bindSync();return;}
   var h='<table class="caselist-tbl"><thead><tr><th>접수번호</th><th>물건</th><th>최근 수정</th><th class="act">작업</th></tr></thead><tbody>';
   caseList.forEach(function(c){
     var when='-';try{var d=new Date(c.updated);when=d.toLocaleDateString('ko-KR')+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}catch(e){}
-    var obj=(c.label||'').replace(c.id,'').trim()||'-';
+    var obj=caseObjLabel(c);
     var ring=getBak(c.id),open=bakOpen===c.id;
     h+='<tr'+(c.id===currentId?' class="cur"':'')+'>'+
        '<td class="cid">'+eh(c.id)+(String(c.id).indexOf('SAMPLE-')===0?' (샘플)':'')+'</td>'+

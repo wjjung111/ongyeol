@@ -171,6 +171,17 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(saved.copy.bldOnly,false,'복제본 저장 = 토건');assert.equal(saved.orig.bldOnly,true,'원본은 건물만 그대로');
     const tb=await check(page,await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data()))));
     assert.deepEqual(tb.left,[],'토건 의견서 남은 토큰');assert(tb.text.includes('토지가액 산출근거'));
+    // 저장 목록 「물건」 칸 = 지번주소 전체 + [평가유형]
+    await page.evaluate(()=>doSave());
+    await page.evaluate(()=>{showCaseList=false;toggleCaseList();});
+    const objs=await page.evaluate(()=>Object.fromEntries(Array.from(document.querySelectorAll('#caseListPanel .caselist-tbl tbody tr')).map(tr=>[tr.cells[0].textContent,tr.cells[1].textContent])));
+    assert.equal(objs['BLD-TEST'],'서울특별시 강남구 검증동 12-3 [건물만]','목록 물건 칸(건물만)');
+    assert.equal(objs['BLD-TEST-2'],'서울특별시 강남구 검증동 12-3 [토지건물]','목록 물건 칸(토지건물)');
+    // 조회로 받은 전체 주소(fullAddr)·여러 필지
+    assert.equal(await page.evaluate(()=>{localStorage.setItem(landCaseKey('ADDR-T'),JSON.stringify({landOnly:true,LANDS:[{소재지:'삼전동',지번:'6-7',fullAddr:'서울특별시 송파구 삼전동 6-7'},{소재지:'삼전동',지번:'6-8'}]}));
+      return caseObjLabel({id:'ADDR-T',label:'ADDR-T 삼전동 6-7'});}),'서울특별시 송파구 삼전동 6-7 외 1필지 [토지만]');
+    assert.equal(await page.evaluate(()=>caseObjLabel({id:'NONE',label:'NONE 삼전동 6-7'})),'삼전동 6-7','저장 데이터 없으면 종전 이름');
+    await page.evaluate(()=>{toggleCaseList();showTab('daesang');});
     await page.click('#ek_land');assert.equal(await cls(),'land');assert.equal(await page.evaluate(()=>LAND_ONLY),true);
     assert.deepEqual(errors,[]);
     console.log('PASS',out);
