@@ -337,6 +337,8 @@
   body.land-only .bld-only{display:none!important;}
   /* 「건물만」 평가 — 토지 계산 화면(2. 토지평가·토지 단가/평가액)을 숨긴다 */
   body.bld-mode .land-calc{display:none!important;}
+  .cg-auto{font-size:12px;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;margin-top:6px;}
+  .cg-auto b{color:#1e293b;} .cg-auto .warn{color:#dc2626;font-weight:600;}
   .evalkind-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e2e5ea;border-radius:8px;padding:10px 14px;margin-bottom:12px;}
   .evalkind-bar .ek-label{font-weight:700;font-size:13px;color:#1e293b;margin-right:4px;}
   .evalkind-bar .btn{font-size:13px;padding:7px 18px;}
@@ -357,7 +359,8 @@
 <script src="arap_user.js"></script><!-- 사용자 이름 게이트(허용 목록) + 상단바 🙋 이름 — 집합건물과 같은 이름·저장키 -->
 <script>window.ARAP_DATE_POPUP=true;</script><!-- 날짜칸 누르면 달력 팝업(집합건물과 같은 모양) -->
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
-<script src="arap_cheonggu.js"></script><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
+<script src="arap_cheonggu.js"></script>
+<script src="arap_fee.js"></script><!-- 감정평가수수료 자동 계산(보수에 관한 기준 별표) — 수수료 사이트 대신 --><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
 <script src="arap_map.js"></script>
 <script src="arap_sync.js"></script><!-- 저장건 GitHub 자동 백업(집합건물과 같은 토큰·Gist) --><!-- 위치도 공용 엔진 — 거래사례 지도 페이지와 같은 코드 -->
 
@@ -918,8 +921,14 @@
       <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
       <div class="card">
         <h2>표지 · 청구서 · 회보서</h2>
-        <div class="note">① <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a>에서 예상평가액(현재 감정평가액: <b id="cg_amt">-</b>) 입력 → 계산 → <b>계산서1 복사 버튼</b> 클릭 → ② 아래에 붙여넣기</div>
-        <textarea id="cg_feeText" rows="4" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"></textarea>
+        <div class="note">평가수수료는 <b>감정평가액(<span id="cg_amt">-</span>)</b>으로 자동 계산합니다 — 「감정평가법인등의 보수에 관한 기준」(2026.2.9.) 별표. 사이트에 들어갈 필요 없어요.</div>
+        <div class="cg-auto" id="cg_autoBox"></div>
+        <details id="cg_pasteBox" style="margin-top:6px"><summary style="font-size:12px;color:#64748b;cursor:pointer">수수료 계산 사이트 계산서를 직접 붙여넣기(선택 — 붙여넣으면 그 값을 씁니다)</summary>
+          <div class="note" style="margin-top:4px"><a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a> → 계산서1 복사 → 아래에 붙여넣기. 비우면 다시 자동 계산.</div>
+          <textarea id="cg_feeText" rows="4" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"></textarea>
+        </details>
+        <div class="row" style="margin-top:6px"><button type="button" class="btn gh sm" onclick="cgVerifySaved()" title="이 브라우저에 저장된 건(집합건물·입주권·토지건물)에 붙여넣어 둔 사이트 계산서를 자동 계산과 하나씩 맞춰 봅니다">🔎 기평가건으로 수수료 자동계산 검증</button></div>
+        <div id="cg_verify" class="tw" hidden style="margin-top:6px"></div>
         <div class="row" style="margin-top:8px">
           <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
           <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
@@ -2918,9 +2927,17 @@ function cgFeeMulIn(v){
   if(sp&&sp.value!==v){sp.value=v;CG_SPECIAL_MANUAL=false;}
   renderCheonggu();saveForm();
 }
+// 수수료 — 붙여넣은 사이트 계산서가 있으면 그것, 없으면 지금 감정평가액으로 자동 계산(arap_fee.js, 2026-10-13)
+function cgAmount(){return (window.LAND_FINAL||0)+((window.BLD_RESULT&&window.BLD_RESULT.total)||0);}
+function cgFeeSrc(){
+  var A=window.ArapCheonggu,p=A?A.parseFeeStatement(cgVal('cg_feeText')):null;
+  if(p&&p.하한수수료)return Object.assign({},p,{_src:'paste'});
+  var a=window.ArapFee?ArapFee.calc(cgAmount()):null;
+  return a?Object.assign({},a,{_src:'auto'}):null;
+}
 // 수수료 계산서 인식 + 실비/착수금으로 청구금액 계산 (없으면 null)
 function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
-  var fee=A.parseFeeStatement(cgVal('cg_feeText'));if(!fee||!fee.하한수수료)return null;
+  var fee=cgFeeSrc();if(!fee||!fee.하한수수료)return null;
   var m=cgFeeMul();
   if(m!==1)fee={하한수수료:fee.하한수수료*m,기준수수료:(fee.기준수수료||0)*m,상한수수료:(fee.상한수수료||0)*m};
   return A.computeCheonggu(fee,cgVal('cg_downPayment'),String(cgSpecialApplied()),cgVal('cg_feeBasis'),
@@ -2931,7 +2948,7 @@ function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
 function cgSpecialAuto(){
   var A=window.ArapCheonggu,mode=cgVal('cg_specialMode')||'직접입력';
   if(!A||mode==='직접입력')return null;
-  var f=A.parseFeeStatement(cgVal('cg_feeText'));if(!f||!f.하한수수료)return null;
+  var f=cgFeeSrc();if(!f||!f.하한수수료)return null;
   // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
   var hi=mode==='기준-하한'?f.기준수수료:f.상한수수료;
   var lo=mode==='상한-기준'?f.기준수수료:f.하한수수료;
@@ -2960,6 +2977,7 @@ function renderCheonggu(){
   ['cg_etc','cg_special'].forEach(function(id){var el=document.getElementById(id);   // 빈 칸은 0으로 보여준다(집합건물 청구서와 같은 모양)
     if(el&&!hasV(el.value)&&document.activeElement!==el)el.value='0';});
   var amtEl=document.getElementById('cg_amt');if(amtEl)amtEl.textContent=(document.getElementById('resFinal')||{}).textContent||'-';
+  cgRenderAuto();
   var c=cgFee(),btn=document.getElementById('btnCheonggu'),res=document.getElementById('resCheonggu');
   var st=document.getElementById('cg_feeState');
   var fm=A?A.fmt:function(n){return won(n);};
@@ -2982,21 +3000,51 @@ function renderCheonggu(){
   if(mulNote)mulNote.textContent=fmul!==1?('평가수수료 '+fmul+'배 적용'):'';
   if(!c){
     if(btn)btn.disabled=true;if(res)res.textContent='-';
-    if(st){st.textContent='계산서 붙여넣으면 평가수수료 자동입력';st.style.color='';}
+    if(st){st.textContent='감정평가액이 정해지면 평가수수료 자동 계산';st.style.color='';}
     return;
   }
   if(btn)btn.disabled=false;
-  if(st){st.textContent='✅ 계산서 인식됨 (평가수수료 자동)';st.style.color='#16a34a';}
+  if(st){st.textContent=cgFeeSrc()._src==='paste'?'✅ 붙여넣은 계산서 사용':'✅ 평가수수료 자동 계산';st.style.color='#16a34a';}
   put('cgv_fee',c.평가수수료);put('cgv_sub',c.소계);put('cgv_sum',c.합계);
   put('cgv_vat',c.부가세);put('cgv_total',c.총계);put('cgv_due',c.정산청구액);
   if(res)res.textContent=c.정산청구액?fm(c.정산청구액)+' 원':'-';
+}
+// 자동 계산 상자 — 예상평가액·구간·하한/기준/상한. 계산서를 붙여넣었으면 자동값과 맞는지, 예상평가액이 지금 감정평가액과 같은지 알려 준다.
+function cgRenderAuto(){
+  var box=document.getElementById('cg_autoBox');if(!box||!window.ArapFee)return;
+  var w=function(n){return n==null?'-':won(n);},amt=cgAmount(),a=ArapFee.calc(amt),src=cgFeeSrc(),h='';
+  if(src&&src._src==='paste'){
+    var ck=ArapFee.check(cgVal('cg_feeText'));
+    h='<b>붙여넣은 계산서 사용</b> — 예상평가액 '+w(src.예상평가액)+'원 · 하한 '+w(src.하한수수료)+' · 기준 '+w(src.기준수수료)+' · 상한 '+w(src.상한수수료);
+    if(ck&&!ck.ok)h+='<br><span class="warn">⚠ 같은 예상평가액의 자동 계산과 다릅니다: '+ck.diffs.map(function(k){return k.replace('수수료','')+' '+w(ck.site[k])+' ↔ 자동 '+w(ck.auto[k]);}).join(', ')+'</span>';
+    else if(ck)h+=' <span style="color:#16a34a">(자동 계산과 같음 ✓)</span>';
+    if(amt&&src.예상평가액&&src.예상평가액!==amt)h+='<br><span class="warn">⚠ 계산서의 예상평가액('+w(src.예상평가액)+')이 지금 감정평가액('+w(amt)+')과 다릅니다 — 계산서를 비우면 지금 금액으로 자동 계산합니다.</span>';
+  }else if(a){
+    h='예상평가액 <b>'+w(a.예상평가액)+'원</b> ('+a.구간+') → 하한 <b>'+w(a.하한수수료)+'</b> · 기준 <b>'+w(a.기준수수료)+'</b> · 상한 <b>'+w(a.상한수수료)+'</b> 원';
+  }else h='감정평가액이 정해지면 하한·기준·상한 수수료가 여기 나옵니다.';
+  box.innerHTML=h;
+}
+// 🔎 기평가건 검증 — 저장된 건들의 사이트 계산서를 같은 예상평가액의 자동 계산과 하나씩 비교
+function cgVerifySaved(){
+  var el=document.getElementById('cg_verify');if(!el||!window.ArapFee)return;
+  if(!el.hidden){el.hidden=true;return;}
+  var rows=ArapFee.scanSaved(),w=function(n){return n==null?'-':won(n);};
+  var cell=function(r,k){var ok=r.site[k]==null||r.site[k]===r.auto[k];return '<td'+(ok?'':' style="color:#dc2626;font-weight:600"')+'>'+w(r.site[k])+(ok?'':'<br><span style="font-weight:400">자동 '+w(r.auto[k])+'</span>')+'</td>';};
+  var n=rows.filter(function(r){return r.ok;}).length;
+  var h='<div class="hint" style="margin-bottom:4px">저장된 건에서 사이트 계산서 '+rows.length+'건을 찾았어요 — 자동 계산과 같음 <b>'+n+'건</b>'+(rows.length-n?', 다름 <b style="color:#dc2626">'+(rows.length-n)+'건</b>':'')+'.</div>';
+  if(rows.length){
+    h+='<table><tr><th>저장 건</th><th>예상평가액</th><th>하한</th><th>기준</th><th>상한</th><th>결과</th></tr>';
+    rows.forEach(function(r){h+='<tr><td>'+eh(String(r.key).replace(/^[^:]*:/,''))+'</td><td>'+w(r.site.예상평가액)+'</td>'+cell(r,'하한수수료')+cell(r,'기준수수료')+cell(r,'상한수수료')+'<td>'+(r.ok?'✅':'⚠')+'</td></tr>';});
+    h+='</table>';
+  }
+  el.innerHTML=h;el.hidden=false;
 }
 async function downloadCheonggu(){
   var A=window.ArapCheonggu;
   if(!A){alert('청구서 엔진(arap_cheonggu.js)이 로드되지 않았습니다. 새로고침 후 다시 시도하세요.');return;}
   if(!hasV(cgVal('ov_client'))){alert('대상물건 탭에서 「의뢰인」을 먼저 입력하세요.');showTab('daesang');return;}
   var c=cgFee();
-  if(!c){alert('수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(수수료 계산 사이트 → 계산서1 복사 → 붙여넣기)');return;}
+  if(!c){alert('감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.\n토지·건물 평가를 먼저 마치세요.');return;}
   var f0=function(n){return n?A.fmt(n):'-';},stripDot=function(s){return String(s||'').trim().replace(/\.$/,'');};
   var map={
     '의뢰인':cgVal('ov_client'),'총계한글':A.numberToKoreanMoney(c.총계)+'원','총계':A.fmt(c.총계),

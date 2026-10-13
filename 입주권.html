@@ -44,6 +44,7 @@
   <div id="root"></div>
   <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'ARM 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
   <script src="arap_index_data.js"></script>
+  <script src="arap_fee.js"></script><!-- 감정평가수수료 자동 계산(보수에 관한 기준 별표) — 수수료 사이트 대신 -->
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
   // 조회는 관리자.html(비밀번호)에서만 가능. 샘플 건(SAMPLE-*)은 제외. 실패해도 앱 동작에 영향 없음.
@@ -1982,15 +1983,22 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
   const P=k=>pNum(fee[k])||0, rd0=n=>Math.floor((n||0)/1000)*1000;
   // 특별용역비 방식: 상한-하한/기준-하한은 붙여넣은 계산서의 수수료 차액을 절사 없이 그대로 자동입력 (칸은 항상 자유수정 가능)
   const specialFeeMode=fee.specialFeeMode||"직접입력";
-  const specialFeeAuto=(()=>{if(specialFeeMode==="직접입력")return null;try{const f=parseFeeStatement(fee.feeText||"");if(!f.하한수수료)return null;const hi=specialFeeMode==="상한-하한"?f.상한수수료:f.기준수수료;if(!hi)return null;return Math.round((hi-f.하한수수료)/1000)*1000;}catch(e){return null;}})();
-  useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setFee(p=>({...p,specialFee:fmtComma(String(specialFeeAuto))}));},[specialFeeMode,fee.feeText]);
+  // 수수료 — 붙여넣은 사이트 계산서가 있으면 그것, 없으면 입주권 감정평가액으로 자동 계산(arap_fee.js, 2026-10-13)
+  const feeAuto=window.ArapFee&&cal.finalDecided>0?window.ArapFee.calc(cal.finalDecided):null;
+  const feeSrc=(()=>{try{const f=parseFeeStatement(fee.feeText||"");if(f.하한수수료)return f;}catch(e){}return feeAuto;})();
+  const feeSrcKey=feeSrc?[feeSrc.하한수수료,feeSrc.기준수수료,feeSrc.상한수수료].join("|"):"";
+  const specialFeeAuto=(()=>{if(specialFeeMode==="직접입력")return null;try{const f=feeSrc;if(!f||!f.하한수수료)return null;const hi=specialFeeMode==="상한-하한"?f.상한수수료:f.기준수수료;if(!hi)return null;return Math.round((hi-f.하한수수료)/1000)*1000;}catch(e){return null;}})();
+  useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setFee(p=>({...p,specialFee:fmtComma(String(specialFeeAuto))}));},[specialFeeMode,feeSrcKey]);
   // 여비 자동: 소재지(사업위치·시군구·법정동) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
   const travelAutoFull=arapTravelFee(`${ov.projLoc||""} ${ov.sigungu||""} ${ov.beopjeongdong||""}`);
   // 사업위치에 시도명이 없어 못 잡으면 시군구만으로 한 번 더 조회(토지건물 청구서와 같은 2단 방식)
   const travelAuto=travelAutoFull!=null?travelAutoFull:arapTravelFeeBySgg(ov.sigungu||"");
   useEffect(()=>{if(travelAuto!=null&&fee.travelKey!==String(travelAuto))setFee(p=>({...p,feeTravel:fmtComma(String(travelAuto)),travelKey:String(travelAuto)}));},[travelAuto]);
   // 평가수수료 자동값(붙여넣은 계산서 + 요율기준). ↺(자동값 복원) 버튼용
-  const feeMainAuto=(()=>{try{const f=parseFeeStatement(fee.feeText||"");const v=fee.feeBasis==="기준"?f.기준수수료:fee.feeBasis==="상한"?f.상한수수료:f.하한수수료;return v||null;}catch(e){return null;}})();
+  const feeMainAuto=(()=>{try{const f=feeSrc||{};const v=fee.feeBasis==="기준"?f.기준수수료:fee.feeBasis==="상한"?f.상한수수료:f.하한수수료;return v||null;}catch(e){return null;}})();
+  // 붙여넣은 계산서가 없으면 자동 계산값을 평가수수료 칸에 채운다 — 감정평가액·요율기준이 바뀔 때만(그 사이 직접 고친 값은 유지)
+  const feeAutoKey=feeMainAuto&&!fee.feeText?(fee.feeBasis+"|"+feeMainAuto):"";
+  useEffect(()=>{if(feeAutoKey&&fee.feeAutoKey!==feeAutoKey)setFee(p=>({...p,feeMain:fmtComma(String(feeMainAuto)),feeAutoKey}));},[feeAutoKey]);
   const Redo=({on,fn,tip})=>on?<span title={tip||"자동 계산값으로 복원"} onClick={fn} style={{cursor:"pointer",color:"#2563eb",marginLeft:4,fontSize:13,userSelect:"none"}}>↺</span>:null;
   const 평가수수료=rd0(P("feeMain")), 소계=P("feeTravel")+P("feeSurvey")+P("feeDoc")+P("feeEtc")+P("specialFee");
   const 합계=rd0(평가수수료+소계), 부가세=Math.round(합계*0.1), 총계=합계+부가세, 정산=총계-P("downPayment");
@@ -2162,10 +2170,12 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
       <div>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
           <div style={{fontWeight:700,color:C.pri}}>청구서 (수수료)</div>
-          <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{fontSize:12,color:"#2563eb"}}>수수료 계산 사이트 ↗</a>
+          <span style={{fontSize:12,color:"#334155"}}>{feeAuto?<>자동 계산: 예상평가액 <b>{fmtComma(String(feeAuto.예상평가액))}원</b> → 하한 <b>{fmtComma(String(feeAuto.하한수수료))}</b> · 기준 <b>{fmtComma(String(feeAuto.기준수수료))}</b> · 상한 <b>{fmtComma(String(feeAuto.상한수수료))}</b></>:"감정평가액이 정해지면 수수료 자동 계산"}</span>
+          <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{fontSize:11,color:"#94a3b8"}}>(선택) 수수료 계산 사이트 ↗</a>
           <label style={{fontSize:12,color:"#555"}}>특별용역비 <select value={fee.specialFeeMode||"직접입력"} onChange={e=>setFee(p=>({...p,specialFeeMode:e.target.value}))} style={{...S.sel2,marginLeft:2}} title="상한-하한/기준-하한은 붙여넣은 계산서의 수수료(천원 절사)끼리 차감해 자동입력"><option>직접입력</option><option>상한-하한</option><option>기준-하한</option></select></label>
-          <label style={{fontSize:12,color:"#555"}}>요율기준 <select value={fee.feeBasis} onChange={e=>{const b=e.target.value;setFee(p=>{let feeMain=p.feeMain;try{const f=parseFeeStatement(p.feeText||"");const v=b==="기준"?f.기준수수료:b==="상한"?f.상한수수료:f.하한수수료;if(v)feeMain=fmtComma(String(v));}catch(err){}return{...p,feeBasis:b,feeMain};});}} style={{...S.sel2,marginLeft:2}}><option>하한</option><option>기준</option><option>상한</option></select></label>
-          <input onPaste={pasteFee} value={fee.feeText?"계산서 인식됨 ✓ (평가수수료 자동입력)":""} readOnly placeholder="여기에 수수료 계산서 붙여넣기 → 평가수수료 자동입력(직접 입력도 가능)" style={{...S.inp,flex:1,minWidth:220,color:"#16a34a"}}/>
+          <label style={{fontSize:12,color:"#555"}}>요율기준 <select value={fee.feeBasis} onChange={e=>{const b=e.target.value;setFee(p=>{let feeMain=p.feeMain;try{const f=(()=>{const x=parseFeeStatement(p.feeText||"");return x.하한수수료?x:(feeAuto||{});})();const v=b==="기준"?f.기준수수료:b==="상한"?f.상한수수료:f.하한수수료;if(v)feeMain=fmtComma(String(v));}catch(err){}return{...p,feeBasis:b,feeMain};});}} style={{...S.sel2,marginLeft:2}}><option>하한</option><option>기준</option><option>상한</option></select></label>
+          <input onPaste={pasteFee} value={fee.feeText?"붙여넣은 계산서 사용 ✓ (지우려면 ✕)":""} readOnly placeholder="(선택) 수수료 사이트 계산서를 붙여넣으면 그 값을 씀 — 비워 두면 자동 계산" style={{...S.inp,flex:1,minWidth:220,color:"#16a34a"}}/>
+          {fee.feeText?<button type="button" title="붙여넣은 계산서를 지우고 감정평가액 자동 계산으로" onClick={()=>setFee(p=>({...p,feeText:"",feeAutoKey:""}))} style={{border:"1px solid #cbd5e1",background:"#fff",borderRadius:4,cursor:"pointer",fontSize:12,color:"#dc2626"}}>✕</button>:null}
         </div>
         <table style={{width:"100%",maxWidth:580,borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:"#6d2b2b",color:"#fff"}}>

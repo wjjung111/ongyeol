@@ -54,11 +54,15 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await scroller.evaluate(e=>{e.scrollTop=0;});await page.setViewportSize({width:2100,height:900});await page.waitForTimeout(200);
 
       // 3) 오른쪽 청구서 입력은 그대로 동작 — 기납부착수금 입력 → 정산청구액 반영
+      // 평가수수료는 감정평가액으로 자동 계산되므로(arap_fee.js) 금액 자체가 아니라 「착수금만큼 줄어드는지」를 본다
+      const due=async()=>{const t=await split.locator('.k4-right').innerText();const m=t.match(/정산청구액[^\d]*([\d,]+)/);return m?Number(m[1].replace(/,/g,'')):null;};
       const down=split.locator('.k4-right input').last();
+      await down.fill('0');await down.blur();await page.waitForTimeout(300);
+      const before=await due();
       await down.fill('50,000');await down.blur();
       await page.waitForTimeout(300);
       assert.equal(await down.inputValue(),'50,000');
-      assert.ok((await split.locator('.k4-right').innerText()).includes('27,000'),'기납부착수금을 넣으면 정산청구액(77,000-50,000)이 바뀌어야 함');
+      assert.ok(before>50000&&(await due())===before-50000,`기납부착수금을 넣으면 정산청구액이 50,000 줄어야 함 (${before} → ${await due()})`);
 
       // 3-1) 어느 폭에서도 왼쪽 표가 잘리지 않는다(특히 여러호수 적용단가 표 ~980px) — 2단이면 왼쪽 폭이 충분하거나, 모자라면 한 줄로 쌓여 있어야 함
       const clipped=()=>split.evaluate(sp=>[...sp.querySelectorAll('.k4-left *')].filter(e=>{const o=getComputedStyle(e).overflowX;return(o==='auto'||o==='scroll')&&e.scrollWidth>e.clientWidth+1&&e.offsetParent;}).map(e=>e.scrollWidth+'>'+e.clientWidth));
