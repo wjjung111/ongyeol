@@ -3781,6 +3781,10 @@ function copyCase(id){
   if(nid==null)return;nid=nid.trim();
   if(!nid){alert('접수번호를 입력해야 복제할 수 있습니다.');return;}
   if(localStorage.getItem(landCaseKey(nid))){alert(nid+' 접수번호로 저장된 건이 이미 있습니다. 다른 번호를 넣어 주세요.');return;}
+  // 원본이 토지만·건물만이면 복제본을 토지+건물로 바꿀지 묻는다(건물만으로 나갔다가 토지까지 추가해 달라는 경우 — 2026-10-13).
+  // 바꾸면 남아 있던 토지·건물 입력이 그대로 살아나고, 결정의견·물적 동일성 기본 문구도 토건 문구로 바뀐다(setEvalKind).
+  var kind=o.landOnly===true?'land':o.bldOnly===true?'bld':'tb',toTb=false;
+  if(kind!=='tb')toTb=confirm('원본은 「'+(kind==='land'?'토지만':'건물만')+'」 평가입니다.\n복제본을 「토지+건물」 평가로 바꿀까요?\n\n확인 = 토지+건물로 바꿔서 복제\n취소 = '+(kind==='land'?'토지만':'건물만')+' 그대로 복제');
   o.ov=o.ov||{};o.ov.ov_caseNo=nid;o._rev=newRev();
   try{
     localStorage.setItem(landCaseKey(nid),JSON.stringify(o));
@@ -3791,6 +3795,7 @@ function copyCase(id){
   list.unshift({id:nid,label:(nid+' '+((L0['소재지']||'')+' '+(L0['지번']||'')).trim()).trim(),updated:new Date().toISOString()});
   setLandList(list);caseList=list;
   loadCase(nid);
+  if(toTb){setEvalKind('tb');showTab('daesang');}   // 평가대상만 바꾼다 — 입력값은 그대로, 화면·문구·금액 다시 계산 후 저장
 }
 function toggleCaseList(){
   showCaseList=!showCaseList;
@@ -3827,7 +3832,7 @@ function renderCaseListPanel(){
        '<td class="l">'+eh(obj)+'</td><td>'+eh(when)+'</td>'+
        '<td><button class="btn sm" onclick="loadCase(\''+jsq(c.id)+'\')">열기</button> '+
        (ring.length?'<button class="btn sm bak-btn'+(open?' on':'')+'" title="덮어쓰기 전에 자동 보관된 이전 내용('+ring.length+'개)" onclick="toggleBak(\''+jsq(c.id)+'\')">↺ 이전 버전 '+ring.length+'</button> ':'')+
-       '<button class="btn sm copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 비교표준지·사례를 바꿔 볼 때" onclick="copyCase(\''+jsq(c.id)+'\')">⧉ 복제</button> '+
+       '<button class="btn sm copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 비교표준지·사례를 바꿔 볼 때&#10;토지만·건물만 건이면 복제하면서 토지+건물로 바꿀 수 있어요" onclick="copyCase(\''+jsq(c.id)+'\')">⧉ 복제</button> '+
        '<button class="btn sm del-btn" onclick="deleteCase(\''+jsq(c.id)+'\')">삭제</button></td></tr>';
     if(open&&ring.length){
       var b='<div class="bakhint">거래사례가 지워졌거나 잘못 덮어쓴 경우, 아래에서 되돌릴 시각을 고르세요. 되돌려도 지금 내용은 이 목록에 남습니다.</div><table class="baklist">';

@@ -147,6 +147,36 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     await page.selectOption('#ov_evalKind','bld');
     assert.equal(await page.evaluate(()=>BLD_ONLY&&!LAND_ONLY),true,'건물만 전환');
     assert(await page.locator('#tabbtn-bld').isVisible(),'토지만→건물만 전환 시 건물 탭 다시 보임');
+    // ⑤ 건물만 건 복제 → 복제본만 토지+건물로(확인), 원본은 건물만 그대로
+    await page.evaluate(()=>doSave());
+    const bldTotal=await page.evaluate(()=>BLD_RESULT.total);
+    const msgs=[];page.removeAllListeners('dialog');
+    page.on('dialog',d=>{msgs.push(d.message());d.accept(d.defaultValue());});   // 접수번호 prompt = 기본값(BLD-TEST-2), 평가대상 confirm = 확인
+    await page.evaluate(()=>copyCase('BLD-TEST'));
+    assert(msgs.some(m=>m.includes('「건물만」 평가입니다')&&m.includes('「토지+건물」')),'평가대상 바꿀지 묻기');
+    assert.equal(await page.evaluate(()=>currentId),'BLD-TEST-2');
+    assert.equal(await page.evaluate(()=>BLD_ONLY||LAND_ONLY),false,'복제본 = 토지+건물');
+    assert.equal(await page.locator('#ov_evalKind').inputValue(),'tb');
+    assert(await page.evaluate(()=>LAND_FINAL>0),'복제본 토지가액 계산');
+    assert.equal(await page.evaluate(()=>BLD_RESULT.total),bldTotal,'건물가액 그대로');
+    assert.equal(await page.evaluate(()=>ETC_ITEMS[1]),await page.evaluate(()=>ETC_ITEMS_DEFAULT[1]),'복제본 물적 동일성 = 토건');
+    assert.equal(await page.locator('#fn_opinion').inputValue(),await page.evaluate(()=>FN_OPINION_TB),'복제본 결정의견 = 토건');
+    assert.equal(await page.evaluate(()=>opinionTplPath()),'템플릿/토건 의견서(산출근거) 템플릿.hwpx');
+    await page.evaluate(()=>doSave());
+    const saved=await page.evaluate(()=>({copy:JSON.parse(localStorage.getItem(landCaseKey('BLD-TEST-2'))),orig:JSON.parse(localStorage.getItem(landCaseKey('BLD-TEST')))}));
+    assert.equal(saved.copy.bldOnly,false,'복제본 저장 = 토건');assert.equal(saved.orig.bldOnly,true,'원본은 건물만 그대로');
+    // 토건 의견서도 나온다(남은 토큰 0)
+    const tb=await check(page,await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data()))));
+    assert.deepEqual(tb.left,[],'토건 의견서 남은 토큰');assert(tb.text.includes('토지가액 산출근거'));
+    // 취소하면 건물만 그대로 복제
+    page.removeAllListeners('dialog');
+    page.on('dialog',d=>d.type()==='confirm'?d.dismiss():d.accept(d.defaultValue()));
+    await page.evaluate(()=>copyCase('BLD-TEST'));
+    assert.equal(await page.evaluate(()=>currentId),'BLD-TEST-3');assert.equal(await page.evaluate(()=>BLD_ONLY),true,'취소 → 건물만 그대로');
+    // 토건 건 복제는 묻지 않는다
+    msgs.length=0;page.removeAllListeners('dialog');page.on('dialog',d=>{msgs.push(d.type());d.accept(d.defaultValue());});
+    await page.evaluate(()=>copyCase('BLD-TEST-2'));
+    assert.deepEqual(msgs,['prompt'],'토건 건은 접수번호만 묻는다');
     assert.deepEqual(errors,[]);
     console.log('PASS',out);
   }finally{await browser.close();server.close();}
