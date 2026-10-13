@@ -20,7 +20,7 @@ const FEE=['1  예상평가액  1,775,270,360',
  const scope=page.locator(mode==='single'?'#root':'#root-multi');
  await scope.getByText('4. 가격산출',{exact:true}).click({timeout:60000});
  const card=scope;
- const ta=card.locator('textarea[placeholder^="여기에 계산서1"]').first();await ta.fill(FEE);
+ const ta=card.locator('textarea[placeholder*="계산서1"]').first();await ta.fill(FEE);
  const sel=card.locator('select[title*="상한-기준"]');
  const opts=await sel.locator('option').allTextContents();console.log('options',opts);
  assert.deepEqual(opts,['상한-하한','기준-하한','상한-기준','직접입력']);

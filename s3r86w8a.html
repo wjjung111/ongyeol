@@ -45,6 +45,7 @@
   <div id="root-multi" style="display:none"></div>
   <!-- 부동산원 매매가격지수(주거용 월간) + 상업용 자본수익률(비주거용 분기) 데이터 — 'ARM 실행.bat'(arap_launch.ps1)이 생성/갱신. 없어도 앱은 정상 동작(자동계산만 비활성) -->
   <script src="arap_index_data.js"></script>
+  <script src="arap_fee.js"></script><!-- 감정평가수수료 자동 계산(보수에 관한 기준 별표) — 수수료 사이트 대신 -->
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
   <script src="arap_jiphap_parcels.js"></script>
   <script src="arap_multi_hwpx.js"></script>
@@ -2238,7 +2239,9 @@ function openPyojiPdf(ov){
 function openCheongguHoebo(ov,feeText,downPayment,specialFee,feeBasis){
   if(!ov.client){alert("1. 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
   const fee=parseFeeStatement(feeText);
-  if(!fee.하한수수료||!fee.기준수수료){alert("수수료 계산서를 인식하지 못했습니다.\n수수료 사이트에서 '계산서1' 옆 복사 버튼을 눌러 전체를 붙여넣어 주세요.\n(하한 수수료/기준 수수료 줄이 꼭 포함되어야 합니다)");return;}
+  if(!fee.하한수수료||!fee.기준수수료){alert("감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.
+4. 가격산출에서 감정평가액을 먼저 확정하세요.
+(또는 수수료 사이트 계산서1을 청구서 칸에 붙여넣기)");return;}
   const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput);
   const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const fm=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
@@ -2573,7 +2576,9 @@ const PYOJI_TPL_B64="UEsDBBQAAAAIAAAAIQC6IK+ZgAEAAKQHAAATAAAAW0NvbnRlbnRfVHlwZXN
 async function downloadPyojiXlsx(ov,feeText,downPayment,specialFee,feeBasis){
   if(!ov.client){alert("1. 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
   const fee=parseFeeStatement(feeText);
-  if(!fee.하한수수료||!fee.기준수수료){alert("수수료 계산서를 인식하지 못했습니다.\n아래 '표지·청구서·회보서' 칸에 수수료 사이트의 계산서1 전체를 붙여넣은 뒤 다시 눌러주세요.\n(하한 수수료/기준 수수료 줄이 꼭 포함되어야 합니다)");return;}
+  if(!fee.하한수수료||!fee.기준수수료){alert("감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.
+4. 가격산출에서 감정평가액을 먼저 확정하세요.
+(또는 수수료 사이트 계산서1을 청구서 칸에 붙여넣기)");return;}
   try{
     const bin=atob(PYOJI_TPL_B64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     const entries=await parseZip(arr.buffer);
@@ -3002,7 +3007,7 @@ const V2_SAMPLE={
     caseNo:"SAMPLE-압구정현대",client:"이유진, 김준희",
     purpose:"일반거래(시가참고)",submitTo:"국세청 및 관할세무서",
     caseNoDisplay:"HI260709-2702", // 문서에 찍히는 실제 접수번호 (저장키는 caseNo=SAMPLE-…로 충돌 방지)
-    _sampleVer:"2026-07-24c", // 이 버전보다 낮게 저장된 샘플은 다음 접속 때 통째 최신본으로 갱신
+    _sampleVer:"2026-10-13a", // 이 버전보다 낮게 저장된 샘플은 다음 접속 때 통째 최신본으로 갱신
     requestDate:"2026.07.09", // 접수번호 260709
     baseDate:"2026.07.14",surveyDate:"2026.07.14",writeDate:"2026.07.14",
     baseValue:"시장가치",baseDateBasis:"의뢰일인",condition:"-",
@@ -3017,7 +3022,7 @@ const V2_SAMPLE={
     nearDesc:"'압구정초등학교' 북동측",nearAreaBase:"전유면적",nearPriceLow:"",nearPriceHigh:"",nearKind:"",
     nrType:"",nrRegion:"",nrMigosi:"",nrMigosiPrev:"",nrTradeDate:"",nrCapPct:"",nrCapVal:"",nrCapFormula:"",
     // 접수글(하감본평가) 기준 청구서 값: 착수금 100만·특용비 0·하한요율·여비 100,000 → 총계 약 585만
-    feeText:"1 예상평가액 7,900,000,000 입력값\\n2 하한 수수료 5,190,000 50억원 ~ 100억원, 50억원 초과액 × 0.07% × 0.8 + 3,566,000\\n3 기준 수수료 6,487,500 산식",
+    feeText:"1 예상평가액 7,900,000,000 입력값\n2 하한 수수료 5,190,000 50억원 ~ 100억원, 50억원 초과액 × 0.07% × 0.8 + 3,566,000\n3 기준 수수료 6,425,000 산식\n4 상한 수수료 7,660,000 산식",
     downPaymentInput:"1,000,000",specialFeeInput:"0",feeBasisSel:"하한",specialFeeModeSel:"직접입력",feeTravel:"100,000",feeTravelKey:"40000",
     owner:"이승민, 이승환, 이유진" // 등기 갑구 소유자 (지분 이승민35·이승환35·이유진30)
   },
@@ -3578,7 +3583,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   const [downloadUrl,setDownloadUrl]=useState("");
   const [downloadName,setDownloadName]=useState("");
   // 수수료 계산서 입력값들 — ov에 저장해 저장건과 함께 복원(붙여넣은 내용이 사라지지 않게)
-  const feeText=ov.feeText||"";
+  // 붙여넣은 사이트 계산서가 없으면 감정평가액으로 자동 계산한 계산서(arap_fee.js)를 쓴다 — 아래 코드는 feeText만 본다(2026-10-13)
+  const feeTextRaw=ov.feeText||"";
+  const feeAmt=fT||0;
+  const feeText=feeTextRaw.trim()?feeTextRaw:(window.ArapFee&&feeAmt>0?window.ArapFee.statementText(feeAmt):"");
   const setFeeText=v=>setOv(p=>({...p,feeText:v}));
   const downPayment=ov.downPaymentInput??"0";   // 기납부착수금 기본값 0 (2026-09-17 사용자 요청) — 대표샘플은 접수글 실값 100만을 그대로 둔다
   const setDownPayment=v=>setOv(p=>({...p,downPaymentInput:v}));
@@ -3749,9 +3757,12 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     <div style={{...S.card,background:"#fdf4ff",border:"1px solid #f0abfc"}}>
       <div style={S.h2}>📨 표지 · 청구서 · 회보서</div>
       <div style={{fontSize:12,color:"#666",marginBottom:6}}>
-        ① <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{color:"#2563eb"}}>수수료 계산 사이트</a>에서 예상평가액 입력 → 계산 → <b>계산서1 복사 버튼</b> 클릭 → ② 아래에 붙여넣기
+        평가수수료는 <b>감정평가액으로 자동 계산</b>합니다(「감정평가법인등의 보수에 관한 기준」 2026.2.9. 별표) — 사이트에 들어갈 필요 없어요. {(()=>{const a=window.ArapFee&&feeAmt>0?window.ArapFee.calc(feeAmt):null;return a?<span>예상평가액 <b>{fmt(a.예상평가액)}원</b> ({a.구간}) → 하한 <b>{fmt(a.하한수수료)}</b> · 기준 <b>{fmt(a.기준수수료)}</b> · 상한 <b>{fmt(a.상한수수료)}</b> 원</span>:<span>감정평가액이 정해지면 하한·기준·상한이 여기 나옵니다.</span>;})()}
+        <br/><span style={{color:"#94a3b8"}}>(선택) <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{color:"#2563eb"}}>수수료 계산 사이트</a> 계산서1을 아래에 붙여넣으면 그 값을 씁니다. 비우면 다시 자동.</span>
+        {(()=>{const ck=feeTextRaw.trim()&&window.ArapFee?window.ArapFee.check(feeTextRaw):null;if(!ck)return null;
+          return ck.ok?<div style={{color:"#16a34a"}}>붙여넣은 계산서 = 자동 계산과 같음 ✓</div>:<div style={{color:"#dc2626",fontWeight:600}}>⚠ 붙여넣은 계산서가 자동 계산과 다릅니다: {ck.diffs.map(k=>k.replace("수수료","")+" "+fmt(ck.site[k])+" ↔ 자동 "+fmt(ck.auto[k])).join(", ")}</div>;})()}
       </div>
-      <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeText} onChange={e=>setFeeText(e.target.value)} placeholder={"여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"}/>
+      <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeTextRaw} onChange={e=>setFeeText(e.target.value)} placeholder={"(선택) 수수료 사이트 계산서1을 붙여넣으면 그 값을 씁니다 — 비워 두면 감정평가액으로 자동 계산"}/>
       {/* 수수료 요율 / 특별용역비 방식 — 집합건물 고유 컨트롤 */}
       <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
@@ -3762,7 +3773,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
           {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
         </select>
-        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>✅ 계산서 인식됨 (평가수수료 자동)</span>:<span style={{fontSize:11,color:"#999"}}>계산서 붙여넣으면 평가수수료 자동입력</span>;})()}
+        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>{feeTextRaw.trim()?"✅ 붙여넣은 계산서 사용":"✅ 평가수수료 자동 계산"}</span>:<span style={{fontSize:11,color:"#999"}}>감정평가액이 정해지면 평가수수료 자동 계산</span>;})()}
       </div>
       {(()=>{
         const fee=parseFeeStatement(feeText);
@@ -6896,7 +6907,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   const [downloadName,setDownloadName]=useState("");
 
   // 수수료 계산서 입력값들 — ov에 저장해 저장건과 함께 복원(붙여넣은 내용이 사라지지 않게)
-  const feeText=ov.feeText||"";
+  // 붙여넣은 사이트 계산서가 없으면 감정평가액으로 자동 계산한 계산서(arap_fee.js)를 쓴다 — 아래 코드는 feeText만 본다(2026-10-13)
+  const feeTextRaw=ov.feeText||"";
+  const feeAmt=(()=>{try{const us=(ov.units||[]).filter(u=>u&&(u.ho||u.dong||u.floor||pNum(u.area)>0));const rs=us.map(u=>ArapMultiHwpx.calculateUnit(u,ArapMultiHwpx.resolveCase(u,cases),{uD,uM,tD,tM},{applyR,getUV}));return rs.length&&rs.every(r=>r.ready)?rs.reduce((a,r)=>a+(r.finalAmt||0),0):0;}catch(e){return 0;}})();
+  const feeText=feeTextRaw.trim()?feeTextRaw:(window.ArapFee&&feeAmt>0?window.ArapFee.statementText(feeAmt):"");
   const setFeeText=v=>setOv(p=>({...p,feeText:v}));
   const downPayment=ov.downPaymentInput??"0";   // 기납부착수금 기본값 0 (2026-09-17 사용자 요청) — 대표샘플은 접수글 실값 100만을 그대로 둔다
   const setDownPayment=v=>setOv(p=>({...p,downPaymentInput:v}));
@@ -7134,9 +7148,12 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     <div style={{...S.card,background:"#fdf4ff",border:"1px solid #f0abfc"}}>
       <div style={S.h2}>📨 청구서</div>
       <div style={{fontSize:12,color:"#666",marginBottom:6}}>
-        ① <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{color:"#2563eb"}}>수수료 계산 사이트</a>에서 여러 호수의 평가액 합계를 예상평가액으로 입력 → 계산 → <b>계산서1 복사 버튼</b> 클릭 → ② 아래에 붙여넣기
+        평가수수료는 <b>감정평가액(여러 호수 합계)으로 자동 계산</b>합니다(「감정평가법인등의 보수에 관한 기준」 2026.2.9. 별표) — 사이트에 들어갈 필요 없어요. {(()=>{const a=window.ArapFee&&feeAmt>0?window.ArapFee.calc(feeAmt):null;return a?<span>예상평가액 <b>{fmt(a.예상평가액)}원</b> ({a.구간}) → 하한 <b>{fmt(a.하한수수료)}</b> · 기준 <b>{fmt(a.기준수수료)}</b> · 상한 <b>{fmt(a.상한수수료)}</b> 원</span>:<span>감정평가액이 정해지면 하한·기준·상한이 여기 나옵니다.</span>;})()}
+        <br/><span style={{color:"#94a3b8"}}>(선택) <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{color:"#2563eb"}}>수수료 계산 사이트</a> 계산서1을 아래에 붙여넣으면 그 값을 씁니다. 비우면 다시 자동.</span>
+        {(()=>{const ck=feeTextRaw.trim()&&window.ArapFee?window.ArapFee.check(feeTextRaw):null;if(!ck)return null;
+          return ck.ok?<div style={{color:"#16a34a"}}>붙여넣은 계산서 = 자동 계산과 같음 ✓</div>:<div style={{color:"#dc2626",fontWeight:600}}>⚠ 붙여넣은 계산서가 자동 계산과 다릅니다: {ck.diffs.map(k=>k.replace("수수료","")+" "+fmt(ck.site[k])+" ↔ 자동 "+fmt(ck.auto[k])).join(", ")}</div>;})()}
       </div>
-      <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeText} onChange={e=>setFeeText(e.target.value)} placeholder={"여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"}/>
+      <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeTextRaw} onChange={e=>setFeeText(e.target.value)} placeholder={"(선택) 수수료 사이트 계산서1을 붙여넣으면 그 값을 씁니다 — 비워 두면 감정평가액으로 자동 계산"}/>
       {/* 수수료 요율 / 특별용역비 방식 — 집합건물 고유 컨트롤 */}
       <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
@@ -7147,7 +7164,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
           {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
         </select>
-        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>✅ 계산서 인식됨 (평가수수료 자동)</span>:<span style={{fontSize:11,color:"#999"}}>계산서 붙여넣으면 평가수수료 자동입력</span>;})()}
+        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>{feeTextRaw.trim()?"✅ 붙여넣은 계산서 사용":"✅ 평가수수료 자동 계산"}</span>:<span style={{fontSize:11,color:"#999"}}>감정평가액이 정해지면 평가수수료 자동 계산</span>;})()}
       </div>
       {(()=>{
         const fee=parseFeeStatement(feeText);

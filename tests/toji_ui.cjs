@@ -89,7 +89,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   assert.equal(cg.total,'1,740,200 원');
   assert.equal(cg.due,'1,440,200 원');          // 총계 − 착수금 300,000
   assert.equal(cg.btn,false);
-  assert(cg.state.includes('인식'));
+  assert(cg.state.includes('붙여넣은 계산서'));
   for(const m of ['평가수수료','여　비','물건조사비','공부발급비','기타실비','특별용역비','소　계','합계(가+나)','부가가치세','총　계','기납부착수금','정산청구액'])
     assert(cg.rows.some(r=>r.replace(/\s+/g,'').includes(m.replace(/\s+/g,''))),m);
 
