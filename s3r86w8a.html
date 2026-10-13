@@ -2720,14 +2720,66 @@ async function buildEvalHwpxV2(tokenMap){
       xml=v2FixDecisionHeading(xml);            // 목차 번호 교정 Ⅲ→Ⅳ
       xml=v2DecisionNote(xml,tokenMap);         // 결정표 아래 반올림 주석 문단 (치환 전 — 토큰째로 넣고 아래 루프가 채움)
       xml=v2SecondSedaeToken(xml);              // 감정평가표 '평가내역' 사정 칸(두 번째 {{세대}}) → {{세대_사정}} (치환 전)
+      xml=v2BoldSelectedCase(xml,tokenMap);     // 거래사례 표: 선정 사례 행 굵게 + 선정사유 「기호 ㉢을」 굵게·밑줄 (치환 전, 줄배치 제거 뒤)
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("v2 감정평가서 미치환 토큰",e.name,left);
       for(const[b,k]of Object.entries(V2_BLUE2BLACK))xml=xml.split('charPrIDRef="'+b+'"').join('charPrIDRef="'+k+'"');
+      xml=xml.replace(/charPrIDRef="TW:([bu]+):(\d+)"/g,(m,f,id)=>'charPrIDRef="TW:'+f+':'+(V2_BLUE2BLACK[id]||id)+'"');   // 파랑 → 검정 쌍둥이 기준으로
       e.data=new TextEncoder().encode(xml);
     }
   }
+  // 굵게·밑줄 표시(TW:)가 있으면 header.xml에 쌍둥이 글자모양을 빈 번호 없이 이어 붙인다(id 연속·itemCnt 일치 — 한글 글꼴 깨짐 방지)
+  const head=entries.find(e=>e.name==="Contents/header.xml");
+  const secs=entries.filter(e=>/^Contents\/section\d+\.xml$/.test(e.name));
+  if(head&&secs.some(e=>new TextDecoder("utf-8").decode(e.data).includes('charPrIDRef="TW:'))){
+    const r=v2AddTwinCharPrs(new TextDecoder("utf-8").decode(head.data),secs.map(e=>new TextDecoder("utf-8").decode(e.data)));
+    head.data=new TextEncoder().encode(r.header);secs.forEach((e,i)=>{e.data=new TextEncoder().encode(r.sections[i]);});
+  }
   return createZipStored(entries);
+}
+// 거래사례 표에서 선정한 사례 행의 글자를 모두 굵게, 선정사유 문장 속 「기호 ㉢을」은 굵게+밑줄(2026-10-13 사용자 요청, 스샷 양식)
+// 글자모양은 TW:플래그:원래id 로 표시만 해 두고, 실제 쌍둥이 글자모양은 buildEvalHwpxV2 끝에서 header.xml에 추가한다.
+function v2BoldSelectedCase(xml,map){
+  const k=parseInt(map["_선정순번"],10);
+  if(k>=1){
+    const at=xml.indexOf("{{사례"+k+"_법정동}}");
+    if(at>=0){
+      const trS=xml.lastIndexOf("<hp:tr>",at),trE=xml.indexOf("</hp:tr>",at);
+      if(trS>=0&&trE>at){
+        const row=xml.slice(trS,trE).replace(/(<hp:run\b[^>]*?)charPrIDRef="(\d+)"/g,'$1charPrIDRef="TW:b:$2"');
+        xml=xml.slice(0,trS)+row+xml.slice(trE);
+      }
+    }
+  }
+  const why=String(map["사례선정이유"]||""),m=why.match(/기호\s*\S+?[을를](?=\s)/);
+  if(m){
+    xml=xml.replace(/<hp:run charPrIDRef="(\d+)"><hp:t>\{\{사례선정이유\}\}<\/hp:t><\/hp:run>/,(full,id)=>{
+      const i=why.indexOf(m[0]),pre=why.slice(0,i),post=why.slice(i+m[0].length);
+      const run=(cp,t)=>t?'<hp:run charPrIDRef="'+cp+'"><hp:t>'+hwpxEsc(t)+'</hp:t></hp:run>':'';
+      return run(id,pre)+run("TW:bu:"+id,m[0])+run(id,post);
+    });
+  }
+  return xml;
+}
+function v2AddTwinCharPrs(headerXml,sectionXmls){
+  const HH="http://www.hancom.co.kr/hwpml/2011/head";
+  const need={};sectionXmls.forEach(x=>(x.match(/charPrIDRef="TW:[bu]+:\d+"/g)||[]).forEach(m=>{need[m.slice(16,-1)]=true;}));
+  const keys=Object.keys(need);if(!keys.length)return{header:headerXml,sections:sectionXmls};
+  const doc=new DOMParser().parseFromString(headerXml,"application/xml");
+  const list=doc.getElementsByTagNameNS(HH,"charProperties")[0],prs=Array.from(list.getElementsByTagNameNS(HH,"charPr"));
+  if(prs.length!==Number(list.getAttribute("itemCnt")))throw new Error("글자모양 itemCnt가 실제 개수와 다릅니다.");
+  let next=prs.length;const idmap={};
+  keys.forEach(key=>{
+    const[flags,id]=key.split(":");const src=prs.find(p=>p.getAttribute("id")===id);if(!src)throw new Error("글자모양 "+id+" 없음");
+    const twin=src.cloneNode(true);twin.setAttribute("id",String(next));
+    let ul=twin.getElementsByTagNameNS(HH,"underline")[0];
+    if(flags.includes("b")&&!twin.getElementsByTagNameNS(HH,"bold").length){const b=doc.createElementNS(HH,"hh:bold");if(ul)twin.insertBefore(b,ul);else twin.appendChild(b);}
+    if(flags.includes("u")){if(!ul){ul=doc.createElementNS(HH,"hh:underline");ul.setAttribute("shape","SOLID");ul.setAttribute("color","#000000");twin.appendChild(ul);}ul.setAttribute("type","BOTTOM");}
+    list.appendChild(twin);idmap[key]=String(next);next++;
+  });
+  list.setAttribute("itemCnt",String(next));
+  return{header:new XMLSerializer().serializeToString(doc),sections:sectionXmls.map(x=>x.replace(/charPrIDRef="TW:([bu]+:\d+)"/g,(m,key)=>'charPrIDRef="'+idmap[key]+'"'))};
 }
 // 값만 든 문단(<hp:run>{{토큰}}</hp:run>)의 <hp:linesegarray> 제거 — 캐시된 1줄 배치에 긴 값이 겹쳐 찍히는 것 방지(한글이 열 때 재배치)
 function v2StripValueLineSeg(xml){
@@ -2873,6 +2925,7 @@ function buildV2TokenMap(d,ov,cases,comp,fT){
     v["사례"+n+"_승인일"]=c?fmtDate(c.approvalDate):"";
   }
   v["선정_기호"]=circSymOf(shownC,sc);
+  v["_선정순번"]=String(shownC.findIndex(x=>x&&x.id===sc.id)+1);   // 의견서 거래사례 표에서 굵게 할 행(buildEvalHwpxV2) — 토큰 아님
   v["선정_법정동"]=sc.location||"";v["선정_지번"]=sc.jibun||"";v["선정_건물명"]=sc.aptName||"";
   v["선정_동층호"]=sc.symbol?((sc.dong||"-")+"/"+(sc.floor||"-")+"/"+stripHo(sc.ho)+"호"):"";
   v["선정_전유면적"]=sc.exclusiveArea?String(sc.exclusiveArea):"";
