@@ -14,10 +14,11 @@ function address(s){
   var m=text(s).trim().match(/^(.*?)\s+(산\s*\d+(?:-\d+)?|\d+(?:-\d+)?)(?:번지)?$/);
   return m?{loc:m[1],lot:m[2]}:{loc:text(s),lot:''};
 }
-// 개요 산문 "본건은 ○○시 ○○구 ○○동 소재 …" — 지번·'토지 및 건물'·'외 N필지'는 빼고 동(읍·면)까지만.
-// 요항표 소재지(동)와 같은 값을 쓰도록 본건 토지의 '소재지' 칸을 먼저 본다.
+// 개요 산문 "본건은 ○○시 ○○구 ○○동 소재 …" — 지번·'토지 및 건물'·'외 N필지'는 빼고 시·구·동(읍·면)까지.
+// 토지 조회로 받은 전체 주소가 있으면 그것(「서울특별시 송파구 삼전동」 — 2026-10-13 사용자 요청), 없으면 소재지 칸(동).
 function dongAddr(){
   var L0=LANDS[0]||{};
+  if(typeof landLoc==='function'&&text(landLoc(L0)).trim())return text(landLoc(L0)).trim();
   var s=text(L0['소재지']).trim()||text(L0.fullAddr).trim()||
     text(cheongguAddr()).replace(/\s*외\s*\d+\s*필지/,'').replace(/\s*토지(\s*및\s*건물)?\s*$/,'');
   return address(s).loc;

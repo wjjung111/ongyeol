@@ -3020,7 +3020,7 @@ function yohangTerrain(v){return v&&!/한$/.test(v)?v+'한':v;}
 // 빈 칸만 대상물건 탭 값으로 채운다(평가사가 쓴 내용은 건드리지 않음).
 function fillYohangFromData(){
   var L=LANDS[0]||{},set=function(id,v){var el=document.getElementById(id);if(el&&!el.value.trim()&&v)el.value=v;};
-  set('y_dong',L['소재지']);
+  set('y_dong',landLoc(L));   // 시·구·동까지(의견서 개요와 같은 값)
   set('y_near',cgVal('op_location'));
   set('y_jise',yohangTerrain(L['지세']==='평지'?'평탄':L['지세']));
   set('y_shape',L['형상']);
