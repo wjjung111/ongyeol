@@ -2148,7 +2148,7 @@ td{border:0.5pt solid #000;padding:1mm 1mm;text-align:center;vertical-align:midd
     <tr style="height:10mm;"><td class="lb" colspan="2">의뢰인</td><td colspan="3">${esc(ov.client)}</td><td class="lb">평가목적</td><td colspan="4">${esc(ov.purpose||"일반거래(시가참고)")}</td></tr>
     <tr style="height:10mm;"><td class="lb" colspan="2">제출처</td><td colspan="3">국세청 및 관할세무서</td><td class="lb">기준가치</td><td colspan="4">시장가치</td></tr>
     <tr style="height:10mm;"><td class="lb" colspan="2">소유자<br/>(대상업체명)</td><td colspan="3">${esc(ov.owner||ov.client)}</td><td class="lb">감정평가조건</td><td colspan="4">${esc(ov.condition||"-")}</td></tr>
-    <tr style="height:10mm;"><td class="lb" colspan="2">목록표시근거</td><td colspan="3" style="line-height:1.7;">등기사항전부증명서,<br/>귀 제시목록 등</td><td class="lb">기준시점</td><td class="lb" colspan="3">조사기간</td><td class="lb">작성일자</td></tr>
+    <tr style="height:10mm;"><td class="lb" colspan="2">목록표시근거</td><td colspan="3" style="line-height:1.7;">${ov.listBasis?esc(ov.listBasis):"등기사항전부증명서,<br/>귀 제시목록 등"}</td><td class="lb">기준시점</td><td class="lb" colspan="3">조사기간</td><td class="lb">작성일자</td></tr>
     <tr style="height:10mm;"><td class="lb" colspan="2">(기타참고사항)</td><td colspan="3">-</td><td>${esc(ov.baseDate||"")}</td><td colspan="3" style="font-size:9pt;">${esc(ov.surveyDate||ov.baseDate||"")}</td><td>${today}</td></tr>
     <tr style="height:7mm;"><td class="lb"></td><td class="lb" colspan="2">공&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;부</td><td class="lb" colspan="4">사&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;정</td><td class="lb" colspan="3">감 정 평 가 액</td></tr>
     <tr style="height:6.5mm;"><td class="lb" rowspan="5" style="letter-spacing:0;">평<br/><br/>가<br/><br/>내<br/><br/>역</td>
@@ -2638,6 +2638,25 @@ async function downloadPyojiXlsx(ov,feeText,downPayment,specialFee,feeBasis){
 // ══ 괄호감정표 HWPX 템플릿 치환 (명세표 xlsx와 동일 패턴: parseZip→토큰치환→createZipStored) ══
 // 날것 탭은 공백으로 — hwpx <hp:t> 안에 들어가면 한글이 그 런을 잘못 읽어 뒤 글자를 먹는다 (줄바꿈 \n은 호출부가 문단으로 처리하므로 건드리지 않음)
 function hwpxEsc(s){return String(s==null?"":s).replace(/[\t\v\f]/g," ").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+// 감정평가표·괄호감정표의 '목록표시근거' 칸 — 템플릿엔 고정 글자뿐이라 1. 접수개요 입력값(ov.listBasis)으로 바꿔 넣는다(2026-10-13 사용자 요청)
+// 칸이 두 줄 문단이라 쉼표 기준으로 앞줄 16자 안쪽까지 채우고 나머지는 둘째 줄. 입력이 비면 템플릿 글자 그대로.
+function listBasisLines(text){
+  const t=String(text||"").replace(/\s+/g," ").trim();if(!t)return null;
+  if(t.length<=16)return [t];
+  const parts=t.split(/,\s*/);let a=parts[0],i=1;
+  while(i<parts.length&&(a+", "+parts[i]).length<=16){a+=", "+parts[i];i++;}
+  return i<parts.length?[a+",",parts.slice(i).join(", ")]:[a];
+}
+function hwpxListBasisCell(xml,text){
+  const lines=listBasisLines(text);if(!lines)return xml;
+  const li=xml.indexOf(">목록표시근거<");if(li<0)return xml;
+  const ts=xml.indexOf("<hp:tc ",li),s0=ts<0?-1:xml.indexOf("<hp:subList",ts),s1=s0<0?-1:xml.indexOf("</hp:subList>",s0);
+  if(s1<0)return xml;
+  const body=xml.slice(s0,s1),paras=body.match(/<hp:p [\s\S]*?<\/hp:p>/g)||[];if(!paras.length)return xml;
+  const one=(p,txt)=>p.replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/,"").replace(/(<hp:run [^>]*>)[\s\S]*?(<\/hp:run>)[\s\S]*?(?=<\/hp:p>)/,(m,o,c)=>o+"<hp:t>"+hwpxEsc(txt)+"</hp:t>"+c);
+  const head=body.slice(0,body.indexOf(paras[0])),out=lines.map((l,k)=>one(paras[Math.min(k,paras.length-1)],l)).join("");
+  return xml.slice(0,s0)+head+out+xml.slice(s1);
+}
 async function buildHwpx(b64,tokenMap,post){  // post: 토큰치환 뒤 section0 XML을 한 번 더 손볼 함수(선택)
   const bin=atob(b64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -2678,7 +2697,7 @@ async function downloadGwalhoHwpx(ov,totalAmount){
     const now=new Date();const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: 1. 접수개요 입력값 우선
     const fmtMoney=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
     const num=fmtMoney(totalAmount);
-    const bytes=await buildHwpx(GWALHO_TPL_B64,{"금액한글":numberToKoreanMoney(totalAmount),"금액숫자":num,"의뢰인":ov.client,"소유자":ov.owner||ov.client,"평가목적":ov.purpose||"일반거래(시가참고)","기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"","작성일자":today},xml=>gwalhoShareCell(xml,ov,"<hp:t>","</hp:t>"));
+    const bytes=await buildHwpx(GWALHO_TPL_B64,{"금액한글":numberToKoreanMoney(totalAmount),"금액숫자":num,"의뢰인":ov.client,"소유자":ov.owner||ov.client,"평가목적":ov.purpose||"일반거래(시가참고)","기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"","작성일자":today},xml=>hwpxListBasisCell(gwalhoShareCell(xml,ov,"<hp:t>","</hp:t>"),ov.listBasis));
     triggerDownload(bytes,`2.괄호감정표_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('괄호감정표 hwpx 생성 실패',e);alert("괄호감정표 생성 실패: "+e.message);}
 }
@@ -2720,6 +2739,7 @@ async function buildEvalHwpxV2(tokenMap){
       xml=v2FixDecisionHeading(xml);            // 목차 번호 교정 Ⅲ→Ⅳ
       xml=v2DecisionNote(xml,tokenMap);         // 결정표 아래 반올림 주석 문단 (치환 전 — 토큰째로 넣고 아래 루프가 채움)
       xml=v2SecondSedaeToken(xml);              // 감정평가표 '평가내역' 사정 칸(두 번째 {{세대}}) → {{세대_사정}} (치환 전)
+      xml=hwpxListBasisCell(xml,tokenMap["_목록표시근거"]);   // 감정평가표 목록표시근거 칸 = 1. 접수개요 입력값 (치환 전)
       xml=v2BoldSelectedCase(xml,tokenMap);     // 거래사례 표: 선정 사례 행 굵게 + 선정사유 「기호 ㉢을」 굵게·밑줄 (치환 전, 줄배치 제거 뒤)
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
@@ -2925,6 +2945,7 @@ function buildV2TokenMap(d,ov,cases,comp,fT){
     v["사례"+n+"_승인일"]=c?fmtDate(c.approvalDate):"";
   }
   v["선정_기호"]=circSymOf(shownC,sc);
+  v["_목록표시근거"]=ov.listBasis||"";   // buildEvalHwpxV2가 감정평가표 목록표시근거 칸에 넣음 — 토큰 아님
   v["_선정순번"]=String(shownC.findIndex(x=>x&&x.id===sc.id)+1);   // 의견서 거래사례 표에서 굵게 할 행(buildEvalHwpxV2) — 토큰 아님
   v["선정_법정동"]=sc.location||"";v["선정_지번"]=sc.jibun||"";v["선정_건물명"]=sc.aptName||"";
   v["선정_동층호"]=sc.symbol?((sc.dong||"-")+"/"+(sc.floor||"-")+"/"+stripHo(sc.ho)+"호"):"";
