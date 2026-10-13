@@ -183,6 +183,11 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>caseObjLabel({id:'NONE',label:'NONE 삼전동 6-7'})),'삼전동 6-7','저장 데이터 없으면 종전 이름');
     await page.evaluate(()=>{toggleCaseList();showTab('daesang');});
     await page.click('#ek_land');assert.equal(await cls(),'land');assert.equal(await page.evaluate(()=>LAND_ONLY),true);
+    // 의견서·요항표 개요 「본건은 ○○ 소재」 = 시·구·동 전체(지번 없이)
+    await page.evaluate(()=>{LANDS[0]=Object.assign(LANDS[0],{소재지:'삼전동',지번:'6-7',fullAddr:'서울특별시 송파구 삼전동 6-7'});document.getElementById('y_dong').value='';fillYohangFromData();});
+    const op=await check(page,await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data()))));
+    assert(op.text.includes('본건은 서울특별시 송파구 삼전동 소재'),'의견서 개요 전체 주소');assert(!op.text.includes('삼전동 6-7 소재'));
+    assert.equal(await page.locator('#y_dong').inputValue(),'서울특별시 송파구 삼전동','요항표 소재지');
     assert.deepEqual(errors,[]);
     console.log('PASS',out);
   }finally{await browser.close();server.close();}
