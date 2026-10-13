@@ -3927,7 +3927,7 @@ function App(){
   const [caseRevision,setCaseRevision]=useState(0); // 평가건 전환 시 대상물건 입력 화면도 초기화
   const [showList,setShowList]=useState(false);
   const [leftCollapsed,setLeftCollapsed]=useState(false);
-  const [rightCollapsed,setRightCollapsed]=useState(false);
+  const [rightCollapsed,setRightCollapsed]=useState(true);   // 오른쪽 메모장은 켤 때 항상 접힌 상태(2026-10-13 사용자 요청) — ◀ 메모를 누르면 펼침
   // ── 되돌리기(Ctrl+Z)·다시 실행(Ctrl+Y) — 0.4초 멈춘 입력마다 건 전체 상태를 한 칸씩 기록(최대 60칸) ──
   //    입력칸 안에서는 브라우저 기본 되돌리기(글자 단위), 칸 밖에서는 이 기록으로 한 단계씩. 건을 열거나 새로 만들면 기록을 비운다.
   const histRef=React.useRef({undo:[],redo:[],last:null,skip:false});
@@ -7299,7 +7299,7 @@ function App(){
   const [caseRevision,setCaseRevision]=useState(0); // 평가건 전환 시 대상물건 입력 화면도 초기화
   const [showList,setShowList]=useState(false);
   const [leftCollapsed,setLeftCollapsed]=useState(false);
-  const [rightCollapsed,setRightCollapsed]=useState(false);
+  const [rightCollapsed,setRightCollapsed]=useState(true);   // 오른쪽 메모장은 켤 때 항상 접힌 상태(2026-10-13 사용자 요청) — ◀ 메모를 누르면 펼침
   const pushUndo=useCallback(()=>{},[]);
   const initF=useCallback(prev=>prev.map(c=>{if(c.isSelected&&c.extFactor===undefined)return{...c,extFactor:1.0,intFactor:1.0,hoFactor:1.0,etcFactor:1.0,totalFactor:1.0,noteExt:"",noteInt:"",noteHo:"",noteEtc:""};return c;}),[]);
   const setC=useCallback(fn=>{setCases(prev=>{const next=typeof fn==="function"?fn(prev):fn;return initF(next);});},[initF]);

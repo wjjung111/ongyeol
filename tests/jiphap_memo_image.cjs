@@ -21,6 +21,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'T',label:'t'}]));
         localStorage.setItem(pre+'case:T',JSON.stringify({ov:{caseNo:'T',jibun:'서울 중구 87'},cases:[],precs:[],propType:'주거용'}));},{mode,pre});
       await page.goto(base+'/s3r86w8a.html');
+      const openMemo=async()=>{const b=page.locator('span:text-is("◀ 메모"):visible');await b.first().waitFor();await b.first().click();};   // 메모장은 켤 때 접혀 있다(2026-10-13) — 펼친 뒤 검사
+      await openMemo();
       const ta=page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first();await ta.waitFor();
       const paste=()=>ta.evaluate(async el=>{const c=document.createElement('canvas');c.width=1600;c.height=900;const x=c.getContext('2d');const d=x.createImageData(1600,900);for(let i=0;i<d.data.length;i+=4){const v=(Math.random()*40+100)|0;d.data[i]=v;d.data[i+1]=v+20;d.data[i+2]=v+5;d.data[i+3]=255;}x.putImageData(d,0,0);
         const blob=await new Promise(r=>c.toBlob(r,'image/png'));const dt=new DataTransfer();dt.items.add(new File([blob],'a.png',{type:'image/png'}));el.focus();el.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));return blob.size;});
@@ -30,7 +32,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       const orig=await paste();assert.ok(orig>1500000,'테스트 이미지는 큰 PNG여야 함 '+orig);
       await page.waitForFunction(k=>!!localStorage.getItem(k),pre+'appraisal-memo:T');
       const len=await memoLen();assert.ok(len<orig*0.6,`줄여서 저장돼야 함: 원본 ${orig}B → 저장 ${len}자`);
-      await page.reload();const ta2=page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first();await ta2.waitFor();await page.waitForTimeout(500);
+      await page.reload();await openMemo();const ta2=page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first();await ta2.waitFor();await page.waitForTimeout(500);
       assert.equal(await page.locator('img[src^="data:image/jpeg"]:visible').count(),1,'새로고침 뒤 이미지 메모가 남아야 함');
       assert.deepEqual(dialogs,[]);
 
@@ -47,12 +49,12 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.getByRole('button',{name:'다시 저장'}).click();
       await page.waitForTimeout(300);
       assert.equal(await page.locator('text=저장 공간이 가득').count(),0);
-      await page.reload();await page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first().waitFor();await page.waitForTimeout(500);
+      await page.reload();await openMemo();await page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first().waitFor();await page.waitForTimeout(500);
       assert.equal(await page.locator('img[src^="data:image/jpeg"]:visible').count(),2,'다시 저장한 뒤 새로고침해도 이미지 2장');
 
       // 4) 글자 많은 화면 캡처(PNG가 더 작은 유형) — 줄이다가 오히려 커지지 않는다
       await page.evaluate(()=>{Object.keys(localStorage).filter(k=>k.startsWith('v2:appraisal-memo:')||k.startsWith('appraisal-memo:')).forEach(k=>localStorage.removeItem(k));});
-      await page.reload();await page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first().waitFor();
+      await page.reload();await openMemo();await page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first().waitFor();
       const ta4=page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first();
       const sz=await ta4.evaluate(async el=>{const c=document.createElement('canvas');c.width=1900;c.height=1000;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,1900,1000);x.fillStyle='#111';x.font='15px sans-serif';
         for(let r=0;r<60;r++)for(let q=0;q<5;q++)x.fillText('서울특별시 중구 회현동2가 87 쌍용남산플라티넘 '+(r*7+q)+' 1,141,000,000',20+q*370,20+r*16);
@@ -70,7 +72,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.equal(await page.evaluate(k=>localStorage.getItem(k),pre+'appraisal-memo:_temp'),null,'_temp 메모가 남음');
       await page.waitForTimeout(500);
       assert.equal(await page.locator('img[src^="data:image/"]:visible').count(),1,'번호를 넣은 뒤에도 메모 이미지가 보여야 함');
-      await page.reload();await page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first().waitFor();await page.waitForTimeout(800);
+      await page.reload();await openMemo();await page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first().waitFor();await page.waitForTimeout(800);
       assert.equal(await page.locator('img[src^="data:image/"]:visible').count(),1,'새로고침 뒤에도 남아야 함');
 
       assert.deepEqual(errors,[]);
