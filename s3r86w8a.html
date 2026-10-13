@@ -997,7 +997,7 @@ function parseKaisRow(text,idx){
       dong:dn,floor:fl,ho,
       tradeDate:pStr(r["거래시점"]),
       exclusiveArea:pNum(r["전용면적"]),
-      price:pNum(r["물건금액"]),unitPrice:pNum(r["단가"]),
+      price:pNum(r["물건금액"]),unitPrice:pNum(r["단가"]),unitPriceOrig:pNum(r["단가"]),
       approvalDate:pStr(r["사용승인일자"]),
       timeAdj:null,timeAdjDetail:"",isShown:true,isSelected:false
     };
@@ -1148,12 +1148,12 @@ function updatePrecPricing(prec,key,value){
   return next;
 }
 // 입력 중 소수점/끝자리 0을 보존하고, 표시 단위만 변환한다 (가격: 천원, 저장: 원).
-function PrecNumberInput({label,value,onChange,scale=1}){
+function PrecNumberInput({label,value,onChange,scale=1,style}){
   const [draft,setDraft]=useState("");
   const [editing,setEditing]=useState(false);
   const numeric=value!==""&&value!=null&&Number.isFinite(Number(value))?Number(value)/scale:null;
   const display=numeric==null?"":numeric.toLocaleString("ko-KR",{maximumFractionDigits:10});
-  return(<input aria-label={label} inputMode="decimal" style={{...S.inp,width:"100%",minWidth:80,textAlign:"right"}}
+  return(<input aria-label={label} inputMode="decimal" style={{...S.inp,width:"100%",minWidth:80,textAlign:"right",...(style||{})}}
     value={editing?draft:display}
     onFocus={()=>{setDraft(display);setEditing(true);}}
     onChange={e=>{const raw=e.target.value.replace(/,/g,"");if(!/^\d*(\.\d*)?$/.test(raw))return;
@@ -1881,6 +1881,10 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   const togP=id=>{setPrecs(p=>p.map(x=>x.id===id?{...x,isShown:!x.isShown}:x));};
   const delC=id=>{const c0=cases.find(x=>x.id===id);pushUndo&&pushUndo("거래사례"+(c0&&c0.symbol?" #"+c0.symbol:"")+" 삭제됨");setCases(p=>reIdx(p.filter(c=>c.id!==id),false));};
   const updC=(id,key,val)=>{setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));};
+  // 거래사례 단가 직접 수정 — 처음 고칠 때 복붙 원래값을 unitPriceOrig에 남겨 두고(↺로 언제든 복귀), 복붙 직후 값은 파서가 같이 넣는다(2026-10-13)
+  const setCaseUnit=(id,v)=>setCases(p=>p.map(c=>c.id!==id?c:{...c,unitPrice:v===""?null:v,unitPriceOrig:c.unitPriceOrig!=null?c.unitPriceOrig:c.unitPrice}));
+  const resetCaseUnit=id=>setCases(p=>p.map(c=>c.id!==id||c.unitPriceOrig==null?c:{...c,unitPrice:c.unitPriceOrig}));
+  const resetAllCaseUnits=()=>setCases(p=>p.map(c=>c.unitPriceOrig==null?c:{...c,unitPrice:c.unitPriceOrig}));
   const delP=id=>{pushUndo&&pushUndo("평가전례 삭제됨");setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
   const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?updatePrecPricing(x,key,val):x));};
   const dropC=(f,t)=>{if(f===t)return;setCases(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,false);});};
@@ -1974,13 +1978,14 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={`${c.location||""}${c.jibun?" "+c.jibun:""}`} onChange={e=>{updC(c.id,"location",e.target.value);if(c.jibun)updC(c.id,"jibun","");}} onKeyDown={gridArrowNav}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center",border:"none",background:"transparent",fontSize:12}} value={`${c.dong||""}/${c.floor||""}/${c.ho||""}`} onChange={e=>{const pts=e.target.value.split("/");updC(c.id,"dong",pts[0]||"");updC(c.id,"floor",pts[1]||"");updC(c.id,"ho",pts[2]||"");}} onKeyDown={gridArrowNav}/></td>
           <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={c.aptName||""} onChange={e=>updC(c.id,"aptName",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={S.tdR}>{fmtDec(c.exclusiveArea,2)}</td>
-          <td style={S.tdR}>{fmt(c.price)}</td><td style={S.tdR}>{fmt(c.unitPrice)}</td>
+          <td style={S.tdR}>{fmt(c.price)}</td><td style={{...S.tdR,padding:"2px 4px"}} title={c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?`복붙 원래값 ${fmt(c.unitPriceOrig)}`:"단가 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 단가`} value={c.unitPrice??""} onChange={v=>setCaseUnit(c.id,v)} style={{border:"none",background:"transparent",fontSize:12,minWidth:70,color:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?C.acc:undefined,fontWeight:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?700:undefined}}/>{c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?<span role="button" title={`복붙 원래값(${fmt(c.unitPriceOrig)})으로 되돌리기`} onClick={()=>resetCaseUnit(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={S.td}>{fmtDate(c.tradeDate)}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:4,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td><td style={S.td}><input style={{...S.inp,width:75,border:"none",background:"transparent",fontSize:11,textAlign:"center"}} value={c.approvalDate||""} onChange={e=>updC(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/></td>
           <td style={{...S.td,cursor:"pointer",color:c.timeAdj?C.acc:"#aaa",fontWeight:c.timeAdj?700:400}}
             onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table>
+      {cases.some(c=>c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig)?<div style={{marginTop:6,fontSize:12}}><button style={{...S.btn,background:"#fff",color:"#1e293b",border:"1px solid #cbd5e1",fontSize:12,padding:"4px 10px"}} onClick={resetAllCaseUnits} title="고친 단가를 모두 복붙했을 때 값으로">↺ 단가 전체 원래값으로 ({cases.filter(c=>c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig).length}건)</button> <span style={{color:"#64748b"}}>파란 굵은 단가 = 직접 고친 값</span></div>:null}
     </div>)}
 
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
@@ -4563,7 +4568,7 @@ const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;const dp=parseIn
 function preTSV(text){let r="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')q=!q;else if(c==='\n'&&q)r+=" ";else r+=c;}return r;}
 function parseTSV(text){const clean=preTSV(text);const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
 
-function parseKaisRow(text,idx){const{rows}=parseTSV(text);return rows.map((r,i)=>{const addr=r["기타주소"]||"";let dn="",fl="",ho="",apt=addr;const m1=addr.match(/(\d+)동/);if(m1)dn=m1[1];const m2=addr.match(/(\d+)호/);if(m2)ho=m2[1];if(ho&&ho.length>=3)fl=ho.substring(0,ho.length-2);apt=apt.replace(/\d+동.*/,"").replace(/외\s*\d+필지\s*/,"").trim();const area=pNum(r["전용면적"]);const price=pNum(r["물건금액"]);const unitTsv=pNum(r["단가"]);const unitPrice=unitTsv||(price&&area?Math.round(price/area):null);return{id:Date.now()+Math.random()*9999+i,symbol:String(idx+i+1),location:pStr(r["소재지"]),jibun:pStr(r["지번"]),address:addr,aptName:apt,dong:dn,floor:fl,ho,tradeDate:pStr(r["거래시점"]),exclusiveArea:area,price,unitPrice,approvalDate:pStr(r["사용승인일자"]),timeAdj:null,timeAdjDetail:"",isShown:true,isSelected:false};});}
+function parseKaisRow(text,idx){const{rows}=parseTSV(text);return rows.map((r,i)=>{const addr=r["기타주소"]||"";let dn="",fl="",ho="",apt=addr;const m1=addr.match(/(\d+)동/);if(m1)dn=m1[1];const m2=addr.match(/(\d+)호/);if(m2)ho=m2[1];if(ho&&ho.length>=3)fl=ho.substring(0,ho.length-2);apt=apt.replace(/\d+동.*/,"").replace(/외\s*\d+필지\s*/,"").trim();const area=pNum(r["전용면적"]);const price=pNum(r["물건금액"]);const unitTsv=pNum(r["단가"]);const unitPrice=unitTsv||(price&&area?Math.round(price/area):null);return{id:Date.now()+Math.random()*9999+i,symbol:String(idx+i+1),location:pStr(r["소재지"]),jibun:pStr(r["지번"]),address:addr,aptName:apt,dong:dn,floor:fl,ho,tradeDate:pStr(r["거래시점"]),exclusiveArea:area,price,unitPrice,unitPriceOrig:unitPrice,approvalDate:pStr(r["사용승인일자"]),timeAdj:null,timeAdjDetail:"",isShown:true,isSelected:false};});}
 
 function parseKapaRow(text,idx){const{h,rows}=parseTSV(text);return rows.map((r,i)=>{const dflh=pStr(r["동층호"]);let dn="",fl="",ho="";const pts=dflh.split(/\s+/);if(pts.length>=3){dn=pts[0];fl=pts[1];ho=pts[2];}else if(pts.length===2){fl=pts[0];ho=pts[1];}const loc=pStr(r["소재지"]).replace(/서울특별시\s*\S+구\s*/,"").trim();let jv="";const j1=h.indexOf("지번");const j2=h.indexOf("지번",j1+1);if(j2>=0){const line=preTSV(text).split("\n").filter(l=>l.trim())[i+1];if(line){const cs=line.split("\t");jv=pStr(cs[j2]);}}if(!jv)jv=pStr(r["지번"]||"");jv=jv.replace(/\s/g,"");const ta=pNum(r["평가액(개별)"])||pNum(r["평가액 (개별)"])||pNum(r["감정평가총액"]);const up=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]);return{id:Date.now()+200+Math.random()*9999+i,selected:String.fromCharCode(97+idx+i),purpose:pStr(r["평가목적"]),location:loc,jibun:jv,exclusiveArea:pNum(r["전용면적"]),buildingName:pStr(r["건물명"]),dong:dn,floor:fl,ho,unitPrice:up,baseDate:pStr(r["기준시점"]),appraiseAmount:ta,note:pStr(r["비고"]),isShown:true};});}
 
@@ -4662,12 +4667,12 @@ function updatePrecPricing(prec,key,value){
   return next;
 }
 // 입력 중 소수점/끝자리 0을 보존하고, 표시 단위만 변환한다 (가격: 천원, 저장: 원).
-function PrecNumberInput({label,value,onChange,scale=1}){
+function PrecNumberInput({label,value,onChange,scale=1,style}){
   const [draft,setDraft]=useState("");
   const [editing,setEditing]=useState(false);
   const numeric=value!==""&&value!=null&&Number.isFinite(Number(value))?Number(value)/scale:null;
   const display=numeric==null?"":numeric.toLocaleString("ko-KR",{maximumFractionDigits:10});
-  return(<input aria-label={label} inputMode="decimal" style={{...S.inp,width:"100%",minWidth:80,textAlign:"right"}}
+  return(<input aria-label={label} inputMode="decimal" style={{...S.inp,width:"100%",minWidth:80,textAlign:"right",...(style||{})}}
     value={editing?draft:display}
     onFocus={()=>{setDraft(display);setEditing(true);}}
     onChange={e=>{const raw=e.target.value.replace(/,/g,"");if(!/^\d*(\.\d*)?$/.test(raw))return;
@@ -5539,6 +5544,10 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   const togP=id=>{setPrecs(p=>p.map(x=>x.id===id?{...x,isShown:!x.isShown}:x));};
   const delC=id=>{setCases(p=>reIdx(p.filter(c=>c.id!==id),false));};
   const updC=(id,key,val)=>{setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));};
+  // 거래사례 단가 직접 수정 — 처음 고칠 때 복붙 원래값을 unitPriceOrig에 남겨 두고(↺로 언제든 복귀), 복붙 직후 값은 파서가 같이 넣는다(2026-10-13)
+  const setCaseUnit=(id,v)=>setCases(p=>p.map(c=>c.id!==id?c:{...c,unitPrice:v===""?null:v,unitPriceOrig:c.unitPriceOrig!=null?c.unitPriceOrig:c.unitPrice}));
+  const resetCaseUnit=id=>setCases(p=>p.map(c=>c.id!==id||c.unitPriceOrig==null?c:{...c,unitPrice:c.unitPriceOrig}));
+  const resetAllCaseUnits=()=>setCases(p=>p.map(c=>c.unitPriceOrig==null?c:{...c,unitPrice:c.unitPriceOrig}));
   const delP=id=>{setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
   const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?updatePrecPricing(x,key,val):x));};
   const dropC=(f,t)=>{if(f===t)return;setCases(p=>{const a=[...p];const it=a.splice(f,1)[0];a.splice(t,0,it);return reIdx(a,false);});};
@@ -5663,13 +5672,14 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
           <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={`${c.location||""}${c.jibun?" "+c.jibun:""}`} onChange={e=>{updC(c.id,"location",e.target.value);if(c.jibun)updC(c.id,"jibun","");}} onKeyDown={gridArrowNav}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center",border:"none",background:"transparent",fontSize:12}} value={`${c.dong||""}/${c.floor||""}/${c.ho||""}`} onChange={e=>{const pts=e.target.value.split("/");updC(c.id,"dong",pts[0]||"");updC(c.id,"floor",pts[1]||"");updC(c.id,"ho",pts[2]||"");}} onKeyDown={gridArrowNav}/></td>
           <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={c.aptName||""} onChange={e=>updC(c.id,"aptName",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={S.tdR}>{fmtDec(c.exclusiveArea,2)}</td>
-          <td style={S.tdR}>{fmt(c.price)}</td><td style={S.tdR}>{fmt(c.unitPrice)}</td>
+          <td style={S.tdR}>{fmt(c.price)}</td><td style={{...S.tdR,padding:"2px 4px"}} title={c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?`복붙 원래값 ${fmt(c.unitPriceOrig)}`:"단가 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 단가`} value={c.unitPrice??""} onChange={v=>setCaseUnit(c.id,v)} style={{border:"none",background:"transparent",fontSize:12,minWidth:70,color:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?C.acc:undefined,fontWeight:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?700:undefined}}/>{c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?<span role="button" title={`복붙 원래값(${fmt(c.unitPriceOrig)})으로 되돌리기`} onClick={()=>resetCaseUnit(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={S.td}>{fmtDate(c.tradeDate)}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:4,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td><td style={S.td}><input style={{...S.inp,width:75,border:"none",background:"transparent",fontSize:11,textAlign:"center"}} value={c.approvalDate||""} onChange={e=>updC(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/></td>
           <td style={{...S.td,cursor:"pointer",color:c.timeAdj?C.acc:"#aaa",fontWeight:c.timeAdj?700:400}}
             onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table>
+      {cases.some(c=>c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig)?<div style={{marginTop:6,fontSize:12}}><button style={{...S.btn,background:"#fff",color:"#1e293b",border:"1px solid #cbd5e1",fontSize:12,padding:"4px 10px"}} onClick={resetAllCaseUnits} title="고친 단가를 모두 복붙했을 때 값으로">↺ 단가 전체 원래값으로 ({cases.filter(c=>c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig).length}건)</button> <span style={{color:"#64748b"}}>파란 굵은 단가 = 직접 고친 값</span></div>:null}
     </div>)}
 
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
