@@ -1374,6 +1374,25 @@ function ipjLabelFactorNotes(xml){
   });
 }
 
+// 괄호감정표 '목록표시근거' 칸 — 템플릿엔 고정 글자뿐이라 ① 접수개요 입력값(ov.listBasis)으로 바꿔 넣는다(2026-10-13 사용자 요청, 집합건물 s3r86w8a.html과 같은 코드)
+// 칸이 두 줄 문단이라 쉼표 기준으로 앞줄 16자 안쪽까지 채우고 나머지는 둘째 줄. 입력이 비면 템플릿 글자 그대로.
+function listBasisLines(text){
+  const t=String(text||"").replace(/\s+/g," ").trim();if(!t)return null;
+  if(t.length<=16)return [t];
+  const parts=t.split(/,\s*/);let a=parts[0],i=1;
+  while(i<parts.length&&(a+", "+parts[i]).length<=16){a+=", "+parts[i];i++;}
+  return i<parts.length?[a+",",parts.slice(i).join(", ")]:[a];
+}
+function hwpxListBasisCell(xml,text){
+  const lines=listBasisLines(text);if(!lines)return xml;
+  const li=xml.indexOf(">목록표시근거<");if(li<0)return xml;
+  const ts=xml.indexOf("<hp:tc ",li),s0=ts<0?-1:xml.indexOf("<hp:subList",ts),s1=s0<0?-1:xml.indexOf("</hp:subList>",s0);
+  if(s1<0)return xml;
+  const body=xml.slice(s0,s1),paras=body.match(/<hp:p [\s\S]*?<\/hp:p>/g)||[];if(!paras.length)return xml;
+  const one=(p,txt)=>p.replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/,"").replace(/(<hp:run [^>]*>)[\s\S]*?(<\/hp:run>)[\s\S]*?(?=<\/hp:p>)/,(m,o,c)=>o+"<hp:t>"+hwpxEsc(txt)+"</hp:t>"+c);
+  const head=body.slice(0,body.indexOf(paras[0])),out=lines.map((l,k)=>one(paras[Math.min(k,paras.length-1)],l)).join("");
+  return xml.slice(0,s0)+head+out+xml.slice(s1);
+}
 async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -1391,6 +1410,7 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
       if(opts&&opts.opinionMethodText){const edited=ipjApplyMethodText(xml,opts.opinionMethodText);xml=edited.xml;fixedValues=edited.values;}
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
       if(opts&&opts.stripTokenLines)xml=ipjStripTokenParaLineSeg(xml);  // 요항표: 문장 속 토큰 문단도 캐시 제거
+      if(opts&&opts.listBasis)xml=hwpxListBasisCell(xml,opts.listBasis);   // 괄호감정표 목록표시근거 칸 = 접수개요 입력값
       xml=ipjRetargetSelTables(xml);                     // 선정요약표·개별요인표·산정표 토큰을 '선정 사례' 기준으로 개명 (항상)
       if(opts&&opts.naEmpty){xml=ipjPruneNaBlock(xml);xml=ipjPruneNaRows(xml);xml=ipjPruneNaSummaryRow(xml);}  // 1호수: 명세표 '나' 블록 + 의견서 각 표 '나' 행 + 선정요약표 나행·'각각' 제거
       for(const[b,k]of Object.entries(blue2black))xml=xml.split('charPrIDRef="'+b+'"').join('charPrIDRef="'+k+'"');
@@ -1446,7 +1466,7 @@ const ipjNewUnit=sym=>({
 const ipjEmptyOv=()=>({
   // 접수·공통
   caseNo:"", caseNoDisplay:"", client:"", owner:"",
-  purpose:"일반거래(시가참고)", evalCategory:"", submitTo:"국세청 및 관할 세무서", baseValue:"시장가치",
+  purpose:"일반거래(시가참고)", evalCategory:"", submitTo:"국세청 및 관할 세무서", baseValue:"시장가치", listBasis:"공급계약서 및 귀 제시목록 등",
   baseDate:"", surveyDate:"", writeDate:today(),
   appraiserName:"", reviewerName:"이선우", corpName:"온결 감정평가법인",
   // 사업·조합
@@ -1663,7 +1683,7 @@ async function ipjDownloadDoc(fileDef, ov, cases){
   const {m,cal}=buildIpjMap(ov,cases);
   const na=(ov.units||[])[1];                                              // 둘째 호수(나)
   const naEmpty=(ov.units||[]).length<=1 || !na || !(pStr(na.dong)||pStr(na.ho));  // 1호수 평가 여부
-  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{}),...(fileDef.key==="uigyeon"?{opinionMethodText:ov.opMethodText||{}}:{})});
+  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{}),...(fileDef.key==="uigyeon"?{opinionMethodText:ov.opMethodText||{}}:{}),...(fileDef.key==="gwalho"?{listBasis:ov.listBasis||""}:{})});
   triggerDownload(bytes, fileDef.fn(ov));
   try{window.arapUsageLog&&window.arapUsageLog("다운로드",{caseNo:ov.caseNoDisplay||ov.caseNo,addr:(ov.projLoc||ov.beopjeongdong||""),kind:"입주권 "+fileDef.label,amount:fmt(cal.finalDecided)});}catch(e){}
 }
@@ -1829,6 +1849,7 @@ function IpjTabJeopsu({ov,setOv}){
       <Fld label="평가구분" value={ov.evalCategory} onChange={v=>u("evalCategory",v)} w={140} ph="상속 / 증여 등"/>
       <Fld label="제출처" value={ov.submitTo} onChange={v=>u("submitTo",v)} w={220}/>
       <Fld label="기준가치" value={ov.baseValue} onChange={v=>u("baseValue",v)} w={140}/>
+      <Fld label="목록표시근거" value={ov.listBasis} onChange={v=>u("listBasis",v)} w={220} ph="귀 제시목록 등"/>
       <DateF label="기준시점" value={ov.baseDate} onChange={v=>u("baseDate",v)} w={140}/>
       <DateF label="조사기간" value={ov.surveyDate} onChange={v=>u("surveyDate",v)} w={140}/>
       <DateF label="작성일자" value={ov.writeDate} onChange={v=>u("writeDate",v)} w={140}/>
