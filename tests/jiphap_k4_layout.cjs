@@ -23,6 +23,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         localStorage.setItem(pre+'case:T',JSON.stringify({ov:{caseNo:'T',jibun:'서울특별시 중구 회현동2가 87',units:[{id:1,dong:'7',floor:'7',ho:'702',area:'88.5'}],dong:'7',floor:'7',ho:'702',area:'88.5',baseDate:'2026.09.17',writeDate:'2026.09.17',client:'테스트'},cases:[c('c1','1','702',1141000000,true),c('c2','2','1501',2000000000,true),c('c3','3','801',2050000000,true)],precs:[],propType:'주거용'}));
       },{mode});
       await page.goto(base+'/s3r86w8a.html');
+      const openMemo=async()=>{const b=page.locator('span:text-is("◀ 메모"):visible');await b.first().waitFor();await b.first().click();};   // 메모장은 켤 때 접혀 있다(2026-10-13) — 펼친 뒤 검사
+      await openMemo();   // 폭 기준은 메모장을 펼친 화면
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
       await scope.getByText('4. 가격산출',{exact:true}).click();
       const split=scope.locator('.k4-split:visible').first();await split.waitFor();

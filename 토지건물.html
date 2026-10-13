@@ -3933,7 +3933,7 @@ function toggleMemo(){var p=document.getElementById('memoPanel'),s=document.getE
   var col=!p.classList.contains('collapsed');p.classList.toggle('collapsed',col);s.classList.toggle('memo-collapsed',col);
   try{localStorage.setItem(MEMO_COLLAPSE_KEY,col?'1':'');}catch(e){}}
 function initMemo(){
-  var col=false;try{col=localStorage.getItem(MEMO_COLLAPSE_KEY)==='1';}catch(e){}
+  var col=true;   // 켤 때 항상 접힌 상태(2026-10-13 사용자 요청, 집합건물과 같게) — 작업 중 펼친 상태는 저장하지만 다음에 켤 때는 다시 접힘
   if(col){document.getElementById('memoPanel').classList.add('collapsed');document.getElementById('mainShell').classList.add('memo-collapsed');}
   var ta=document.getElementById('memoInput');
   ta.addEventListener('paste',memoPaste);
