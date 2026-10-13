@@ -337,6 +337,10 @@
   body.land-only .bld-only{display:none!important;}
   /* 「건물만」 평가 — 토지 계산 화면(2. 토지평가·토지 단가/평가액)을 숨긴다 */
   body.bld-mode .land-calc{display:none!important;}
+  .evalkind-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e2e5ea;border-radius:8px;padding:10px 14px;margin-bottom:12px;}
+  .evalkind-bar .ek-label{font-weight:700;font-size:13px;color:#1e293b;margin-right:4px;}
+  .evalkind-bar .btn{font-size:13px;padding:7px 18px;}
+  .evalkind-bar .ek-hint{font-size:11px;color:#94a3b8;margin-left:6px;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
   /* 위치도 말풍선 설정 줄 */
   .maplab{border:1px solid #e2e5ea;border-radius:6px;background:#f8fafc;padding:6px 9px;margin-bottom:8px;font-size:12px;}
@@ -426,15 +430,20 @@
 
     <!-- ═══════════ 1. 대상물건 개요 ═══════════ -->
     <div id="tab-daesang" class="tab active">
+     <!-- 평가유형 — 첫 화면 맨 위에서 고른다(2026-10-13 사용자 요청). 건별 저장, 바꿔도 입력값은 지우지 않는다 -->
+     <div class="evalkind-bar" role="group" aria-label="평가유형">
+       <span class="ek-label">평가유형</span>
+       <button type="button" class="btn gh" id="ek_bld" onclick="setEvalKind('bld')" title="토지평가를 숨기고 건물(원가법)만으로 감정평가액을 결정합니다(의견서는 건물 전용 양식)">🏠 건물만</button>
+       <button type="button" class="btn" id="ek_tb" onclick="setEvalKind('tb')" title="토지와 건물을 함께 평가합니다">🏞️ 토지건물</button>
+       <button type="button" class="btn gh" id="ek_land" onclick="setEvalKind('land')" title="건물평가를 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)">🌾 토지만</button>
+       <span class="ek-hint">바꿔도 입력한 값은 그대로 남아요</span>
+     </div>
      <div class="cols2">
 
       <!-- 좌: 접수개요 -->
       <div class="card">
         <h2>감정평가 개요</h2>
         <div class="grid2">
-          <span class="fld"><label>평가대상</label>
-            <select id="ov_evalKind" onchange="setEvalKind(this.value)" title="토지만: 건물평가·건물 칸을 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)&#10;건물만: 토지평가를 숨기고 건물(원가법)만으로 감정평가액을 결정합니다(의견서는 건물 전용 양식)">
-              <option value="tb">토지+건물</option><option value="land">토지만</option><option value="bld">건물만</option></select></span>
           <span class="fld"><label>접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
           <span class="fld"><label>의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
           <span class="fld"><label>의뢰일(청구서용)</label><input type="text" id="ov_orderDay" data-date data-date-sep="/" placeholder="2026/06/08"></span>
@@ -2707,7 +2716,7 @@ function setEvalKind(k,quiet){
   LAND_ONLY=k==='land';BLD_ONLY=k==='bld';
   document.body.classList.toggle('land-only',LAND_ONLY);
   document.body.classList.toggle('bld-mode',BLD_ONLY);
-  var sel=document.getElementById('ov_evalKind');if(sel)sel.value=k;
+  ['bld','tb','land'].forEach(function(x){var b=document.getElementById('ek_'+x);if(b){b.classList.toggle('gh',x!==k);b.setAttribute('aria-pressed',x===k?'true':'false');}});
   var lab=TAB_LABELS[k];
   Object.keys(lab).forEach(function(n){var b=document.getElementById('tabbtn-'+n);if(b)b.textContent=lab[n];});
   var t=document.getElementById('mbTitle');if(t)t.textContent='🏞️ Ongyeol v1.0 · EXACT '+EVAL_TITLES[k];
@@ -3781,10 +3790,6 @@ function copyCase(id){
   if(nid==null)return;nid=nid.trim();
   if(!nid){alert('접수번호를 입력해야 복제할 수 있습니다.');return;}
   if(localStorage.getItem(landCaseKey(nid))){alert(nid+' 접수번호로 저장된 건이 이미 있습니다. 다른 번호를 넣어 주세요.');return;}
-  // 원본이 토지만·건물만이면 복제본을 토지+건물로 바꿀지 묻는다(건물만으로 나갔다가 토지까지 추가해 달라는 경우 — 2026-10-13).
-  // 바꾸면 남아 있던 토지·건물 입력이 그대로 살아나고, 결정의견·물적 동일성 기본 문구도 토건 문구로 바뀐다(setEvalKind).
-  var kind=o.landOnly===true?'land':o.bldOnly===true?'bld':'tb',toTb=false;
-  if(kind!=='tb')toTb=confirm('원본은 「'+(kind==='land'?'토지만':'건물만')+'」 평가입니다.\n복제본을 「토지+건물」 평가로 바꿀까요?\n\n확인 = 토지+건물로 바꿔서 복제\n취소 = '+(kind==='land'?'토지만':'건물만')+' 그대로 복제');
   o.ov=o.ov||{};o.ov.ov_caseNo=nid;o._rev=newRev();
   try{
     localStorage.setItem(landCaseKey(nid),JSON.stringify(o));
@@ -3795,7 +3800,6 @@ function copyCase(id){
   list.unshift({id:nid,label:(nid+' '+((L0['소재지']||'')+' '+(L0['지번']||'')).trim()).trim(),updated:new Date().toISOString()});
   setLandList(list);caseList=list;
   loadCase(nid);
-  if(toTb){setEvalKind('tb');showTab('daesang');}   // 평가대상만 바꾼다 — 입력값은 그대로, 화면·문구·금액 다시 계산 후 저장
 }
 function toggleCaseList(){
   showCaseList=!showCaseList;
@@ -3832,7 +3836,7 @@ function renderCaseListPanel(){
        '<td class="l">'+eh(obj)+'</td><td>'+eh(when)+'</td>'+
        '<td><button class="btn sm" onclick="loadCase(\''+jsq(c.id)+'\')">열기</button> '+
        (ring.length?'<button class="btn sm bak-btn'+(open?' on':'')+'" title="덮어쓰기 전에 자동 보관된 이전 내용('+ring.length+'개)" onclick="toggleBak(\''+jsq(c.id)+'\')">↺ 이전 버전 '+ring.length+'</button> ':'')+
-       '<button class="btn sm copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 비교표준지·사례를 바꿔 볼 때&#10;토지만·건물만 건이면 복제하면서 토지+건물로 바꿀 수 있어요" onclick="copyCase(\''+jsq(c.id)+'\')">⧉ 복제</button> '+
+       '<button class="btn sm copy-btn" title="이 건을 새 접수번호로 복제 — 원본은 그대로 두고 비교표준지·사례를 바꿔 볼 때" onclick="copyCase(\''+jsq(c.id)+'\')">⧉ 복제</button> '+
        '<button class="btn sm del-btn" onclick="deleteCase(\''+jsq(c.id)+'\')">삭제</button></td></tr>';
     if(open&&ring.length){
       var b='<div class="bakhint">거래사례가 지워졌거나 잘못 덮어쓴 경우, 아래에서 되돌릴 시각을 고르세요. 되돌려도 지금 내용은 이 목록에 남습니다.</div><table class="baklist">';
