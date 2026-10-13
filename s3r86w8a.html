@@ -2239,9 +2239,7 @@ function openPyojiPdf(ov){
 function openCheongguHoebo(ov,feeText,downPayment,specialFee,feeBasis){
   if(!ov.client){alert("1. 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
   const fee=parseFeeStatement(feeText);
-  if(!fee.하한수수료||!fee.기준수수료){alert("감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.
-4. 가격산출에서 감정평가액을 먼저 확정하세요.
-(또는 수수료 사이트 계산서1을 청구서 칸에 붙여넣기)");return;}
+  if(!fee.하한수수료||!fee.기준수수료){alert("감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.\n4. 가격산출에서 감정평가액을 먼저 확정하세요.\n(또는 수수료 사이트 계산서1을 청구서 칸에 붙여넣기)");return;}
   const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput);
   const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const fm=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
@@ -2576,9 +2574,7 @@ const PYOJI_TPL_B64="UEsDBBQAAAAIAAAAIQC6IK+ZgAEAAKQHAAATAAAAW0NvbnRlbnRfVHlwZXN
 async function downloadPyojiXlsx(ov,feeText,downPayment,specialFee,feeBasis){
   if(!ov.client){alert("1. 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
   const fee=parseFeeStatement(feeText);
-  if(!fee.하한수수료||!fee.기준수수료){alert("감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.
-4. 가격산출에서 감정평가액을 먼저 확정하세요.
-(또는 수수료 사이트 계산서1을 청구서 칸에 붙여넣기)");return;}
+  if(!fee.하한수수료||!fee.기준수수료){alert("감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.\n4. 가격산출에서 감정평가액을 먼저 확정하세요.\n(또는 수수료 사이트 계산서1을 청구서 칸에 붙여넣기)");return;}
   try{
     const bin=atob(PYOJI_TPL_B64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     const entries=await parseZip(arr.buffer);
