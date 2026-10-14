@@ -2753,15 +2753,17 @@ async function buildEvalHwpxV2(tokenMap,tplB64){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=v2OverviewBuildingName(xml);        // 대상물건 개요 건물명: 동 번호를 붙이지 않음
+      xml=v2ShareLayout(xml,tokenMap);          // 지분평가: 라. 문단·개요 「× 1/4」·결정표 지분 열 (치환 전, 줄배치 제거 전)
       xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)
       xml=v2StripValueLineSeg(xml);             // 값 문단 줄배치 캐시 제거 → 긴 값 삽입 시 글자 겹침 방지 (치환 전)
       xml=v2DecisionTableEffArea(xml,tokenMap); // '감정평가액의 결정' 표: 지분평가·면적사정이면 사정면적으로 (치환 전)
       xml=v2FixDecisionHeading(xml);            // 목차 번호 교정 Ⅲ→Ⅳ
       xml=v2DecisionNote(xml,tokenMap);         // 결정표 아래 반올림 주석 문단 (치환 전 — 토큰째로 넣고 아래 루프가 채움)
+      xml=v2ShareFormula(xml,tokenMap);         // 지분평가: 결정표 바로 아래 □ 산식 (주석 위)
       xml=v2SecondSedaeToken(xml);              // 감정평가표 '평가내역' 사정 칸(두 번째 {{세대}}) → {{세대_사정}} (치환 전)
       xml=hwpxListBasisCell(xml,tokenMap["_목록표시근거"]);   // 감정평가표 목록표시근거 칸 = 1. 접수개요 입력값 (치환 전)
       xml=v2BoldSelectedCase(xml,tokenMap);     // 거래사례 표: 선정 사례 행 굵게 + 선정사유 「기호 ㉢을」 굵게·밑줄 (치환 전, 줄배치 제거 뒤)
-      xml=v2ExpandLines(xml,tokenMap,["자본_분기내역","시점수정산식"]);   // 여러 줄 값 → 줄마다 문단 (비주거용 자본수익률 표, 치환 전)
+      xml=v2ExpandLines(xml,tokenMap,["자본_분기내역","시점수정산식","개별요인_의견"]);   // 여러 줄 값 → 줄마다 문단 (비주거용 자본수익률 표, 치환 전)
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("v2 감정평가서 미치환 토큰",e.name,left);
@@ -2900,6 +2902,64 @@ function v2NrTokens(v,ov,sc){
   v["유형"]=ov.mainUseJeonyu||ov.kind||"상가";
   return v;
 }
+// 지분평가 양식(온결 비주거 샘플, 2026-10-14 — 주거·비주거 공통): 단일호수 감정평가서를 지분 건이면 이렇게 바꾼다(치환 전)
+//   ① 4. 감정평가방법에 「라. … 귀 제시 지분(1/4)만을 감정평가 …」 문단  ② 대상물건 개요 면적 칸에 「 × 1/4」
+//   ③ 감정평가액의 결정 표: 전유면적(공부)·단가·감정평가액(전체) + 「귀 제시 지분 비율」「귀 제시 지분 감정평가액」 열, 표 아래 「□ 산식」 문단
+function v2ShareLayout(xml,map){
+  const sl=map["_지분"];if(!sl)return xml;
+  const LS=/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/g;
+  // ① 라. 문단 — 다. 문단을 복제
+  const i=xml.indexOf("합리성 검토를 생략하였음.");
+  if(i>=0){const s=xml.lastIndexOf("<hp:p ",i),e=xml.indexOf("</hp:p>",i)+7;
+    let p=xml.slice(s,e).replace(LS,"").replace("<hp:t>다.</hp:t>","<hp:t>라.</hp:t>")
+      .replace(/(<hp:run charPrIDRef="\d+"><hp:t>) 대상물건의 감정평가는[^<]*(<\/hp:t>)/,"$1 본건 집합건물은 귀 의뢰인의 요청에 따라 전체 지분 중 귀 제시 지분("+sl+")만을 감정평가하였으며, 해당 지분의 위치가 특정되지 않아 전체 면적을 기준으로 감정평가한 후, 귀 제시 지분비율을 적용하여 평가하였음.$2");
+    xml=xml.slice(0,e)+p+xml.slice(e);}
+  // ② 대상물건 개요 면적 칸
+  const a=xml.indexOf("Ⅱ. 대상물건 개요"),b=xml.indexOf("Ⅲ. 거래사례비교법");
+  if(a>=0&&b>a){let seg=xml.slice(a,b);
+    for(const t of ["대지지분","전유면적","공용면적","합계면적"])
+      seg=seg.replace(new RegExp("(<hp:t>\\{\\{"+t+"\\}\\})(</hp:t></hp:run>)(<hp:linesegarray>[\\s\\S]*?</hp:linesegarray>)?"),"$1 × "+sl+"$2");
+    xml=xml.slice(0,a)+seg+xml.slice(b);}
+  // ③ 결정표 7열 + 산식 문단
+  const h=xml.indexOf("감정평가액의 결정");if(h<0)return xml;
+  const ts=xml.indexOf("<hp:tbl",h),te=xml.indexOf("</hp:tbl>",ts)+9;if(ts<0||te<9)return xml;
+  const tbl=xml.slice(ts,te);if(tbl.indexOf("{{적용_결정단가}}")<0)return xml;
+  const rows=tbl.match(/<hp:tr>[\s\S]*?<\/hp:tr>/g);if(!rows||rows.length<2)return xml;
+  const cells=r=>r.match(/<hp:tc\b[\s\S]*?<\/hp:tc>/g);
+  const hc=cells(rows[0]),dc=cells(rows[1]);if(hc.length!==5||dc.length!==5)return xml;
+  const W=[4300,9000,6600,7600,8300,6200,8505];   // 합 50505 = 원래 표 너비
+  const setW=(c,col,w)=>c.replace(/colAddr="\d+"/,'colAddr="'+col+'"').replace(/<hp:cellSz width="\d+"/,'<hp:cellSz width="'+w+'"');
+  const setT=(c,lines)=>{const ps=c.match(/<hp:p\b[\s\S]*?<\/hp:p>/g);const p0=ps[0].replace(LS,"");
+    const one=t=>p0.replace(/(<hp:run\b[^>]*>)<hp:t>[^<]*<\/hp:t>(<\/hp:run>)[\s\S]*?(<\/hp:p>)$/,(m,r1,r2,end)=>r1+"<hp:t>"+t+"</hp:t>"+r2+end);
+    return c.replace(/(<hp:subList\b[^>]*>)[\s\S]*<\/hp:subList>/,(m,sub)=>sub+lines.map(one).join("")+"</hp:subList>");};
+  const mid=(c,bf)=>c.replace(/borderFillIDRef="\d+"/,'borderFillIDRef="'+bf+'"');
+  const H=[setW(hc[0],0,W[0]),setW(hc[1],1,W[1]),setW(hc[2],2,W[2]),setW(hc[3],3,W[3]),setW(mid(hc[4],30),4,W[4]),
+    setW(setT(mid(hc[4],30),["귀 제시","지분 비율"]),5,W[5]),setW(setT(hc[4],["귀 제시 지분","감정평가액(원)"]),6,W[6])];
+  const D=[setW(dc[0],0,W[0]),setW(dc[1],1,W[1]),setW(dc[2].replace("{{전유면적}}","{{결정_전유면적}}"),2,W[2]),setW(dc[3],3,W[3]),
+    setW(mid(dc[4].replace("{{감정평가액}}","{{지분전_감정평가액}}"),38),4,W[4]),setW(setT(mid(dc[4],38),["{{지분비율}}"]),5,W[5]),setW(dc[4],6,W[6])];
+  let head=tbl.match(/^<hp:tbl\b[^>]*>[\s\S]*?(?=<hp:tr>)/)[0].replace(/colCnt="\d+"/,'colCnt="7"');
+  const nt=head+"<hp:tr>"+H.join("")+"</hp:tr><hp:tr>"+D.join("")+"</hp:tr></hp:tbl>";
+  return xml.slice(0,ts)+nt+xml.slice(te);
+}
+// 지분평가 결정표 바로 아래 「□ 산식」 문단 — 반올림 주석(v2DecisionNote)보다 위에 오도록 그 뒤에 부른다
+function v2ShareFormula(xml,map){
+  if(!map["_지분"])return xml;
+  const i=xml.indexOf("{{지분전_감정평가액}}");if(i<0)return xml;
+  let at=xml.indexOf("</hp:p>",xml.indexOf("</hp:tbl>",i));if(at<0)return xml;at+=7;
+  const p='<hp:p id="2147483648" paraPrIDRef="54" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="28"><hp:t>{{지분산식}}</hp:t></hp:run></hp:p>';
+  return xml.slice(0,at)+p+xml.slice(at);
+}
+// 지분평가 토큰 — fullT: 전체 전유면적 기준 감정평가액(끝자리 처리 후), fT: 지분 적용 감정평가액
+function v2ShareTokens(map,ov,fU,fullT,fT){
+  const sl=shareLabel(ov);if(!sl)return map;
+  const r=pNum(ov.shareNumer)/pNum(ov.shareDenom);
+  map["_지분"]=sl;
+  map["결정_전유면적"]=map["전유면적"]||"";
+  map["지분전_감정평가액"]=fmt(fullT);
+  map["지분비율"]=String(Math.round(r*10000)/100)+"%";
+  map["지분산식"]=`□ 산식 : ${fmt(fU)} × ${map["전유면적"]||""} ≒ ${fmt(fullT)} × ${map["지분비율"]} ≒ ${fmt(fT)}`;
+  return map;
+}
 function v2SecondSedaeToken(xml){
   const tok="{{세대}}";const i1=xml.indexOf(tok);if(i1<0)return xml;
   const i2=xml.indexOf(tok,i1+tok.length);if(i2<0)return xml;
@@ -3013,7 +3073,10 @@ function buildV2TokenMap(d,ov,cases,comp,fT){
   v["상승률"]=(sc.timeAdj&&isFinite(sc.timeAdj))?((sc.timeAdj-1)*100).toFixed(3)+"%":"";
   const cmpKeys=[["단지외부요인","외부"],["단지내부요인","내부"],["호별요인","호별"],["기타요인","기타"]];
   const allEq=cmpKeys.every(k=>(d[k[1]+"_비교치"]||"1.00")==="1.00");
-  v["개별요인_의견"]=allEq?"본건은 거래사례와 비교하여 개별요인에서 대등함.":cmpKeys.filter(k=>d[k[1]+"_의견"]).map(k=>k[0]+": "+d[k[1]+"_의견"]).join(" / ");
+  // 요인마다 한 줄 「■ 단지외부요인: …」(2026-10-14 사용자 양식). 의견이 비면 비교치로 대체로 대등함/우세함/열세함. 줄은 v2ExpandLines가 문단으로 나눔
+  void allEq;
+  v["개별요인_의견"]=cmpKeys.map(k=>{const o=String(d[k[1]+"_의견"]||"").trim();const n=parseFloat(d[k[1]+"_비교치"]||"1");
+    return "■ "+k[0]+": "+(o||(n>1?"우세함.":n<1?"열세함.":"대체로 대등함."));}).join("\n");
   return v;
 }
 // ── [v2.0] 청구서(한글 .hwpx) — 핑크박스 값(수수료 계산서 인식 + 착수금·특별용역비)으로 채움 ──
@@ -3699,7 +3762,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   const comp=selTA.map(c=>{const raw=(c.unitPrice||0)*(c.timeAdj||1)*(c.totalFactor||1);return{...c,rawU:raw,rndU:applyR(raw,uv,uM)};});
   const avg=comp.length?_.meanBy(comp,"rndU"):0;
   const fU=manU?pNum(manU):applyR(avg,uv,uM);
-  const rawT=(fU||0)*(area||0);const fT=applyR(rawT,tv,tM);
+  // 지분평가(온결 샘플 방식, 2026-10-14 사용자 결정): 전체 전유면적으로 감정평가액을 낸 뒤(끝자리 처리) 지분비율을 곱하고 다시 끝자리 처리
+  const shR=shareLabel(ov)?pNum(ov.shareNumer)/pNum(ov.shareDenom):0;
+  const fullT=shR?applyR((fU||0)*(rawArea||0),tv,tM):0;
+  const rawT=shR?fullT*shR:(fU||0)*(area||0);const fT=applyR(rawT,tv,tM);
   const uMl=uM==="round"?"반올림":uM==="none"?"없음":"절사";const tMl=tM==="round"?"반올림":tM==="none"?"없음":"절사";
   const desk=pNum(ov.deskPrice);
 
@@ -3767,7 +3833,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     try{
       const data=buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,propType);
       const map=buildV2TokenMap(data,ov,cases,comp,fT);
-      if(propType==="비주거용")v2NrTokens(map,ov,comp[0]||{});   // 비주거용: 자본수익률 표·상업용 개별요인 양식
+      if(propType==="비주거용")v2NrTokens(map,ov,comp[0]||{});
+      v2ShareTokens(map,ov,fU,fullT,fT);   // 지분평가면 지분 양식 토큰   // 비주거용: 자본수익률 표·상업용 개별요인 양식
       const bytes=await buildEvalHwpxV2(map,propType==="비주거용"?V2EVAL_NR_TPL_B64:null);
       triggerDownload(bytes,`1. 감정평가서_${ov.client||"의뢰인"}.hwpx`);
       window.arapUsageLog&&window.arapUsageLog("감정평가서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""} · ${ov.jibun||""}`.trim(),kind:propType,amount:fT||""});
