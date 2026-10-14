@@ -63,11 +63,12 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.waitForFunction(k=>!!localStorage.getItem(k),pre+'appraisal-memo:T');
       const len4=await memoLen();assert.ok(len4<=Math.ceil(sz*4/3)+200,`글자 캡처가 커짐: 원본 PNG ${sz}B(base64 ≈ ${Math.ceil(sz*4/3)}) → 저장 ${len4}자`);
 
-      // 5) 접수번호를 치기 전에 붙여넣은 메모 — 번호를 넣어 처음 저장되는 순간 그 건으로 옮겨져 새로고침해도 남는다
+      // 5) 접수번호를 치기 전에 붙여넣은 메모 — 번호를 넣고 💾 저장을 눌러 처음 저장되는 순간 그 건으로 옮겨져 새로고침해도 남는다
       await page.getByRole('button',{name:/새 평가서/}).first().click();
       const ta5=page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first();await ta5.waitFor();
       await paste();await page.waitForFunction(k=>!!localStorage.getItem(k),pre+'appraisal-memo:_temp');
       await page.locator('input[placeholder="HI260305-2601"]:visible').first().fill('HI261001-0001');
+      await page.locator('.save-btn:visible').first().click();   // 💾 저장을 눌러야 저장 시작(2026-10-15)
       await page.waitForFunction(k=>!!localStorage.getItem(k),pre+'appraisal-memo:HI261001-0001');
       assert.equal(await page.evaluate(k=>localStorage.getItem(k),pre+'appraisal-memo:_temp'),null,'_temp 메모가 남음');
       await page.waitForTimeout(500);
