@@ -1,8 +1,9 @@
 // 집합건물 앱(단일·여러호수) 저장건 안전장치(arap_casebak.js) 검증 — 2026-10-15 ON261013-3301 사고 뒤.
-//  ① 접수번호를 고치면 새 건이 생기지 않고 그 건의 번호만 바뀜(옛 번호 줄 빠짐, 메모도 따라감)
-//  ② 이미 다른 건이 쓰는 번호가 되면 저장을 멈추고 그 건은 그대로 → 번호를 더 고치면 다시 이름 바꾸기
-//  ③ 새 평가서에서 이미 있는 번호를 쳐도 그 건을 덮어쓰지 않음
-//  ④ 다른 창이 고친 내용을 덮어쓰면 「↺ 이전 버전」에 남고, 골라 되돌릴 수 있음
+//  ① 접수번호 칸만 고치면 새 건이 생기지 않고 원래 번호로 계속 저장
+//  ② 「💾 번호 바꿔 저장」을 누르면 그 건의 번호만 바뀜(옛 번호 줄 빠짐, 메모도 따라감)
+//  ③ 이미 다른 건이 쓰는 번호로는 저장 거절
+//  ④ 새 평가서는 💾 저장을 눌러야 저장 시작, 이미 있는 번호는 거절
+//  ⑥ 다른 창이 고친 내용을 덮어쓰면 「↺ 이전 버전」에 남고, 골라 되돌릴 수 있음
 //  ⑤ 목록에서 빠진 저장건은 열 때 목록에 다시 올라옴
 // PLAYWRIGHT_MODULE=/path/to/playwright PLAYWRIGHT_CHANNEL=chromium node tests/jiphap_case_rename.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -38,48 +39,65 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     assert.ok((await ids()).includes('Z-9'),'빠진 건 목록 복구');
     console.log(mode,'⑤ 빠진 건 목록 복구 OK');
 
-    // ① 번호 고치기 — 중간에 멈춰도(자동저장) 건이 하나만
+    // ① 접수번호 칸만 고치면(💾 안 누름) 새 건이 생기지 않고 원래 번호로 계속 저장
     await caseNo.click();await caseNo.press('End');
     await caseNo.type('-');await page.waitForTimeout(wait);
     await caseNo.type('렉');await page.waitForTimeout(wait);
     await caseNo.type('스');await page.waitForTimeout(wait);
     let L=await ids();
-    assert.ok(L.includes('C-1-렉스'),'새 번호 있음 '+L);
-    assert.ok(!L.includes('C-1')&&!L.includes('C-1-')&&!L.includes('C-1-렉'),'중간 번호 줄 없음 '+L);
-    assert.equal(await S(pre+'case:C-1'),null);assert.equal(await S(pre+'case:C-1-'),null);
-    assert.equal((await J(pre+'case:C-1-렉스')).cases.length,3);
-    assert.ok(await S(pre+'appraisal-memo:C-1-렉스'),'메모 따라감');assert.equal(await S(pre+'appraisal-memo:C-1'),null);
-    console.log(mode,'① 번호 고치기 = 이름 바꾸기 OK',L.join(','));
+    assert.ok(L.includes('C-1')&&!L.some(x=>/^C-1-/.test(x)),'중간 번호 건 없음 '+L);
+    assert.equal((await J(pre+'case:C-1')).ov.caseNo,'C-1');assert.equal((await J(pre+'case:C-1')).cases.length,3);
+    await scope.getByText(/접수번호 변경 대기: C-1 → C-1-렉스/).waitFor();
+    console.log(mode,'① 칸만 고치면 새 건 안 생김 OK',L.join(','));
 
-    // ② 이미 있는 번호(D-1)가 되면 멈춤 → 다시 고치면 이름 바꾸기
-    const d1=await S(pre+'case:D-1');
-    await caseNo.fill('D-1');await page.waitForTimeout(wait);
-    assert.equal(await S(pre+'case:D-1'),d1,'D-1 그대로');
-    await scope.getByText(/이미 있는 접수번호라 저장을 멈췄습니다/).waitFor();
-    await caseNo.fill('E-1');await page.waitForTimeout(wait);
+    // ② 💾 번호 바꿔 저장 → 이름 바꾸기(옛 번호 줄 빠짐, 메모 따라감)
+    await scope.locator('.save-btn').click();
+    await page.waitForFunction(pre=>!!localStorage.getItem(pre+'case:C-1-렉스'),pre);
     L=await ids();
-    assert.ok(L.includes('E-1')&&L.includes('D-1')&&!L.includes('C-1-렉스'),'E-1로 이름 바꿈 '+L);
-    assert.equal((await J(pre+'case:E-1')).cases.length,3);assert.equal(await S(pre+'case:D-1'),d1);
-    console.log(mode,'② 이미 있는 번호 멈춤 OK');
+    assert.ok(L.includes('C-1-렉스')&&!L.includes('C-1'),'번호 바뀜 '+L);
+    assert.equal(await S(pre+'case:C-1'),null);assert.equal((await J(pre+'case:C-1-렉스')).cases.length,3);
+    assert.ok(await S(pre+'appraisal-memo:C-1-렉스'),'메모 따라감');assert.equal(await S(pre+'appraisal-memo:C-1'),null);
+    console.log(mode,'② 💾 번호 바꿔 저장 OK');
 
-    // ③ 새 평가서에서 D-1을 쳐도 덮어쓰지 않음
+    // ③ 이미 있는 번호(D-1)로 저장 → 거절, D-1 그대로, 내용은 C-1-렉스로 계속
+    const d1=await S(pre+'case:D-1');
+    await caseNo.fill('D-1');await scope.locator('.save-btn').click();await page.waitForTimeout(wait);
+    assert.equal(await S(pre+'case:D-1'),d1,'D-1 그대로');
+    assert.ok((await ids()).includes('C-1-렉스'));
+    await caseNo.fill('E-1');await scope.locator('.save-btn').click();
+    await page.waitForFunction(pre=>!!localStorage.getItem(pre+'case:E-1'),pre);
+    L=await ids();
+    assert.ok(L.includes('E-1')&&L.includes('D-1')&&!L.includes('C-1-렉스'),'E-1로 바꿈 '+L);
+    assert.equal(await S(pre+'case:D-1'),d1);
+    console.log(mode,'③ 이미 있는 번호 거절 OK');
+
+    // ④ 새 평가서 — 번호만 쳐서는 저장 안 됨, 💾 저장을 눌러야 저장 / 이미 있는 번호는 거절
     await scope.getByRole('button',{name:'+ 새 평가서'}).click();
-    await caseNo.fill('D-1');await page.waitForTimeout(wait);
+    await caseNo.fill('N-1');await page.waitForTimeout(wait);
+    assert.equal(await S(pre+'case:N-1'),null,'누르기 전 저장 안 됨');
+    await scope.locator('.unsaved-msg').waitFor();
+    await page.screenshot({path:process.env.SHOT?process.env.SHOT+'-unsaved-'+mode+'.png':'/dev/null'}).catch(()=>{});
+    await scope.locator('.save-btn').click();
+    await page.waitForFunction(pre=>!!localStorage.getItem(pre+'case:N-1'),pre);
+    assert.ok((await ids()).includes('N-1'));
+    await scope.getByRole('button',{name:'+ 새 평가서'}).click();
+    await caseNo.fill('D-1');await scope.locator('.save-btn').click();await page.waitForTimeout(wait);
     assert.equal(await S(pre+'case:D-1'),d1,'새 평가서가 D-1을 덮어쓰지 않음');
-    console.log(mode,'③ 새 평가서 덮어쓰기 막음 OK');
+    console.log(mode,'④ 새 평가서 💾 저장 OK');
 
-    // ④ 다른 창이 고친 내용을 덮어쓰면 이전 버전에 남고 되돌리기
+    // ⑥ 다른 창이 고친 내용을 덮어쓰면 이전 버전에 남고 되돌리기
     await scope.getByText(/📂 저장된 건/).click();
     await scope.locator('tr',{hasText:'E-1'}).first().getByRole('button',{name:'열기'}).click();
     await page.waitForTimeout(300);
     await page.evaluate(pre=>{const o=JSON.parse(localStorage.getItem(pre+'case:E-1'));o.cases.push({id:'other',symbol:9,unitPrice:1});o.ov.buildingName='다른창빌딩';localStorage.setItem(pre+'case:E-1',JSON.stringify(o));},pre);
-    await caseNo.click();   // 칸을 고쳤다 되돌려 자동저장을 한 번 일으킴await caseNo.press('End');await caseNo.type('x');await caseNo.press('Backspace');
+    await caseNo.click();await caseNo.press('End');   // 칸을 고쳤다 되돌려 자동저장을 한 번 일으킴
+    await caseNo.type('x');await caseNo.press('Backspace');
     await page.waitForTimeout(wait);
     const ring=await J(pre+'appraisal-bak:E-1');
     assert.ok(ring&&ring.length>=1,'이전 버전 보관');
     assert.ok(ring.some(v=>JSON.parse(v.raw).ov.buildingName==='다른창빌딩'),'다른 창 내용이 이전 버전에');
     await page.locator('#arap-casebak-toast').waitFor();
-    console.log(mode,'④ 덮어쓰기 전 내용 이전 버전 보관 OK');
+    console.log(mode,'⑥ 덮어쓰기 전 내용 이전 버전 보관 OK');
     await scope.getByText(/📂 저장된 건/).click();
     const row=scope.locator('tr',{hasText:'E-1'}).first();
     await row.locator('.bak-btn').click();
@@ -89,7 +107,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const now=await J(pre+'case:E-1');
     assert.equal(now.ov.buildingName,'다른창빌딩');assert.equal(now.ov.caseNo,'E-1');assert.equal(now.cases.length,4);
     await page.screenshot({path:process.env.SHOT?process.env.SHOT+'-'+mode+'.png':'/dev/null'}).catch(()=>{});
-    console.log(mode,'④ 이전 버전 되돌리기 OK');
+    console.log(mode,'⑥ 이전 버전 되돌리기 OK');
     assert.deepEqual(errors,[]);await ctx.close();
   }
   console.log('ALL OK');
