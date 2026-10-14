@@ -868,6 +868,25 @@ const parseNrCapDetail=(text)=>{
 const capData=()=>(window.ARAP_INDEX_DATA&&window.ARAP_INDEX_DATA.capReturn)||null;
 const capTypeList=()=>{const D=capData();return D?Object.keys(D.types):[];};
 const capRegionList=kind=>{const D=capData();return D&&D.types[kind]?Object.keys(D.types[kind].regions):[];};
+// 비주거용 지역 2단 — ① 대그룹(시도) → ② 소그룹(상권). 대그룹은 capReturn.types[유형].group(2026-10-14부터 수신).
+//   group이 아직 없는 옛 데이터면 시도 이름만 대그룹으로, 나머지 상권은 「상권(구분 전)」 한 묶음에.
+const CAP_ROOTS=["서울","경기","인천","전국","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
+const capGroupOf=(kind,reg)=>{const D=capData();const T=D&&D.types[kind];const g=T&&T.group&&T.group[reg];if(g)return g;return CAP_ROOTS.includes(reg)?reg:(T&&T.group?"기타":"상권(구분 전)");};
+const capGroups=kind=>[...new Set(capRegionList(kind).map(r=>capGroupOf(kind,r)))].sort((a,b)=>{const ia=CAP_ROOTS.indexOf(a),ib=CAP_ROOTS.indexOf(b);return(ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b,"ko");});
+const capSubs=(kind,g)=>{const rs=capRegionList(kind).filter(r=>capGroupOf(kind,r)===g);return(rs.includes(g)?[g]:[]).concat(rs.filter(r=>r!==g).sort((a,b)=>a.localeCompare(b,"ko")));};
+const capSubLabel=(g,r)=>r===g?g+" 전체":(r.startsWith(g+" ")?r.slice(g.length+1):r);
+// 유형을 바꿨을 때 고를 지역: 그대로 있으면 그대로, 없으면 같은 시도의 첫 칸(시도 전체), 그것도 없으면 첫 시도
+const capPickRegion=(kind,prev)=>{const rs=capRegionList(kind);if(!rs.length)return prev||"서울";if(prev&&rs.includes(prev))return prev;
+  const gs=capGroups(kind);let g=prev&&CAP_ROOTS.includes(prev)?prev:"";if(!gs.includes(g))g=gs[0];return capSubs(kind,g)[0]||rs[0];};
+const NrCapRegionSel=({kind,value,onChange})=>{const gs=capGroups(kind);const g0=capGroupOf(kind,value);const g=gs.includes(g0)?g0:(gs[0]||"");const subs=capSubs(kind,g);
+  return(<>
+    <select style={{...S.sel2,width:96}} value={g} title="① 시도" onChange={e=>{const s=capSubs(kind,e.target.value);if(s.length)onChange(s[0]);}}>
+      {(gs.length?gs:["서울"]).map(o=><option key={o} value={o}>{o}</option>)}
+    </select>
+    <select style={{...S.sel2,width:150}} value={subs.includes(value)?value:(subs[0]||"")} title="② 상권" disabled={subs.length<2} onChange={e=>onChange(e.target.value)}>
+      {(subs.length?subs:["서울"]).map(o=><option key={o} value={o}>{capSubLabel(g,o)}</option>)}
+    </select>
+  </>);};
 const capLatestDisp=kind=>{const D=capData();const l=D&&D.types[kind]?D.types[kind].latest:"";const m=String(l||"").match(/^(\d{4})(\d)$/);return m?`${m[1]}.${m[2]}분기`:"";};
 const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   const D=capData();if(!D)return{err:"자본수익률 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
@@ -1024,7 +1043,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
   const [kind,setKind]=useState(()=>detectSjKind(c.aptName,c.buildingName)||localStorage.getItem("arap-sjidx-kind")||"아파트");
   const [region,setRegion]=useState(()=>detectSjRegion(c.location,c.address,ov.jibun,ov.projLoc,ov.sigungu)||localStorage.getItem("arap-sjidx-region")||(idxRegionList()[0]||""));
   const [nrCapKind,setNrCapKind]=useState(()=>{try{return localStorage.getItem("arap-nrcap-kind")||(capTypeList()[0]||"집합상가");}catch(e){console.error('nrcap kind load',e);return capTypeList()[0]||"집합상가";}});
-  const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return localStorage.getItem("arap-nrcap-region")||(capRegionList(localStorage.getItem("arap-nrcap-kind")||capTypeList()[0]||"")[0]||"서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
+  const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return localStorage.getItem("arap-nrcap-region")||capPickRegion(localStorage.getItem("arap-nrcap-kind")||capTypeList()[0]||"","서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
   const normD=d=>{if(!d)return"";return String(d).replace(/-/g,".").replace(/\s/g,"").replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,(_,y,m,dd)=>`${y}.${m.padStart(2,"0")}.${dd.padStart(2,"0")}`);};
   const check=text=>{const ws=[];const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm){const cd=normD(fmtDate(c.tradeDate)),td=normD(tm[1]);if(cd&&td&&cd!==td)ws.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}
     const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm&&ov.baseDate){const ob=normD(ov.baseDate),tb=normD(bm[1]);if(ob&&tb&&ob!==tb)ws.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setWarns(ws);};
@@ -1037,12 +1056,10 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
         return(<div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#eef2ff",border:"1px solid #c7d2fe",borderRadius:6}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12}}>
             <b style={{color:C.pri}}>자본수익률 자동계산</b>
-            <select style={{...S.sel2,width:120}} value={nrCapKind} onChange={e=>{const k=e.target.value;setNrCapKind(k);try{localStorage.setItem("arap-nrcap-kind",k);}catch(err){console.error('nrcap kind save',err);}const rl=capRegionList(k);if(rl.length&&!rl.includes(nrCapRegion)){setNrCapRegion(rl[0]);try{localStorage.setItem("arap-nrcap-region",rl[0]);}catch(err){console.error('nrcap region save',err);}}}}>
+            <select style={{...S.sel2,width:120}} value={nrCapKind} onChange={e=>{const k=e.target.value;setNrCapKind(k);try{localStorage.setItem("arap-nrcap-kind",k);}catch(err){console.error('nrcap kind save',err);}const nr=capPickRegion(k,nrCapRegion);if(nr!==nrCapRegion){setNrCapRegion(nr);try{localStorage.setItem("arap-nrcap-region",nr);}catch(err){console.error('nrcap region save',err);}}}}>
               {(types.length?types:["집합상가"]).map(o=><option key={o} value={o}>{o}</option>)}
             </select>
-            <select style={{...S.sel2,width:120}} value={nrCapRegion} onChange={e=>{setNrCapRegion(e.target.value);try{localStorage.setItem("arap-nrcap-region",e.target.value);}catch(err){console.error('nrcap region save',err);}}}>
-              {(cregs.length?cregs:["서울"]).map(o=><option key={o} value={o}>{o}</option>)}
-            </select>
+            <NrCapRegionSel kind={nrCapKind} value={nrCapRegion} onChange={v=>{setNrCapRegion(v);try{localStorage.setItem("arap-nrcap-region",v);}catch(err){console.error('nrcap region save',err);}}}/>
             <button style={{...S.btn,background:CD?C.acc:"#cbd5e1",color:"#fff"}} disabled={!CD}
               onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
           </div>

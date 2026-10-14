@@ -90,7 +90,9 @@ function Fetch-CapReturn {
   $diagShown = $false
   foreach ($kind in $byType.Keys) {
     $regions = [ordered]@{}
+    $group = [ordered]@{}      # 지역 → 대그룹(시도). 앱이 ① 시도 → ② 상권 두 칸으로 보여 줄 때 씀 (2026-10-14)
     $latest = ""
+    $rowsAll = New-Object System.Collections.ArrayList   # 표 전부 받은 뒤 이름 겹침(다른 시도의 같은 상권명)을 가려 키를 정함
     foreach ($sid in $byType[$kind]) {
       # 한 표가 지역 300개↑ × 분기 수십 개라 1,000행/페이지를 넘음 → 페이지를 끝까지 넘긴다 (안 그러면 최신 분기가 잘림)
       for ($pg = 1; $pg -le 40; $pg++) {
@@ -119,15 +121,25 @@ function Fetch-CapReturn {
           if ($fullParts.Count -gt 2) { continue }
           $reg = if ($r.CLS_NM) { [string]$r.CLS_NM } elseif ($r.CLS_FULLNM) { $fullParts[-1] } else { "전국" }
           $reg = $reg.Trim()
-          if (-not $regions.Contains($reg)) { $regions[$reg] = [ordered]@{} }
-          $regions[$reg][$q] = [math]::Round([double]$r.DTA_VAL, 2)   # 공표 자본수익률(%)은 소수 2자리
+          $par = if ($fullParts.Count -eq 2 -and $fullParts[0].Trim()) { $fullParts[0].Trim() } else { $reg }   # 시도 자신이면 대그룹 = 자기
+          [void]$rowsAll.Add(@{ reg = $reg; par = $par; q = $q; v = [math]::Round([double]$r.DTA_VAL, 2) })   # 공표 자본수익률(%)은 소수 2자리
           if ($q -gt $latest) { $latest = $q }
         }
         if (@($rows).Count -lt 1000) { break }   # 마지막 페이지
       }
     }
+    # 같은 상권 이름이 여러 시도에 있으면(예: 원도심) 섞이지 않게 키를 「시도 이름」으로. 서울 것은 맨 이름 유지(주거용 동명 구 규칙과 같음)
+    $parsOf = @{}
+    foreach ($x in $rowsAll) { if ($x.par -ne $x.reg) { if (-not $parsOf.Contains($x.reg)) { $parsOf[$x.reg] = @{} }; $parsOf[$x.reg][$x.par] = 1 } }
+    foreach ($x in $rowsAll) {
+      $key = $x.reg
+      if ($x.par -ne $x.reg -and $parsOf[$x.reg].Count -gt 1 -and $x.par -ne "서울") { $key = "{0} {1}" -f $x.par, $x.reg }
+      if (-not $regions.Contains($key)) { $regions[$key] = [ordered]@{} }
+      $regions[$key][$x.q] = $x.v
+      if (-not $group.Contains($key)) { $group[$key] = $x.par }
+    }
     if ($regions.Count -eq 0) { Write-Host ("    {0} 자료없음" -f $kind) -ForegroundColor Yellow; continue }
-    $types[$kind] = [ordered]@{ latest = $latest; regions = $regions }
+    $types[$kind] = [ordered]@{ latest = $latest; regions = $regions; group = $group }
     $sample = @($regions.Keys)[0]
     Write-Host ("    {0}: 지역 {1}개, 최신 {2}분기 (예: {3} {4}개분기)" -f $kind, $regions.Count, $latest, $sample, $regions[$sample].Count) -ForegroundColor Green
   }

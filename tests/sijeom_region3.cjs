@@ -1,6 +1,6 @@
 // 시점수정 계산기(arm_시점수정.html) 주거용 지역 3단 드롭다운 — ① 시도 ② 권역 ③ 세부지역.
 // 확인: 서울 동북권 강북구 선택·계산 · 경기 시 아래 구 · 인천 아파트(가짜 구 지수) · 연립/오피스텔 인천은 ②③ 회색 잠금 + 인천 지수로 계산 ·
-//       새로고침 뒤 선택 복원 · 기존 저장값(arap-sjidx-region) 그대로 읽힘 · 비주거용 탭은 기존 드롭다운
+//       새로고침 뒤 선택 복원 · 기존 저장값(arap-sjidx-region) 그대로 읽힘 · 비주거용 탭은 ①② 두 칸
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..');
@@ -58,8 +58,8 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   // 옛 저장값(구 이름) 그대로 읽힘
   await p.evaluate(()=>{localStorage.setItem('arap-sjidx-kind','아파트');localStorage.setItem('arap-sjidx-region','종로구');});
   await p.reload();await p.waitForSelector('#r1');s=await st();assert.deepEqual([s.r1,s.r2,s.r3],['서울','도심권','종로구']);
-  // 비주거용 탭: 기존 드롭다운
-  await p.click('#tab-nr');s=await st();assert.notEqual(s.vis,'none');assert.equal(s.vis3,'none');
+  // 비주거용 탭: ① 시도 ② 상권 두 칸(③ 숨김, 지역 한 칸 숨김) — tests/nrcap_group.cjs
+  await p.click('#tab-nr');s=await st();assert.equal(s.vis,'none');assert.equal(s.vis3,'none');
   await p.click('#tab-res');s=await st();assert.equal(s.vis,'none');
   assert.deepEqual(errs,[]);
   console.log('OK sijeom_region3');
