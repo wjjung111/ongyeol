@@ -21,6 +21,20 @@
   </style>
 </head>
 <body>
+<script>
+// 📱 폰 연결 링크(#arap-link=…) — PC 「GitHub 자동 백업」에서 만든 링크를 폰에서 열면 백업 토큰·Gist·사용자 이름·접속코드 통과를
+// 이 브라우저에 저장하고 주소창에서 지운다 → 이름·접속코드 입력 없이 열리고 저장건을 바로 받아온다(2026-10-14 사용자 요청)
+(function(){try{
+  const m=location.hash.match(/[#&]arap-link=([A-Za-z0-9_-]+)/);if(!m)return;
+  const b=m[1].replace(/-/g,"+").replace(/_/g,"/");const j=JSON.parse(decodeURIComponent(escape(atob(b+"===".slice((b.length+3)%4)))));
+  if(j.t)localStorage.setItem("arap-gh-token",j.t);
+  if(j.g)localStorage.setItem("arap-gh-gist-id",j.g);
+  if(j.u)localStorage.setItem("arap-user-name",j.u);
+  if(j.a)localStorage.setItem("arap-access-ok",j.a);
+  sessionStorage.setItem("arap-link-new","1");
+  history.replaceState(null,"",location.pathname+location.search);
+}catch(e){console.error('arap-link',e);}})();
+</script>
 <script src="arap_access.js"></script>
   <style>
     #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;
@@ -323,12 +337,19 @@
     if(token()){
       setTimeout(async()=>{
         try{const p=await pull();
-          if(p.changed>0&&confirm("다른 기기의 저장건 "+p.changed+"건을 받아왔습니다. 새로고침해서 목록에 반영할까요?")){location.reload();return;}
+          let fromLink=false;try{fromLink=sessionStorage.getItem("arap-link-new")==="1";sessionStorage.removeItem("arap-link-new");}catch(e){}
+          if(p.changed>0&&(fromLink||confirm("다른 기기의 저장건 "+p.changed+"건을 받아왔습니다. 새로고침해서 목록에 반영할까요?"))){location.reload();return;}
           setStatus("☁️ 연결됨");
         }catch(e){console.error('sync pull on load',e);setStatus("⚠️ "+e.message);}
       },800);
     }
-    return{onLocalSave,syncNow,token,
+    // 폰 연결 링크: 토큰·Gist id·이름·접속코드 통과값을 주소 # 뒤에 담는다(# 뒤는 서버로 안 감). 링크 자체가 열쇠라 남에게 주면 안 됨
+    function phoneLink(){
+      const d={t:token(),g:lsGet(GIST_KEY)||"",u:lsGet("arap-user-name")||"",a:lsGet("arap-access-ok")||""};
+      const b=btoa(unescape(encodeURIComponent(JSON.stringify(d)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+      return location.origin+location.pathname+"#arap-link="+b;
+    }
+    return{onLocalSave,syncNow,token,phoneLink,
       setToken:v=>{try{v?localStorage.setItem(TOKEN_KEY,v.trim()):localStorage.removeItem(TOKEN_KEY);}catch(e){console.error('sync token save',e);}},
       getStatus:()=>status,onStatus:f=>{listeners.push(f);}};
   })();
@@ -4087,6 +4108,8 @@ function SyncPanel(){
         onClick={()=>connectTok(tokenInput)}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
       {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,...BTN.s,fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
         onClick={async()=>{const t=await window.ArapCred.load();if(!t){alert("크롬에 저장된 토큰이 없습니다. 토큰을 직접 붙여넣고 「연결」을 눌러 주세요.");return;}setTokenInput(t);connectTok(t);}}>🔑 저장된 토큰으로 연결</button>}
+      {connected&&window.ArapSync.phoneLink&&<button style={{...S.btn,...BTN.s,fontSize:11,padding:"4px 10px"}} title="폰에서 이 링크를 한 번 열면 이름·접속코드·토큰 입력 없이 이 컴퓨터 저장건이 그대로 보여요"
+        onClick={async()=>{const l=window.ArapSync.phoneLink();try{await navigator.clipboard.writeText(l);alert("📱 폰 연결 링크를 복사했어요.\n카톡 「나와의 채팅」에 붙여넣고 폰에서 한 번 열면 끝 — 그다음부턴 폰에서 그냥 열면 됩니다.\n\n⚠️ 이 링크엔 백업 열쇠(토큰)가 들어 있어요. 다른 사람에게 보내지 마세요.");}catch(e){prompt("이 링크를 복사해 폰에서 여세요 (다른 사람에게 보내지 마세요)",l);}}}>📱 폰 연결 링크</button>}
       <span style={{fontSize:11,color:syncStatus.startsWith("⚠️")?"#dc2626":"#059669"}}>{syncStatus}</span>
     </div>
     <div style={{fontSize:10.5,color:"#94a3b8",marginTop:3}}>
@@ -7474,6 +7497,8 @@ function SyncPanel(){
         onClick={()=>connectTok(tokenInput)}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
       {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,background:"#e2e8f0",color:"#1a2744",fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
         onClick={async()=>{const t=await window.ArapCred.load();if(!t){alert("크롬에 저장된 토큰이 없습니다. 토큰을 직접 붙여넣고 「연결」을 눌러 주세요.");return;}setTokenInput(t);connectTok(t);}}>🔑 저장된 토큰으로 연결</button>}
+      {connected&&window.ArapSync.phoneLink&&<button style={{...S.btn,...BTN.s,fontSize:11,padding:"4px 10px"}} title="폰에서 이 링크를 한 번 열면 이름·접속코드·토큰 입력 없이 이 컴퓨터 저장건이 그대로 보여요"
+        onClick={async()=>{const l=window.ArapSync.phoneLink();try{await navigator.clipboard.writeText(l);alert("📱 폰 연결 링크를 복사했어요.\n카톡 「나와의 채팅」에 붙여넣고 폰에서 한 번 열면 끝 — 그다음부턴 폰에서 그냥 열면 됩니다.\n\n⚠️ 이 링크엔 백업 열쇠(토큰)가 들어 있어요. 다른 사람에게 보내지 마세요.");}catch(e){prompt("이 링크를 복사해 폰에서 여세요 (다른 사람에게 보내지 마세요)",l);}}}>📱 폰 연결 링크</button>}
       <span style={{fontSize:11,color:syncStatus.startsWith("⚠️")?"#dc2626":"#059669"}}>{syncStatus}</span>
     </div>
     <div style={{fontSize:10.5,color:"#94a3b8",marginTop:3}}>
