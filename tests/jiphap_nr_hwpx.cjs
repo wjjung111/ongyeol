@@ -50,6 +50,10 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     assert.match(t,/\|\d+\.\d{3}%\|\(\|1\.\d{5}\|\)/,'상승률·시점수정치');
     assert.ok(/\d{4}\.\d\d\.\d\d ~ \d{4}\.\d\d\.\d\d/.test(t),'기간');
     assert.ok(!/charPrIDRef="5[3-7]"/.test(x),'파란 글자 없음');
+    { // 「7. 단가의 결정」 시점수정 칸: 단 설정 조각·옛 줄배치 없이 가운데 정렬되게
+      const k=x.indexOf('7. 전유면적당 단가의 결정');const tb=x.slice(k,x.indexOf('</hp:tbl>',k));
+      assert.ok(!/<hp:colPr/.test(tb),'단가 결정 표에 단 설정 조각 없음');
+      const v=tb.match(/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?1\.\d{5}<\/hp:t><\/hp:run>((?:(?!<\/hp:p>)[\s\S])*?)<\/hp:p>/);assert.ok(v,'시점수정 값 문단');assert.ok(!/linesegarray/.test(v[1]),'시점수정 칸 줄배치 캐시 제거');}
     assert.equal(t.split('|').filter(v=>v.startsWith('■ ')).length,4,'개별요인 ■ 네 줄');
     if(process.env.SHARE)assert.ok(t.includes('귀 제시 지분(1/4)만을')&&/□ 산식 : /.test(t),'지분 양식');
     assert.deepEqual(errors,[]);
