@@ -214,8 +214,9 @@ function Panel(props){
   var st7=useState(''),dong=st7[0],setDong=st7[1];
   var st8=useState([]),hos=st8[0],setHos=st8[1];
   var st9=useState(''),ho=st9[0],setHo=st9[1];
-  var st10=useState(true),onlyEmpty=st10[0],setOnlyEmpty=st10[1];
+  var st10=useState(false),onlyEmpty=st10[0],setOnlyEmpty=st10[1];
   var st11=useState(''),hoMsg=st11[0],setHoMsg=st11[1];
+  // 기본은 덮어쓰기(2026-10-14 사용자 결정 — 다른 건을 복사해 쓸 때 옛 값이 남지 않게). 체크하면 빈칸만
   var lastUnit=useRef(null);   // 마지막으로 채운 호 값 — 체크 해제 때 덮어쓰기 재적용용
 
   var opts={onlyEmpty:onlyEmpty};
@@ -280,14 +281,14 @@ function Panel(props){
   var gh=Object.assign({},S.btn||{},{background:'#fff',color:C.acc||'#2563eb',border:'1px solid '+(C.acc||'#2563eb'),padding:'4px 10px',fontSize:11});
   var hint={fontSize:11,color:'#666'};
   return h('div',{style:Object.assign({},S.card||{},{background:'#f0fdf4',border:'1px solid #bbf7d0'})},
-    h('div',{style:S.h2||{}},'🏢 건축물대장 불러오기 ',h('span',{style:{fontSize:11,fontWeight:400,color:'#666'}},'(PDF 없이 주소로 조회 — 등기·접수 인식 뒤 남은 빈칸을 채웁니다)')),
+    h('div',{style:S.h2||{}},'🏢 건축물대장 불러오기 ',h('span',{style:{fontSize:11,fontWeight:400,color:'#666'}},'(주소로 조회 — 대장 값으로 칸을 덮어씁니다. 지번주소는 등기 값 유지)')),
     h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:6}},
       h('span',{style:Object.assign({},S.lbl||{},{minWidth:70})},'주소'),
       h('input',{style:Object.assign({},inp,{flex:1,minWidth:260}),value:q,onChange:function(e){setQ(e.target.value);},placeholder:'조회할 지번주소 또는 도로명주소를 입력하세요',onKeyDown:function(e){if(e.key==='Enter'&&!busy)doSearch();}}),
       h('button',{style:Object.assign({},btn,busy?{background:'#94a3b8'}:{}),disabled:busy,onClick:doSearch},busy?'조회 중…':'🔍 조회'),
       h('label',{style:Object.assign({},hint,{display:'inline-flex',alignItems:'center',gap:4,cursor:'pointer'})},
         h('input',{type:'checkbox',checked:onlyEmpty,onChange:function(e){toggleOnlyEmpty(e.target.checked);}}),'빈칸만 채우기'),
-      h('span',{style:hint},'(끄면 대장 값으로 덮어씀)')),
+      h('span',{style:hint},'(켜면 비어 있는 칸만 채움)')),
     msg?h('div',{style:{fontSize:12,color:'#166534',fontWeight:600,marginBottom:4}},msg):null,
     err?h('div',{style:{padding:'6px 10px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:4,color:'#dc2626',fontSize:12,marginBottom:4}},err):null,
     cands?h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginBottom:6}},cands.map(function(c,i){return h('button',{key:i,style:gh,onClick:function(){pick(c);}},c.addr);})):null,
