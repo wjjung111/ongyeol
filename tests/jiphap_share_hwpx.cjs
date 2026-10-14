@@ -34,6 +34,10 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const z=unzip(fs.readFileSync(file));const x=z['Contents/section1.xml'].toString('utf8'),x0=z['Contents/section0.xml'].toString('utf8');
     const ok=await page.evaluate(([a,b])=>[a,b].every(s=>!new DOMParser().parseFromString(s,'application/xml').getElementsByTagName('parsererror').length),[x,x0]);
     assert.ok(ok,'XML 정상');assert.deepEqual([...new Set((x+x0).match(/\{\{[^}]+\}\}/g)||[])],[],'남은 토큰 없음');
+    { // 「7. 단가의 결정」 시점수정 칸: 단 설정 조각·옛 줄배치 없이 가운데 정렬되게
+      const k=x.indexOf('7. 전유면적당 단가의 결정');const tb=x.slice(k,x.indexOf('</hp:tbl>',k));
+      assert.ok(!/<hp:colPr/.test(tb),'단가 결정 표에 단 설정 조각 없음');
+      const v=tb.match(/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?1\.\d{5}<\/hp:t><\/hp:run>((?:(?!<\/hp:p>)[\s\S])*?)<\/hp:p>/);assert.ok(v,'시점수정 값 문단');assert.ok(!/linesegarray/.test(v[1]),'시점수정 칸 줄배치 캐시 제거');}
     const t=T(x);
     // 개별요인 의견: ■ 네 줄(각각 문단)
     const ops=t.split('|').filter(s=>s.startsWith('■ '));

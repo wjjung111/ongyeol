@@ -2772,6 +2772,7 @@ async function buildEvalHwpxV2(tokenMap,tplB64){
       xml=v2OverviewBuildingName(xml);        // 대상물건 개요 건물명: 동 번호를 붙이지 않음
       xml=v2ShareLayout(xml,tokenMap);          // 지분평가: 라. 문단·개요 「× 1/4」·결정표 지분 열 (치환 전, 줄배치 제거 전)
       xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)
+      xml=v2StrayColPr(xml);                    // 표 칸 속 쓸모없는 단 설정 조각 제거 — 「7. 단가의 결정」 시점수정 칸이 위로 붙던 원인 (줄배치 제거 전)
       xml=v2StripValueLineSeg(xml);             // 값 문단 줄배치 캐시 제거 → 긴 값 삽입 시 글자 겹침 방지 (치환 전)
       xml=v2DecisionTableEffArea(xml,tokenMap); // '감정평가액의 결정' 표: 지분평가·면적사정이면 사정면적으로 (치환 전)
       xml=v2FixDecisionHeading(xml);            // 목차 번호 교정 Ⅲ→Ⅳ
@@ -2976,6 +2977,12 @@ function v2ShareTokens(map,ov,fU,fullT,fT){
   map["지분비율"]=String(Math.round(r*10000)/100)+"%";
   map["지분산식"]=`□ 산식 : ${fmt(fU)} × ${map["전유면적"]||""} ≒ ${fmt(fullT)} × ${map["지분비율"]} ≒ ${fmt(fT)}`;
   return map;
+}
+// 템플릿 「7. 전유면적당 단가의 결정」 표의 {{적용_시점수정}} 칸 문단 앞에 단 설정(colPr) 조각과 빈 런이 끼어 있어
+// v2StripValueLineSeg(토큰만 든 문단)에 안 걸리고 두 줄짜리 옛 줄배치가 남아 값이 칸 위쪽에 붙어 나왔음(2026-10-14 사용자 제보, 주거·비주거 공통).
+// 그 조각만 떼어 내면 토큰만 든 문단이 되어 줄배치가 지워지고 한글이 가운데로 다시 배치한다.
+function v2StrayColPr(xml){
+  return xml.replace(/<hp:run charPrIDRef="\d+"><hp:ctrl><hp:colPr\b[^>]*\/><\/hp:ctrl><\/hp:run><hp:run charPrIDRef="\d+"\/>(?=<hp:run\b[^>]*><hp:t>\{\{[^}]+\}\}<\/hp:t><\/hp:run><hp:linesegarray>)/g,"");
 }
 function v2SecondSedaeToken(xml){
   const tok="{{세대}}";const i1=xml.indexOf(tok);if(i1<0)return xml;
