@@ -65,6 +65,7 @@
   <script src="arap_multi_hwpx.js"></script>
   <script src="arap_multi_myeongse.js"></script><!-- 여러 호수 명세표(xlsx, 시트 1개 한 장) — 단일호수 명세표 템플릿 서식을 빌려 씀 -->
   <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
+  <script src="arap_casebak.js"></script><!-- 저장건 안전장치: 접수번호 고치면 이름만 바꾸기·이미 있는 번호 덮어쓰기 막기·건별 이전 버전 -->
   <style>
     /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
     .arapmapstatus{font-size:11.5px;color:#555;min-height:14px;margin-top:6px;}
@@ -1303,7 +1304,7 @@ function memoAdoptTemp(id){try{const tk=MEMO_KEY_PREFIX+"_temp",raw=localStorage
 // 브라우저 저장 공간이 부족해 메모를 못 저장했을 때의 안내 — 사용량과 큰 항목을 같이 보여 무엇을 지우면 되는지 알게 한다
 function memoFullMsg(){
   let tot=0;const by={};
-  const lab=k=>/appraisal-memo:/.test(k)?"메모":/(^|:)case:/.test(k)?"저장된 건":/trash/.test(k)?"휴지통":/kais_history/.test(k)?"카이스 복붙 기록":/kapa_history/.test(k)?"카파허브 복붙 기록":"기타";
+  const lab=k=>/appraisal-memo:/.test(k)?"메모":/appraisal-bak:/.test(k)?"이전 버전":/(^|:)case:/.test(k)?"저장된 건":/trash/.test(k)?"휴지통":/kais_history/.test(k)?"카이스 복붙 기록":/kapa_history/.test(k)?"카파허브 복붙 기록":"기타";
   try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),n=k.length+(localStorage.getItem(k)||"").length;tot+=n;const l=lab(k);by[l]=(by[l]||0)+n;}}catch(e){console.warn('memo usage calc failed',e);}
   const top=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([l,n])=>l+" "+(n/1e6).toFixed(1)+"MB").join(", ");
   return "⚠ 브라우저 저장 공간이 가득 차서 메모를 저장하지 못했습니다 — 지금 상태로 새로고침하면 사라집니다. (사용 약 "+(tot/1e6).toFixed(1)+"MB / 5MB"+(top?" · "+top:"")+") 휴지통·복붙 기록·큰 이미지 메모를 지운 뒤 [다시 저장]을 누르세요.";
@@ -4165,6 +4166,7 @@ function App(){
   const [loaded,setLoaded]=useState(false);
   const [caseList,setCaseList]=useState([]);  // [{id,label,updated}]
   const [currentId,setCurrentId]=useState(null);
+  const curIdRef=React.useRef(null);curIdRef.current=currentId;   // 자동저장이 「지금 화면이 어느 건인지」 읽는 곳(번호 바꾸기 판단)
   const [caseRevision,setCaseRevision]=useState(0); // 평가건 전환 시 대상물건 입력 화면도 초기화
   const [showList,setShowList]=useState(false);
   const [leftCollapsed,setLeftCollapsed]=useState(false);
@@ -4286,8 +4288,7 @@ function App(){
           }
         }
       }catch(e){console.error('v2 샘플 심기 실패',e);}
-      const lr=storageGet(LIST_KEY);
-      const list=lr&&lr.value?JSON.parse(lr.value):[];
+      const list=window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":""),true);   // 목록에서 빠진 저장건은 다시 올린다
       setCaseList(list);
       // 마지막 작업건 복원
       if(list.length>0){
@@ -4297,7 +4298,7 @@ function App(){
           if(r&&r.value){const d=JSON.parse(r.value);
             if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases);if(d.precs)setPrecs(d.precs);if(d.propType)setPropType(d.propType);
             if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
-            setCurrentId(lastId);
+            window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),lastId);setCurrentId(lastId);
           }
         }catch(e){console.warn('last case restore failed',e);}
       }
@@ -4337,28 +4338,22 @@ function App(){
     setSaveStatus("⏳");
     const label=`${id} ${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim();
     const caseJson=()=>JSON.stringify({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
-    // 창 닫힘용 즉시 저장 — React 상태 갱신 없이 저장소에 바로 쓴다(목록도 저장소에서 읽어 맨 앞으로)
-    flushSaveRef.current=()=>{
-      storageSet(caseKey(id),caseJson());
-      let prev=[];try{prev=JSON.parse(localStorage.getItem(LIST_KEY)||"[]");}catch(e){console.error('flush list',e);}
-      if(!Array.isArray(prev))prev=[];
-      storageSet(LIST_KEY,JSON.stringify([{id,label,updated:new Date().toISOString()},...prev.filter(c=>c&&c.id!==id)]));
-      flushSaveRef.current=null;
+    // 저장 한 번(arap_casebak.js) — 접수번호를 고치면 새 건을 만들지 않고 이 건의 번호만 바꾼다(옛 번호 줄은 목록에서 빠짐).
+    // 이미 다른 건이 쓰는 번호면 덮어쓰지 않고 멈춘다. 덮어쓸 때는 직전 내용을 「↺ 이전 버전」에 보관. 목록은 저장소에서 읽어 고친다.
+    const persist=()=>{
+      const r=window.ArapCaseBak.autosave({pre:LIST_KEY.indexOf("v2:")===0?"v2:":"",id,prevId:curIdRef.current,raw:caseJson(),label,setFn:storageSet,memoPrefix:MEMO_KEY_PREFIX});
+      if(r.ok){curIdRef.current=id;setCaseList(r.list);}
+      return r;
     };
+    // 창 닫힘용 즉시 저장
+    flushSaveRef.current=()=>{flushSaveRef.current=null;persist();};
     const t=setTimeout(async()=>{
       try{
         flushSaveRef.current=null;
-        // 건 데이터 저장
-        storageSet(caseKey(id),caseJson());
-        // 목록 업데이트
-        const updated=new Date().toISOString();
-        setCaseList(prev=>{
-          const filtered=prev.filter(c=>c.id!==id);
-          const newList=[{id,label,updated},...filtered];
-          storageSet(LIST_KEY,JSON.stringify(newList));
-          return newList;
-        });
-        if(!currentId)memoAdoptTemp(id);   // 접수번호 입력 전에 붙여넣은 메모를 이 건으로 옮긴다
+        const hadId=curIdRef.current;
+        const r=persist();
+        if(!r.ok){setSaveStatus("❌ "+id+" — 이미 있는 접수번호라 저장을 멈췄습니다");return;}
+        if(!hadId)memoAdoptTemp(id);   // 접수번호 입력 전에 붙여넣은 메모를 이 건으로 옮긴다
         setCurrentId(id);
         setSaveStatus("✅");
       }catch(e){setSaveStatus("❌ "+String(e.message||e));}
@@ -4386,7 +4381,7 @@ function App(){
         if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
         if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
         setCaseRevision(v=>v+1);resetHist();
-        setCurrentId(id);setStep(0);setShowList(false);
+        window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),id);setCurrentId(id);setStep(0);setShowList(false);
       }
     }catch(e){alert("불러오기 실패");}
   };
@@ -4408,6 +4403,28 @@ function App(){
   const KK=k=>{const pre=k==="multi"?"v2:":"";return {list:pre+"appraisal-case-list",key:id=>pre+"case:"+id,memo:pre+"appraisal-memo:",trash:pre+"appraisal-trash"};};
   const TRASH_KEY=KK(MY).trash,TRASH_MAX=20;
   const [showTrash,setShowTrash]=useState(false);
+  // ── 건별 이전 버전(arap_casebak.js) — 목록 줄의 「↺ 이전 버전」으로 펼쳐 골라 되돌린다 ──
+  const [bakOpen,setBakOpen]=useState(null);   // 펼친 건 "kind:id"
+  const bakPre=k=>k==="multi"?"v2:":"";
+  const restoreBak=({id,k})=>{
+    const v=window.ArapCaseBak.versions(bakPre(MY),id)[k];if(!v)return;
+    if(!confirm(`${id} 건을 ${fmtWhen(v.t)} 버전으로 되돌릴까요?\n(${v.summary})\n\n지금 내용도 이전 버전 목록에 남으므로 다시 되돌릴 수 있습니다.`))return;
+    if(!window.ArapCaseBak.restore(bakPre(MY),id,k,storageSet)){alert("되돌리기 실패 — 저장 데이터가 손상되었습니다.");return;}
+    let o={};try{o=(JSON.parse(lsG(caseKey(id))||"{}")||{}).ov||{};}catch(e){}
+    putList(id,caseLabel(id,o));setBakOpen(null);
+    if(currentId===id)loadCase(id);
+  };
+  const bakRow=c=>{
+    if(bakOpen!==c.kind+":"+c.id)return null;
+    const vs=window.ArapCaseBak.versions(bakPre(c.kind),c.id);
+    return <tr className="bak-row"><td colSpan={4} style={{...S.td,background:"#f8fafc",textAlign:"left"}}>
+      <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>↺ {c.id} 이전 버전 — 다른 내용으로 덮어쓰기 직전·사례나 칸이 크게 줄기 직전·5분마다 자동 보관 (건마다 최근 {window.ArapCaseBak.MAX}개)</div>
+      {vs.map(v=><div key={v.k} style={{display:"flex",gap:10,alignItems:"center",padding:"2px 0",fontSize:12}}>
+        <span style={{minWidth:150,whiteSpace:"nowrap"}}>{fmtWhen(v.t)}</span><span style={{flex:1}}>{v.summary}</span>
+        <button className="bak-restore" style={{...S.btn,background:C.acc,color:"#fff",border:`1px solid ${C.acc}`,fontSize:11,padding:"3px 10px"}} onClick={()=>caseOp(c.kind,"bak",{id:c.id,k:v.k})}>이 버전으로 되돌리기</button>
+      </div>)}
+    </td></tr>;
+  };
   const [trashVer,setTrashVer]=useState(0);
   const lsG=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
   const readArr=k=>{try{return JSON.parse(lsG(k)||"[]")||[];}catch(e){return [];}};
@@ -4419,7 +4436,7 @@ function App(){
   const curData=()=>({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
   const caseLabel=(id,o)=>`${id} ${o.buildingName||""} ${o.dong?o.dong+"동":""} ${o.ho?o.ho+"호":""}`.trim();
   const putList=(id,label)=>{const updated=new Date().toISOString();
-    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});bump();};
+    const newList=[{id,label,updated},...window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":"")).filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));setCaseList(newList);bump();};
   const nextCopyId=id=>{let n=2,c;do{c=id+"-"+n++;}while(lsG(caseKey(c)));return c;};
   // 다른 방식 저장 데이터를 이 방식으로 — 여러→단일은 첫 호수(가)를 스칼라 칸으로, 단일→여러는 스칼라 칸으로 호수 1개
   const UNIT_KEYS=["dong","floor","ho","area","commonArea","landArea","mainUseJeonyu"];
@@ -4438,11 +4455,9 @@ function App(){
       tr.unshift({id,label:c.label||id,t:Date.now(),raw,memo:lsG(MEMO_KEY_PREFIX+id)});
       if(!setTrash(tr)&&!confirm("저장 공간이 부족해 휴지통에 넣지 못했습니다. 그래도 완전히 삭제할까요?"))return;}
     try{storageDelete(caseKey(id));storageDelete(MEMO_KEY_PREFIX+id);}catch(e){console.warn('case delete from storage failed',e);}
-    setCaseList(prev=>{
-      const newList=prev.filter(c=>c.id!==id);
-      storageSet(LIST_KEY,JSON.stringify(newList));
-      return newList;
-    });
+    {const newList=window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":"")).filter(c=>c.id!==id);   // 목록은 저장소에서 읽어 고친다(다른 창에서 만든 건이 빠지지 않게)
+     storageSet(LIST_KEY,JSON.stringify(newList));setCaseList(newList);}
+    window.ArapCaseBak.forget((LIST_KEY.indexOf("v2:")===0?"v2:":""),id);
     bump();
     if(currentId===id)newCase();
   };
@@ -4488,7 +4503,7 @@ function App(){
   };
   // 다른 방식 앱이 넘긴 요청 처리 + 목록 새로고침 신호
   const opsRef=React.useRef(null);
-  opsRef.current={open:id=>loadCase(id),del:id=>deleteCase(id),restore:k=>restoreTrash(k),purge:k=>purgeTrash(k)};
+  opsRef.current={open:id=>loadCase(id),del:id=>deleteCase(id),restore:k=>restoreTrash(k),purge:k=>purgeTrash(k),bak:a=>restoreBak(a)};
   const [listVer,setListVer]=useState(0);
   useEffect(()=>{
     const onOp=e=>{const d=e.detail||{};if(d.kind===MY&&opsRef.current[d.op])opsRef.current[d.op](d.arg);};
@@ -4552,17 +4567,18 @@ function App(){
       <table style={S.tbl}><thead><tr>
         <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:"1%"}}>작업</th>
       </tr></thead><tbody>
-        {allCases.map(c=>(
-          <tr key={c.kind+":"+c.id} style={{background:c.kind===MY&&c.id===currentId?"#eff6ff":"#fff"}}>
+        {allCases.map(c=>(<React.Fragment key={c.kind+":"+c.id}>
+          <tr style={{background:c.kind===MY&&c.id===currentId?"#eff6ff":"#fff"}}>
             <td style={{...S.td,fontWeight:700,color:C.acc,whiteSpace:"nowrap"}}><span className="kind-tag" title={KIND_NAME[c.kind]+" 호수 건"} style={{display:"inline-block",fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,marginRight:5,background:c.kind==="multi"?"#fef3c7":"#e0f2fe",color:c.kind==="multi"?"#92400e":"#075985"}}>{KIND_NAME[c.kind]}</span>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
             <td style={S.tdL}>{c.label?.replace(c.id,"").trim()||"-"}</td>
             <td style={S.td}>{c.updated?new Date(c.updated).toLocaleDateString("ko-KR")+" "+new Date(c.updated).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"-"}</td>
             <td style={{...S.td,whiteSpace:"nowrap"}}>
               <button style={{...S.btn,...BTN.p,fontSize:11,padding:"3px 10px",marginRight:4}} title={c.kind===MY?"":KIND_NAME[c.kind]+" 호수 화면으로 넘어가 엽니다"} onClick={()=>caseOp(c.kind,"open",c.id)}>열기</button>
               <button className="copy-btn" title={c.kind===MY?"이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때":KIND_NAME[c.kind]+" 호수 건을 "+KIND_NAME[MY]+" 호수 건으로 복사 — 원본은 그대로"} style={{...S.btn,...BTN.s,fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id,c.kind)}>{c.kind===MY?"⧉ 복제":"⧉ "+KIND_NAME[MY]+"호수로 복제"}</button>
+              {(()=>{const n=window.ArapCaseBak.versions(bakPre(c.kind),c.id).length;const on=bakOpen===c.kind+":"+c.id;return n>0?<button className="bak-btn" title="이 건이 덮어써지거나 크게 줄기 직전 내용 — 골라서 되돌릴 수 있습니다" style={{...S.btn,background:on?"#e2e8f0":"#fff",color:"#1e293b",border:"1px solid #cbd5e1",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>setBakOpen(on?null:c.kind+":"+c.id)}>↺ 이전 버전 {n}</button>:null;})()}
               <button style={{...S.btn,...BTN.d,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(c.kind,"del",c.id)}>삭제</button>
             </td>
-          </tr>
+          </tr>{bakRow(c)}</React.Fragment>
         ))}
       </tbody></table>}
       {trashList.length>0&&<div style={{marginTop:8,fontSize:12}}>
@@ -5056,7 +5072,7 @@ function memoAdoptTemp(id){try{const tk=MEMO_KEY_PREFIX+"_temp",raw=localStorage
 // 브라우저 저장 공간이 부족해 메모를 못 저장했을 때의 안내 — 사용량과 큰 항목을 같이 보여 무엇을 지우면 되는지 알게 한다
 function memoFullMsg(){
   let tot=0;const by={};
-  const lab=k=>/appraisal-memo:/.test(k)?"메모":/(^|:)case:/.test(k)?"저장된 건":/trash/.test(k)?"휴지통":/kais_history/.test(k)?"카이스 복붙 기록":/kapa_history/.test(k)?"카파허브 복붙 기록":"기타";
+  const lab=k=>/appraisal-memo:/.test(k)?"메모":/appraisal-bak:/.test(k)?"이전 버전":/(^|:)case:/.test(k)?"저장된 건":/trash/.test(k)?"휴지통":/kais_history/.test(k)?"카이스 복붙 기록":/kapa_history/.test(k)?"카파허브 복붙 기록":"기타";
   try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),n=k.length+(localStorage.getItem(k)||"").length;tot+=n;const l=lab(k);by[l]=(by[l]||0)+n;}}catch(e){console.warn('memo usage calc failed',e);}
   const top=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([l,n])=>l+" "+(n/1e6).toFixed(1)+"MB").join(", ");
   return "⚠ 브라우저 저장 공간이 가득 차서 메모를 저장하지 못했습니다 — 지금 상태로 새로고침하면 사라집니다. (사용 약 "+(tot/1e6).toFixed(1)+"MB / 5MB"+(top?" · "+top:"")+") 휴지통·복붙 기록·큰 이미지 메모를 지운 뒤 [다시 저장]을 누르세요.";
@@ -7554,6 +7570,7 @@ function App(){
   const [loaded,setLoaded]=useState(false);
   const [caseList,setCaseList]=useState([]);  // [{id,label,updated}]
   const [currentId,setCurrentId]=useState(null);
+  const curIdRef=React.useRef(null);curIdRef.current=currentId;   // 자동저장이 「지금 화면이 어느 건인지」 읽는 곳(번호 바꾸기 판단)
   const [caseRevision,setCaseRevision]=useState(0); // 평가건 전환 시 대상물건 입력 화면도 초기화
   const [showList,setShowList]=useState(false);
   const [leftCollapsed,setLeftCollapsed]=useState(false);
@@ -7630,8 +7647,7 @@ function App(){
   // 건 목록 + 마지막 작업건 복원
   useEffect(()=>{
     (async()=>{try{
-      const lr=storageGet(LIST_KEY);
-      const list=lr&&lr.value?JSON.parse(lr.value):[];
+      const list=window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":""),true);   // 목록에서 빠진 저장건은 다시 올린다
       setCaseList(list);
       // 마지막 작업건 복원
       if(list.length>0){
@@ -7641,7 +7657,7 @@ function App(){
           if(r&&r.value){const d=JSON.parse(r.value);
             if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases);if(d.precs)setPrecs(d.precs);if(d.propType)setPropType(d.propType);
             if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
-            setCurrentId(lastId);
+            window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),lastId);setCurrentId(lastId);
           }
         }catch(e){}
       }
@@ -7658,18 +7674,13 @@ function App(){
     setSaveStatus("⏳");
     const t=setTimeout(async()=>{
       try{
-        // 건 데이터 저장
-        storageSet(caseKey(id),JSON.stringify({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}}));
-        // 목록 업데이트
+        // 건 저장(arap_casebak.js) — 접수번호를 고치면 이 건의 번호만 바꾸고, 이미 다른 건이 쓰는 번호면 멈춘다. 목록은 저장소에서 읽어 고친다
         const label=`${id} ${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim();
-        const updated=new Date().toISOString();
-        setCaseList(prev=>{
-          const filtered=prev.filter(c=>c.id!==id);
-          const newList=[{id,label,updated},...filtered];
-          storageSet(LIST_KEY,JSON.stringify(newList));
-          return newList;
-        });
-        if(!currentId)memoAdoptTemp(id);   // 접수번호 입력 전에 붙여넣은 메모를 이 건으로 옮긴다
+        const hadId=curIdRef.current;
+        const r=window.ArapCaseBak.autosave({pre:"v2:",id,prevId:hadId,raw:JSON.stringify({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}}),label,setFn:storageSet,memoPrefix:MEMO_KEY_PREFIX});
+        if(!r.ok){setSaveStatus("❌ "+id+" — 이미 있는 접수번호라 저장을 멈췄습니다");return;}
+        curIdRef.current=id;setCaseList(r.list);
+        if(!hadId)memoAdoptTemp(id);   // 접수번호 입력 전에 붙여넣은 메모를 이 건으로 옮긴다
         setCurrentId(id);
         // 관리자 사용기록: 건 요약 전송 — 결정단가·시산가액은 ④탭(Step4)과 동일 산식 (이 스코프엔 fT가 없어 재계산)
         try{
@@ -7694,7 +7705,7 @@ function App(){
         if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
         if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
         setCaseRevision(v=>v+1);
-        setCurrentId(id);setStep(0);setShowList(false);
+        window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),id);setCurrentId(id);setStep(0);setShowList(false);
       }
     }catch(e){alert("불러오기 실패");}
   };
@@ -7716,6 +7727,28 @@ function App(){
   const KK=k=>{const pre=k==="multi"?"v2:":"";return {list:pre+"appraisal-case-list",key:id=>pre+"case:"+id,memo:pre+"appraisal-memo:",trash:pre+"appraisal-trash"};};
   const TRASH_KEY=KK(MY).trash,TRASH_MAX=20;
   const [showTrash,setShowTrash]=useState(false);
+  // ── 건별 이전 버전(arap_casebak.js) — 목록 줄의 「↺ 이전 버전」으로 펼쳐 골라 되돌린다 ──
+  const [bakOpen,setBakOpen]=useState(null);   // 펼친 건 "kind:id"
+  const bakPre=k=>k==="multi"?"v2:":"";
+  const restoreBak=({id,k})=>{
+    const v=window.ArapCaseBak.versions(bakPre(MY),id)[k];if(!v)return;
+    if(!confirm(`${id} 건을 ${fmtWhen(v.t)} 버전으로 되돌릴까요?\n(${v.summary})\n\n지금 내용도 이전 버전 목록에 남으므로 다시 되돌릴 수 있습니다.`))return;
+    if(!window.ArapCaseBak.restore(bakPre(MY),id,k,storageSet)){alert("되돌리기 실패 — 저장 데이터가 손상되었습니다.");return;}
+    let o={};try{o=(JSON.parse(lsG(caseKey(id))||"{}")||{}).ov||{};}catch(e){}
+    putList(id,caseLabel(id,o));setBakOpen(null);
+    if(currentId===id)loadCase(id);
+  };
+  const bakRow=c=>{
+    if(bakOpen!==c.kind+":"+c.id)return null;
+    const vs=window.ArapCaseBak.versions(bakPre(c.kind),c.id);
+    return <tr className="bak-row"><td colSpan={4} style={{...S.td,background:"#f8fafc",textAlign:"left"}}>
+      <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>↺ {c.id} 이전 버전 — 다른 내용으로 덮어쓰기 직전·사례나 칸이 크게 줄기 직전·5분마다 자동 보관 (건마다 최근 {window.ArapCaseBak.MAX}개)</div>
+      {vs.map(v=><div key={v.k} style={{display:"flex",gap:10,alignItems:"center",padding:"2px 0",fontSize:12}}>
+        <span style={{minWidth:150,whiteSpace:"nowrap"}}>{fmtWhen(v.t)}</span><span style={{flex:1}}>{v.summary}</span>
+        <button className="bak-restore" style={{...S.btn,background:C.acc,color:"#fff",border:`1px solid ${C.acc}`,fontSize:11,padding:"3px 10px"}} onClick={()=>caseOp(c.kind,"bak",{id:c.id,k:v.k})}>이 버전으로 되돌리기</button>
+      </div>)}
+    </td></tr>;
+  };
   const [trashVer,setTrashVer]=useState(0);
   const lsG=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
   const readArr=k=>{try{return JSON.parse(lsG(k)||"[]")||[];}catch(e){return [];}};
@@ -7727,7 +7760,7 @@ function App(){
   const curData=()=>({ov,cases,precs,propType,rnd:{uD,uM,tD,tM,manU}});
   const caseLabel=(id,o)=>`${id} ${o.buildingName||""} ${o.dong?o.dong+"동":""} ${o.ho?o.ho+"호":""}`.trim();
   const putList=(id,label)=>{const updated=new Date().toISOString();
-    setCaseList(prev=>{const newList=[{id,label,updated},...prev.filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));return newList;});bump();};
+    const newList=[{id,label,updated},...window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":"")).filter(c=>c.id!==id)];storageSet(LIST_KEY,JSON.stringify(newList));setCaseList(newList);bump();};
   const nextCopyId=id=>{let n=2,c;do{c=id+"-"+n++;}while(lsG(caseKey(c)));return c;};
   // 다른 방식 저장 데이터를 이 방식으로 — 여러→단일은 첫 호수(가)를 스칼라 칸으로, 단일→여러는 스칼라 칸으로 호수 1개
   const UNIT_KEYS=["dong","floor","ho","area","commonArea","landArea","mainUseJeonyu"];
@@ -7746,11 +7779,9 @@ function App(){
       tr.unshift({id,label:c.label||id,t:Date.now(),raw,memo:lsG(MEMO_KEY_PREFIX+id)});
       if(!setTrash(tr)&&!confirm("저장 공간이 부족해 휴지통에 넣지 못했습니다. 그래도 완전히 삭제할까요?"))return;}
     try{storageDelete(caseKey(id));storageDelete(MEMO_KEY_PREFIX+id);}catch(e){console.warn('case delete from storage failed',e);}
-    setCaseList(prev=>{
-      const newList=prev.filter(c=>c.id!==id);
-      storageSet(LIST_KEY,JSON.stringify(newList));
-      return newList;
-    });
+    {const newList=window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":"")).filter(c=>c.id!==id);   // 목록은 저장소에서 읽어 고친다(다른 창에서 만든 건이 빠지지 않게)
+     storageSet(LIST_KEY,JSON.stringify(newList));setCaseList(newList);}
+    window.ArapCaseBak.forget((LIST_KEY.indexOf("v2:")===0?"v2:":""),id);
     bump();
     if(currentId===id)newCase();
   };
@@ -7796,7 +7827,7 @@ function App(){
   };
   // 다른 방식 앱이 넘긴 요청 처리 + 목록 새로고침 신호
   const opsRef=React.useRef(null);
-  opsRef.current={open:id=>loadCase(id),del:id=>deleteCase(id),restore:k=>restoreTrash(k),purge:k=>purgeTrash(k)};
+  opsRef.current={open:id=>loadCase(id),del:id=>deleteCase(id),restore:k=>restoreTrash(k),purge:k=>purgeTrash(k),bak:a=>restoreBak(a)};
   const [listVer,setListVer]=useState(0);
   useEffect(()=>{
     const onOp=e=>{const d=e.detail||{};if(d.kind===MY&&opsRef.current[d.op])opsRef.current[d.op](d.arg);};
@@ -7851,17 +7882,18 @@ function App(){
       <table style={S.tbl}><thead><tr>
         <th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>최근 수정</th><th style={{...S.th,width:"1%"}}>작업</th>
       </tr></thead><tbody>
-        {allCases.map(c=>(
-          <tr key={c.kind+":"+c.id} style={{background:c.kind===MY&&c.id===currentId?"#eff6ff":"#fff"}}>
+        {allCases.map(c=>(<React.Fragment key={c.kind+":"+c.id}>
+          <tr style={{background:c.kind===MY&&c.id===currentId?"#eff6ff":"#fff"}}>
             <td style={{...S.td,fontWeight:700,color:C.acc,whiteSpace:"nowrap"}}><span className="kind-tag" title={KIND_NAME[c.kind]+" 호수 건"} style={{display:"inline-block",fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:4,marginRight:5,background:c.kind==="multi"?"#fef3c7":"#e0f2fe",color:c.kind==="multi"?"#92400e":"#075985"}}>{KIND_NAME[c.kind]}</span>{c.id}{String(c.id).startsWith("SAMPLE-")&&<span style={{color:"#7c3aed",fontWeight:600}}> (샘플)</span>}</td>
             <td style={S.tdL}>{c.label?.replace(c.id,"").trim()||"-"}</td>
             <td style={S.td}>{c.updated?new Date(c.updated).toLocaleDateString("ko-KR")+" "+new Date(c.updated).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"-"}</td>
             <td style={{...S.td,whiteSpace:"nowrap"}}>
               <button style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px",marginRight:4}} title={c.kind===MY?"":KIND_NAME[c.kind]+" 호수 화면으로 넘어가 엽니다"} onClick={()=>caseOp(c.kind,"open",c.id)}>열기</button>
               <button className="copy-btn" title={c.kind===MY?"이 건을 새 접수번호로 복제 — 원본은 그대로 두고 사례·단가를 바꿔 볼 때":KIND_NAME[c.kind]+" 호수 건을 "+KIND_NAME[MY]+" 호수 건으로 복사 — 원본은 그대로"} style={{...S.btn,background:"#faf5ff",color:"#6b21a8",border:"1px solid #e9d5ff",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>copyCase(c.id,c.kind)}>{c.kind===MY?"⧉ 복제":"⧉ "+KIND_NAME[MY]+"호수로 복제"}</button>
+              {(()=>{const n=window.ArapCaseBak.versions(bakPre(c.kind),c.id).length;const on=bakOpen===c.kind+":"+c.id;return n>0?<button className="bak-btn" title="이 건이 덮어써지거나 크게 줄기 직전 내용 — 골라서 되돌릴 수 있습니다" style={{...S.btn,background:on?"#e2e8f0":"#fff",color:"#1e293b",border:"1px solid #cbd5e1",fontSize:11,padding:"3px 8px",marginRight:4}} onClick={()=>setBakOpen(on?null:c.kind+":"+c.id)}>↺ 이전 버전 {n}</button>:null;})()}
               <button style={{...S.btn,background:"#fef2f2",color:C.dng,fontSize:11,padding:"3px 8px"}} onClick={()=>caseOp(c.kind,"del",c.id)}>삭제</button>
             </td>
-          </tr>
+          </tr>{bakRow(c)}</React.Fragment>
         ))}
       </tbody></table>}
       {trashList.length>0&&<div style={{marginTop:8,fontSize:12}}>
