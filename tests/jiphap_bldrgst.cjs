@@ -58,7 +58,7 @@ const MOCK={
     // 등기에서 읽은 동 107·호 902가 드롭다운에 미리 선택됨
     const sels=single.locator('text=동 / 호').locator('xpath=following-sibling::select');
     assert.equal(await sels.nth(0).inputValue(),'107동');assert.equal(await sels.nth(1).inputValue(),'902호');
-    // 빈칸만 채워짐: 기존 값(소유자·대지면적·지번주소)은 그대로, 빈칸은 대장 값
+    // 기본은 대장 값으로 덮어씀(2026-10-14) — 단 지번주소(등기 필지 목록)·소유자(대장에 없음)는 그대로
     assert.equal(await getF('공용면적(㎡)'),'15.3234');
     assert.equal(await getF('용도지역'),'제3종일반주거지역');
     assert.equal(await getF('주구조'),'철근콘크리트구조 (철근)콘크리트지붕');
@@ -66,20 +66,19 @@ const MOCK={
     assert.equal(await getF('단지규모(동/세대·호)'),'2/192');
     assert.equal(await getF('연면적(㎡)'),'8123.45');
     assert.equal(await getF('층수(지상/지하)'),'13/1');
-    assert.equal(await getF('대지면적(㎡)'),'24657.999999999996');   // 빈칸만 → 등기값 유지
+    assert.equal(await getF('대지면적(㎡)'),'24658');   // 덮어쓰기 → 대장 대지면적
     assert.equal(await getF('지번주소'),'서울특별시 서초구 방배동 1344, 1344-1, 1344-2, 1344-3');
     assert.equal(await getF('소유자'),'한신명');
     assert.equal(await getF('전유면적(㎡)'),'59.94');
     const apr=await aprBox.first().inputValue();
     assert.equal(apr,'1987.05.12');
-    // 다른 호(101호)로 바꿔도 빈칸만 규칙이라 전유면적은 안 바뀜 → 체크 해제 후 다시 고르면 덮어씀
-    await sels.nth(1).selectOption('101호');await page.waitForTimeout(400);
-    assert.equal(await getF('전유면적(㎡)'),'59.94');
-    await single.locator('text=빈칸만 채우기').locator('input').uncheck();
-    await sels.nth(1).selectOption('902호');await page.waitForTimeout(300);
+    // 다른 호(101호)로 바꾸면 덮어씀
     await sels.nth(1).selectOption('101호');await page.waitForTimeout(400);
     assert.equal(await getF('전유면적(㎡)'),'84.96');assert.equal(await getF('층'),'1');assert.equal(await getF('호'),'101');
-    assert.equal(await getF('대지면적(㎡)'),'24658');   // 덮어쓰기 → 대장 대지면적
+    // '빈칸만 채우기'를 켜면 이미 있는 값은 그대로
+    await single.locator('text=빈칸만 채우기').locator('input').check();
+    await sels.nth(1).selectOption('902호');await page.waitForTimeout(400);
+    assert.equal(await getF('전유면적(㎡)'),'84.96','빈칸만이면 안 바뀜');
     // 동을 바꾸면 그 동 호 목록으로
     await sels.nth(0).selectOption('108동');await single.locator('text=/1호$/').waitFor({timeout:5000});
     assert.ok(calls.includes('getBrExposInfo:108동:'));
