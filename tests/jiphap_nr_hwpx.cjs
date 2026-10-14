@@ -22,6 +22,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     await page.goto(base+'/s3r86w8a.html');const scope=page.locator('#root');
     await scope.getByText('2. 대상물건개요',{exact:true}).click({timeout:60000});
     await scope.locator('button',{hasText:/^비주거용$/}).first().click();
+    if(process.env.SHARE){await scope.locator('select').filter({has:page.locator('option[value="share"]')}).first().selectOption('share');
+      await scope.locator('input[placeholder="분자"]').fill('1');await scope.locator('input[placeholder="분모"]').fill('4');}
     await scope.getByText('3. 사례 등 입력',{exact:true}).click();
     // 선정 사례 행의 시점수정치 칸 → 자본수익률 계산 → 적용
     const idx=await scope.locator('tr').evaluateAll(trs=>trs.findIndex(tr=>{const c=tr.querySelectorAll(':scope > td')[2];const b=c&&c.querySelector('input[type=checkbox]');return !!(b&&b.checked&&/^#\d/.test((tr.querySelectorAll(':scope > td')[3]||{}).textContent||''));}));
@@ -48,6 +50,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     assert.match(t,/\|\d+\.\d{3}%\|\(\|1\.\d{5}\|\)/,'상승률·시점수정치');
     assert.ok(/\d{4}\.\d\d\.\d\d ~ \d{4}\.\d\d\.\d\d/.test(t),'기간');
     assert.ok(!/charPrIDRef="5[3-7]"/.test(x),'파란 글자 없음');
+    assert.equal(t.split('|').filter(v=>v.startsWith('■ ')).length,4,'개별요인 ■ 네 줄');
+    if(process.env.SHARE)assert.ok(t.includes('귀 제시 지분(1/4)만을')&&/□ 산식 : /.test(t),'지분 양식');
     assert.deepEqual(errors,[]);
     console.log(t.slice(t.indexOf('가. 자본수익률'),t.indexOf('나. 시점수정치의 결정')));
     console.log('PASS');
