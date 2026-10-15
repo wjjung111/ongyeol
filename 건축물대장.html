@@ -83,6 +83,14 @@
   </div>
 
   <div id="result">
+    <!-- 총괄표제부 — 여러 동 단지(대단지 아파트 등)면 맨 위에. 동별 개요 줄을 누르면 아래 동 드롭다운이 그 동으로 -->
+    <div class="card" id="recapPanel" style="display:none">
+      <h2>총괄표제부 <span class="hint" style="font-weight:400" id="recapHint"></span></h2>
+      <div class="tw"><table id="tblRecap"></table></div>
+      <div class="tw" id="recapDongWrap" style="margin-top:8px;max-height:320px;overflow:auto"><table id="tblRecapDong"></table></div>
+      <div class="hint" id="recapDongHint" style="margin-top:4px">동 줄을 누르면 아래 호별 전유면적·동명세가 그 동으로 바뀝니다.</div>
+    </div>
+
     <!-- 집합건물 호별 전유면적 — 동 → 호를 고르면 그 호의 전유·공용 내역 -->
     <div class="card" id="hoPanel" style="display:none">
       <h2>호별 전유면적 <span class="hint" style="font-weight:400">(집합건물 · 전유부·전유공용면적 대장)</span>
@@ -223,7 +231,7 @@ function n1(v){var x=Number(v);return (v===''||v==null||isNaN(x))?'':x.toLocaleS
 function txt(v){return String(v==null?'':v).trim();}
 function joinPurps(main,etc){var a=txt(main),b=txt(etc);return b?(a?a+'('+b+')':b):a;}
 
-var STATE={addr:'',pnu:'',titles:[],flrs:[],jijigu:[],atch:[],atchOld:false,dongIdx:0,hoList:[],hoRows:[],hoDong:'',hoNm:'',hoAll:null,proxyOld:false};
+var STATE={addr:'',pnu:'',titles:[],recap:null,flrs:[],jijigu:[],atch:[],atchOld:false,dongIdx:0,hoList:[],hoRows:[],hoDong:'',hoNm:'',hoAll:null,proxyOld:false};
 
 function setStatus(msg,cls){var el=document.getElementById('status');el.textContent=msg;el.className='status'+(cls?' '+cls:'');}
 function hidePick(){document.getElementById('pick').style.display='none';document.getElementById('pickList').innerHTML='';}
@@ -375,9 +383,16 @@ async function lookup(pnu,addr){
       callApi(bldUrl('getBrTitleInfo')),
       callApi(bldUrl('getBrFlrOulnInfo')),
       callApi(bldUrl('getBrJijiguInfo')).catch(function(){return null;}),
-      callApi(bldUrl('getBrAtchJibunInfo')).catch(function(){return null;})   // 부속지번(대장의 '관련지번')
+      callApi(bldUrl('getBrAtchJibunInfo')).catch(function(){return null;}),  // 부속지번(대장의 '관련지번')
+      callApi(bldUrl('getBrRecapTitleInfo')).catch(function(){return null;})  // 총괄표제부(여러 동 단지)
     ]);
     STATE.titles=items(res[0]);
+    // 동 순서: 주건축물 먼저, 101동·102동… 숫자 순 (API는 순서가 뒤죽박죽으로 올 때가 있음)
+    STATE.titles.sort(function(a,b){var ma=/부속/.test(txt(a.mainAtchGbCdNm))?1:0,mb=/부속/.test(txt(b.mainAtchGbCdNm))?1:0;if(ma!==mb)return ma-mb;
+      return (hoNum(a.dongNm)-hoNum(b.dongNm))||txt(a.dongNm).localeCompare(txt(b.dongNm));});
+    // 총괄표제부 — 구판 프록시가 층별개요로 바꿔 보낸 응답(flrNo 있음)이면 버린다
+    var rc=res[4]?(function(){try{return items(res[4]);}catch(e){return[];}})():[];
+    STATE.recap=(rc.length&&rc[0].flrNo==null)?rc[0]:null;
     STATE.flrs=items(res[1]);
     STATE.jijigu=res[2]?items(res[2]):[];
     // 구판 프록시는 모르는 op를 층별개요로 바꿔 돌려준다 → 층 행(flrNo)이 오면 구판으로 보고 재배포 안내
@@ -399,6 +414,7 @@ async function lookup(pnu,addr){
     }else{sel.style.display='none';}
     STATE.dongIdx=0;
     renderDong();
+    renderRecap();
     setupHoPanel();
     histAdd('parcel',STATE.addr);   // 조회 성공한 지번 주소를 검색 기록에 (시·도까지 붙은 전체 주소라 다음엔 바로 조회됨)
     document.getElementById('result').style.display='block';
@@ -407,6 +423,60 @@ async function lookup(pnu,addr){
     console.error('건축물대장 조회',e);
     setStatus('실패: '+e.message,'err');
   }finally{btn.disabled=false;}
+}
+
+// ── 총괄표제부 (여러 동 단지) + 동별 개요 ──
+// 총괄표제부가 없어도 동이 2개 이상이면 동별 개요 표는 보여준다(단지 전체를 먼저 보게)
+function renderRecap(){
+  var p=document.getElementById('recapPanel'),r=STATE.recap,ts=STATE.titles;
+  if(!r&&ts.length<2){p.style.display='none';return;}
+  var info='';
+  if(r){
+    var jibun=(txt(r.bun)?String(Number(r.bun)):'')+(txt(r.ji)&&Number(r.ji)?('-'+Number(r.ji)):'');
+    var addr=(txt(r.platPlc)||STATE.addr).replace(/\s*\d+(-\d+)?(번지)?\s*$/,'');
+    var pkTot=txt(r.totPkngCnt)||(['indrAutoUtcnt','indrMechUtcnt','oudrAutoUtcnt','oudrMechUtcnt'].reduce(function(s,k){return s+(Number(r[k])||0);},0)||'');
+    info=row2('대지위치',addr,'지번',(jibun||'-')+(atchList().length?' 외 '+atchList().length+'필지':''))+
+      row2('건물명',txt(r.bldNm)||'-','도로명주소',txt(r.newPlatPlc)||'-')+
+      row2('대지면적(㎡)',n1(r.platArea),'연면적(㎡)',n1(r.totArea),true,true)+
+      row2('건축면적(㎡)',n1(r.archArea),'용적률산정용 연면적(㎡)',n1(r.vlRatEstmTotArea),true)+
+      row2('건폐율(%)',n1(r.bcRat),'용적률(%)',n1(r.vlRat),true)+
+      row2('주용도(기타용도)',joinPurps(r.mainPurpsCdNm,r.etcPurps),'세대/가구/호',
+           (txt(r.hhldCnt)||'0')+'세대 / '+(txt(r.fmlyCnt)||'0')+'가구 / '+(txt(r.hoCnt)||'0')+'호')+
+      row2('주건축물 수',(txt(r.mainBldCnt)||'0')+'동','부속건축물',(txt(r.atchBldCnt)||'0')+'동 '+(n1(r.atchBldArea)||'0')+'㎡')+
+      row2('총 주차대수',pkTot?pkTot+'대':'-','대장 PK',txt(r.mgmBldrgstPk)||'-')+
+      row2('허가일자',dt(r.pmsDay)||'-','착공일자',dt(r.stcnsDay)||'-')+
+      row2('사용승인일자',dt(r.useAprDay)||'-','대장종류',txt(r.regstrKindCdNm)+(txt(r.regstrGbCdNm)?'('+txt(r.regstrGbCdNm)+')':''),false,true);
+  }else{
+    info='<tr><td class="l">이 지번엔 총괄표제부가 없습니다 (동별 표제부만 있음).</td></tr>';
+  }
+  document.getElementById('tblRecap').innerHTML=info;
+  var h='<tr><th>#</th><th>주/부</th><th>동명칭</th><th>주용도</th><th>층수(지상/지하)</th><th>세대/호</th><th>연면적(㎡)</th><th>사용승인일</th></tr>';
+  var sum=0;
+  ts.forEach(function(t,i){
+    sum+=Number(t.totArea)||0;
+    h+='<tr class="recap-dong" data-i="'+i+'" style="cursor:pointer" title="이 동으로 보기"><td>'+(i+1)+'</td><td>'+esc(txt(t.mainAtchGbCdNm).slice(0,1)||'-')+'</td>'+
+       '<td>'+esc(txt(t.dongNm)||txt(t.bldNm)||'-')+'</td><td class="l">'+esc(joinPurps(t.mainPurpsCdNm,t.etcPurps))+'</td>'+
+       '<td>'+(txt(t.grndFlrCnt)||'0')+' / '+(txt(t.ugrndFlrCnt)||'0')+'</td>'+
+       '<td>'+(txt(t.hhldCnt)||'0')+' / '+(txt(t.hoCnt)||'0')+'</td><td class="num">'+n1(t.totArea)+'</td><td>'+esc(dt(t.useAprDay)||'-')+'</td></tr>';
+  });
+  h+='<tr><td colspan="6" style="text-align:right;font-weight:700">'+ts.length+'개 동 연면적 합계</td><td class="num hl">'+n1(sum.toFixed(4))+'</td><td></td></tr>';
+  var showDong=ts.length>1;
+  document.getElementById('tblRecapDong').innerHTML=showDong?h:'';
+  document.getElementById('recapDongWrap').style.display=showDong?'':'none';
+  document.getElementById('recapDongHint').style.display=showDong?'':'none';
+  document.getElementById('recapHint').textContent=(r&&txt(r.bldNm)?txt(r.bldNm)+' · ':'')+'동 '+ts.length+'개';
+  Array.prototype.forEach.call(document.querySelectorAll('#tblRecapDong .recap-dong'),function(tr){
+    tr.onclick=function(){pickDong(+tr.getAttribute('data-i'));};
+  });
+  p.style.display='block';
+}
+// 동별 개요 줄 클릭 → 동명세 드롭다운 + (집합건물이면) 호별 전유면적의 동 드롭다운을 같은 동으로
+function pickDong(i){
+  var t=STATE.titles[i];if(!t)return;
+  var top=document.getElementById('dongSel');top.value=String(i);renderDong();
+  var ds=document.getElementById('hoDongSel'),d=txt(t.dongNm);
+  if(document.getElementById('hoPanel').style.display!=='none'&&ds.value!==d&&Array.prototype.some.call(ds.options,function(o){return o.value===d;})){ds.value=d;loadHoList();}
+  (document.getElementById('hoPanel').style.display!=='none'?document.getElementById('hoPanel'):top.closest('.card')).scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 // ── 집합건물 호별 전유면적 ──
