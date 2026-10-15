@@ -24,6 +24,7 @@
 </head>
 <body>
 <script src="arap_access.js"></script>
+<script src="arap_casebak.js"></script><!-- 저장건 안전장치(집건과 같은 파일): 💾 저장으로 번호 확정·이미 있는 번호 거절·건별 이전 버전 -->
   <style>
     #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;
       padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;font-family:'Malgun Gothic',sans-serif;}
@@ -1431,6 +1432,8 @@ function ipjApplyRefundDoc(xml,r){
     if(sec==="5."&&plain==="해당사항 없음."&&lines(r.cond).length)return lines(r.cond).map(t=>para(p,t)).join("");
     if(sec==="6."&&plain.startsWith("다. 본 입주권 감정평가는")&&lines(r.other).length)return p+lines(r.other).map(t=>para(p,t)).join("");
     if(plain.includes("{{최종결정문구}}")&&r.iv){const c=(p.match(/<hp:run charPrIDRef="(\d+)"/)||[])[1]||"48";return p+openOf(p)+run(c,r.iv)+'</hp:p>';}
+    p=relabel(p,"(ⓓ-ⓒ)분담금","(ⓒ-ⓓ)환급금");
+    if(plain==="(환급금)")return noSeg(p.replace(/<hp:t>\(환급금\)<\/hp:t>/,"<hp:t>(원)</hp:t>"));
     p=relabel(p,"②평가기준일까지 납입한 금액(원)","②평가기준일까지 납입한 금액(환급금 차감)(원)");
     p=relabel(p,"기준시점까지 납부된 금액(원)","기준시점까지 수령한 환급금(원)");
     return relabel(p,"기준시점까지 납부된 금액","기준시점까지 수령한 환급금");
@@ -1530,8 +1533,8 @@ const ipjEmptyOv=()=>({
   yhAddr:"", yhLandmark:"", yhTraffic:"",
   // 관리처분·분담금(통지서)
   jongjeon:"", birye:"", gwolli:"", bunbo:"", paid:"0", paidNote:"",
-  // 환급금(권리가액 > 조합원분양가) — 기수령액, 처리방식(include 미수령 환급금 포함 / assume 전액 수령 가정), 다른 가정 금액 병기
-  refundRecv:"0", refundMode:"include", refundShowAlt:true,
+  // 환급금(권리가액 > 조합원분양가) — 처리방식(include 미수령 환급금 포함 / assume 전액 수령 가정), 다른 가정 금액 병기
+  refundMode:"include", refundShowAlt:true,   // 받은 환급금은 paid 칸이 겸함(환급금 건에서 이름만 바뀜)
   // 본건 2호수
   units:[ipjNewUnit("가"), ipjNewUnit("나")],
   // 반올림(고정 기본값: 결정단가 십만·감정가 백만)
@@ -1586,13 +1589,16 @@ const ipjCalcUnit=(u,cases,ov)=>{
 // 환급금 — 권리가액이 조합원분양가 합보다 커서 분담금이 음수인 건. 분담금 칸(직접 고친 값 우선)의 부호로 판단
 // include: 기준일까지 받은 환급금만 차감(미수령분은 입주권 가액에 포함 — 상증령 제51조②의 원칙)
 // assume : 의뢰인 요청으로 환급금 전액을 받은 것으로 가정해 전액 차감(감정평가조건 — 의견서 5.에 조건 문구)
+// exclude: 매매계약상 환급금 수령권이 원조합원에게 남음 → 수령권을 뺀 입주권을 평가(전액 차감, 4.바항 문구로 설명, 조건 아님)
 function ipjRefund(ov,bunboCalc){
   const b=pNum(ov.bunbo)!=null?pNum(ov.bunbo):bunboCalc;
   const total=b<0?-b:0;
-  const recv=total?Math.min(Math.max(pNum(ov.refundRecv)||0,0),total):0;
+  // 받은 환급금 = 「기준일까지 납입액」 칸(환급금 건에선 이름이 「기준일까지 받은 환급금」으로 바뀜 — 사용자 표: 납입액 자리 = 기수령환급금). 옛 refundRecv는 읽기만
+  const recv=total?Math.min(Math.max(pNum(ov.paid)||pNum(ov.refundRecv)||0,0),total):0;
   const unpaid=total-recv;
   const assume=unpaid>0&&ov.refundMode==="assume";
-  return {isRefund:total>0,total,recv,unpaid,assume,deduct:assume?total:recv};
+  const exclude=unpaid>0&&ov.refundMode==="exclude";     // 매매계약상 환급금 수령권이 원조합원에게 귀속 — 수령권 뺀 입주권이 평가대상(가정·조건 아님)
+  return {isRefund:total>0,total,recv,unpaid,assume,exclude,deduct:(assume||exclude)?total:recv};
 }
 const ipjCalc=(ov,cases)=>{
   const rows=(ov.units||[]).map(u=>ipjCalcUnit(u,cases,ov));
@@ -1603,7 +1609,7 @@ const ipjCalc=(ov,cases)=>{
   const paid=pNum(ov.paid)||0;                            // 평가기준일까지 납입액
   const bunboCalc=bunyangHap-gwolli;                      // 분담금(추산) = 분양대상추산액 − 권리가액
   const rf=ipjRefund(ov,bunboCalc);                       // 환급금(분담금이 음수인 건)
-  const paidEff=paid-rf.deduct;                           // ② = 납입액 − 환급받은(또는 받은 것으로 가정한) 금액
+  const paidEff=rf.isRefund?(rf.deduct?-rf.deduct:0):paid;              // ② = 납입액(분담금 건) / −받은(또는 받은 것으로 가정한) 환급금(환급금 건)
   const finalAmt=gwolli+paidEff+premiumHap;               // ①+②+③ 합계
   const fUnit=pNum(ov.finalRndUnit)||1000000;
   const fMode=ov.finalRndMode||"none";
@@ -1611,7 +1617,7 @@ const ipjCalc=(ov,cases)=>{
   const fD=fUnit*10;
   const finalDecided=fMode==="round"?Math.round(finalAmt/fD)*fD:fMode==="floor"?Math.floor(finalAmt/fD)*fD:Math.round(finalAmt);
   // 병기 금액 = 감정평가액 ∓ 미수령 환급금 (하감 별첨 방식 — 결정액에서 그대로 빼거나 더함, 다시 끝수 처리 안 함)
-  const altAmt=rf.unpaid>0?(rf.assume?finalDecided+rf.unpaid:finalDecided-rf.unpaid):null;
+  const altAmt=rf.unpaid>0?((rf.assume||rf.exclude)?finalDecided+rf.unpaid:finalDecided-rf.unpaid):null;
   return {rows,aptHap,bunyangHap,premiumHap,gwolli,paid,paidEff,finalAmt,finalDecided,bunboCalc,refund:{...rf,altAmt,showAlt:rf.unpaid>0&&ov.refundShowAlt!==false}};
 };
 
@@ -1703,6 +1709,7 @@ function buildIpjMap(ov,cases){
   m["분담금"]=ipjMoney(pNum(ov.bunbo)!=null?pNum(ov.bunbo):cal.bunboCalc);
   const rf=cal.refund;
   m["납입액"]=ipjMoney(cal.paidEff); m["납입액_명세"]=ipjMoney(rf.isRefund?rf.recv:cal.paid);   // 환급금 건: ②는 받은(가정) 환급금 차감, Ⅱ-2 표는 수령한 환급금
+  if(rf.isRefund)m["분담금"]=ipjMoney(rf.total);   // 환급금 건: Ⅱ-2 표 머리를 「(ⓒ-ⓓ)환급금」으로 바꾸고 값은 양수(ipjApplyRefundDoc)
   m["환급금"]=ipjMoney(rf.total); m["기수령환급금"]=ipjMoney(rf.recv); m["미수령환급금"]=ipjMoney(rf.unpaid);
   m["병기금액"]=rf.altAmt!=null?ipjMoney(rf.altAmt):"";
   m["아파트감정가합"]=ipjMoney(cal.aptHap); m["프리미엄합"]=ipjMoney(cal.premiumHap);
@@ -1852,7 +1859,7 @@ function IpjSidebar({ov,cal,collapsed,setCollapsed}){
         <div style={{color:"#94a3b8",fontSize:11}}>입주권 감정평가액</div>
         <div style={{fontSize:15,fontWeight:700,color:"#86efac"}}>{fmt(cal.finalDecided)} 원</div></div>
       {cal.refund&&cal.refund.showAlt&&<div style={{marginTop:6,padding:"6px 8px",background:"#0f1c33",borderRadius:6}}>
-        <div style={{color:"#94a3b8",fontSize:11}}>병기({cal.refund.assume?"수령 가정 안 함":"환급금 전액 수령 가정"})</div>
+        <div style={{color:"#94a3b8",fontSize:11}}>병기({cal.refund.exclude?"환급금 수령권 포함":cal.refund.assume?"수령 가정 안 함":"환급금 전액 수령 가정"})</div>
         <div style={{fontSize:13,fontWeight:700,color:"#fcd34d"}}>{fmt(cal.refund.altAmt)} 원</div></div>}
     </div>);
 }
@@ -1906,8 +1913,12 @@ function IpjTabGaeyo({ov,setOv}){
         <Fld label="종전자산평가액" value={ov.jongjeon} onChange={v=>u("jongjeon",fmtComma(v))} w={160}/>
         <Fld label="추정비례율(%)" value={ov.birye} onChange={v=>u("birye",v)} w={100} ph="예) 262.00"/>
         <Fld label="권리가액" value={ov.gwolli} onChange={v=>u("gwolli",fmtComma(v))} w={160}/>
-        <Fld label="분담금(자동·수정가능)" value={ov.bunbo} onChange={v=>u("bunbo",fmtSigned(v))} w={160} ph="조합원분양가 합 − 권리가액"/>
-        <Fld label="기준일까지 납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="분담금 중 납부한 금액"/>
+        {(()=>{const neg=String(ov.bunbo||"").trim().startsWith("-");   // 마이너스면 「환급금」으로 이름·부호를 바꿔 보여 줌(저장은 종전처럼 음수 분담금)
+          return neg?<Fld label="환급금(자동·수정가능)" value={String(ov.bunbo).replace(/^-\s*/,"")} onChange={v=>{const d=fmtComma(v);u("bunbo",d?"-"+d:"");}} w={160} ph="권리가액 − 조합원분양가 합"/>
+            :<Fld label="분담금(자동·수정가능)" value={ov.bunbo} onChange={v=>u("bunbo",fmtSigned(v))} w={160} ph="조합원분양가 합 − 권리가액"/>;})()}
+        {String(ov.bunbo||"").trim().startsWith("-")
+          ?<Fld label="기준일까지 받은 환급금" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="0 = 미수령"/>
+          :<Fld label="기준일까지 납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="분담금 중 납부한 금액"/>}
       </div>
       <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다. 분담금이 마이너스(권리가액 &gt; 분양가)면 아래에 환급금 칸이 나옵니다.</div>
       <IpjRefundBox ov={ov} u={u} rf={ipjRefund(ov,bunboAuto||0)}/>
@@ -1919,25 +1930,26 @@ function IpjTabGaeyo({ov,setOv}){
 // 환급금 입력 — 분담금이 마이너스인 건만. 처리방식 두 가지 + 다른 가정 금액 병기
 function IpjRefundBox({ov,u,rf}){
   if(!rf.isRefund)return null;
-  const mode=ov.refundMode==="assume"?"assume":"include";
+  const mode=ov.refundMode==="assume"||ov.refundMode==="exclude"?ov.refundMode:"include";
   const opt=(v,title,desc)=><label style={{display:"flex",gap:6,alignItems:"flex-start",cursor:"pointer",padding:"6px 8px",borderRadius:6,border:"1px solid "+(mode===v?"#2563eb":"#e2e8f0"),background:mode===v?"#eff6ff":"#fff",flex:1,minWidth:240}}>
     <input type="radio" name="ipj-refund-mode" checked={mode===v} onChange={()=>u("refundMode",v)} style={{marginTop:3}}/>
     <span><b style={{fontSize:13}}>{title}</b><br/><span style={{fontSize:11,color:"#64748b"}}>{desc}</span></span></label>;
   return <div style={{marginTop:10,padding:"10px 12px",border:"1px solid #fde68a",background:"#fffbeb",borderRadius:8}}>
     <div style={{fontWeight:700,color:"#92400e",marginBottom:6}}>💰 환급금 발생 건 <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>— 권리가액이 조합원분양가보다 {fmt(rf.total)}원 많음</span></div>
     <div style={{display:"flex",gap:"4px 24px",flexWrap:"wrap",alignItems:"center",fontSize:13}}>
-      <span>환급금 총액 <b>{fmt(rf.total)}</b>원 <span style={{fontSize:11,color:"#94a3b8"}}>(= 분담금 칸의 마이너스 값)</span></span>
-      <Fld label="기준일까지 받은 환급금" value={ov.refundRecv} onChange={v=>u("refundRecv",fmtComma(v))} w={140} ph="0"/>
+      <span>환급금 총액 <b>{fmt(rf.total)}</b>원 <span style={{fontSize:11,color:"#94a3b8"}}>(= 위 환급금 칸)</span></span>
+      <span>받은 환급금 <b>{fmt(rf.recv)}</b>원 <span style={{fontSize:11,color:"#94a3b8"}}>(= 위 「기준일까지 받은 환급금」 칸)</span></span>
       <span>미수령 환급금 <b>{fmt(rf.unpaid)}</b>원</span>
     </div>
     {rf.unpaid>0?<>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
         {opt("include","① 미수령 환급금 포함 (수령 가정 안 함)","권리가액 − 받은 환급금 + 프레미엄. 받을 환급금이 입주권 값에 들어감 — 상증령 원칙")}
         {opt("assume","② 환급금 전액 수령 가정 (조건부)","권리가액 − 환급금 전액 + 프레미엄. 의견서 5. 감정평가조건에 가정 문구, 괄호감정표 감정평가조건 칸 표기")}
+        {opt("exclude","③ 환급금 수령권 제외 (매매계약상 원조합원 귀속)","권리가액 − 환급금 전액 + 프레미엄. 가정이 아니라 평가대상에서 수령권을 뺌 → 의견서 4.바항에 그 문구(조건 없음)")}
       </div>
       <label style={{display:"flex",gap:6,alignItems:"center",marginTop:8,fontSize:13,cursor:"pointer"}}>
         <input type="checkbox" checked={ov.refundShowAlt!==false} onChange={e=>u("refundShowAlt",e.target.checked)}/>
-        다른 가정의 금액도 참고로 병기 <span style={{fontSize:11,color:"#64748b"}}>({mode==="assume"?"수령 가정 안 한 금액":"전액 수령 가정 금액"} = 감정평가액 {mode==="assume"?"+":"−"} 미수령 환급금 → 의견서 6.라·Ⅳ 아래 한 줄)</span>
+        다른 가정의 금액도 참고로 병기 <span style={{fontSize:11,color:"#64748b"}}>({mode==="exclude"?"환급금 수령권 포함 금액":mode==="assume"?"수령 가정 안 한 금액":"전액 수령 가정 금액"} = 감정평가액 {mode==="include"?"−":"+"} 미수령 환급금 → 의견서 6.라·Ⅳ 아래 한 줄)</span>
       </label></>
       :<div style={{fontSize:12,color:"#166534",marginTop:6}}>· 환급금을 모두 받았으므로 받은 금액 전액을 ②에서 차감합니다(가정·병기 불필요).</div>}
   </div>;
@@ -1954,11 +1966,12 @@ function IpjRefundResult({ov,u,cal}){
       <textarea aria-label={label} value={val} onChange={e=>u(key,e.target.value)} rows={Math.max(3,val.split("\n").length*3)} style={{...S.ta,width:"100%",boxSizing:"border-box",fontFamily:"inherit",fontSize:12,lineHeight:1.7}}/>
       <div style={{fontSize:11,color:"#94a3b8"}}>한 줄 = 한 문단. 고치면 고친 글자 그대로 나감(금액 자동 갱신 멈춤 — ↺로 되돌림)</div>
     </div>;};
-  const modeLbl=rf.unpaid===0?"환급금 전액 수령 완료":rf.assume?"② 환급금 전액 수령 가정 (조건부)":"① 미수령 환급금 포함";
+  const modeLbl=rf.unpaid===0?"환급금 전액 수령 완료":rf.exclude?"③ 환급금 수령권 제외 (원조합원 귀속)":rf.assume?"② 환급금 전액 수령 가정 (조건부)":"① 미수령 환급금 포함";
   return <div style={{marginTop:12,padding:"10px 12px",border:"1px solid #fde68a",background:"#fffbeb",borderRadius:8,maxWidth:920}}>
     <div style={{fontWeight:700,color:"#92400e"}}>💰 환급금 처리: {modeLbl} <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>(바꾸기: ① 대상물건개요 「관리처분 · 분담금」)</span></div>
     <div style={{fontSize:13,marginTop:4,color:"#334155"}}>환급금 {fmt(rf.total)} · 받은 환급금 {fmt(rf.recv)} · 미수령 {fmt(rf.unpaid)} → ②에서 {fmt(rf.deduct)}원 차감</div>
-    {rf.showAlt&&<div style={{marginTop:6,fontSize:14}}>병기 금액({rf.assume?"수령 가정 안 한 경우":"전액 수령 가정 시"}): <b style={{color:"#b45309"}}>{fmt(rf.altAmt)}원</b> <span style={{fontSize:11,color:"#64748b"}}>= 감정평가액 {fmt(cal.finalDecided)} {rf.assume?"+":"−"} 미수령 {fmt(rf.unpaid)}</span></div>}
+    {rf.showAlt&&<div style={{marginTop:6,fontSize:14}}>병기 금액({rf.exclude?"수령권 포함 시":rf.assume?"수령 가정 안 한 경우":"전액 수령 가정 시"}): <b style={{color:"#b45309"}}>{fmt(rf.altAmt)}원</b> <span style={{fontSize:11,color:"#64748b"}}>= 감정평가액 {fmt(cal.finalDecided)} {(rf.assume||rf.exclude)?"+":"−"} 미수령 {fmt(rf.unpaid)}</span></div>}
+    {rf.exclude&&<div style={{fontSize:12,color:"#334155",marginTop:6}}>· 의견서 4.바항이 「환급금 수령권 제외」 문구로 나갑니다 — ① 대상물건개요 맨 아래 「의견서 4.」 상자 바항에서 글자 수정(금액만 자동).</div>}
     {rf.assume&&box("의견서 5. 감정평가조건","refundCondText",rd.cond)}
     {rf.showAlt&&box("의견서 6. 그 밖의 사항 — 라. (병기)","refundOtherText",rd.other)}
   </div>;
@@ -2032,10 +2045,12 @@ const IPJ_OPINION_METHOD_PARAGRAPHS=[
   "바. 본건 입주권의 분담금은 {{분담금}}원으로, 기준시점 현재까지 납부된 금액은 {{납입액}}원으로  탐문된 바, 이를 고려하여 감정평가하였음. ",
   // 9·10 = 환급금 건의 바항(양식의 8번 문단을 생성 때 이 문장으로 바꿔 넣음 — ipjApplyRefundDoc). 9: 미수령 환급금 포함 / 10: 전액 수령 가정
   "바. 본건 입주권은 조합원 권리가액이 조합원 분양가를 초과하여 환급금 {{환급금}}원이 발생하며, 기준시점 현재까지 수령한 환급금은 {{기수령환급금}}원으로 탐문된 바, 미수령 환급금은 입주권 가액에 포함되는 것으로 보아 권리가액에서 기수령 환급금을 차감한 금액에 프레미엄 상당액을 합산하여 감정평가하였음.",
-  "바. 본건 입주권은 조합원 권리가액이 조합원 분양가를 초과하여 환급금 {{환급금}}원이 발생하는 바, 귀 의뢰인의 요청에 따라 환급금 전액이 기준시점 현재 수령된 것으로 가정하여 권리가액에서 환급금 전액을 차감한 금액에 프레미엄 상당액을 합산하여 감정평가하였음(5. 감정평가조건 참조)."
+  "바. 본건 입주권은 조합원 권리가액이 조합원 분양가를 초과하여 환급금 {{환급금}}원이 발생하는 바, 귀 의뢰인의 요청에 따라 환급금 전액이 기준시점 현재 수령된 것으로 가정하여 권리가액에서 환급금 전액을 차감한 금액에 프레미엄 상당액을 합산하여 감정평가하였음(5. 감정평가조건 참조).",
+  // 11 = 환급금 수령권 제외(매매계약상 원조합원 귀속) — 사용자 문구(2026-10-15 광명 건)
+  "바. 본건은 매매계약상 조합 제시자료(조합원 분담금 통지문 및 입주정산금 통지문)상 환급금 {{환급금}}원의 수령권이 원조합원에게 귀속되는 바, 환급금 수령권을 제외한 조합원 입주권을 평가대상으로 하였으며, 조합원 권리가액에서 지급받을 환급금을 차감하고 평가기준일 현재의 프리미엄 상당액을 합산하여 감정평가하였음. 조합 제시 환급금은 추정 금액으로서 최종 금액은 변동될 수 있음."
 ];
 // 환급금 건 의견서 문구 — {{토큰}}은 생성 때 값으로(파랑), 화면에선 값을 넣어 보여 줌. 사용자가 고치면 ov.refundCondText / ov.refundOtherText(고친 글자 그대로, 검정)
-const ipjRefundParaIdx=rf=>!rf||!rf.isRefund?8:rf.assume?10:9;
+const ipjRefundParaIdx=rf=>!rf||!rf.isRefund?8:rf.exclude?11:rf.assume?10:9;
 function ipjRefundDefaults(rf){
   if(!rf||!rf.isRefund)return {cond:"",other:"",iv:""};
   const recvNote=rf.recv>0?"(기준시점까지 수령한 {{기수령환급금}}원 포함)":"";
@@ -2045,10 +2060,12 @@ function ipjRefundDefaults(rf){
     "다. 조건부 감정평가액의 사용상 유의사항 : 본 감정평가액 및 산출내역에 적용한 환급금 수령액은 위 수령 가정에 따른 것으로서, 기준시점 현재의 실제 수령액을 확인한 것은 아님. 상속·증여세 신고에 활용하는 경우에는 평가기준일 현재의 실제 수령액 및 미수령 환급금을 별도로 확인하여 신고가액을 산정하여야 하며, 본 감정평가액 자체가 세법상 시가로 인정됨을 보증하는 것은 아님."
   ].join("\n"):"";
   if(!rf.showAlt)return {cond,other:"",iv:""};
-  const other=rf.assume
+  const other=rf.exclude
+    ?"라. 본건은 환급금 수령권을 제외한 조합원 입주권을 평가대상으로 하였으며, 환급금 수령권을 포함한 경우(기준시점 현재 미수령 환급금 {{미수령환급금}}원 포함)의 입주권 가액 금{{병기금액}}원을 별도로 병기하였음. 상기 병기금액은 단순 참고용으로서 본건 감정평가액과는 별개의 금액이니 업무 진행 시 참고하시기 바람."
+    :rf.assume
     ?"라. 본건은 귀 의뢰인의 요청에 따라 환급금 전액 수령을 가정하여 감정평가하였으며(5. 감정평가조건 참조), 환급금 수령을 가정하지 않은 경우(기준시점 현재 미수령 환급금 {{미수령환급금}}원 포함)의 입주권 가액 금{{병기금액}}원을 별도로 병기하였음. 상기 병기금액은 단순 참고용으로서 본건 감정평가액과는 별개의 금액이니 업무 진행 시 참고하시기 바람."
     :"라. 본건은 기준시점 현재 미수령 환급금 {{미수령환급금}}원을 포함하여 감정평가하였으며, 귀 의뢰인의 요청에 따라 환급금 전액이 수령된 것으로 가정한 경우의 입주권 가액 금{{병기금액}}원(감정평가액에서 미수령 환급금을 공제한 금액)을 별도로 병기하였음. 상기 병기금액은 단순 참고용으로서 본건 감정평가액과는 별개의 금액이니 업무 진행 시 참고하시기 바람.";
-  const iv="※ [병기] "+(rf.assume?"환급금 수령을 가정하지 않은 경우":"환급금 전액 수령 가정 시")+" 입주권 가액 : 금{{병기금액}}원(6. 그 밖의 사항 라. 참조)";
+  const iv="※ [병기] "+(rf.exclude?"환급금 수령권을 포함한 경우":rf.assume?"환급금 수령을 가정하지 않은 경우":"환급금 전액 수령 가정 시")+" 입주권 가액 : 금{{병기금액}}원(6. 그 밖의 사항 라. 참조)";
   return {cond,other,iv};
 }
 const ipjFillTokens=(t,m)=>String(t||"").replace(/\{\{([^}]+)\}\}/g,(a,k)=>m[k]!=null?m[k]:a);
@@ -2066,7 +2083,7 @@ function IpjOpinionMethodCard({ov,u,fmtSigned,rf}){
     </span>;
     if(token==="정비사업유형")return <select aria-label="의견서 정비사업유형" value={ov.projType||"재건축"} onChange={e=>u("projType",e.target.value)} style={blue}><option>재건축</option><option>재개발</option></select>;
     if(token==="환급금")return <input aria-label="의견서 환급금" value={fmtComma(String(rf.total))} onChange={e=>{const v=fmtComma(e.target.value);u("bunbo",v?"-"+v:"");}} style={{...blue,width:Math.max(12,fmtComma(String(rf.total)).length+2)+"ch",textAlign:"right"}}/>;
-    const key=token==="분담금"?"bunbo":token==="기수령환급금"?"refundRecv":"paid";
+    const key=token==="분담금"?"bunbo":"paid";   // 기수령환급금 = 납입액 칸(환급금 건)
     return <input aria-label={"의견서 "+token} value={ov[key]||""} onChange={e=>u(key,fmtSigned(e.target.value))} placeholder="0" style={{...blue,width:Math.max(12,String(ov[key]||"").length+2)+"ch",textAlign:"right"}}/>;
   };
   const groups=[{label:"가",items:[0,1,2,3]},{label:"나",items:[4]},{label:"다",items:[5]},{label:"라",items:[6]},{label:"마",items:[7]},{label:"바",items:[ipjRefundParaIdx(rf)]}];
@@ -2388,35 +2405,71 @@ function App(){
   const [saveStatus,setSaveStatus]=useState("");
   const cal=ipjCalc(ov,cases);
 
-  // 최초 로드: 저장목록 복원, 없으면 방배 샘플 자동로드
+  const CB=window.ArapCaseBak, PRE="ipj:";
+  const curIdRef=useRef(null);curIdRef.current=currentId;
+  // 최초 로드: 저장목록 복원(목록에서 빠진 저장건은 다시 올림), 없으면 방배 샘플 자동로드
   useEffect(()=>{
-    let list=[];try{list=JSON.parse(ipjLS.get(IPJ_LIST_KEY)||"[]");}catch(e){}
+    const list=CB.readList(PRE,true);
     if(list.length){setCaseList(list);loadCase(list[0].id,true);}
     else{const s=ipjSample();setOv(s.ov);setCases(s.cases);setCurrentId(s.ov.caseNo);}
   },[]);
 
-  const snapshot=()=>({ov,cases,fee});
   const loadCase=(id,silent)=>{
     try{const raw=ipjLS.get(ipjCaseKey(id));if(!raw)return;const d=JSON.parse(raw);
       if(d.ov&&!d.ov.rndLogic){if(String(d.ov.rndDanga||"100000")==="100000")d.ov.rndDanga="10000";if(String(d.ov.rndAmt||"1000000")==="1000000")d.ov.rndAmt="100000";d.ov.rndLogic="arm";} // 옛 기본값(배수 맞춤)→같은 금액이 나오는 새 단위
       setOv(d.ov||ipjEmptyOv());setCases(d.cases||[]);setFee({...ipjEmptyFee(),...(d.fee||{})});
-      setCurrentId(id);setStep(0);setShowList(false);}catch(e){}
+      CB.seen(PRE,id);setCurrentId(id);setStep(0);setShowList(false);setBakOpen(null);}catch(e){}
   };
   const newCase=()=>{setOv(ipjEmptyOv());setCases([]);setFee(ipjEmptyFee());setCurrentId(null);setStep(0);setShowList(false);};
   const deleteCase=id=>{if(!confirm("이 건을 삭제할까요?"))return;ipjLS.del(ipjCaseKey(id));
-    const nl=caseList.filter(x=>x.id!==id);setCaseList(nl);ipjLS.set(IPJ_LIST_KEY,JSON.stringify(nl));if(currentId===id)newCase();};
+    const nl=CB.readList(PRE).filter(x=>x.id!==id);setCaseList(nl);ipjLS.set(IPJ_LIST_KEY,JSON.stringify(nl));CB.forget(PRE,id);if(currentId===id)newCase();};
+  const caseLabel=(id,o)=>`${o.caseNoDisplay&&o.caseNoDisplay!==id?o.caseNoDisplay+" ":""}${id} ${o.tongching||""} ${((o.units||[])[0]||{}).ho?((o.units||[])[0]).ho+"호":""}`.replace(/\s+/g," ").trim();
 
-  // 자동저장 (접수번호 있을 때, 1.5초 디바운스)
+  // 「💾 저장」 — 접수번호 칸의 번호로 이 건을 확정(집건과 같은 규칙, 2026-10-15). 새 건이면 여기서부터 자동저장, 저장된 건이면 번호 바꾸기.
+  // 이미 다른 건이 쓰는 번호면 거절. 칸만 고치고 안 누르면 원래 번호로 계속 저장 — 한 글자 고칠 때마다 새 건이 생기던 문제 방지
+  const commitCaseNo=()=>{
+    const id=String(ov.caseNo||"").trim();if(!id){alert("접수번호를 먼저 입력하세요.");return;}
+    const prev=curIdRef.current;if(id===prev)return;
+    if(ipjLS.get(ipjCaseKey(id))){alert(`${id} 접수번호로 저장된 건이 이미 있습니다.\n그 건이면 📂 저장된 건에서 여시고, 아니면 번호를 바꿔 주세요.`);return;}
+    if(prev&&!confirm(`접수번호를 ${prev} → ${id} 로 바꿀까요?\n(건 내용은 그대로, 번호만 바뀝니다)`))return;
+    const d={ov:{...ov,caseNo:id},cases,fee};
+    const r=CB.autosave({pre:PRE,id,prevId:prev,raw:JSON.stringify(d),label:caseLabel(id,d.ov),setFn:ipjLS.set});
+    if(!r.ok){alert(`${id} 접수번호로 저장된 건이 이미 있습니다.`);return;}
+    curIdRef.current=id;setCaseList(r.list);setCurrentId(id);setSaveStatus("saved");
+  };
+
+  // 자동저장 — 「💾 저장」으로 확정한 건(currentId)에만, 0.4초 멈추면. 창을 닫거나 다른 창으로 넘어갈 때는 즉시(flushSaveRef)
+  const flushSaveRef=useRef(null);
   useEffect(()=>{
-    const cn=(ov.caseNo||"").trim();if(!cn){setSaveStatus("");return;}
-    setSaveStatus("saving");const t=setTimeout(()=>{
-      const id=cn;const label=`${ov.caseNoDisplay||id} ${ov.tongching||""} ${(ov.units[0]||{}).ho||""}호`.trim();
-      ipjLS.set(ipjCaseKey(id),JSON.stringify({ov,cases,fee}));
-      setCaseList(prev=>{const nl=[{id,label,updated:today()},...prev.filter(x=>x.id!==id)];ipjLS.set(IPJ_LIST_KEY,JSON.stringify(nl));return nl;});
-      setCurrentId(id);setSaveStatus("saved");
-      try{if(!/^SAMPLE/i.test(cn))window.arapUsageLog&&window.arapUsageLog("저장",{caseNo:ov.caseNoDisplay||cn,addr:(ov.projLoc||""),kind:"입주권",amount:fmt(cal.finalDecided)});}catch(e){}
-    },1500);return()=>clearTimeout(t);
-  },[ov,cases,fee]);
+    const flush=()=>{try{flushSaveRef.current&&flushSaveRef.current();}catch(e){console.error("flush save",e);}};
+    const onVis=()=>{if(document.visibilityState==="hidden")flush();};
+    window.addEventListener("pagehide",flush);window.addEventListener("beforeunload",flush);document.addEventListener("visibilitychange",onVis);
+    return()=>{window.removeEventListener("pagehide",flush);window.removeEventListener("beforeunload",flush);document.removeEventListener("visibilitychange",onVis);};
+  },[]);
+  useEffect(()=>{
+    const id=curIdRef.current;
+    if(!id){setSaveStatus("");flushSaveRef.current=null;return;}
+    setSaveStatus("saving");
+    const persist=()=>{const d={ov:{...ov,caseNo:id},cases,fee};
+      const r=CB.autosave({pre:PRE,id,prevId:id,raw:JSON.stringify(d),label:caseLabel(id,d.ov),setFn:ipjLS.set});
+      if(r.ok)setCaseList(r.list);return r;};
+    flushSaveRef.current=()=>{flushSaveRef.current=null;persist();};
+    const t=setTimeout(()=>{flushSaveRef.current=null;const r=persist();setSaveStatus(r.ok?"saved":"fail");},400);
+    const tLog=setTimeout(()=>{try{if(!/^SAMPLE/i.test(id))window.arapUsageLog&&window.arapUsageLog("저장",{caseNo:ov.caseNoDisplay||id,addr:(ov.projLoc||""),kind:"입주권",amount:fmt(cal.finalDecided)});}catch(e){}},5000);
+    return()=>{clearTimeout(t);clearTimeout(tLog);};
+  },[ov,cases,fee,currentId]);
+
+  // 건별 이전 버전 — 목록 줄의 「↺ 이전 버전」으로 펼쳐 골라 되돌린다
+  const [bakOpen,setBakOpen]=useState(null);
+  const fmtWhen=t=>{if(!t)return "-";const d=new Date(t);return isNaN(d)?String(t):d.toLocaleDateString("ko-KR")+" "+d.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});};
+  const restoreBak=(id,k)=>{
+    const v=CB.versions(PRE,id)[k];if(!v)return;
+    if(!confirm(`${id} 건을 ${fmtWhen(v.t)} 버전으로 되돌릴까요?\n(${v.summary})\n\n지금 내용도 이전 버전 목록에 남으므로 다시 되돌릴 수 있습니다.`))return;
+    if(!CB.restore(PRE,id,k,ipjLS.set)){alert("되돌리기 실패 — 저장 데이터가 손상되었습니다.");return;}
+    setBakOpen(null);setCaseList(CB.readList(PRE));
+    if(currentId===id)loadCase(id);
+  };
+  const typedNo=String(ov.caseNo||"").trim();
 
   const tabProps={0:<IpjTabGaeyo ov={ov} setOv={setOv}/>,1:<IpjTabJeopsu ov={ov} setOv={setOv}/>,
     2:<IpjTabSarye ov={ov} cases={cases} setCases={setCases}/>,3:<IpjTabGagyeok ov={ov} setOv={setOv} cases={cases} setCases={setCases} fee={fee} setFee={setFee}/>};
@@ -2426,16 +2479,30 @@ function App(){
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
         <button style={{...S.btn,background:C.acc,color:"#fff"}} onClick={newCase}>+ 새 평가서</button>
         <button style={{...S.btn,background:"#fff",border:"1px solid "+C.bdr}} onClick={()=>setShowList(v=>!v)}>📂 저장된 건 ({caseList.length})</button>
-        {saveStatus==="saved"&&<span style={S.tag("g")}>💾 저장완료</span>}
-        {saveStatus==="saving"&&<span style={S.tag("y")}>⏳ 저장중</span>}
-        {!(ov.caseNo||"").trim()&&<span style={{fontSize:11,color:"#94a3b8"}}>접수번호 입력 시 자동저장</span>}
+        {currentId&&saveStatus==="saved"&&<span style={S.tag("g")}>💾 {currentId} 저장완료</span>}
+        {currentId&&saveStatus==="saving"&&<span style={S.tag("y")}>⏳ {currentId} 저장중</span>}
+        {saveStatus==="fail"&&<span style={{fontSize:11,color:"#dc2626",fontWeight:600}}>❌ 저장 실패</span>}
+        {(()=>{const sb={...S.btn,color:"#fff",fontSize:12,fontWeight:700,padding:"5px 14px"};
+          if(!currentId)return <><span className="unsaved-msg" style={{fontSize:12,color:"#dc2626",fontWeight:700}}>⚠️ 아직 저장 안 됨 — 접수번호 입력 후 💾 저장을 누르세요</span>
+            <button className="save-btn" disabled={!typedNo} style={{...sb,background:typedNo?C.acc:"#cbd5e1",border:`1px solid ${typedNo?C.acc:"#cbd5e1"}`,cursor:typedNo?"pointer":"not-allowed"}} onClick={commitCaseNo}>💾 저장{typedNo?" ("+typedNo+")":""}</button></>;
+          if(typedNo&&typedNo!==currentId)return <><span style={{fontSize:11,color:"#b45309",fontWeight:600}}>접수번호 변경 대기: {currentId} → {typedNo} (누르기 전까지 {currentId}로 저장)</span>
+            <button className="save-btn" style={{...sb,background:C.acc,border:`1px solid ${C.acc}`}} onClick={commitCaseNo}>💾 번호 바꿔 저장</button></>;
+          return null;})()}
         <span style={{marginLeft:"auto"}}>{ov.caseNoDisplay&&<span style={S.tag("b")}>{ov.caseNoDisplay}</span>} <span style={S.tag("g")}>사례 {cases.length}</span></span>
       </div>
       {showList&&<Card><table style={S.tbl}><thead><tr><th style={S.th}>접수번호</th><th style={S.th}>물건</th><th style={S.th}>수정</th><th style={S.th}>작업</th></tr></thead><tbody>
         {caseList.length===0&&<tr><td colSpan={4} style={{...S.td,color:"#888"}}>저장된 건이 없습니다.</td></tr>}
-        {caseList.map(x=>(<tr key={x.id}><td style={S.td}>{/^SAMPLE/i.test(x.id)?<span style={{color:"#7c3aed"}}>{x.id} (샘플)</span>:x.id}</td>
-          <td style={S.tdL}>{x.label}</td><td style={S.td}>{x.updated}</td>
-          <td style={S.td}><span style={{cursor:"pointer",color:C.acc}} onClick={()=>loadCase(x.id)}>열기</span> · <span style={{cursor:"pointer",color:C.dng}} onClick={()=>deleteCase(x.id)}>삭제</span></td></tr>))}
+        {caseList.map(x=>{const vs=CB.versions(PRE,x.id),on=bakOpen===x.id;return(<React.Fragment key={x.id}><tr style={{background:x.id===currentId?"#eff6ff":"#fff"}}><td style={S.td}>{/^SAMPLE/i.test(x.id)?<span style={{color:"#7c3aed"}}>{x.id} (샘플)</span>:x.id}</td>
+          <td style={S.tdL}>{String(x.label||"").replace(x.id,"").replace(/\s+/g," ").trim()||"-"}</td><td style={S.td}>{/^\d{4}-\d\d-\d\dT/.test(x.updated||"")?fmtWhen(x.updated):(x.updated||"-")}</td>
+          <td style={{...S.td,whiteSpace:"nowrap"}}><span style={{cursor:"pointer",color:C.acc}} onClick={()=>loadCase(x.id)}>열기</span>
+            {vs.length>0&&<> · <span className="bak-btn" title="이 건이 덮어써지거나 크게 줄기 직전 내용 — 골라서 되돌릴 수 있습니다" style={{cursor:"pointer",color:"#1e293b",fontWeight:on?700:400}} onClick={()=>setBakOpen(on?null:x.id)}>↺ 이전 버전 {vs.length}</span></>}
+            {" · "}<span style={{cursor:"pointer",color:C.dng}} onClick={()=>deleteCase(x.id)}>삭제</span></td></tr>
+          {on&&<tr className="bak-row"><td colSpan={4} style={{...S.td,background:"#f8fafc",textAlign:"left"}}>
+            <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>↺ {x.id} 이전 버전 — 다른 내용으로 덮어쓰기 직전·사례나 칸이 크게 줄기 직전·5분마다 자동 보관 (건마다 최근 {CB.MAX}개)</div>
+            {vs.map(v=><div key={v.k} style={{display:"flex",gap:10,alignItems:"center",padding:"2px 0",fontSize:12}}>
+              <span style={{minWidth:150,whiteSpace:"nowrap"}}>{fmtWhen(v.t)}</span><span style={{flex:1}}>{v.summary}</span>
+              <button className="bak-restore" style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px"}} onClick={()=>restoreBak(x.id,v.k)}>이 버전으로 되돌리기</button></div>)}
+          </td></tr>}</React.Fragment>);})}
       </tbody></table></Card>}
       <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>거래사례비교법 · 조합원 입주권 (본건 {(ov.units||[]).length}호수)</div>
       <div style={S.steps}>{IPJ_LABELS.map((l,i)=><span key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</span>)}</div>
