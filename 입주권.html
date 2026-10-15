@@ -1410,6 +1410,40 @@ function hwpxListBasisCell(xml,text){
   const head=body.slice(0,body.indexOf(paras[0])),out=lines.map((l,k)=>one(paras[Math.min(k,paras.length-1)],l)).join("");
   return xml.slice(0,s0)+head+out+xml.slice(s1);
 }
+// 환급금 건 의견서 — ① 4.바항 문단을 환급금 문장(9/10번)으로 ② 5. 감정평가조건 「해당사항 없음.」을 조건 문구로(전액 수령 가정일 때)
+// ③ 6. 그 밖의 사항 다. 뒤에 라.(병기) ④ Ⅳ 최종결정문구 뒤에 병기 한 줄 ⑤ 표 머리 글자(②·Ⅱ-2) 바꾸기. 새 문단은 같은 문단모양을 복사, 줄배치 캐시는 빼서 한글이 다시 배치
+function ipjApplyRefundDoc(xml,r){
+  const run=(c,t)=>'<hp:run charPrIDRef="'+c+'"><hp:t>'+hwpxEsc(t)+'</hp:t></hp:run>';
+  const openOf=p=>p.match(/^<hp:p\b[^>]*>/)[0].replace(/\bid="[^"]*"/,'id="0"');
+  const body=(c,t,tokCpr)=>tokCpr?String(t).split(/(\{\{[^}]+\}\})/g).filter(x=>x).map(x=>run(x.startsWith("{{")?tokCpr:c,x)).join(""):run(c,t);
+  const para=(tpl,text,tokCpr)=>{const m=String(text).match(/^([가-힣]\.)(\s*)([\s\S]*)$/);
+    return openOf(tpl)+(m?run("35",m[1])+body("39"," "+m[3],tokCpr):body("39",text,tokCpr))+'</hp:p>';};
+  const lines=t=>String(t||"").split(/\r\n?|\n/).map(x=>x.trim()).filter(Boolean);
+  const plainOf=p=>[...p.matchAll(/<hp:t(?:\s[^>]*)?>([\s\S]*?)<\/hp:t>/g)].map(m=>m[1]).join("");
+  const noSeg=p=>p.replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/g,"");
+  const relabel=(p,from,to)=>p.includes("<hp:t>"+from+"</hp:t>")?noSeg(p.split("<hp:t>"+from+"</hp:t>").join("<hp:t>"+hwpxEsc(to)+"</hp:t>")):p;
+  const P8=IPJ_OPINION_METHOD_PARAGRAPHS[8];
+  let sec="";
+  return xml.replace(/<hp:p\b(?:(?!<hp:p\b)[\s\S])*?<\/hp:p>/g,p=>{
+    const plain=plainOf(p);
+    if(/^\d\.\s/.test(plain))sec=plain.slice(0,2);
+    if(r.paraIdx!==8&&plain===P8)return para(p,IPJ_OPINION_METHOD_PARAGRAPHS[r.paraIdx],"50");
+    if(sec==="5."&&plain==="해당사항 없음."&&lines(r.cond).length)return lines(r.cond).map(t=>para(p,t)).join("");
+    if(sec==="6."&&plain.startsWith("다. 본 입주권 감정평가는")&&lines(r.other).length)return p+lines(r.other).map(t=>para(p,t)).join("");
+    if(plain.includes("{{최종결정문구}}")&&r.iv){const c=(p.match(/<hp:run charPrIDRef="(\d+)"/)||[])[1]||"48";return p+openOf(p)+run(c,r.iv)+'</hp:p>';}
+    p=relabel(p,"②평가기준일까지 납입한 금액(원)","②평가기준일까지 납입한 금액(환급금 차감)(원)");
+    p=relabel(p,"기준시점까지 납부된 금액(원)","기준시점까지 수령한 환급금(원)");
+    return relabel(p,"기준시점까지 납부된 금액","기준시점까지 수령한 환급금");
+  });
+}
+// 괄호감정표 등 「머리 칸 → 다음 칸」 한 줄 값 바꾸기(환급금 전액 수령 가정 → 감정평가조건 칸)
+function ipjCellAfterLabel(xml,label,text){
+  const li=xml.indexOf(">"+label+"<");if(li<0||!text)return xml;
+  const ts=xml.indexOf("<hp:tc ",li),pe=ts<0?-1:xml.indexOf("</hp:p>",ts),ps=pe<0?-1:xml.lastIndexOf("<hp:p ",pe);
+  if(ps<ts)return xml;
+  const p=xml.slice(ps,pe).replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/,"").replace(/(<hp:run [^>]*>)[\s\S]*?(<\/hp:run>)[\s\S]*$/,(m,o,c)=>o+"<hp:t>"+hwpxEsc(text)+"</hp:t>"+c);
+  return xml.slice(0,ps)+p+xml.slice(pe);
+}
 async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -1423,6 +1457,8 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       if(colorOpinion)xml=ipjLabelFactorNotes(xml);
+      if(opts&&opts.refund)xml=ipjApplyRefundDoc(xml,opts.refund);          // 환급금 건 — 바항·감정평가조건·병기·표 머리 (method text 적용 전)
+      if(opts&&opts.gwalhoCond)xml=ipjCellAfterLabel(xml,"감정평가조건",opts.gwalhoCond);
       let fixedValues={};
       if(opts&&opts.opinionMethodText){const edited=ipjApplyMethodText(xml,opts.opinionMethodText);xml=edited.xml;fixedValues=edited.values;}
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
@@ -1494,6 +1530,8 @@ const ipjEmptyOv=()=>({
   yhAddr:"", yhLandmark:"", yhTraffic:"",
   // 관리처분·분담금(통지서)
   jongjeon:"", birye:"", gwolli:"", bunbo:"", paid:"0", paidNote:"",
+  // 환급금(권리가액 > 조합원분양가) — 기수령액, 처리방식(include 미수령 환급금 포함 / assume 전액 수령 가정), 다른 가정 금액 병기
+  refundRecv:"0", refundMode:"include", refundShowAlt:true,
   // 본건 2호수
   units:[ipjNewUnit("가"), ipjNewUnit("나")],
   // 반올림(고정 기본값: 결정단가 십만·감정가 백만)
@@ -1545,6 +1583,17 @@ const ipjCalcUnit=(u,cases,ov)=>{
   return {c,jeonyu,gaebyeol:gaebyeolR,ta,cu,sanjeongDanga,gyeoljeong,sanjeongGaek,aptGam,bunyang,premium};
 };
 
+// 환급금 — 권리가액이 조합원분양가 합보다 커서 분담금이 음수인 건. 분담금 칸(직접 고친 값 우선)의 부호로 판단
+// include: 기준일까지 받은 환급금만 차감(미수령분은 입주권 가액에 포함 — 상증령 제51조②의 원칙)
+// assume : 의뢰인 요청으로 환급금 전액을 받은 것으로 가정해 전액 차감(감정평가조건 — 의견서 5.에 조건 문구)
+function ipjRefund(ov,bunboCalc){
+  const b=pNum(ov.bunbo)!=null?pNum(ov.bunbo):bunboCalc;
+  const total=b<0?-b:0;
+  const recv=total?Math.min(Math.max(pNum(ov.refundRecv)||0,0),total):0;
+  const unpaid=total-recv;
+  const assume=unpaid>0&&ov.refundMode==="assume";
+  return {isRefund:total>0,total,recv,unpaid,assume,deduct:assume?total:recv};
+}
 const ipjCalc=(ov,cases)=>{
   const rows=(ov.units||[]).map(u=>ipjCalcUnit(u,cases,ov));
   const aptHap=rows.reduce((s,r)=>s+r.aptGam,0);          // 아파트감정가합
@@ -1552,14 +1601,18 @@ const ipjCalc=(ov,cases)=>{
   const premiumHap=aptHap-bunyangHap;                     // 프리미엄합
   const gwolli=pNum(ov.gwolli)||0;                        // 권리가액(통지서)
   const paid=pNum(ov.paid)||0;                            // 평가기준일까지 납입액
-  const finalAmt=gwolli+paid+premiumHap;                  // ①+②+③ 합계
+  const bunboCalc=bunyangHap-gwolli;                      // 분담금(추산) = 분양대상추산액 − 권리가액
+  const rf=ipjRefund(ov,bunboCalc);                       // 환급금(분담금이 음수인 건)
+  const paidEff=paid-rf.deduct;                           // ② = 납입액 − 환급받은(또는 받은 것으로 가정한) 금액
+  const finalAmt=gwolli+paidEff+premiumHap;               // ①+②+③ 합계
   const fUnit=pNum(ov.finalRndUnit)||1000000;
   const fMode=ov.finalRndMode||"none";
   // ⭐ 최종 결정 입주권 감정평가액 — 집합건물 applyR과 동일: 선택 단위 '자리에서' 반올림/절사 (예: 십만원 자리 반올림 → 백만원 배수. 306,655,515 → 307,000,000)
   const fD=fUnit*10;
   const finalDecided=fMode==="round"?Math.round(finalAmt/fD)*fD:fMode==="floor"?Math.floor(finalAmt/fD)*fD:Math.round(finalAmt);
-  const bunboCalc=bunyangHap-gwolli;                      // 분담금(추산) = 분양대상추산액 − 권리가액
-  return {rows,aptHap,bunyangHap,premiumHap,gwolli,paid,finalAmt,finalDecided,bunboCalc};
+  // 병기 금액 = 감정평가액 ∓ 미수령 환급금 (하감 별첨 방식 — 결정액에서 그대로 빼거나 더함, 다시 끝수 처리 안 함)
+  const altAmt=rf.unpaid>0?(rf.assume?finalDecided+rf.unpaid:finalDecided-rf.unpaid):null;
+  return {rows,aptHap,bunyangHap,premiumHap,gwolli,paid,paidEff,finalAmt,finalDecided,bunboCalc,refund:{...rf,altAmt,showAlt:rf.unpaid>0&&ov.refundShowAlt!==false}};
 };
 
 // ────────────────────────── 토큰맵 (5종 템플릿 공통) ──────────────────────────
@@ -1648,7 +1701,10 @@ function buildIpjMap(ov,cases){
   m["종전자산평가액"]=ipjMoney(pNum(ov.jongjeon)); m["비례율"]=ov.birye?Number(pNum(ov.birye)).toFixed(2):"";
   m["권리가액"]=ipjMoney(cal.gwolli); m["분양가합"]=ipjMoney(cal.bunyangHap);
   m["분담금"]=ipjMoney(pNum(ov.bunbo)!=null?pNum(ov.bunbo):cal.bunboCalc);
-  m["납입액"]=ipjMoney(cal.paid); m["납입액_명세"]=ipjMoney(cal.paid);
+  const rf=cal.refund;
+  m["납입액"]=ipjMoney(cal.paidEff); m["납입액_명세"]=ipjMoney(rf.isRefund?rf.recv:cal.paid);   // 환급금 건: ②는 받은(가정) 환급금 차감, Ⅱ-2 표는 수령한 환급금
+  m["환급금"]=ipjMoney(rf.total); m["기수령환급금"]=ipjMoney(rf.recv); m["미수령환급금"]=ipjMoney(rf.unpaid);
+  m["병기금액"]=rf.altAmt!=null?ipjMoney(rf.altAmt):"";
   m["아파트감정가합"]=ipjMoney(cal.aptHap); m["프리미엄합"]=ipjMoney(cal.premiumHap);
   // 의견서 — 개별요인/사정/지역
   const gb=(u,r,pre)=>{
@@ -1700,7 +1756,10 @@ async function ipjDownloadDoc(fileDef, ov, cases){
   const {m,cal}=buildIpjMap(ov,cases);
   const na=(ov.units||[])[1];                                              // 둘째 호수(나)
   const naEmpty=(ov.units||[]).length<=1 || !na || !(pStr(na.dong)||pStr(na.ho));  // 1호수 평가 여부
-  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{}),...(fileDef.key==="uigyeon"?{opinionMethodText:ov.opMethodText||{}}:{}),...(fileDef.key==="gwalho"?{listBasis:ov.listBasis||""}:{})});
+  const rf=cal.refund, rd=ipjRefundDefaults(rf);
+  const refundOpt=rf.isRefund?{paraIdx:ipjRefundParaIdx(rf),cond:rf.assume?(ov.refundCondText!=null?ov.refundCondText:rd.cond):"",
+    other:rf.showAlt?(ov.refundOtherText!=null?ov.refundOtherText:rd.other):"",iv:rf.showAlt?rd.iv:""}:null;
+  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{}),...(fileDef.key==="uigyeon"?{opinionMethodText:ov.opMethodText||{},refund:refundOpt}:{}),...(fileDef.key==="gwalho"?{listBasis:ov.listBasis||"",gwalhoCond:rf.assume?"환급금 전액 수령 가정":""}:{})});
   triggerDownload(bytes, fileDef.fn(ov));
   try{window.arapUsageLog&&window.arapUsageLog("다운로드",{caseNo:ov.caseNoDisplay||ov.caseNo,addr:(ov.projLoc||ov.beopjeongdong||""),kind:"입주권 "+fileDef.label,amount:fmt(cal.finalDecided)});}catch(e){}
 }
@@ -1792,6 +1851,9 @@ function IpjSidebar({ov,cal,collapsed,setCollapsed}){
       <div style={{marginTop:8,padding:"6px 8px",background:"#0f1c33",borderRadius:6}}>
         <div style={{color:"#94a3b8",fontSize:11}}>입주권 감정평가액</div>
         <div style={{fontSize:15,fontWeight:700,color:"#86efac"}}>{fmt(cal.finalDecided)} 원</div></div>
+      {cal.refund&&cal.refund.showAlt&&<div style={{marginTop:6,padding:"6px 8px",background:"#0f1c33",borderRadius:6}}>
+        <div style={{color:"#94a3b8",fontSize:11}}>병기({cal.refund.assume?"수령 가정 안 함":"환급금 전액 수령 가정"})</div>
+        <div style={{fontSize:13,fontWeight:700,color:"#fcd34d"}}>{fmt(cal.refund.altAmt)} 원</div></div>}
     </div>);
 }
 
@@ -1845,14 +1907,62 @@ function IpjTabGaeyo({ov,setOv}){
         <Fld label="추정비례율(%)" value={ov.birye} onChange={v=>u("birye",v)} w={100} ph="예) 262.00"/>
         <Fld label="권리가액" value={ov.gwolli} onChange={v=>u("gwolli",fmtComma(v))} w={160}/>
         <Fld label="분담금(자동·수정가능)" value={ov.bunbo} onChange={v=>u("bunbo",fmtSigned(v))} w={160} ph="조합원분양가 합 − 권리가액"/>
-        <Fld label="기준일까지 납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="환급 시 마이너스"/>
+        <Fld label="기준일까지 납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="분담금 중 납부한 금액"/>
       </div>
-      <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다.</div>
+      <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다. 분담금이 마이너스(권리가액 &gt; 분양가)면 아래에 환급금 칸이 나옵니다.</div>
+      <IpjRefundBox ov={ov} u={u} rf={ipjRefund(ov,bunboAuto||0)}/>
     </Card>
-    <IpjOpinionMethodCard ov={ov} u={u} fmtSigned={fmtSigned}/>
+    <IpjOpinionMethodCard ov={ov} u={u} fmtSigned={fmtSigned} rf={ipjRefund(ov,bunboAuto||0)}/>
   </div>);
 }
 
+// 환급금 입력 — 분담금이 마이너스인 건만. 처리방식 두 가지 + 다른 가정 금액 병기
+function IpjRefundBox({ov,u,rf}){
+  if(!rf.isRefund)return null;
+  const mode=ov.refundMode==="assume"?"assume":"include";
+  const opt=(v,title,desc)=><label style={{display:"flex",gap:6,alignItems:"flex-start",cursor:"pointer",padding:"6px 8px",borderRadius:6,border:"1px solid "+(mode===v?"#2563eb":"#e2e8f0"),background:mode===v?"#eff6ff":"#fff",flex:1,minWidth:240}}>
+    <input type="radio" name="ipj-refund-mode" checked={mode===v} onChange={()=>u("refundMode",v)} style={{marginTop:3}}/>
+    <span><b style={{fontSize:13}}>{title}</b><br/><span style={{fontSize:11,color:"#64748b"}}>{desc}</span></span></label>;
+  return <div style={{marginTop:10,padding:"10px 12px",border:"1px solid #fde68a",background:"#fffbeb",borderRadius:8}}>
+    <div style={{fontWeight:700,color:"#92400e",marginBottom:6}}>💰 환급금 발생 건 <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>— 권리가액이 조합원분양가보다 {fmt(rf.total)}원 많음</span></div>
+    <div style={{display:"flex",gap:"4px 24px",flexWrap:"wrap",alignItems:"center",fontSize:13}}>
+      <span>환급금 총액 <b>{fmt(rf.total)}</b>원 <span style={{fontSize:11,color:"#94a3b8"}}>(= 분담금 칸의 마이너스 값)</span></span>
+      <Fld label="기준일까지 받은 환급금" value={ov.refundRecv} onChange={v=>u("refundRecv",fmtComma(v))} w={140} ph="0"/>
+      <span>미수령 환급금 <b>{fmt(rf.unpaid)}</b>원</span>
+    </div>
+    {rf.unpaid>0?<>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+        {opt("include","① 미수령 환급금 포함 (수령 가정 안 함)","권리가액 − 받은 환급금 + 프레미엄. 받을 환급금이 입주권 값에 들어감 — 상증령 원칙")}
+        {opt("assume","② 환급금 전액 수령 가정 (조건부)","권리가액 − 환급금 전액 + 프레미엄. 의견서 5. 감정평가조건에 가정 문구, 괄호감정표 감정평가조건 칸 표기")}
+      </div>
+      <label style={{display:"flex",gap:6,alignItems:"center",marginTop:8,fontSize:13,cursor:"pointer"}}>
+        <input type="checkbox" checked={ov.refundShowAlt!==false} onChange={e=>u("refundShowAlt",e.target.checked)}/>
+        다른 가정의 금액도 참고로 병기 <span style={{fontSize:11,color:"#64748b"}}>({mode==="assume"?"수령 가정 안 한 금액":"전액 수령 가정 금액"} = 감정평가액 {mode==="assume"?"+":"−"} 미수령 환급금 → 의견서 6.라·Ⅳ 아래 한 줄)</span>
+      </label></>
+      :<div style={{fontSize:12,color:"#166534",marginTop:6}}>· 환급금을 모두 받았으므로 받은 금액 전액을 ②에서 차감합니다(가정·병기 불필요).</div>}
+  </div>;
+}
+// ④ 결정 아래 — 환급금 처리 요약 + 병기 금액 + 의견서 문구(감정평가조건·그 밖의 사항 라.) 수정
+function IpjRefundResult({ov,u,cal}){
+  const rf=cal.refund;if(!rf.isRefund)return null;
+  const tm={평가목적:ov.purpose||"일반거래(시가참고)",환급금:fmt(rf.total),기수령환급금:fmt(rf.recv),미수령환급금:fmt(rf.unpaid),병기금액:rf.altAmt!=null?fmt(rf.altAmt):""};
+  const rd=ipjRefundDefaults(rf);
+  const box=(label,key,def)=>{const val=ov[key]!=null?ov[key]:ipjFillTokens(def,tm);
+    return <div style={{marginTop:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:600,color:"#334155"}}><span>{label}</span>
+        {ov[key]!=null&&<button type="button" onClick={()=>u(key,null)} style={{border:0,background:"none",fontSize:11,color:"#2563eb",cursor:"pointer"}}>↺ 자동 문구로 (금액 자동 반영)</button>}</div>
+      <textarea aria-label={label} value={val} onChange={e=>u(key,e.target.value)} rows={Math.max(3,val.split("\n").length*3)} style={{...S.ta,width:"100%",boxSizing:"border-box",fontFamily:"inherit",fontSize:12,lineHeight:1.7}}/>
+      <div style={{fontSize:11,color:"#94a3b8"}}>한 줄 = 한 문단. 고치면 고친 글자 그대로 나감(금액 자동 갱신 멈춤 — ↺로 되돌림)</div>
+    </div>;};
+  const modeLbl=rf.unpaid===0?"환급금 전액 수령 완료":rf.assume?"② 환급금 전액 수령 가정 (조건부)":"① 미수령 환급금 포함";
+  return <div style={{marginTop:12,padding:"10px 12px",border:"1px solid #fde68a",background:"#fffbeb",borderRadius:8,maxWidth:920}}>
+    <div style={{fontWeight:700,color:"#92400e"}}>💰 환급금 처리: {modeLbl} <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>(바꾸기: ① 대상물건개요 「관리처분 · 분담금」)</span></div>
+    <div style={{fontSize:13,marginTop:4,color:"#334155"}}>환급금 {fmt(rf.total)} · 받은 환급금 {fmt(rf.recv)} · 미수령 {fmt(rf.unpaid)} → ②에서 {fmt(rf.deduct)}원 차감</div>
+    {rf.showAlt&&<div style={{marginTop:6,fontSize:14}}>병기 금액({rf.assume?"수령 가정 안 한 경우":"전액 수령 가정 시"}): <b style={{color:"#b45309"}}>{fmt(rf.altAmt)}원</b> <span style={{fontSize:11,color:"#64748b"}}>= 감정평가액 {fmt(cal.finalDecided)} {rf.assume?"+":"−"} 미수령 {fmt(rf.unpaid)}</span></div>}
+    {rf.assume&&box("의견서 5. 감정평가조건","refundCondText",rd.cond)}
+    {rf.showAlt&&box("의견서 6. 그 밖의 사항 — 라. (병기)","refundOtherText",rd.other)}
+  </div>;
+}
 // ─────────────────────────── ② 접수개요 ───────────────────────────
 function IpjTabJeopsu({ov,setOv}){
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
@@ -1919,14 +2029,35 @@ const IPJ_OPINION_METHOD_PARAGRAPHS=[
   "다. 부동산을 취득할 수 있는 권리(입주권)에 대한 감정평가는 상속세 및 증여세법 제61조 제3항 및     동법 시행령 제51조 제2항 등에 의거하여 평가기준일까지 납입한 금액과 평가기준일 현재의 프레미엄에 상당하는 금액을 합한 금액을 기준하여 감정평가하였음. 평가기준일 현재의 프레미엄에 상당하는 금액은 평가기준일 현재 부동산을 취득할 수 있는 권리(입주권)의 목적물인 구분건물(아파트)의 감정평가액에서 공급금액 상당액을 고려하여 산정하였음. ",
   "라. 본건은 입주 예정인 아파트에 대한 입주권으로 기준시점 현재 {{정비사업유형}}사업이 완료되지 아니한 관      계로 구분소유권의 대상이 되는 건물부분과 그 소유권·대지권을 일체로 한 등기사항전부증명서, 토지이용계획확인서 및 집합건축물대장 등의 공부서류가 정리되지 않은 상태이나, 추후 사업완료와 함께소유권 및 대지권이 등재될 예정인 점, 일반적으로 아파트 및 아파트에 대한 분양권 등이 대지권을 포함하여 일체로 거래되는 관행 등을 고려하여 향후 소유권 및 대지권이 정상적으로 이전 취득될 것을 전제로 감정평가하였음.",
   "마. 부동산을 취득할수 있는 권리(입주권)의 목적물인 구분건물(아파트)은 「감정평가에 관한 규칙」 제12조, 제16조에 의거 인근 유사 아파트의 일반적인 거래시세와 입지조건, 부근상황 및 건물의 구조, 용재, 시공상태, 설비상태, 층별·향별·위치별 효용성 등의 제반 가치형성요인을 종합 참작하여 건물과 토지의 소유권·대지권을 일체로 한 거래사례비교법을 적용하여 평가하였음. 한편, 대상물건의 특성상 원가법 적용이 적절하지 않고, 수익환원법은 수익과 비용 및 환원이율의 변동가능성 또는 불확실성에 따른 편차가 발생할 수 있고, 유사한 임대사례의 포착이 어려워 적용이 곤란한바, 다른 감정평가방법을 적용하는 것이 곤란하므로 동규칙 제12조 제2항에 따른 다른 감정평가방법에 의해 산출한 시산가액과 비교하는 합리성 검토는 생략하였음.",
-  "바. 본건 입주권의 분담금은 {{분담금}}원으로, 기준시점 현재까지 납부된 금액은 {{납입액}}원으로  탐문된 바, 이를 고려하여 감정평가하였음. "
+  "바. 본건 입주권의 분담금은 {{분담금}}원으로, 기준시점 현재까지 납부된 금액은 {{납입액}}원으로  탐문된 바, 이를 고려하여 감정평가하였음. ",
+  // 9·10 = 환급금 건의 바항(양식의 8번 문단을 생성 때 이 문장으로 바꿔 넣음 — ipjApplyRefundDoc). 9: 미수령 환급금 포함 / 10: 전액 수령 가정
+  "바. 본건 입주권은 조합원 권리가액이 조합원 분양가를 초과하여 환급금 {{환급금}}원이 발생하며, 기준시점 현재까지 수령한 환급금은 {{기수령환급금}}원으로 탐문된 바, 미수령 환급금은 입주권 가액에 포함되는 것으로 보아 권리가액에서 기수령 환급금을 차감한 금액에 프레미엄 상당액을 합산하여 감정평가하였음.",
+  "바. 본건 입주권은 조합원 권리가액이 조합원 분양가를 초과하여 환급금 {{환급금}}원이 발생하는 바, 귀 의뢰인의 요청에 따라 환급금 전액이 기준시점 현재 수령된 것으로 가정하여 권리가액에서 환급금 전액을 차감한 금액에 프레미엄 상당액을 합산하여 감정평가하였음(5. 감정평가조건 참조)."
 ];
+// 환급금 건 의견서 문구 — {{토큰}}은 생성 때 값으로(파랑), 화면에선 값을 넣어 보여 줌. 사용자가 고치면 ov.refundCondText / ov.refundOtherText(고친 글자 그대로, 검정)
+const ipjRefundParaIdx=rf=>!rf||!rf.isRefund?8:rf.assume?10:9;
+function ipjRefundDefaults(rf){
+  if(!rf||!rf.isRefund)return {cond:"",other:"",iv:""};
+  const recvNote=rf.recv>0?"(기준시점까지 수령한 {{기수령환급금}}원 포함)":"";
+  const cond=rf.assume?[
+    "가. 감정평가조건의 내용 및 부가 이유 : 본건은 {{평가목적}} 목적의 감정평가로서, 의뢰인의 요청에 따라 관리처분계획상 예정 환급금 {{환급금}}원"+recvNote+"이 기준시점 현재 전액 수령된 상태를 가정하여 감정평가하였음. 이는 환급금 수령 완료 상태의 가치를 제시하고, 실제 수령내역에 따른 입주권 가액 산정 시 참고자료로 활용하기 위한 것임.",
+    "나. 감정평가조건의 검토 : 본 조건은 환급금 수령 완료 상태의 가치를 구분하여 제시하려는 평가목적에 부합한다는 점에서 합리성이 있는 것으로 판단됨. 또한, 실제 수령 사실이나 환급청구권의 소멸을 확정하는 것이 아니라 평가상 가정을 명시하여 참고가액을 제시하는 조건으로서, 그 목적과 사용범위 내에서 적법성을 검토하였음. 실현가능성에 관하여는 조합의 통지문 등에 환급금액과 지급 시기가 제시되어 있어, 예정된 금전 수령을 통해 수령 완료 상태에 도달할 수 있는 구조임을 고려하였음.",
+    "다. 조건부 감정평가액의 사용상 유의사항 : 본 감정평가액 및 산출내역에 적용한 환급금 수령액은 위 수령 가정에 따른 것으로서, 기준시점 현재의 실제 수령액을 확인한 것은 아님. 상속·증여세 신고에 활용하는 경우에는 평가기준일 현재의 실제 수령액 및 미수령 환급금을 별도로 확인하여 신고가액을 산정하여야 하며, 본 감정평가액 자체가 세법상 시가로 인정됨을 보증하는 것은 아님."
+  ].join("\n"):"";
+  if(!rf.showAlt)return {cond,other:"",iv:""};
+  const other=rf.assume
+    ?"라. 본건은 귀 의뢰인의 요청에 따라 환급금 전액 수령을 가정하여 감정평가하였으며(5. 감정평가조건 참조), 환급금 수령을 가정하지 않은 경우(기준시점 현재 미수령 환급금 {{미수령환급금}}원 포함)의 입주권 가액 금{{병기금액}}원을 별도로 병기하였음. 상기 병기금액은 단순 참고용으로서 본건 감정평가액과는 별개의 금액이니 업무 진행 시 참고하시기 바람."
+    :"라. 본건은 기준시점 현재 미수령 환급금 {{미수령환급금}}원을 포함하여 감정평가하였으며, 귀 의뢰인의 요청에 따라 환급금 전액이 수령된 것으로 가정한 경우의 입주권 가액 금{{병기금액}}원(감정평가액에서 미수령 환급금을 공제한 금액)을 별도로 병기하였음. 상기 병기금액은 단순 참고용으로서 본건 감정평가액과는 별개의 금액이니 업무 진행 시 참고하시기 바람.";
+  const iv="※ [병기] "+(rf.assume?"환급금 수령을 가정하지 않은 경우":"환급금 전액 수령 가정 시")+" 입주권 가액 : 금{{병기금액}}원(6. 그 밖의 사항 라. 참조)";
+  return {cond,other,iv};
+}
+const ipjFillTokens=(t,m)=>String(t||"").replace(/\{\{([^}]+)\}\}/g,(a,k)=>m[k]!=null?m[k]:a);
 function IpjMethodText({label,value,onChange}){
   const ref=useRef(null);
   useEffect(()=>{const el=ref.current;if(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}},[value]);
   return <textarea ref={ref} aria-label={label} value={value} onChange={e=>onChange(e.target.value)} rows={2} style={{display:"block",width:"100%",padding:"4px 6px",border:"1px solid #edf0f4",borderRadius:4,background:"#fcfcfd",color:"#222",fontSize:13,fontFamily:"inherit",lineHeight:2.1,resize:"vertical",overflow:"hidden",boxSizing:"border-box"}}/>;
 }
-function IpjOpinionMethodCard({ov,u,fmtSigned}){
+function IpjOpinionMethodCard({ov,u,fmtSigned,rf}){
   const blue={color:"#0000ff",fontWeight:600,background:"#eef4ff",border:"none",borderBottom:"2px solid #2563eb",borderRadius:"3px 3px 0 0",padding:"1px 6px",margin:"0 2px",fontSize:13,fontFamily:"inherit",maxWidth:"100%"};
   const tokenField=token=>{
     if(token==="개요_사업상태문구")return <span>
@@ -1934,10 +2065,11 @@ function IpjOpinionMethodCard({ov,u,fmtSigned}){
       {ov.opProjectStatus!=null&&<button type="button" onClick={()=>u("opProjectStatus",null)} style={{fontSize:11,color:"#2563eb",background:"none",border:0,cursor:"pointer"}}>↺ 사업정보로 자동 작성</button>}
     </span>;
     if(token==="정비사업유형")return <select aria-label="의견서 정비사업유형" value={ov.projType||"재건축"} onChange={e=>u("projType",e.target.value)} style={blue}><option>재건축</option><option>재개발</option></select>;
-    const key=token==="분담금"?"bunbo":"paid";
+    if(token==="환급금")return <input aria-label="의견서 환급금" value={fmtComma(String(rf.total))} onChange={e=>{const v=fmtComma(e.target.value);u("bunbo",v?"-"+v:"");}} style={{...blue,width:Math.max(12,fmtComma(String(rf.total)).length+2)+"ch",textAlign:"right"}}/>;
+    const key=token==="분담금"?"bunbo":token==="기수령환급금"?"refundRecv":"paid";
     return <input aria-label={"의견서 "+token} value={ov[key]||""} onChange={e=>u(key,fmtSigned(e.target.value))} placeholder="0" style={{...blue,width:Math.max(12,String(ov[key]||"").length+2)+"ch",textAlign:"right"}}/>;
   };
-  const groups=[{label:"가",items:[0,1,2,3]},{label:"나",items:[4]},{label:"다",items:[5]},{label:"라",items:[6]},{label:"마",items:[7]},{label:"바",items:[8]}];
+  const groups=[{label:"가",items:[0,1,2,3]},{label:"나",items:[4]},{label:"다",items:[5]},{label:"라",items:[6]},{label:"마",items:[7]},{label:"바",items:[ipjRefundParaIdx(rf)]}];
   const edits=ov.opMethodText||{};
   const setText=(i,j,value)=>u("opMethodText",{...edits,[i+":"+j]:value});
   const restore=items=>{const next={...edits};Object.keys(next).forEach(key=>{if(items.includes(Number(key.split(":")[0])))delete next[key];});u("opMethodText",next);};
@@ -2184,11 +2316,11 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
         </tbody></table>
         <div style={{fontWeight:700,fontSize:13,color:"#166534",margin:"2px 0 6px"}}>2. 입주권의 감정평가액</div>
         <table style={{borderCollapse:"collapse",width:"100%",maxWidth:920}}><thead><tr>
-          {["기호","① 권리가액(원)","② 기준일까지 납입액(원)","③ 프레미엄 상당액(원)","①+②+③ 합계(원)","최종 감정평가액(원)"].map(h=><th key={h} style={gTh}>{h}</th>)}
+          {["기호","① 권리가액(원)",cal.refund.isRefund?"② 기준일까지 납입액(환급금 차감)(원)":"② 기준일까지 납입액(원)","③ 프레미엄 상당액(원)","①+②+③ 합계(원)","최종 감정평가액(원)"].map(h=><th key={h} style={gTh}>{h}</th>)}
         </tr></thead><tbody>
           {/* 기호별 행: ③프리미엄만 호수 값. ①권리가액·②납입액은 조합원 하나의 값이라 합계행에만(사용자 결정 2026-09-19) */}
           {rows2.map(({sym,r},i)=><tr key={i}><td style={{...gTd,textAlign:"center",fontWeight:600,background:"#f0fdf4"}}>{sym}</td><td style={{...gTd,color:"#94a3b8"}}>—</td><td style={{...gTd,color:"#94a3b8"}}>—</td><td style={gTd}>{fmt(r.premium)}</td><td style={gTd}>{fmt(r.premium)}</td><td style={{...gTd,color:"#94a3b8"}}>—</td></tr>)}
-          <tr style={{fontWeight:700}}><td style={{...gTc}}>합계</td><td style={gTd}>{fmt(cal.gwolli)}</td><td style={gTd}>{fmt(cal.paid)}</td><td style={gTd}>{fmt(cal.premiumHap)}</td>
+          <tr style={{fontWeight:700}}><td style={{...gTc}}>합계</td><td style={gTd}>{fmt(cal.gwolli)}</td><td style={gTd}>{fmt(cal.paidEff)}</td><td style={gTd}>{fmt(cal.premiumHap)}</td>
           <td style={gTd}>{fmt(cal.finalAmt)}</td>
           <td style={{...gTd,fontWeight:800,fontSize:16,color:"#166534",background:"#f0fdf4"}}>{fmt(cal.finalDecided)}</td>
         </tr></tbody></table>
@@ -2201,6 +2333,7 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
           <span style={{fontSize:12,color:"#64748b"}}>단위 {(ov.finalRndMode||"none")==="none"?"— 합계 그대로":"기준"}</span>
         </div>
         <div style={{fontSize:12,color:"#166534",marginTop:8}}>金 {numberToKoreanMoney(cal.finalDecided)}원整</div>
+        <IpjRefundResult ov={ov} u={u} cal={cal}/>
         <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 결정단가·아파트감정가 처리는 위 「적용단가」에서(기본 만원·십만원 단위에서 반올림 = 십만원·백만원 배수). 최종 감정평가액은 위 옵션 기준으로 문서(표지·괄호표·명세표·의견서)에 표기.</div>
         </div>);})()}
     </Card>
