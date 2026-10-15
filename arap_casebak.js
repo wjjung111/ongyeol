@@ -1,4 +1,5 @@
-// 집합건물 저장건 안전장치(window.ArapCaseBak) — 단일 호수(pre "")·여러 호수(pre "v2:") 앱이 같이 쓴다.
+// 집합건물 저장건 안전장치(window.ArapCaseBak) — 단일 호수(pre "")·여러 호수(pre "v2:") 앱, 입주권(pre "ipj:")이 같이 쓴다.
+//  입주권은 목록 키만 옛 이름 그대로(ipj:case-list) — 저장키 ipj:case:<id>는 같은 규칙.
 //  1) 건별 이전 버전: 자동저장이 건을 덮어쓰기 직전 내용을 `<pre>appraisal-bak:<id>`에 최대 MAX개 보관.
 //     담는 경우 = 이 창이 모르는 내용을 덮어쓸 때(다른 창이 저장했거나, 접수번호를 바꿔 이미 있는 건에 겹침)
 //               · 사례·전례·채운 칸이 크게 줄 때 · 마지막 보관 뒤 GAP이 지났을 때.
@@ -13,7 +14,7 @@
   function parse(s){try{return JSON.parse(s);}catch(e){return null;}}
   function caseKey(pre,id){return pre+"case:"+id;}
   function bakKey(pre,id){return pre+"appraisal-bak:"+id;}
-  function listKey(pre){return pre+"appraisal-case-list";}
+  function listKey(pre){return pre==="ipj:"?"ipj:case-list":pre+"appraisal-case-list";}
   function filled(v){return Array.isArray(v)?v.length>0:(v!=null&&typeof v!=="object"&&String(v).trim()!=="");}
   function score(o){
     if(!o)return 0;var n=(o.cases||[]).length+(o.precs||[]).length,v=o.ov||{};
@@ -24,7 +25,7 @@
   function summary(raw){
     var o=parse(raw)||{},v=o.ov||{},u=(v.units||[])[0]||{};
     var dong=v.dong||u.dong,ho=v.ho||u.ho;
-    var b=[v.buildingName,dong&&dong+"동",ho&&ho+"호"].filter(Boolean).join(" ")||"(물건 칸 비어 있음)";
+    var b=[v.buildingName||v.tongching,dong&&dong+"동",ho&&ho+"호"].filter(Boolean).join(" ")||"(물건 칸 비어 있음)";
     return b+" · 사례 "+(o.cases||[]).length+" · 전례 "+(o.precs||[]).length+(v.owner?" · 소유자 "+v.owner:"");
   }
   function ring(pre,id){var a=parse(get(bakKey(pre,id)));return Array.isArray(a)?a:[];}
@@ -32,7 +33,7 @@
   function allRings(){
     var out=[];
     try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
-      if(/^(v2:)?appraisal-bak:/.test(k)){var s=get(k)||"";var a=parse(s);if(Array.isArray(a))out.push({key:k,ring:a,size:s.length});}}}catch(e){}
+      if(/^(v2:|ipj:)?appraisal-bak:/.test(k)){var s=get(k)||"";var a=parse(s);if(Array.isArray(a))out.push({key:k,ring:a,size:s.length});}}}catch(e){}
     return out;
   }
   // 합계가 BUDGET을 넘으면 가장 오래된 버전부터 버린다(방금 담은 keep 키의 맨 앞 버전은 지키지 않음 — 그건 최신이라 맨 나중에 버려짐)
@@ -119,7 +120,7 @@
     try{for(var i=0;i<localStorage.length;i++){var key=localStorage.key(i);
       if(key.indexOf(pre+"case:")!==0)continue;var id=key.slice((pre+"case:").length);if(have[id]||!id)continue;
       var o=parse(get(key))||{},v=o.ov||{};have[id]=1;
-      add.push({id:id,label:(id+" "+(v.buildingName||"")+" "+(v.dong?v.dong+"동":"")+" "+(v.ho?v.ho+"호":"")).replace(/\s+/g," ").trim(),updated:""});}}catch(e){}
+      add.push({id:id,label:(id+" "+(v.buildingName||v.tongching||"")+" "+(v.dong?v.dong+"동":"")+" "+(v.ho?v.ho+"호":"")).replace(/\s+/g," ").trim(),updated:""});}}catch(e){}
     if(add.length){L=L.concat(add);try{localStorage.setItem(listKey(pre),JSON.stringify(L));}catch(e){}}
     return L;
   }

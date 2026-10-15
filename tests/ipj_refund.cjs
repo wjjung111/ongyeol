@@ -56,7 +56,8 @@ function seed(ov){
       assert(ps.includes('②평가기준일까지 납입한 금액(환급금 차감)(원)'),'② 머리');
       assert(ps.includes('기준시점까지 수령한 환급금(원)'),'Ⅱ-2 머리');
       const iv=ps.slice(ps.lastIndexOf('합계'));assert.deepEqual(iv.slice(1,6),['1,003,430,000','0','628,700,000','1,632,130,000','1,630,000,000'],'Ⅳ-2 합계행');
-      assert(all.includes('-342,130,000'),'Ⅱ-2 분담금(환급금) 마이너스');
+      assert(ps.includes('(ⓒ-ⓓ)환급금')&&!ps.includes('(ⓓ-ⓒ)분담금'),'Ⅱ-2 머리 = 환급금');
+      assert(await page.getByText('환급금(자동·수정가능)').count()>0&&await page.getByText('분담금(자동·수정가능)').count()===0,'화면 칸 이름 = 환급금');
       const gw=paras(await save(page,'2. 괄호감정표'));
       assert.deepEqual(after(gw,'감정평가조건',1),['-'],'괄감 조건 -');
       assert(gw.join('').includes('1,630,000,000'),'괄감 금액');
@@ -84,6 +85,31 @@ function seed(ov){
       const ps2=paras(await save(page,'3. 의견서'));
       assert.deepEqual(after(ps2,'5. 감정평가조건',2),['가. 직접 고친 조건 문구','나. 둘째 문단'],'고친 조건 문구');
       assert.deepEqual(errors,[]);await ctx.close();console.log('② 가정 OK');
+    }
+    // ②-1 환급금 수령권 제외(원조합원 귀속) — 바항 = 사용자 문구, 조건 없음
+    {
+      const {ctx,page,errors}=await open({refundMode:'exclude'});
+      await page.click('text=④ 가격산출');
+      const ps=paras(await save(page,'3. 의견서')),all=ps.join('\n');
+      assert(!all.includes('{{'),'미치환 토큰 없음');
+      assert(all.includes('바. 본건은 매매계약상 조합 제시자료(조합원 분담금 통지문 및 입주정산금 통지문)상 환급금 342,130,000원의 수령권이 원조합원에게 귀속되는 바, 환급금 수령권을 제외한 조합원 입주권을 평가대상으로 하였으며'),'바항 = 수령권 제외 문구');
+      assert.deepEqual(after(ps,'5. 감정평가조건',1),['해당사항 없음.'],'조건 없음');
+      const iv=ps.slice(ps.lastIndexOf('합계'));assert.deepEqual(iv.slice(1,6),['1,003,430,000','-342,130,000','628,700,000','1,290,000,000','1,290,000,000'],'Ⅳ-2 합계행(제외)');
+      assert(all.includes('환급금 수령권을 포함한 경우(기준시점 현재 미수령 환급금 342,130,000원 포함)의 입주권 가액 금1,632,130,000원'),'6.라 병기(수령권 포함)');
+      const gw=paras(await save(page,'2. 괄호감정표'));
+      assert.deepEqual(after(gw,'감정평가조건',1),['-'],'괄감 조건 없음');
+      assert.deepEqual(errors,[]);await ctx.close();console.log('②-1 수령권 제외 OK');
+    }
+    // ②-2 받은 환급금 = 납입액 칸에 342,130,000 (사용자 표 「환급금 수령완료」) → 1,290,000,000, 가정·병기 없음
+    {
+      const {ctx,page,errors}=await open({paid:'342,130,000'});
+      assert(await page.getByText('기준일까지 받은 환급금',{exact:true}).count()>0,'칸 이름 = 기준일까지 받은 환급금');
+      await page.click('text=④ 가격산출');
+      const ps=paras(await save(page,'3. 의견서')),all=ps.join('\n');
+      assert(all.includes('기준시점 현재까지 수령한 환급금은 342,130,000원'),'바항 기수령');
+      const iv=ps.slice(ps.lastIndexOf('합계'));assert.deepEqual(iv.slice(1,6),['1,003,430,000','-342,130,000','628,700,000','1,290,000,000','1,290,000,000'],'Ⅳ-2(수령완료)');
+      assert(!all.includes('병기')&&!all.includes('{{'),'병기 없음');
+      assert.deepEqual(errors,[]);await ctx.close();console.log('②-2 수령완료 OK');
     }
     // ③ 병기 끔
     {
