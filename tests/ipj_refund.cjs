@@ -1,6 +1,6 @@
 // 입주권 환급금 건 — 권리가액 > 조합원분양가 (광명제1R 109동 1403호 실값: 권리가액 1,003,430,000 · 분양가 661,300,000 · 환급금 342,130,000)
 //  ① 미수령 환급금 포함(기본): 1,003,430,000 + 0 + 628,700,000 = 1,632,130,000 → 1,630,000,000 / 병기 1,287,870,000 (하감 별첨과 같은 값)
-//  ② 전액 수령 가정: 1,003,430,000 − 342,130,000 + 628,700,000 = 1,290,000,000 / 감정평가조건 문구 · 괄감 조건 칸 / 병기 1,632,130,000
+//  ② 수령권 제외(옛 「전액 수령 가정」 저장건 포함): 1,003,430,000 − 342,130,000 + 628,700,000 = 1,290,000,000 / 조건 문구 없음 / 병기 1,632,130,000
 //  ③ 병기 끄면 6.라·Ⅳ 병기 줄 없음  ④ 환급금 없는 건(방배 샘플)은 종전 바항 그대로
 // node tests/ipj_refund.cjs   (PLAYWRIGHT_MODULE 로 playwright 경로 지정 가능)
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -43,7 +43,7 @@ function seed(ov){
       const {ctx,page,errors}=await open({});
       assert(await page.getByText('💰 환급금 발생 건').isVisible(),'환급금 칸 보임');
       await page.click('text=④ 가격산출');
-      await page.getByText('병기 금액(전액 수령 가정 시)').waitFor();
+      await page.getByText('병기 금액(수령권 제외 시)').waitFor();
       assert(await page.getByText('1,287,870,000원',{exact:true}).isVisible(),'화면 병기 1,287,870,000');
       const ps=paras(await save(page,'3. 의견서'));
       const all=ps.join('\n');
@@ -51,8 +51,8 @@ function seed(ov){
       assert(all.includes('환급금 342,130,000원이 발생하며, 기준시점 현재까지 수령한 환급금은 0원'),'바항 = 환급금 문장(포함)');
       assert(!all.includes('본건 입주권의 분담금은'),'옛 바항 없음');
       assert.deepEqual(after(ps,'5. 감정평가조건',1),['해당사항 없음.'],'조건 없음');
-      assert(all.includes('환급금 전액이 수령된 것으로 가정한 경우의 입주권 가액 금1,287,870,000원'),'6.라 병기');
-      assert(all.includes('※ [병기] 환급금 전액 수령 가정 시 입주권 가액 : 금1,287,870,000원'),'Ⅳ 병기 줄');
+      assert(all.includes('환급금 수령권을 제외한 경우의 입주권 가액 금1,287,870,000원'),'6.라 병기');
+      assert(all.includes('※ [병기] 환급금 수령권을 제외한 경우 입주권 가액 : 금1,287,870,000원'),'Ⅳ 병기 줄');
       assert(ps.includes('②평가기준일까지 납입한 금액(환급금 차감)(원)'),'② 머리');
       assert(ps.includes('기준시점까지 수령한 환급금(원)'),'Ⅱ-2 머리');
       const iv=ps.slice(ps.lastIndexOf('합계'));assert.deepEqual(iv.slice(1,6),['1,003,430,000','0','628,700,000','1,632,130,000','1,630,000,000'],'Ⅳ-2 합계행');
@@ -63,28 +63,19 @@ function seed(ov){
       assert(gw.join('').includes('1,630,000,000'),'괄감 금액');
       assert.deepEqual(errors,[]);await ctx.close();console.log('① 포함 OK');
     }
-    // ② 전액 수령 가정
+    // ② 「전액 수령 가정」 옵션 삭제 — 화면에 없음, 그 사이 저장된 "assume" 건은 금액이 같은 수령권 제외로(조건 문구 없음)
     {
       const {ctx,page,errors}=await open({refundMode:'assume'});
+      assert.equal(await page.getByText('환급금 전액 수령 가정').count(),0,'옵션 없음');
+      assert.equal(await page.locator('input[name="ipj-refund-mode"]').count(),2,'처리방식 2개');
       await page.click('text=④ 가격산출');
-      await page.getByText('병기 금액(수령 가정 안 한 경우)').waitFor();
       const ps=paras(await save(page,'3. 의견서')),all=ps.join('\n');
-      assert(!all.includes('{{'),'미치환 토큰 없음');
-      assert(all.includes('귀 의뢰인의 요청에 따라 환급금 전액이 기준시점 현재 수령된 것으로 가정하여'),'바항 = 가정 문장');
-      const cond=after(ps,'5. 감정평가조건',3);
-      assert(cond[0].startsWith('가. 감정평가조건의 내용 및 부가 이유')&&cond[0].includes('예정 환급금 342,130,000원이 기준시점 현재 전액 수령된'),'조건 가');
-      assert(cond[1].startsWith('나. 감정평가조건의 검토')&&cond[2].startsWith('다. 조건부 감정평가액의 사용상 유의사항'),'조건 나·다');
-      assert(all.includes('입주권 가액 금1,632,130,000원을 별도로 병기'),'6.라 병기(가정 안 함)');
-      const iv=ps.slice(ps.lastIndexOf('합계'));assert.deepEqual(iv.slice(1,6),['1,003,430,000','-342,130,000','628,700,000','1,290,000,000','1,290,000,000'],'Ⅳ-2 합계행(가정)');
+      assert.deepEqual(after(ps,'5. 감정평가조건',1),['해당사항 없음.'],'조건 없음');
+      assert(all.includes('환급금 수령권을 제외한 조합원 입주권을 평가대상으로'),'수령권 제외 바항');
+      assert(!all.includes('수령된 것으로 가정')&&!all.includes('수령 가정'),'「수령 가정」 문구 없음');
       const gw=paras(await save(page,'2. 괄호감정표'));
-      assert.deepEqual(after(gw,'감정평가조건',1),['환급금 전액 수령 가정'],'괄감 조건 칸');
-      assert(gw.join('').includes('1,290,000,000'),'괄감 금액');
-      // 문구 직접 수정 → 그대로 나감
-      await page.getByRole('textbox',{name:'의견서 5. 감정평가조건'}).fill('가. 직접 고친 조건 문구\n나. 둘째 문단');
-      await page.waitForTimeout(300);
-      const ps2=paras(await save(page,'3. 의견서'));
-      assert.deepEqual(after(ps2,'5. 감정평가조건',2),['가. 직접 고친 조건 문구','나. 둘째 문단'],'고친 조건 문구');
-      assert.deepEqual(errors,[]);await ctx.close();console.log('② 가정 OK');
+      assert.deepEqual(after(gw,'감정평가조건',1),['-'],'괄감 조건 -');
+      assert.deepEqual(errors,[]);await ctx.close();console.log('② 가정 옵션 삭제 OK');
     }
     // ②-1 환급금 수령권 제외(원조합원 귀속) — 바항 = 사용자 문구, 조건 없음
     {
