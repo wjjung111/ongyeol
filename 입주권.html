@@ -1590,9 +1590,16 @@ const ipjCalcUnit=(u,cases,ov)=>{
 // include: 기준일까지 받은 환급금만 차감(미수령분은 입주권 가액에 포함 — 상증령 제51조②의 원칙)
 // assume : 의뢰인 요청으로 환급금 전액을 받은 것으로 가정해 전액 차감(감정평가조건 — 의견서 5.에 조건 문구)
 // exclude: 매매계약상 환급금 수령권이 원조합원에게 남음 → 수령권을 뺀 입주권을 평가(전액 차감, 4.바항 문구로 설명, 조건 아님)
-function ipjRefund(ov,bunboCalc){
+// 분담금/환급금 유형 — ① 대상물건개요에서 둘 중 하나를 고른다(ov.bunboType "bunbo"|"refund", 2026-10-15 사용자 결정).
+// 안 고른 건(옛 저장건 포함)은 분담금 칸 부호 → 없으면 「조합원분양가 합 − 권리가액」 부호로 판단. 금액은 크기만 씀(부호 무관)
+function ipjBunboType(ov,bunboCalc){
+  if(ov.bunboType==="bunbo"||ov.bunboType==="refund")return ov.bunboType;
   const b=pNum(ov.bunbo)!=null?pNum(ov.bunbo):bunboCalc;
-  const total=b<0?-b:0;
+  return b<0?"refund":"bunbo";
+}
+const ipjBunboAmt=(ov,bunboCalc)=>Math.abs(pNum(ov.bunbo)!=null?pNum(ov.bunbo):(bunboCalc||0));
+function ipjRefund(ov,bunboCalc){
+  const total=ipjBunboType(ov,bunboCalc)==="refund"?ipjBunboAmt(ov,bunboCalc):0;
   // 받은 환급금 = 「기준일까지 납입액」 칸(환급금 건에선 이름이 「기준일까지 받은 환급금」으로 바뀜 — 사용자 표: 납입액 자리 = 기수령환급금). 옛 refundRecv는 읽기만
   const recv=total?Math.min(Math.max(pNum(ov.paid)||pNum(ov.refundRecv)||0,0),total):0;
   const unpaid=total-recv;
@@ -1706,7 +1713,7 @@ function buildIpjMap(ov,cases){
   // 의견서 — 분담금/관리처분
   m["종전자산평가액"]=ipjMoney(pNum(ov.jongjeon)); m["비례율"]=ov.birye?Number(pNum(ov.birye)).toFixed(2):"";
   m["권리가액"]=ipjMoney(cal.gwolli); m["분양가합"]=ipjMoney(cal.bunyangHap);
-  m["분담금"]=ipjMoney(pNum(ov.bunbo)!=null?pNum(ov.bunbo):cal.bunboCalc);
+  m["분담금"]=ipjMoney(ipjBunboAmt(ov,cal.bunboCalc));
   const rf=cal.refund;
   m["납입액"]=ipjMoney(cal.paidEff); m["납입액_명세"]=ipjMoney(rf.isRefund?rf.recv:cal.paid);   // 환급금 건: ②는 받은(가정) 환급금 차감, Ⅱ-2 표는 수령한 환급금
   if(rf.isRefund)m["분담금"]=ipjMoney(rf.total);   // 환급금 건: Ⅱ-2 표 머리를 「(ⓒ-ⓓ)환급금」으로 바꾸고 값은 양수(ipjApplyRefundDoc)
@@ -1869,6 +1876,9 @@ function IpjTabGaeyo({ov,setOv}){
   // 분담금 자동: 조합원분양가 합 − 권리가액. 칸이 비었거나 직전 자동값 그대로면 새 자동값으로 채운다(직접 고친 값은 유지 — 여비 자동입력과 같은 방식)
   const bunboAuto=(()=>{const g=pNum(ov.gwolli);const hap=(ov.units||[]).reduce((t,x)=>t+(pNum(x.bunyangga)||0),0);if(g==null&&!hap)return null;return hap-(g||0);})();
   const fmtSigned=v=>{const t=String(v??"").trim();const neg=t.startsWith("-");const d=fmtComma(t);return d?(neg?"-":"")+d:"";}; // 분담금은 음수(환급)일 수 있어 부호 유지
+  const bType=ipjBunboType(ov,bunboAuto||0), isRf=bType==="refund";
+  const bunyangHapG=(ov.units||[]).reduce((t,x)=>t+(pNum(x.bunyangga)||0),0);
+  const mismatch=!!ov.bunboType&&pNum(ov.gwolli)!=null&&bunyangHapG>0&&bunboAuto!=null&&bunboAuto!==0&&((bunboAuto<0)!==isRf);   // 고른 유형과 숫자가 다를 때만
   useEffect(()=>{if(bunboAuto==null)return;const cur=String(ov.bunbo||"").trim();const a=fmtSigned(bunboAuto);
     if((cur===""||cur===String(ov.bunboKey||"__"))&&cur!==a)setOv(p=>({...p,bunbo:a,bunboKey:a}));},[bunboAuto,ov.bunbo]);
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
@@ -1908,19 +1918,28 @@ function IpjTabGaeyo({ov,setOv}){
       </tbody></table></div>
       {ov.units.length>2&&<div style={{fontSize:11,color:"#b45309",marginTop:6}}>⚠ 현재 감정서 양식(의견서·명세표)은 <b>가·나 2호수까지 인쇄</b>됩니다. 3호수 이상은 감정평가액 <b>합계엔 정확히 반영</b>되지만, 문서에 개별 행으로 찍히려면 한글 양식에 행 추가가 필요해요.</div>}
     </Card>
-    <Card title="관리처분 · 분담금 (통지서)" sub="분양대상자별 권리내역">
+    <Card title={isRf?"관리처분 · 환급금 (통지서)":"관리처분 · 분담금 (통지서)"} sub="분양대상자별 권리내역">
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+        <span style={{fontSize:13,fontWeight:700,color:"#334155",marginRight:4}}>유형</span>
+        {[["bunbo","분담금 발생 유형","조합원분양가 > 권리가액 — 조합에 낼 돈"],["refund","환급금 발생 유형","권리가액 > 조합원분양가 — 조합에서 받을 돈"]].map(([v,t,d])=>{const on=bType===v;
+          return <button key={v} type="button" className={"bunbo-type-btn"+(on?" on":"")} aria-pressed={on} onClick={()=>u("bunboType",v)}
+            style={{display:"flex",gap:6,alignItems:"center",cursor:"pointer",padding:"6px 12px",borderRadius:6,border:"1px solid "+(on?"#2563eb":"#cbd5e1"),background:on?"#2563eb":"#fff",color:on?"#fff":"#1e293b",fontSize:13,fontWeight:700}}>
+            <span>{on?"●":"○"}</span><span>{t}<span style={{display:"block",fontSize:11,fontWeight:400,color:on?"#dbeafe":"#64748b"}}>{d}</span></span></button>;})}
+        {!ov.bunboType&&<span style={{fontSize:11,color:"#94a3b8"}}>(안 고르면 숫자로 자동 판단 — 지금 {isRf?"환급금":"분담금"})</span>}
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 24px"}}>
         <Fld label="종전자산평가액" value={ov.jongjeon} onChange={v=>u("jongjeon",fmtComma(v))} w={160}/>
         <Fld label="추정비례율(%)" value={ov.birye} onChange={v=>u("birye",v)} w={100} ph="예) 262.00"/>
         <Fld label="권리가액" value={ov.gwolli} onChange={v=>u("gwolli",fmtComma(v))} w={160}/>
-        {(()=>{const neg=String(ov.bunbo||"").trim().startsWith("-");   // 마이너스면 「환급금」으로 이름·부호를 바꿔 보여 줌(저장은 종전처럼 음수 분담금)
-          return neg?<Fld label="환급금(자동·수정가능)" value={String(ov.bunbo).replace(/^-\s*/,"")} onChange={v=>{const d=fmtComma(v);u("bunbo",d?"-"+d:"");}} w={160} ph="권리가액 − 조합원분양가 합"/>
-            :<Fld label="분담금(자동·수정가능)" value={ov.bunbo} onChange={v=>u("bunbo",fmtSigned(v))} w={160} ph="조합원분양가 합 − 권리가액"/>;})()}
-        {String(ov.bunbo||"").trim().startsWith("-")
+        {isRf
+          ?<Fld label="환급금(자동·수정가능)" value={String(ov.bunbo||"").replace(/^-\s*/,"")} onChange={v=>{const d=fmtComma(v);u("bunbo",d?"-"+d:"");}} w={160} ph="권리가액 − 조합원분양가 합"/>
+          :<Fld label="분담금(자동·수정가능)" value={String(ov.bunbo||"").replace(/^-\s*/,"")} onChange={v=>u("bunbo",fmtComma(v))} w={160} ph="조합원분양가 합 − 권리가액"/>}
+        {isRf
           ?<Fld label="기준일까지 받은 환급금" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="0 = 미수령"/>
           :<Fld label="기준일까지 납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="분담금 중 납부한 금액"/>}
       </div>
-      <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다. 분담금이 마이너스(권리가액 &gt; 분양가)면 아래에 환급금 칸이 나옵니다.</div>
+      {mismatch&&<div className="bunbo-type-warn" style={{fontSize:12,color:"#b45309",marginTop:6,fontWeight:600}}>⚠️ 권리가액 {fmt(pNum(ov.gwolli))} · 조합원분양가 합 {fmt(bunyangHapG)} 으로 보면 <b>{bunboAuto<0?"환급금":"분담금"} 발생</b> 건입니다. 유형을 확인하세요.</div>}
+      <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다. 금액 칸은 「분양가 합 − 권리가액」의 크기로 자동 채워지고 직접 고칠 수 있습니다.</div>
       <IpjRefundBox ov={ov} u={u} rf={ipjRefund(ov,bunboAuto||0)}/>
     </Card>
     <IpjOpinionMethodCard ov={ov} u={u} fmtSigned={fmtSigned} rf={ipjRefund(ov,bunboAuto||0)}/>
@@ -1935,7 +1954,7 @@ function IpjRefundBox({ov,u,rf}){
     <input type="radio" name="ipj-refund-mode" checked={mode===v} onChange={()=>u("refundMode",v)} style={{marginTop:3}}/>
     <span><b style={{fontSize:13}}>{title}</b><br/><span style={{fontSize:11,color:"#64748b"}}>{desc}</span></span></label>;
   return <div style={{marginTop:10,padding:"10px 12px",border:"1px solid #fde68a",background:"#fffbeb",borderRadius:8}}>
-    <div style={{fontWeight:700,color:"#92400e",marginBottom:6}}>💰 환급금 발생 건 <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>— 권리가액이 조합원분양가보다 {fmt(rf.total)}원 많음</span></div>
+    <div style={{fontWeight:700,color:"#92400e",marginBottom:6}}>💰 환급금 발생 건 <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>— 환급금 {fmt(rf.total)}원 처리 방식</span></div>
     <div style={{display:"flex",gap:"4px 24px",flexWrap:"wrap",alignItems:"center",fontSize:13}}>
       <span>환급금 총액 <b>{fmt(rf.total)}</b>원 <span style={{fontSize:11,color:"#94a3b8"}}>(= 위 환급금 칸)</span></span>
       <span>받은 환급금 <b>{fmt(rf.recv)}</b>원 <span style={{fontSize:11,color:"#94a3b8"}}>(= 위 「기준일까지 받은 환급금」 칸)</span></span>
@@ -2084,6 +2103,7 @@ function IpjOpinionMethodCard({ov,u,fmtSigned,rf}){
     if(token==="정비사업유형")return <select aria-label="의견서 정비사업유형" value={ov.projType||"재건축"} onChange={e=>u("projType",e.target.value)} style={blue}><option>재건축</option><option>재개발</option></select>;
     if(token==="환급금")return <input aria-label="의견서 환급금" value={fmtComma(String(rf.total))} onChange={e=>{const v=fmtComma(e.target.value);u("bunbo",v?"-"+v:"");}} style={{...blue,width:Math.max(12,fmtComma(String(rf.total)).length+2)+"ch",textAlign:"right"}}/>;
     const key=token==="분담금"?"bunbo":"paid";   // 기수령환급금 = 납입액 칸(환급금 건)
+    if(key==="bunbo")return <input aria-label="의견서 분담금" value={String(ov.bunbo||"").replace(/^-\s*/,"")} onChange={e=>u("bunbo",fmtComma(e.target.value))} placeholder="0" style={{...blue,width:Math.max(12,String(ov.bunbo||"").length+2)+"ch",textAlign:"right"}}/>;
     return <input aria-label={"의견서 "+token} value={ov[key]||""} onChange={e=>u(key,fmtSigned(e.target.value))} placeholder="0" style={{...blue,width:Math.max(12,String(ov[key]||"").length+2)+"ch",textAlign:"right"}}/>;
   };
   const groups=[{label:"가",items:[0,1,2,3]},{label:"나",items:[4]},{label:"다",items:[5]},{label:"라",items:[6]},{label:"마",items:[7]},{label:"바",items:[ipjRefundParaIdx(rf)]}];

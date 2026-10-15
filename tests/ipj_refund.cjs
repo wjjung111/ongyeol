@@ -111,6 +111,27 @@ function seed(ov){
       assert(!all.includes('병기')&&!all.includes('{{'),'병기 없음');
       assert.deepEqual(errors,[]);await ctx.close();console.log('②-2 수령완료 OK');
     }
+    // ②-3 유형 버튼 — 분담금/환급금 중 하나를 고르면 칸 이름·환급금 상자가 바뀜, 숫자와 다르면 안내
+    {
+      const {ctx,page,errors}=await open({});
+      const btn=t=>page.locator('.bunbo-type-btn',{hasText:t});
+      assert.equal(await btn('환급금 발생 유형').getAttribute('aria-pressed'),'true','숫자로 자동 = 환급금');
+      await btn('분담금 발생 유형').click();
+      assert(await page.getByText('분담금(자동·수정가능)').count()>0&&await page.getByText('기준일까지 납입액',{exact:true}).count()>0,'분담금 칸 이름');
+      assert.equal(await page.getByText('💰 환급금 발생 건').count(),0,'환급금 상자 숨김');
+      assert(await page.locator('.bunbo-type-warn').isVisible(),'숫자와 다름 안내');
+      await btn('환급금 발생 유형').click();
+      assert(await page.getByText('환급금(자동·수정가능)').count()>0&&await page.getByText('기준일까지 받은 환급금',{exact:true}).count()>0,'환급금 칸 이름');
+      assert.equal(await page.locator('.bunbo-type-warn').count(),0,'안내 없음');
+      assert.deepEqual(errors,[]);await ctx.close();
+      // 환급금 유형을 고르고 금액을 양수로 직접 넣어도 같은 결과
+      const o=await open({bunboType:'refund',bunbo:'342,130,000'});
+      await o.page.click('text=④ 가격산출');
+      const ps=paras(await save(o.page,'3. 의견서'));
+      const iv=ps.slice(ps.lastIndexOf('합계'));assert.deepEqual(iv.slice(1,6),['1,003,430,000','0','628,700,000','1,632,130,000','1,630,000,000'],'양수 입력 환급금');
+      assert(ps.join('').includes('환급금 342,130,000원이 발생하며'),'바항 환급금');
+      assert.deepEqual(o.errors,[]);await o.ctx.close();console.log('②-3 유형 버튼 OK');
+    }
     // ③ 병기 끔
     {
       const {ctx,page,errors}=await open({refundShowAlt:false});
