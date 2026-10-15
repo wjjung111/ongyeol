@@ -56,7 +56,7 @@ const num=s=>Number(String(s).replace(/[^\d]/g,''));
       assert(t.includes(a.하한수수료.toLocaleString('ko-KR')),'입주권 하한 표시 '+t);
       const fv=await page.evaluate(()=>{const td=[...document.querySelectorAll('td')].find(x=>x.textContent.trim().startsWith('평가수수료'));const inp=td&&td.parentElement.querySelector('input');return inp?inp.value:null;});
       assert.equal(num(fv),Math.floor(a.하한수수료/1000)*1000,'입주권 평가수수료 칸 = 하한 천원 미만 절사(집건과 같게 — 청구서에 나가는 값)');
-      assert(await page.locator('.fee-auto-note').getByText('감정평가액으로 자동 계산').isVisible(),'집건과 같은 안내');
+      assert((await page.locator('.fee-auto-note').innerText()).includes('자동 계산: 예상평가액'),'자동 계산 값 표시');
       // 요율 기준 → 칸 자동, 특별용역비 상한-기준 자동(천원 반올림)
       await page.getByLabel('수수료 요율').selectOption('기준');
       const fv2=await page.evaluate(()=>{const td=[...document.querySelectorAll('td')].find(x=>x.textContent.trim().startsWith('평가수수료'));return td.parentElement.querySelector('input').value;});

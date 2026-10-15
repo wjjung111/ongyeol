@@ -183,7 +183,7 @@ const flat=(apt,ov,unit)=>({ov:{rndAmt:'100000',finalRndMode:'none',...ov},unit:
     // I. 받은 환급금 = 환급금 전액(수령완료) → 병기·별첨·6.라 없음, ② 342,130,000
     {
       const {ctx,page,errors}=await open({ov:{paid:'342,130,000'}});
-      assert(await page.getByText('기준일까지 받은 환급금',{exact:true}).count()>0,'칸 이름');
+      assert(await page.getByText('받은 환급금(기준일)',{exact:true}).count()>0,'칸 이름');
       await page.click('text=④ 가격산출');
       const ps=paras(await save(page,'3. 의견서')),all=ps.join('\n');
       assert(item(ps,'바').includes('기준시점 현재까지 수령한 환급금은 342,130,000원인 바'),'바항 기수령');
@@ -195,11 +195,11 @@ const flat=(apt,ov,unit)=>({ov:{rndAmt:'100000',finalRndMode:'none',...ov},unit:
     {
       const {ctx,page,errors}=await open({});
       const btn=t=>page.locator('.bunbo-type-btn',{hasText:t});
-      assert.equal(await btn('환급금 발생 유형').getAttribute('aria-pressed'),'true','숫자로 자동 = 환급금');
-      await btn('분담금 발생 유형').click();
-      assert(await page.getByText('분담금(자동·수정가능)').count()>0&&await page.locator('.bunbo-type-warn').isVisible(),'분담금 칸·안내');
-      await btn('환급금 발생 유형').click();
-      assert(await page.getByText('환급금(자동·수정가능)').count()>0&&await page.locator('.bunbo-type-warn').count()===0,'환급금 칸');
+      assert.equal(await btn('환급금 발생').getAttribute('aria-pressed'),'true','숫자로 자동 = 환급금');
+      await btn('분담금 발생').click();
+      assert(await page.getByText('분담금',{exact:true}).count()>0&&await page.locator('.bunbo-type-warn').isVisible(),'분담금 칸·안내');
+      await btn('환급금 발생').click();
+      assert(await page.getByText('환급금',{exact:true}).count()>0&&await page.locator('.bunbo-type-warn').count()===0,'환급금 칸');
       assert.deepEqual(errors,[]);await ctx.close();console.log('J 유형 버튼 OK');
     }
     // K. 병기 끔 — 별첨·6.라·Ⅳ 병기 줄 없음

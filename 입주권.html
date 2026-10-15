@@ -1970,6 +1970,17 @@ const Fld=({label,value,onChange,w,ph,area})=>(
       : <input value={value||""} onChange={e=>onChange(e.target.value)} placeholder={ph||""} style={{...S.inp,width:w||220}}/>}
   </div>
 );
+// 칸 이름 | 값 격자(관리처분 카드) — 칸 이름 폭을 고정해 줄이 맞게
+const KV={grid:{display:"grid",gridTemplateColumns:"130px 180px 130px 180px",gap:"8px 16px",alignItems:"center"},
+  lbl:{fontSize:12,color:"#475569",fontWeight:600,whiteSpace:"nowrap"},
+  val:{fontSize:13,textAlign:"right",padding:"5px 8px",color:"#334155",background:"#f8fafc",border:"1px solid #eef2f7",borderRadius:3}};
+const KvIn=({label,value,onChange,ph})=><input aria-label={label} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={ph||""}
+  style={{...S.inp,fontSize:13,padding:"5px 8px",width:"100%",textAlign:"right",boxSizing:"border-box"}}/>;
+// 붙은 버튼 묶음(하나만 고름). 설명은 title(마우스 올리면)로만
+const Seg=({cls,value,onChange,opts})=>(<div role="group" style={{display:"inline-flex",border:"1px solid #cbd5e1",borderRadius:6,overflow:"hidden",flexShrink:0}}>
+  {opts.map(([v,t,tip],i)=>{const on=value===v;return <button key={v} type="button" className={cls+(on?" on":"")} aria-pressed={on} title={tip||""} onClick={()=>onChange(v)}
+    style={{cursor:"pointer",padding:"6px 16px",border:0,borderLeft:i?"1px solid #cbd5e1":0,background:on?"#2563eb":"#fff",color:on?"#fff":"#334155",fontSize:13,fontWeight:on?700:500,whiteSpace:"nowrap"}}>{t}</button>;})}
+</div>);
 
 // ─────────────────────────── 좌측 대상물건 요약 ───────────────────────────
 function IpjSidebar({ov,cal,collapsed,setCollapsed}){
@@ -2015,14 +2026,11 @@ function IpjTabGaeyo({ov,setOv,cases}){
   const addUnit=()=>setOv(p=>({...p,units:[...p.units,ipjNewUnit(SYM(p.units.length))]}));
   const delUnit=i=>setOv(p=>{if(p.units.length<=1)return p;const units=p.units.filter((_,j)=>j!==i).map((x,k)=>({...x,sym:SYM(k)}));return{...p,units};});
   return(<div>
-    <Card title="사업 · 조합 정보" sub="분담금 통지서 · 조합원 공급계약서 기준">
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
-        <span style={{fontSize:13,fontWeight:700,color:"#334155",marginRight:4}}>사업 단계</span>
-        {[["uc","착공 · 공사 중","입주 전"],["done","준공 · 입주 (이전고시 전)","입주했지만 소유권 이전 전"]].map(([v,t,d])=>{const on=ipjStage(ov)===v;
-          return <button key={v} type="button" className={"stage-btn"+(on?" on":"")} aria-pressed={on} onClick={()=>u("stage",v)}
-            style={{display:"flex",gap:6,alignItems:"center",cursor:"pointer",padding:"6px 12px",borderRadius:6,border:"1px solid "+(on?"#2563eb":"#cbd5e1"),background:on?"#2563eb":"#fff",color:on?"#fff":"#1e293b",fontSize:13,fontWeight:700}}>
-            <span>{on?"●":"○"}</span><span>{t}<span style={{display:"block",fontSize:11,fontWeight:400,color:on?"#dbeafe":"#64748b"}}>{d}</span></span></button>;})}
-        <span style={{fontSize:11,color:"#94a3b8"}}>의견서 나·라·6.다항과 요항표 문구가 단계에 맞게 바뀝니다. 이전고시·보존등기까지 끝났으면 입주권이 아니라 아파트로 평가하세요.</span>
+    <Card title="사업 · 조합 정보">
+      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+        <span style={S.lbl}>사업 단계</span>
+        <Seg cls="stage-btn" value={ipjStage(ov)} onChange={v=>u("stage",v)} opts={[["uc","착공 · 공사 중","입주 전 — 의견서 나·라·6.다항, 요항표 문구가 공사 중 문구"],
+          ["done","준공 · 입주 (이전고시 전)","입주했지만 소유권 이전 전 — 이전고시·보존등기까지 끝났으면 입주권이 아니라 아파트로 평가"]]}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 24px"}}>
         <Fld label="사업명" value={ov.projName} onChange={v=>u("projName",v)} w={260} ph="예) 방배5구역 주택재건축정비사업"/>
@@ -2040,7 +2048,7 @@ function IpjTabGaeyo({ov,setOv,cases}){
         <Fld label="시점수정 지역" value={ov.sijeomRegion} onChange={v=>u("sijeomRegion",v)} w={120} ph="예) 서초구"/>
       </div>
     </Card>
-    <Card title={`본건 (${ov.units.length}호수)`} sub="조합원 공급계약서 기준 — 가·나·다… 자동기호, 층은 호수에서 자동도출"
+    <Card title={`본건 (${ov.units.length}호수)`}
       right={<button style={{...S.btn,background:C.acc,color:"#fff"}} onClick={addUnit}>+ 호수 추가</button>}>
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
         {["기호","동","층","호","타입","배정평형","전유(㎡)","공용(㎡)","공급(㎡)","분양면적(㎡)","계약면적(㎡)","대지지분(㎡)","조합원분양가(원)",""].map((h,hi)=><th key={hi} style={S.th}>{h}</th>)}
@@ -2053,35 +2061,34 @@ function IpjTabGaeyo({ov,setOv,cases}){
           <td style={S.td}>{ov.units.length>1&&<span title="이 호수 삭제" style={{cursor:"pointer",color:C.dng,fontWeight:700}} onClick={()=>delUnit(i)}>✕</span>}</td>
         </tr>))}
       </tbody></table></div>
-      {ov.units.length>2&&<div style={{fontSize:11,color:"#b45309",marginTop:6}}>⚠ 현재 감정서 양식(의견서·명세표)은 <b>가·나 2호수까지 인쇄</b>됩니다. 3호수 이상은 감정평가액 <b>합계엔 정확히 반영</b>되지만, 문서에 개별 행으로 찍히려면 한글 양식에 행 추가가 필요해요.</div>}
+      {ov.units.length>2&&<div style={{fontSize:12,color:"#b45309",marginTop:6}}>⚠ 문서엔 가·나 2호수까지만 행으로 찍힙니다(합계는 정확)</div>}
     </Card>
-    <Card title={isRf?"관리처분 · 환급금 (통지서)":"관리처분 · 분담금 (통지서)"} sub="분양대상자별 권리내역">
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
-        <span style={{fontSize:13,fontWeight:700,color:"#334155",marginRight:4}}>유형</span>
-        {[["bunbo","분담금 발생 유형","조합원분양가 > 권리가액 — 조합에 낼 돈"],["refund","환급금 발생 유형","권리가액 > 조합원분양가 — 조합에서 받을 돈"]].map(([v,t,d])=>{const on=bType===v;
-          return <button key={v} type="button" className={"bunbo-type-btn"+(on?" on":"")} aria-pressed={on} onClick={()=>u("bunboType",v)}
-            style={{display:"flex",gap:6,alignItems:"center",cursor:"pointer",padding:"6px 12px",borderRadius:6,border:"1px solid "+(on?"#2563eb":"#cbd5e1"),background:on?"#2563eb":"#fff",color:on?"#fff":"#1e293b",fontSize:13,fontWeight:700}}>
-            <span>{on?"●":"○"}</span><span>{t}<span style={{display:"block",fontSize:11,fontWeight:400,color:on?"#dbeafe":"#64748b"}}>{d}</span></span></button>;})}
-        {!ov.bunboType&&<span style={{fontSize:11,color:"#94a3b8"}}>(안 고르면 숫자로 자동 판단 — 지금 {isRf?"환급금":"분담금"})</span>}
+    <Card title={isRf?"관리처분 · 환급금":"관리처분 · 분담금"}>
+      {/* 2026-10-15 정리: 유형 → 금액(통지서) → 의견서 표기 → 처리 방식. 설명 문구는 빼고 칸 이름만(사용자 요청 「산만함」) */}
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+        <span style={KV.lbl}>유형</span>
+        <Seg cls="bunbo-type-btn" value={bType} onChange={v=>u("bunboType",v)} opts={[["bunbo","분담금 발생","조합원분양가 > 권리가액"],["refund","환급금 발생","권리가액 > 조합원분양가"]]}/>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"2px 24px"}}>
-        <Fld label="종전자산평가액" value={ov.jongjeon} onChange={v=>u("jongjeon",fmtComma(v))} w={160}/>
-        <Fld label="추정비례율(%)" value={ov.birye} onChange={v=>u("birye",v)} w={100} ph="예) 262.00"/>
-        <Fld label="권리가액" value={ov.gwolli} onChange={v=>u("gwolli",fmtComma(v))} w={160}/>
+      <div style={KV.grid}>
+        <span style={KV.lbl}>종전자산평가액</span><KvIn label="종전자산평가액" value={ov.jongjeon} onChange={v=>u("jongjeon",fmtComma(v))}/>
+        <span style={KV.lbl}>추정비례율(%)</span><KvIn label="추정비례율" value={ov.birye} onChange={v=>u("birye",v)} ph="예) 262.00"/>
+        <span style={KV.lbl}>권리가액</span><KvIn label="권리가액" value={ov.gwolli} onChange={v=>u("gwolli",fmtComma(v))}/>
+        <span style={KV.lbl}>조합원분양가 합</span><span style={KV.val}>{fmt(bunyangHapG)}</span>
         {isRf
-          ?<Fld label="환급금(자동·수정가능)" value={String(ov.bunbo||"").replace(/^-\s*/,"")} onChange={v=>{const d=fmtComma(v);u("bunbo",d?"-"+d:"");}} w={160} ph="권리가액 − 조합원분양가 합"/>
-          :<Fld label="분담금(자동·수정가능)" value={String(ov.bunbo||"").replace(/^-\s*/,"")} onChange={v=>u("bunbo",fmtComma(v))} w={160} ph="조합원분양가 합 − 권리가액"/>}
+          ?<><span style={KV.lbl}>환급금</span><KvIn label="환급금" value={String(ov.bunbo||"").replace(/^-\s*/,"")} onChange={v=>{const d=fmtComma(v);u("bunbo",d?"-"+d:"");}} ph="권리가액 − 분양가 합"/></>
+          :<><span style={KV.lbl}>분담금</span><KvIn label="분담금" value={String(ov.bunbo||"").replace(/^-\s*/,"")} onChange={v=>u("bunbo",fmtComma(v))} ph="분양가 합 − 권리가액"/></>}
         {isRf
-          ?<Fld label="기준일까지 받은 환급금" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="0 = 미수령"/>
-          :<Fld label="기준일까지 납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} w={160} ph="분담금 중 납부한 금액"/>}
+          ?<><span style={KV.lbl}>받은 환급금(기준일)</span><KvIn label="받은 환급금" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} ph="0"/></>
+          :<><span style={KV.lbl}>납입액(기준일)</span><KvIn label="납입액" value={ov.paid} onChange={v=>u("paid",fmtComma(v))} ph="0"/></>}
       </div>
-      {mismatch&&<div className="bunbo-type-warn" style={{fontSize:12,color:"#b45309",marginTop:6,fontWeight:600}}>⚠️ 권리가액 {fmt(pNum(ov.gwolli))} · 조합원분양가 합 {fmt(bunyangHapG)} 으로 보면 <b>{bunboAuto<0?"환급금":"분담금"} 발생</b> 건입니다. 유형을 확인하세요.</div>}
-      <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 분양대상추산액(=조합원분양가 합)은 본건 표에서 자동 합산됩니다. 금액 칸은 「분양가 합 − 권리가액」의 크기로 자동 채워지고 직접 고칠 수 있습니다.</div>
-      <div style={{display:"flex",gap:"4px 24px",flexWrap:"wrap",alignItems:"center",marginTop:8,fontSize:13}}>
-        <Fld label="근거자료(의견서 표기)" value={ov.docSource} onChange={v=>u("docSource",v)} w={380} ph={IPJ_DOC_SOURCE_DEFAULT}/>
-        <span style={{display:"inline-flex",alignItems:"center",gap:4}}><span style={S.lbl}>비례율 변동 문구(선택)</span>초기
-          <input aria-label="초기 비례율" value={ov.ratioFrom||""} onChange={e=>u("ratioFrom",e.target.value)} placeholder="예) 245" style={{...S.inp,width:64}}/>% →
-          <input aria-label="변동 비례율" value={ov.ratioTo||""} onChange={e=>u("ratioTo",e.target.value)} placeholder={ov.birye||"262"} style={{...S.inp,width:64}}/>%</span>
+      {mismatch&&<div className="bunbo-type-warn" style={{fontSize:12,color:"#b45309",marginTop:8,fontWeight:600}}>⚠️ 숫자로는 {bunboAuto<0?"환급금":"분담금"} 발생 건입니다 — 유형 확인</div>}
+      <div style={{...KV.grid,gridTemplateColumns:"130px minmax(0,1fr)",marginTop:12,paddingTop:12,borderTop:"1px dashed #e2e8f0"}}>
+        <span style={KV.lbl}>근거자료</span><input aria-label="근거자료" value={ov.docSource||""} onChange={e=>u("docSource",e.target.value)} placeholder={IPJ_DOC_SOURCE_DEFAULT} style={{...S.inp,fontSize:13,padding:"5px 8px",width:"100%",maxWidth:520,boxSizing:"border-box"}}/>
+        <span style={KV.lbl}>비례율 변동</span>
+        <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:13,color:"#334155"}}>
+          <input aria-label="초기 비례율" value={ov.ratioFrom||""} onChange={e=>u("ratioFrom",e.target.value)} placeholder="초기" style={{...S.inp,fontSize:13,padding:"5px 8px",width:70,textAlign:"right"}}/>% →
+          <input aria-label="변동 비례율" value={ov.ratioTo||""} onChange={e=>u("ratioTo",e.target.value)} placeholder={ov.birye||"변동"} style={{...S.inp,fontSize:13,padding:"5px 8px",width:70,textAlign:"right"}}/>%
+          <span style={{fontSize:11,color:"#94a3b8"}}>(선택)</span></span>
       </div>
       <IpjSettleBox ov={ov} u={u} cal={cal}/>
     </Card>
@@ -2092,43 +2099,41 @@ function IpjTabGaeyo({ov,setOv,cases}){
 // 분담금/환급금 처리 — 유형별 옵션. 분담금: 완납 가정(의뢰인 요청 시·조건부) / 환급금: ① 미수령 포함 · ② 수령권 제외 + 병기·별첨 옵션
 function IpjSettleBox({ov,u,cal}){
   const rf=cal.refund,ct=cal.contrib;
-  const chk=(k,label,desc,cls)=><label className={cls||""} style={{display:"flex",gap:6,alignItems:"flex-start",marginTop:6,fontSize:13,cursor:"pointer"}}>
-    <input type="checkbox" checked={!!ov[k]&&ov[k]!==false} onChange={e=>u(k,e.target.checked)} style={{marginTop:3}}/><span>{label}{desc&&<span style={{fontSize:11,color:"#64748b"}}> {desc}</span>}</span></label>;
-  const altChk=desc=><label style={{display:"flex",gap:6,alignItems:"center",marginTop:8,fontSize:13,cursor:"pointer"}}>
-    <input type="checkbox" checked={ov.refundShowAlt!==false} onChange={e=>u("refundShowAlt",e.target.checked)}/>다른 방식의 금액도 참고로 병기 <span style={{fontSize:11,color:"#64748b"}}>{desc}</span></label>;
+  // 체크칸 — 설명은 마우스를 올리면(title) 보이게
+  const chk=(k,label,tip,cls,val,set)=><label className={cls||""} title={tip||""} style={{display:"inline-flex",gap:6,alignItems:"center",fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>
+    <input type="checkbox" checked={val!=null?val:!!ov[k]} onChange={e=>(set||(v=>u(k,v)))(e.target.checked)}/>{label}</label>;
+  const altChk=tip=>chk("refundShowAlt","병기 금액 함께 표시",tip,"alt-chk",ov.refundShowAlt!==false);
+  const box=(cls,bd,bg)=>({className:cls,style:{marginTop:14,padding:"12px 14px",border:"1px solid "+bd,background:bg,borderRadius:8}});
+  const row={display:"flex",alignItems:"center",gap:"8px 20px",flexWrap:"wrap",marginTop:10};
   if(!rf.isRefund){
     if(!(ct.total>0))return null;
-    return <div className="contrib-box" style={{marginTop:10,padding:"10px 12px",border:"1px solid #dbeafe",background:"#f8fbff",borderRadius:8}}>
-      <div style={{fontWeight:700,color:"#1e3a8a"}}>분담금 {fmt(ct.total)}원 · 납입 {fmt(ct.paid)}원 · 미납 {fmt(ct.unpaid)}원</div>
-      {chk("contribAssumeFull","분담금 완납 가정 (의뢰인 요청 시만 · 조건부)","— ②에 분담금 전액. 의견서 바항·5. 감정평가조건 문구, 괄호감정표 감정평가조건 칸 「분담금 완납 가정」","contrib-assume")}
-      {ct.assume&&ct.unpaid>0&&altChk("(현황 금액 = 감정평가액 − 미납 분담금 → 의견서 바항·Ⅳ 아래 한 줄)")}
+    return <div {...box("contrib-box","#dbeafe","#f8fbff")}>
+      <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}><b style={{color:"#1e3a8a"}}>💰 분담금 처리</b><span style={{fontSize:13}}>미납 <b>{fmt(ct.unpaid)}</b>원</span></div>
+      <div style={row}>
+        {chk("contribAssumeFull","분담금 완납 가정 (조건부)","의뢰인 요청 시만 — ②에 분담금 전액, 의견서 바항·5. 감정평가조건·괄호감정표에 「분담금 완납 가정」","contrib-assume")}
+        {ct.assume&&ct.unpaid>0&&altChk("감정평가액 − 미납 분담금 → 의견서 바항·Ⅳ 아래 한 줄")}
+      </div>
     </div>;
   }
   const mode=rf.exclude||ov.refundMode==="exclude"||ov.refundMode==="assume"?"exclude":"include";
-  const opt=(v,title,desc)=><label style={{display:"flex",gap:6,alignItems:"flex-start",cursor:"pointer",padding:"6px 8px",borderRadius:6,border:"1px solid "+(mode===v?"#2563eb":"#e2e8f0"),background:mode===v?"#eff6ff":"#fff",flex:1,minWidth:240}}>
-    <input type="radio" name="ipj-refund-mode" checked={mode===v} onChange={()=>u("refundMode",v)} style={{marginTop:3}}/>
-    <span><b style={{fontSize:13}}>{title}</b><br/><span style={{fontSize:11,color:"#64748b"}}>{desc}</span></span></label>;
-  return <div style={{marginTop:10,padding:"10px 12px",border:"1px solid #fde68a",background:"#fffbeb",borderRadius:8}}>
-    <div style={{fontWeight:700,color:"#92400e",marginBottom:6}}>💰 환급금 발생 건 <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>— 환급금 {fmt(rf.total)}원 처리 방식</span></div>
-    <div style={{display:"flex",gap:"4px 24px",flexWrap:"wrap",alignItems:"center",fontSize:13}}>
-      <span>환급금 총액 <b>{fmt(rf.total)}</b>원</span>
-      <span>받은 환급금 <b>{fmt(rf.recv)}</b>원 <span style={{fontSize:11,color:"#94a3b8"}}>(= 위 「기준일까지 받은 환급금」 칸)</span></span>
-      <span>미수령 환급금 <b>{fmt(rf.unpaid)}</b>원</span>
-    </div>
+  return <div {...box("refund-box","#fde68a","#fffbeb")}>
+    <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}><b style={{color:"#92400e"}}>💰 환급금 처리</b><span style={{fontSize:13}}>미수령 <b>{fmt(rf.unpaid)}</b>원</span></div>
     {rf.unpaid>0?<>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-        {opt("include","① 미수령 환급금 포함 (기본)","권리가액 − 받은 환급금 + 프레미엄. 받을 환급금의 수령권리가 입주권 값에 들어감 — 상증령 원칙")}
-        {opt("exclude","② 환급금 수령권 제외 (매매계약상 원조합원 귀속)","권리가액 − 환급금 전액 + 프레미엄. 평가대상에서 수령권을 뺌(조건 아님)")}
+      <div style={row}>
+        <Seg cls="refund-mode-btn" value={mode} onChange={v=>u("refundMode",v)} opts={[
+          ["include","① 미수령 환급금 포함","권리가액 − 받은 환급금 + 프리미엄 (상증령 원칙, 기본)"],
+          ["exclude","② 환급금 수령권 제외 (원조합원 귀속)","권리가액 − 환급금 전액 + 프리미엄 — 매매계약상 수령권이 원조합원에게 귀속"]]}/>
       </div>
-      {mode==="exclude"&&<div className="exclude-warn" style={{marginTop:8,padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,fontSize:12,color:"#991b1b"}}>
-        ⚠️ 매매계약서·특약 사본을 확보했을 때만 쓰세요. 미확보면 ① 미수령 포함 + 병기로.
-        {chk("contractAttached","매매계약서·특약 사본 확보(첨부)","","contract-chk")}</div>}
-      {altChk(mode==="exclude"?"(수령권리 포함 금액 = 감정평가액 + 미수령 환급금 → 바항 병기 문단·Ⅳ 아래 한 줄)":"(미지급 환급금 미고려 금액 = 감정평가액 − 미수령 환급금 → 의견서 [별첨] 쪽·6.라·Ⅳ 아래 한 줄)")}
-      {mode==="include"&&ov.refundShowAlt!==false&&<div style={{paddingLeft:22}}>
-        {chk("clientConfirmed","별첨 ※ 문구에 「귀 의뢰인 확인 완료」 넣기","(미수령 환급금을 의뢰인에게 확인받은 경우)","confirm-chk")}
-        {chk("altInBody","바항에도 병기 문단(금액 포함) 넣기","(끄면 바항엔 「[별첨]에 병기」 한 줄만)","altinbody-chk")}
-      </div>}</>
-      :<div style={{fontSize:12,color:"#166534",marginTop:6}}>· 환급금을 모두 받았으므로 받은 금액 전액을 ②에서 차감합니다(병기 불필요).</div>}
+      {mode==="exclude"&&<div className="exclude-warn" style={{...row,padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,fontSize:12,color:"#991b1b"}}>
+        <span>⚠️ 매매계약서·특약 사본이 있을 때만</span>
+        {chk("contractAttached","사본 확보","","contract-chk")}</div>}
+      <div style={row}>
+        {altChk(mode==="exclude"?"감정평가액 + 미수령 환급금 → 바항 병기 문단·Ⅳ 아래 한 줄":"감정평가액 − 미수령 환급금 → 의견서 [별첨]·6.라·Ⅳ 아래 한 줄")}
+        {mode==="include"&&ov.refundShowAlt!==false&&<>
+          {chk("clientConfirmed","「귀 의뢰인 확인 완료」","[별첨] ※ 문구에 넣기 — 미수령 환급금을 의뢰인에게 확인받은 경우","confirm-chk")}
+          {chk("altInBody","바항에 병기 문단","끄면 바항엔 「[별첨]에 병기」 한 줄만","altinbody-chk")}</>}
+      </div></>
+      :<div style={{fontSize:12,color:"#166534",marginTop:8}}>✓ 전액 수령 — ②에서 전액 차감</div>}
   </div>;
 }
 // ④ 결정 아래 — 분담금/환급금 처리 요약 + 병기 금액 + [별첨] 미리보기 + 지시서 §11 검증 안내
@@ -2144,22 +2149,17 @@ function IpjSettleResult({ov,cal}){
   return <div className="settle-result" style={{marginTop:12,maxWidth:920}}>
     {checks.length>0&&<div className="op-checks" style={{padding:"8px 12px",border:"1px solid #fecaca",background:"#fff7f7",borderRadius:8,marginBottom:8}}>
       <div style={{fontWeight:700,fontSize:13,color:"#991b1b",marginBottom:2}}>의견서 확인할 점</div>
-      {checks.map((c,i)=><div key={i} style={{fontSize:12,color:c.lvl==="err"?"#dc2626":"#b45309",lineHeight:1.7}}>{c.lvl==="err"?"⛔":"⚠️"} {c.msg}</div>)}
-      <div style={{fontSize:11,color:"#94a3b8"}}>⛔는 의견서를 내려받을 때 한 번 더 확인합니다(자동저장은 그대로).</div></div>}
+      {checks.map((c,i)=><div key={i} style={{fontSize:12,color:c.lvl==="err"?"#dc2626":"#b45309",lineHeight:1.7}}>{c.lvl==="err"?"⛔":"⚠️"} {c.msg}</div>)}</div>}
     {show&&<div style={{padding:"10px 12px",border:"1px solid #fde68a",background:"#fffbeb",borderRadius:8}}>
-      <div style={{fontWeight:700,color:"#92400e"}}>💰 {rf.isRefund?"환급금":"분담금"} 처리: {modeLbl} <span style={{fontWeight:400,fontSize:12,color:"#78350f"}}>(바꾸기: ① 대상물건개요 「관리처분」)</span></div>
-      <div style={{fontSize:13,marginTop:4,color:"#334155"}}>{rf.isRefund
-        ?`환급금 ${fmt(rf.total)} · 받은 환급금 ${fmt(rf.recv)} · 미수령 ${fmt(rf.unpaid)} → ②에서 ${fmt(rf.deduct)}원 차감`
-        :`분담금 ${fmt(ct.total)} · 납입 ${fmt(ct.paid)} · 미납 ${fmt(ct.unpaid)} → ②에 분담금 전액(완납 가정)`}</div>
-      {(rf.showAlt||ct.showAlt)&&<div style={{marginTop:6,fontSize:14}}>병기 금액: <b style={{color:"#b45309"}}>{tv.병기금액}원</b> <span style={{fontSize:11,color:"#64748b"}}>= 감정평가액 {fmt(cal.finalDecided)} {rf.isRefund&&rf.exclude?"+":"−"} {rf.isRefund?"미수령 환급금 "+fmt(rf.unpaid):"미납 분담금 "+fmt(ct.unpaid)}</span></div>}
+      <div style={{display:"flex",gap:"4px 24px",flexWrap:"wrap",alignItems:"center"}}>
+        <b style={{color:"#92400e"}}>💰 {modeLbl}</b>
+        {(rf.showAlt||ct.showAlt)&&<span style={{fontSize:14}}>병기 금액 <b style={{color:"#b45309"}}>{tv.병기금액}원</b></span>}</div>
       {appx&&<div className="appendix-preview" style={{marginTop:10,padding:"10px 12px",background:"#fff",border:"1px dashed #a78bfa",borderRadius:8}}>
-        <div style={{fontSize:11,color:"#7c3aed",marginBottom:4}}>의견서 맨 끝 새 쪽 미리보기</div>
         <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>[ 별첨 ] 미지급 환급금 미고려시 입주권 가액</div>
         <div style={{fontSize:12,color:"#334155",lineHeight:1.7,marginBottom:6}}>본건은 조합원 입주권에 대한 평가로서, 관련 법령 등에 따라 조합원 권리가액과 평가기준일까지 납입한 계약금, 중도금 등을 합한 금액에 평가기준일 현재의 프리미엄에 상당한 금액을 합산한 금액으로 평가하되, 귀 의뢰인의 요청에 따라 미지급 환급금을 고려하지 않은 금액을 별도로 병기하오니 업무진행시 참고하시기 바람.</div>
         <table style={{borderCollapse:"collapse",width:"100%",maxWidth:640}}><thead><tr>{["기호","수량","참고금액(원)","비고"].map(h=><th key={h} style={th}>{h}</th>)}</tr></thead>
           <tbody><tr><td style={td}>{syms}</td><td style={td}>1식</td><td style={{...td,textAlign:"right",fontWeight:700}}>{tv.병기금액}</td><td style={td}>귀 요청에 의거 별도 병기</td></tr></tbody></table>
         <div style={{fontSize:11,color:"#334155",marginTop:6,lineHeight:1.6}}>※ 기준시점 현재 미지급 환급금 {tv.미수령환급금}원{paren?"("+paren+")":""}을 입주권 감정평가액에서 공제한 금액이며, 상기 가액은 단순 참고용으로 병기한 금액으로서 조합원 입주권 감정평가액과는 별개의 금액임.</div>
-        {cal.fullAmt!==rf.altAmt&&<div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>참고: 아파트 평가액 기준 산식 결과 {fmt(cal.fullAmt)}원 (별첨은 최종 감정평가액에서 공제한 값을 씁니다)</div>}
       </div>}
     </div>}
   </div>;
@@ -2206,12 +2206,8 @@ function IpjYohangCard({ov,u}){
   const def=(key,part)=>ipjYhDefault(ov,key,part);   // 사업 단계가 준공·입주면 준공 문구가 기본
   const changed=it=>Object.keys(edits).some(x=>x.split(":")[0]===it.k&&edits[x]!=null&&String(edits[x])!==def(x,ipjYhParts(it.t)[Number(x.split(":")[1])]));
   const done=ipjStage(ov)==="done";
-  return(<Card title="4. 요항표 — Ⅰ. 입지조건 · Ⅱ. 건물상황" sub="파란 칸과 검정 문구 모두 고칠 수 있습니다. 고친 항목은 기본 문구를 회색으로 함께 보여 줍니다."
-    right={<span className="yh-stage-note" style={{fontSize:11,color:done?"#166534":"#64748b"}}>{done?"🏢 사업 단계 준공·입주 → 접면도로·건물 문구가 준공 문구":"사업 단계: 착공·공사 중 (① 대상물건개요에서 변경)"}</span>}>
-    <div style={{display:"flex",gap:14,alignItems:"center",fontSize:12,color:"#555",marginBottom:6,flexWrap:"wrap"}}>
-      <span><span style={{display:"inline-block",width:34,height:12,background:"#eef4ff",borderBottom:"2px solid #2563eb",verticalAlign:"middle",marginRight:4}}></span>= 채우는 칸(파란 플레이스홀더)</span>
-      <span><span style={{display:"inline-block",width:34,height:12,borderBottom:"1px solid #999",verticalAlign:"middle",marginRight:4}}></span>= 양식 문구(고칠 수 있음)</span>
-    </div>
+  return(<Card title="4. 요항표 — Ⅰ. 입지조건 · Ⅱ. 건물상황"
+    right={<span className="yh-stage-note" style={{fontSize:11,color:done?"#166534":"#64748b"}}>{done?"🏢 준공·입주":"🏗️ 공사 중"}</span>}>
     <div style={{background:"#fff",border:"1px solid #d9dde3",borderRadius:6,padding:"14px 22px 18px",fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif"}}>
       {IPJ_YH_ITEMS.map(it=>{const parts=ipjYhParts(it.t),ch=changed(it);
         return <React.Fragment key={it.k}>
@@ -2367,7 +2363,7 @@ function IpjMethodText({label,value,onChange}){
     const fit=()=>{el.style.height="auto";const h=el.scrollHeight;if(h)el.style.height=h+"px";};fit();
     let w=el.offsetWidth;const ro=window.ResizeObserver?new ResizeObserver(()=>{if(el.offsetWidth!==w){w=el.offsetWidth;fit();}}):null;
     if(ro)ro.observe(el);return()=>{if(ro)ro.disconnect();};},[value]);
-  return <textarea ref={ref} aria-label={label} value={value} onChange={e=>onChange(e.target.value)} rows={2} style={{display:"block",width:"100%",padding:"4px 6px",border:"1px solid #edf0f4",borderRadius:4,background:"#fcfcfd",color:"#222",fontSize:13,fontFamily:"inherit",lineHeight:2.1,resize:"vertical",overflow:"hidden",boxSizing:"border-box"}}/>;
+  return <textarea ref={ref} aria-label={label} value={value} onChange={e=>onChange(e.target.value)} rows={1} style={{display:"block",width:"100%",padding:"4px 6px",border:"1px solid #edf0f4",borderRadius:4,background:"#fcfcfd",color:"#222",fontSize:13,fontFamily:"inherit",lineHeight:2.1,resize:"vertical",overflow:"hidden",boxSizing:"border-box"}}/>;
 }
 // 의견서 4·5·6 편집 — 문구 엔진의 항목을 그대로 보여 주고(파란 칸 = 값, 회색 점선 = 자동 계산 값), 검정 문구도 모두 수정
 function IpjOpinionCard({ov,u,cal}){
@@ -2398,12 +2394,7 @@ function IpjOpinionCard({ov,u,cal}){
     const nb={...bakAll};delete nb[key];u("opRestoreBak",nb);};
   const SEC={"4":"4. 감정평가방법의 적용 및 감정평가액의 산출의견","5":"5. 감정평가조건","6":"6. 그 밖의 사항"};
   let lastSec="";
-  return <Card title="의견서 — 4. 산출의견 · 5. 감정평가조건 · 6. 그 밖의 사항" sub="사업 단계·분담금/환급금 유형·처리 방식에 따라 기본 문구가 자동으로 바뀝니다. 파란 칸(값)과 검정 문구 모두 고칠 수 있고, 고친 항목은 기본 문구를 회색으로 함께 보여 줍니다.">
-    <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center",fontSize:12,color:"#555",marginBottom:6}}>
-      <span><span style={{display:"inline-block",width:34,height:12,background:"#eef4ff",borderBottom:"2px solid #2563eb",verticalAlign:"middle",marginRight:4}}/>= 채우는 칸(값)</span>
-      <span><span style={{display:"inline-block",width:34,height:12,background:"#f1f5f9",borderBottom:"2px dashed #94a3b8",verticalAlign:"middle",marginRight:4}}/>= 자동 계산 값</span>
-      <span><span style={{display:"inline-block",width:34,height:12,borderBottom:"1px solid #999",verticalAlign:"middle",marginRight:4}}/>= 수정 가능한 본문</span>
-    </div>
+  return <Card title="의견서 — 4. 산출의견 · 5. 감정평가조건 · 6. 그 밖의 사항">
     <div style={{background:"#fff",border:"1px solid #d9dde3",borderRadius:6,padding:"14px 22px 18px",fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif"}}>
       {items.map((it,ii)=>{const head=it.sec!==lastSec?<div style={{fontSize:17,fontWeight:700,color:"#111",margin:ii?"22px 0 10px":"0 0 10px"}}>{SEC[it.sec]}</div>:null;lastSec=it.sec;
         const ch=it.segs.some(sg=>ipjSegChanged(sg,e)),nm=it.label?it.label+"항":"5.";
@@ -2438,7 +2429,7 @@ function IpjTabSarye({ov,cases,setCases}){
   const delc=id=>setCases(prev=>prev.filter(c=>c.id!==id));
   const addc=()=>setCases(prev=>[...prev,{id:"c"+Date.now(),symbol:IPJ_CIRCLED[prev.length]||"",location:"",jibun:"",aptName:"",dong:"",floor:"",ho:"",exclusiveArea:"",price:"",unitPrice:"",tradeDate:"",approvalDate:"",timeAdj:null,timeAdjDetail:"",isShown:true}]);
   return(<div>
-    <Card title="거래사례 입력 (감정평가정보체계 KAIS)" sub="㉠~㉣ 4행까지 · 붙여넣기 또는 직접 입력"
+    <Card title="거래사례 입력 (KAIS)"
       right={<button style={{...S.btn,background:C.acc,color:"#fff"}} onClick={addc}>+ 사례 추가</button>}>
       <div style={S.paste}><textarea placeholder="여기에 KAIS 표를 붙여넣으세요 (Ctrl+V)" onPaste={paste} style={{...S.ta,minHeight:40}}/></div>
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
@@ -2458,7 +2449,6 @@ function IpjTabSarye({ov,cases,setCases}){
           <td style={S.td}>{c._orig&&<span title="KAIS 붙여넣기 원본값으로 복원" style={{cursor:"pointer",color:"#2563eb",marginRight:6}} onClick={()=>restoreCase(c.id)}>↺</span>}<span style={{cursor:"pointer",color:C.dng}} onClick={()=>delc(c.id)}>✕</span></td>
         </tr>))}
       </tbody></table></div>
-      <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 본건 가/나에 대응할 사례는 ④ 가격산출에서 선택합니다. (가=㉠, 나=㉣ 슬롯으로 문서에 배치됨)</div>
     </Card>
     {sjCase&&<SijeomModal c={sjCase} ov={ov} propType="주거용"
       onApply={txt=>{uc(sjCase.id,"timeAdj",parseTA(txt));uc(sjCase.id,"timeAdjDetail",txt);setSjCase(null);}}
@@ -2530,11 +2520,10 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
     <select style={{...S.sel2,opacity:m==="none"?.5:1}} value={ov[unitKey]||units[0].v} disabled={m==="none"} onChange={e=>u(unitKey,e.target.value)}>{units.map(o=><option key={o.v} value={o.v}>{o.k}</option>)}</select>
     <span>단위에서</span><select style={S.sel2} value={m} onChange={e=>u(modeKey,e.target.value)}><option value="round">반올림</option><option value="floor">절사</option><option value="none">없음</option></select></div>);};
   const dangaUnits=[{k:"천원",v:"1000"},{k:"만원",v:"10000"},{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"}], amtUnits=[{k:"만원",v:"10000"},{k:"십만원",v:"100000"},{k:"백만원",v:"1000000"},{k:"천만원",v:"10000000"}];
-  const mLbl=m=>m==="none"?"없음":m==="floor"?"절사":"반올림", uLbl=(v,list)=>(list.find(o=>o.v===String(v))||list[0]).k;
   const noTa=sel.some(c=>!c.timeAdj);
   return(<div>
     {/* 사례 선택 */}
-    <Card title="사례 선택" sub="③에서 붙여넣은 거래사례 — 체크한 사례가 본건(가·나…)에 적용됩니다 · 시점수정치 클릭 → 바로 입력">
+    <Card title="사례 선택" right={allCases.length?<span style={{fontSize:12,fontWeight:600,color:sel.length?C.acc:C.dng}}>선정 {sel.length}건</span>:null}>
       {!allCases.length?<div style={{color:"#999",fontSize:12}}>③ 사례 등 입력에서 사례를 추가해주세요.</div>:
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr><th style={{...S.th,width:40}}>선정</th><th style={S.th}>기호</th><th style={S.th}>소재지</th><th style={S.th}>건물명</th><th style={S.th}>동/층/호</th><th style={S.th}>전유면적</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
       <tbody>{allCases.map(c=>(<tr key={c.id} style={{background:c.isSelected?C.sel:"transparent"}}>
@@ -2548,7 +2537,6 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
         <td style={S.td}>{fmtDate(c.tradeDate)}</td>
         <td style={{...S.td,cursor:"pointer",fontWeight:700,color:c.timeAdj?C.acc:"#999"}} title="클릭해서 시점수정치 입력" onClick={()=>setEditTimeId(c.id)}>{c.timeAdj?fmtDec(c.timeAdj,5):"미입력 (클릭)"}</td>
       </tr>))}</tbody></table></div>}
-      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 선정된 사례: {sel.length}건{!sel.length&&allCases.length?" — 위 체크박스에서 사례를 선정하세요.":""} | 시점수정치 클릭 → 바로 입력</div>
     </Card>
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;
       return <SijeomModal c={c} ov={ov} propType="주거용" onApply={t=>applySijeom(editTimeId,t)} onClose={()=>setEditTimeId(null)}/>;})()}
@@ -2561,9 +2549,7 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
 
     {!sel.length?null:<>
     {/* 가치형성요인 비교 — 의견서 「개별요인 비교치」 표와 같은 가로 배치: 본건 호수(가·나…)마다 비교치 한 줄 + 의견 네 줄 */}
-    <Card title="가치형성요인 비교" sub="개별요인 비교치 — 시점수정치는 위 「사례 선택」에서">
-      <div style={{...S.row,marginBottom:10}}><span style={S.lbl}>물건 유형</span>
-        <span style={{fontWeight:700,color:C.pri,marginLeft:4}}>주거용</span><span style={{fontSize:11,color:"#888",marginLeft:8}}>(입주권 — 아파트)</span></div>
+    <Card title="가치형성요인 비교">
       {(()=>{const th={border:"1px solid #d9cfcf",background:"#6d2b2b",color:"#fff",padding:"8px 6px",fontSize:12,fontWeight:700,textAlign:"center",lineHeight:1.3};
         const td={border:"1px solid #d9cfcf",padding:"6px 8px",fontSize:12,textAlign:"center",verticalAlign:"middle",background:"#fff"};
         const noteIn={...S.inp,flex:1,fontSize:12,border:"1px solid #eee2e2",padding:"3px 6px"};
@@ -2613,24 +2599,18 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
             </td></tr>);})()}
           </React.Fragment>);})}
         </tbody></table></div>);})()}
-      <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 비교치·의견은 본건 호수마다 저장되어 의견서 개별요인표(개별_가·개별_나)에 그대로 들어갑니다. 선정 사례가 둘 이상이면 「비교사례」 칸에서 호수별 적용 사례를 고릅니다.</div>
     </Card>
 
     {/* 결정단가·아파트감정가 처리 — 적용단가 줄은 위 요인 표의 호수마다 바로 아래에 있음 */}
-    <Card title="결정단가 · 아파트감정가 처리" sub="각 호수의 적용단가 줄은 위 가치형성요인 표 안(개별요인 바로 아래)에 있습니다">
-      {noTa&&<div style={{marginBottom:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산정단가·결정단가·아파트감정가가 계산되지 않습니다. 「사례 선택」의 시점수정치를 클릭해 입력하세요.</div>}
+    <Card title="결정단가 · 아파트감정가 처리">
+      {noTa&&<div style={{marginBottom:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 시점수정치 미입력 — 「사례 선택」에서 입력</div>}
       <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
         <RndSelIpj unitKey="rndDanga" modeKey="rndDangaMode" label="결정단가 처리" units={dangaUnits}/>
         <RndSelIpj unitKey="rndAmt" modeKey="rndAmtMode" label="아파트감정가 처리" units={amtUnits}/>
       </div>
-      <div style={{marginTop:4,fontSize:11,color:"#666"}}>
-        {(ov.rndDangaMode||"round")==="none"?"※ 산정단가를 그대로 결정단가로 적용":`※ 결정단가: ${uLbl(ov.rndDanga||"10000",dangaUnits)} 단위에서 ${mLbl(ov.rndDangaMode||"round")} (집합건물과 같은 규칙 — 그 자릿수에서 처리)`}
-        {" / "}
-        {(ov.rndAmtMode||"round")==="none"?"아파트감정가: 산출금액 그대로":`아파트감정가: ${uLbl(ov.rndAmt||"100000",amtUnits)} 단위에서 ${mLbl(ov.rndAmtMode||"round")}`}
-      </div>
     </Card>
     </>}
-    <Card title="입주권 감정평가액 결정" sub="의견서 Ⅳ장과 동일 구성 — 1. 프레미엄 상당액 → 2. 감정평가액">
+    <Card title="입주권 감정평가액 결정">
       {(()=>{const gTh={border:"1px solid #bbf7d0",background:"#166534",color:"#fff",padding:"6px 10px",fontSize:12,fontWeight:600,textAlign:"center"};
         const gTd={border:"1px solid #bbf7d0",padding:"6px 12px",fontSize:13,textAlign:"right",background:"#fff"};
         const gTc={...gTd,textAlign:"center",background:"#f0fdf4",fontWeight:600};
@@ -2659,32 +2639,26 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
             <option value="none">그대로</option><option value="round">반올림</option><option value="floor">절사</option></select>
           <select value={ov.finalRndUnit||"1000000"} onChange={e=>u("finalRndUnit",e.target.value)} disabled={(ov.finalRndMode||"none")==="none"} style={{...S.sel2,width:100}}>
             <option value="100000">십만원</option><option value="1000000">백만원</option><option value="10000000">천만원</option></select>
-          <span style={{fontSize:12,color:"#64748b"}}>단위 {(ov.finalRndMode||"none")==="none"?"— 합계 그대로":"기준"}</span>
+          <span style={{fontSize:12,color:"#64748b"}}>단위</span>
         </div>
         <div style={{fontSize:12,color:"#166534",marginTop:8}}>金 {numberToKoreanMoney(cal.finalDecided)}원整</div>
         <IpjSettleResult ov={ov} cal={cal}/>
-        <div style={{fontSize:11,color:"#64748b",marginTop:6}}>· 결정단가·아파트감정가 처리는 위 「적용단가」에서(기본 만원·십만원 단위에서 반올림 = 십만원·백만원 배수). 최종 감정평가액은 위 옵션 기준으로 문서(표지·괄호표·명세표·의견서)에 표기.</div>
         </div>);})()}
     </Card>
-    <Card title="청구서" sub="감정서 5종 버튼은 위 「사례 선택」 아래에 있습니다">
+    <Card title="청구서">
       <div>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
-          <div style={{fontWeight:700,color:C.pri}}>청구서 (수수료)</div>
-        </div>
-        {/* 집합건물 청구서와 같은 구성(2026-10-15 사용자 요청 「집건처럼 알아서 자동으로」) */}
-        <div className="fee-auto-note" style={{fontSize:12,color:"#666",marginBottom:6}}>
-          평가수수료는 <b>감정평가액으로 자동 계산</b>합니다(「감정평가법인등의 보수에 관한 기준」 2026.2.9. 별표) — 사이트에 들어갈 필요 없어요. {feeAuto?<span>자동 계산: 예상평가액 <b>{fmtComma(String(feeAuto.예상평가액))}원</b> ({feeAuto.구간}) → 하한 <b>{fmtComma(String(feeAuto.하한수수료))}</b> · 기준 <b>{fmtComma(String(feeAuto.기준수수료))}</b> · 상한 <b>{fmtComma(String(feeAuto.상한수수료))}</b> 원</span>:<span>감정평가액이 정해지면 자동 계산합니다.</span>}
-          <br/><span style={{color:"#94a3b8"}}>(선택) <a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style={{color:"#2563eb"}}>수수료 계산 사이트</a> 계산서1을 아래에 붙여넣으면 그 값을 씁니다. 비우면 다시 자동.</span>
+        {/* 집합건물 청구서와 같은 구성(2026-10-15 「집건처럼 알아서 자동으로」). 안내 문구는 빼고 자동 계산 값만(2026-10-15 정리) */}
+        <div className="fee-auto-note" style={{fontSize:12,color:"#475569",marginBottom:6}} title="「감정평가법인등의 보수에 관한 기준」(2026.2.9.) 별표로 감정평가액에서 자동 계산. 아래에 수수료 사이트 계산서를 붙여넣으면 그 값을 씀">
+          {feeAuto?<span>자동 계산: 예상평가액 <b>{fmtComma(String(feeAuto.예상평가액))}원</b> → 하한 <b>{fmtComma(String(feeAuto.하한수수료))}</b> · 기준 <b>{fmtComma(String(feeAuto.기준수수료))}</b> · 상한 <b>{fmtComma(String(feeAuto.상한수수료))}</b></span>:<span style={{color:"#94a3b8"}}>감정평가액이 정해지면 자동 계산</span>}
           {feeCheck&&(feeCheck.ok?<div style={{color:"#16a34a"}}>붙여넣은 계산서 = 자동 계산과 같음 ✓</div>
             :<div style={{color:"#dc2626",fontWeight:600}}>⚠ 붙여넣은 계산서가 자동 계산과 다릅니다: {feeCheck.diffs.map(k=>k.replace("수수료","")+" "+fmt(feeCheck.site[k])+" ↔ 자동 "+fmt(feeCheck.auto[k])).join(", ")}</div>)}
         </div>
-        <textarea aria-label="수수료 계산서" style={{...S.inp,width:"100%",maxWidth:580,minHeight:60,resize:"vertical",fontFamily:"inherit",fontSize:12,boxSizing:"border-box"}} value={fee.feeText||""} onChange={e=>setFee(p=>({...p,feeText:e.target.value}))} placeholder="(선택) 수수료 사이트 계산서1을 붙여넣으면 그 값을 씁니다 — 비워 두면 감정평가액으로 자동 계산"/>
+        <textarea aria-label="수수료 계산서" style={{...S.inp,width:"100%",maxWidth:580,minHeight:40,resize:"vertical",fontFamily:"inherit",fontSize:12,boxSizing:"border-box"}} value={fee.feeText||""} onChange={e=>setFee(p=>({...p,feeText:e.target.value}))} placeholder="(선택) 수수료 사이트 계산서1 붙여넣기 — 비우면 자동"/>
         <div style={{display:"flex",gap:10,alignItems:"center",margin:"8px 0",flexWrap:"wrap"}}>
           <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
           <select aria-label="수수료 요율" value={fee.feeBasis||"하한"} onChange={e=>setFee(p=>({...p,feeBasis:e.target.value}))} style={{...S.sel2,width:96}} title="평가수수료 = 이 요율의 수수료(천원 미만 절사)">{["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}</select>
           <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>특별용역비 방식</span>
           <select aria-label="특별용역비 방식" value={specialFeeMode} onChange={e=>setFee(p=>({...p,specialFeeMode:e.target.value}))} style={{...S.sel2,width:100}} title="상한-하한/기준-하한/상한-기준은 계산서(붙여넣은 것 또는 자동)의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">{["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}</select>
-          {feeSrc&&feeSrc.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>{fee.feeText?"✅ 붙여넣은 계산서 사용":"✅ 평가수수료 자동 계산"}</span>:<span style={{fontSize:11,color:"#999"}}>감정평가액이 정해지면 평가수수료 자동 계산</span>}
         </div>
         <table style={{width:"100%",maxWidth:580,borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:"#6d2b2b",color:"#fff"}}>
@@ -2697,7 +2671,7 @@ function IpjTabGagyeok({ov,setOv,cases,setCases,fee,setFee}){
             <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input value={fee.feeSurvey||""} onChange={e=>setF("feeSurvey",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input value={fee.feeDoc||""} onChange={e=>setF("feeDoc",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>기타실비</td><td style={valTd}><input value={fee.feeEtc||""} onChange={e=>setF("feeEtc",e.target.value)} style={inTd}/></td></tr>
-            <tr><td style={nmTd}>특별용역비{specialFeeMode!=="직접입력"&&<span style={{fontSize:10,color:"#2563eb"}}> ({specialFeeMode} 자동)</span>}<Redo on={specialFeeMode!=="직접입력"&&specialFeeAuto!=null} fn={()=>setF("specialFee",String(specialFeeAuto))} tip="수수료 차액 자동값으로 복원"/></td><td style={valTd}><input value={fee.specialFee||""} onChange={e=>setF("specialFee",e.target.value)} style={inTd}/></td></tr>
+            <tr><td style={nmTd}>특별용역비<Redo on={specialFeeMode!=="직접입력"&&specialFeeAuto!=null} fn={()=>setF("specialFee",String(specialFeeAuto))} tip="수수료 차액 자동값으로 복원"/></td><td style={valTd}><input value={fee.specialFee||""} onChange={e=>setF("specialFee",e.target.value)} style={inTd}/></td></tr>
             <tr><td style={nmTd}>소　계</td><td style={roTd}>{fmt(소계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>합계 (가 + 나)</td><td style={sumV}>￦ {fmt(합계)}</td></tr>
             <tr><td colSpan={2} style={sumTd}>부가가치세</td><td style={roTd}>{fmt(부가세)}</td></tr>
@@ -2819,13 +2793,11 @@ function App(){
             {vs.length>0&&<> · <span className="bak-btn" title="이 건이 덮어써지거나 크게 줄기 직전 내용 — 골라서 되돌릴 수 있습니다" style={{cursor:"pointer",color:"#1e293b",fontWeight:on?700:400}} onClick={()=>setBakOpen(on?null:x.id)}>↺ 이전 버전 {vs.length}</span></>}
             {" · "}<span style={{cursor:"pointer",color:C.dng}} onClick={()=>deleteCase(x.id)}>삭제</span></td></tr>
           {on&&<tr className="bak-row"><td colSpan={4} style={{...S.td,background:"#f8fafc",textAlign:"left"}}>
-            <div style={{fontSize:11,color:"#64748b",marginBottom:4}}>↺ {x.id} 이전 버전 — 다른 내용으로 덮어쓰기 직전·사례나 칸이 크게 줄기 직전·5분마다 자동 보관 (건마다 최근 {CB.MAX}개)</div>
             {vs.map(v=><div key={v.k} style={{display:"flex",gap:10,alignItems:"center",padding:"2px 0",fontSize:12}}>
               <span style={{minWidth:150,whiteSpace:"nowrap"}}>{fmtWhen(v.t)}</span><span style={{flex:1}}>{v.summary}</span>
               <button className="bak-restore" style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px"}} onClick={()=>restoreBak(x.id,v.k)}>이 버전으로 되돌리기</button></div>)}
           </td></tr>}</React.Fragment>);})}
       </tbody></table></Card>}
-      <div style={{fontSize:13,color:"#64748b",marginBottom:8}}>거래사례비교법 · 조합원 입주권 (본건 {(ov.units||[]).length}호수)</div>
       <div style={S.steps}>{IPJ_LABELS.map((l,i)=><span key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</span>)}</div>
       {IPJ_LABELS.map((l,i)=><div key={i} style={{display:step===i?"block":"none"}}>{tabProps[i]}</div>)}
       <div style={{display:"flex",justifyContent:"space-between",marginTop:14}}>

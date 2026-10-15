@@ -51,7 +51,6 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     const finalBefore=await page.locator('text=金').first().innerText();
     // 결정단가 처리 '없음' → 결정단가=산출단가 그대로 → 최종액 변동
     await page.locator('select').filter({hasText:'반올림'}).first().selectOption('none');
-    assert.ok(await page.locator('text=산정단가를 그대로 결정단가로 적용').isVisible());
     assert.notEqual(await page.locator('text=金').first().innerText(),finalBefore);
     await page.locator('select').filter({hasText:'반올림'}).first().selectOption('round');
     assert.equal(await page.locator('text=金').first().innerText(),finalBefore);
