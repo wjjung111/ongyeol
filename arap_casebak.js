@@ -135,6 +135,9 @@
       return {ok:false,exists:true};
     }
     warned={};
+    // 내용이 저장된 것과 똑같으면 아무것도 안 함 — 화면을 열기만 해도(단일·여러 호수 두 앱이 한 페이지에 함께 떠서 각자 마지막 건을 불러옴)
+    // 「최근 수정」 시각이 바뀌어 안 건드린 건이 목록 맨 위로 올라오던 문제(2026-10-15 사용자 제보 ON260914-2003)
+    if(prevId===id&&get(k)===o.raw)return {ok:true,list:readList(pre),renamed:false,unchanged:true};
     write(pre,id,o.raw,o.setFn);
     var renamed=false;
     if(prevId&&prevId!==id&&knows(pre,prevId)){
