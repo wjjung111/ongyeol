@@ -1438,6 +1438,61 @@ function ipjApplyRefundDoc(xml,r){
     return relabel(p,"기준시점까지 납부된 금액","기준시점까지 수령한 환급금");
   });
 }
+// 요항표 Ⅰ·Ⅱ 문구 — 검정 문구도 모두 앱에서 고칠 수 있게(2026-10-15 사용자: 준공·입주 끝난 건은 「공도와 연계되어 있음」 등으로 써야 함).
+// 항목마다 [제목(양식 글자), 기본 문구]. {{요항_…}} = 파란 칸(값), 나머지 조각은 고친 값이 있으면 그 글자로(ov.yhText["키:조각번호"]).
+const IPJ_YH_ITEMS=[
+  {k:"1-1",sec:"Ⅰ. 입지조건",h:"1. 지리적 위치 ",t:"대상물건은 {{요항_지리적위치}} 소재 {{요항_인근표지}} 인근에 위치하고 있음."},
+  {k:"1-2",h:"2. 부근상황",t:"본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임."},
+  {k:"1-3",h:"3. 교통상황",t:"본건까지 차량의 진출입이 가능하며, 인근에 버스정류장 및 {{요항_교통상황}}이 소재하는 등 대중교통 상황은 보통임."},
+  {k:"1-4",h:"4. 접면도로 상황",t:"아파트단지 내 포장도로를 통해 외곽 공도와 연계될 예정임."},
+  {k:"1-5",h:"5. 토지이용계획 및 공법상제한사항",t:"기준시점 현재 지적 미정리된 상태임."},
+  {k:"1-6",h:"6. 기타사항",t:"해당사항 없음."},
+  {k:"2-1",sec:"Ⅱ. 건물상황",h:" 1. 건물의 구조",t:"기준시점 현재 신축예정임."},
+  {k:"2-2",h:" 2. 이용상태",t:"공동주택(아파트)로 이용 예정임."},
+  {k:"2-3",h:" 3. 위생 및 냉·난방설비, 기타설비",t:"기본적인 위생설비, 급배수·급탕설비, 난방설비, 승강기설비, 소방설비 등이 구비될 예정임."},
+  {k:"2-4",h:" 4. 부합물 및 종물관계",t:"해당사항 없음."},
+  {k:"2-5",h:" 5. 공부와의 차이",t:"해당사항 없음."},
+  {k:"2-6",h:" 6. 기타사항",t:"해당사항 없음."},
+];
+// 준공·입주 완료 건 문구(버튼 한 번으로 채움 — 채운 뒤에도 자유 수정)
+const IPJ_YH_DONE={"1-4:0":"아파트단지 내 포장도로를 통해 외곽 공도와 연계되어 있음.","2-1:0":"기준시점 현재 준공되어 입주 중인 상태임.","2-2:0":"공동주택(아파트)로 이용 중임.","2-3:0":"기본적인 위생설비, 급배수·급탕설비, 난방설비, 승강기설비, 소방설비 등이 구비되어 있음."};
+const ipjYhParts=t=>String(t).split(/(\{\{[^}]+\}\})/g);
+// 생성: 제목 글자를 차례로 찾아 그 뒤 첫 본문의 고친 조각만 {{IPJ_FIXED_YH_…}}로 바꾼다(값은 buildTokenHwpx가 넣음).
+// 같은 글자(「해당사항 없음.」)가 여러 번 나오므로 제목 순서로 위치를 정함. 5번 본문은 꼬리말 컨트롤과 한 문단이라 <hp:t>만 직접 바꾸고 그 문단 줄배치 캐시를 뺌.
+function ipjApplyYohangText(xml,edits){
+  const values={};let pos=0;
+  const has=key=>Object.prototype.hasOwnProperty.call(edits,key)&&edits[key]!=null;
+  for(const it of IPJ_YH_ITEMS){
+    const hi=xml.indexOf("<hp:t>"+it.h+"</hp:t>",pos);if(hi<0)continue;
+    const parts=ipjYhParts(it.t);
+    if(parts.length===1){
+      const tag="<hp:t>"+it.t+"</hp:t>",bi=xml.indexOf(tag,hi);if(bi<0)continue;
+      pos=bi+tag.length;
+      const key=it.k+":0";if(!has(key)||String(edits[key])===it.t)continue;
+      const tok="IPJ_FIXED_YH_"+it.k.replace("-","_")+"_0";values[tok]=String(edits[key]);
+      let rest=xml.slice(bi+tag.length);
+      rest=rest.replace(/^(<\/hp:run>)<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/,"$1");   // 이 문단 줄배치 캐시 제거(글 길이가 바뀜)
+      xml=xml.slice(0,bi)+"<hp:t>{{"+tok+"}}</hp:t>"+rest;pos=bi;continue;
+    }
+    const re=/<hp:p\b(?:(?!<hp:p\b)[\s\S])*?<\/hp:p>/g;re.lastIndex=hi;let m;
+    while((m=re.exec(xml))){
+      const p=m[0],texts=[...p.matchAll(/<hp:t(?:\s[^>]*)?>([\s\S]*?)<\/hp:t>/g)],plain=texts.map(x=>x[1]).join("");
+      if(plain!==it.t)continue;
+      let at=0;const changes=[];
+      parts.forEach((part,j)=>{const key=it.k+":"+j;
+        if(j%2===0&&part&&has(key)&&String(edits[key])!==part){const tok="IPJ_FIXED_YH_"+it.k.replace("-","_")+"_"+j;values[tok]=String(edits[key]);changes.push({start:at,end:at+part.length,token:"{{"+tok+"}}"});}
+        at+=part.length;});
+      pos=m.index+p.length;
+      if(!changes.length)break;
+      let off=0;
+      const np=p.replace(/(<hp:t(?:\s[^>]*)?>)([\s\S]*?)(<\/hp:t>)/g,(_,o,text,c)=>{const b=off;off+=text.length;let out="",cur=0;
+        for(const ch of changes){if(ch.end<=b||ch.start>=off)continue;const a=Math.max(0,ch.start-b),e=Math.min(text.length,ch.end-b);out+=text.slice(cur,a)+(ch.start>=b?ch.token:"");cur=e;}
+        return o+out+text.slice(cur)+c;}).replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/g,"");
+      xml=xml.slice(0,m.index)+np+xml.slice(m.index+p.length);pos=m.index+np.length;break;
+    }
+  }
+  return {xml,values};
+}
 async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   const bin=atob(tplB64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
@@ -1454,6 +1509,7 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
       if(opts&&opts.refund)xml=ipjApplyRefundDoc(xml,opts.refund);          // 환급금 건 — 바항·병기·표 머리 (method text 적용 전)
       let fixedValues={};
       if(opts&&opts.opinionMethodText){const edited=ipjApplyMethodText(xml,opts.opinionMethodText);xml=edited.xml;fixedValues=edited.values;}
+      if(opts&&opts.yohangText){const edited=ipjApplyYohangText(xml,opts.yohangText);xml=edited.xml;Object.assign(fixedValues,edited.values);}   // 요항표 검정 문구 수정
       xml=ipjStripValueLineSeg(xml);                     // 값 문단 줄배치 캐시 제거 (치환 전) → 글자 겹침·문서손상 경고 방지
       if(opts&&opts.stripTokenLines)xml=ipjStripTokenParaLineSeg(xml);  // 요항표: 문장 속 토큰 문단도 캐시 제거
       if(opts&&opts.listBasis)xml=hwpxListBasisCell(xml,opts.listBasis);   // 괄호감정표 목록표시근거 칸 = 접수개요 입력값
@@ -1762,7 +1818,7 @@ async function ipjDownloadDoc(fileDef, ov, cases){
   const rf=cal.refund, rd=ipjRefundDefaults(rf);
   const refundOpt=rf.isRefund?{paraIdx:ipjRefundParaIdx(rf),
     other:rf.showAlt?(ov.refundOtherText!=null?ov.refundOtherText:rd.other):"",iv:rf.showAlt?rd.iv:""}:null;
-  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{}),...(fileDef.key==="uigyeon"?{opinionMethodText:ov.opMethodText||{},refund:refundOpt}:{}),...(fileDef.key==="gwalho"?{listBasis:ov.listBasis||""}:{})});
+  const bytes=await buildTokenHwpx(fileDef.b64(), m, fileDef.b2b, {naEmpty,...(fileDef.opts||{}),...(fileDef.key==="uigyeon"?{opinionMethodText:ov.opMethodText||{},refund:refundOpt}:{}),...(fileDef.key==="gwalho"?{listBasis:ov.listBasis||""}:{}),...(fileDef.key==="yohang"?{yohangText:ov.yhText||{}}:{})});
   triggerDownload(bytes, fileDef.fn(ov));
   try{window.arapUsageLog&&window.arapUsageLog("다운로드",{caseNo:ov.caseNoDisplay||ov.caseNo,addr:(ov.projLoc||ov.beopjeongdong||""),kind:"입주권 "+fileDef.label,amount:fmt(cal.finalDecided)});}catch(e){}
 }
@@ -2005,8 +2061,8 @@ function IpjTabJeopsu({ov,setOv}){
     <IpjYohangCard ov={ov} u={u}/></div>);
 }
 
-// ── 요항표 Ⅰ. 입지조건 — 양식(4. 요항표 템플릿)과 같은 모양으로 1~6을 그대로 보여주고, 파란 플레이스홀더 자리만 빈칸 ──
-// 검정 문구는 양식 고정 문구(앱에서 안 바꿈, 한글에서 수정). 파란 칸 3개 = {{요항_지리적위치}} {{요항_인근표지}} {{요항_교통상황}}
+// ── 요항표 Ⅰ. 입지조건·Ⅱ. 건물상황 — 양식과 같은 모양. 파란 칸 3개 = {{요항_지리적위치}} {{요항_인근표지}} {{요항_교통상황}},
+// 검정 문구도 모두 고칠 수 있음(ov.yhText, 고친 항목은 기본 문구를 회색으로 함께 보여 주고 ↺로 복원) — 2026-10-15
 function YhBlank({value,onChange,ph,min}){
   const len=Math.max(min||10,String(value||ph||"").length+2);
   return(<input value={value||""} onChange={e=>onChange(e.target.value)} placeholder={ph||""} title="파란 플레이스홀더 — 여기만 채우면 됩니다"
@@ -2014,27 +2070,34 @@ function YhBlank({value,onChange,ph,min}){
       padding:"1px 6px",margin:"0 2px",fontSize:13,fontFamily:"inherit",outline:"none",verticalAlign:"baseline",boxSizing:"content-box"}}/>);
 }
 function IpjYohangCard({ov,u}){
-  const H={fontSize:14,fontWeight:700,color:"#111",margin:"16px 0 4px"};
-  const P={fontSize:13,color:"#222",lineHeight:2.1,paddingLeft:14,wordBreak:"keep-all"};
-  return(<Card title="4. 요항표 — Ⅰ. 입지조건" sub="양식 그대로입니다. 파란 칸 3개만 채우면 되고, 검정 글씨는 양식 고정 문구(필요하면 한글에서 고침)">
-    <div style={{display:"flex",gap:14,alignItems:"center",fontSize:12,color:"#555",marginBottom:6}}>
+  const H={fontSize:14,fontWeight:700,color:"#111",margin:"14px 0 4px"};
+  const edits=ov.yhText||{};
+  const BL={요항_지리적위치:["yhAddr","서울특별시 서초구 방배동",22],요항_인근표지:["yhLandmark","지하철 7호선 '이수역' 동측",22],요항_교통상황:["yhTraffic","지하철 7호선 '이수역'",18]};
+  const setPart=(key,v)=>u("yhText",{...edits,[key]:v});
+  const restore=k=>{const n={...edits};Object.keys(n).forEach(x=>{if(x.split(":")[0]===k)delete n[x];});u("yhText",n);};
+  const changed=it=>Object.keys(edits).some(x=>x.split(":")[0]===it.k&&edits[x]!=null&&String(edits[x])!==ipjYhParts(it.t)[Number(x.split(":")[1])]);
+  const doneOn=Object.keys(IPJ_YH_DONE).every(x=>edits[x]===IPJ_YH_DONE[x]);
+  return(<Card title="4. 요항표 — Ⅰ. 입지조건 · Ⅱ. 건물상황" sub="파란 칸과 검정 문구 모두 고칠 수 있습니다. 고친 항목은 양식 기본 문구를 회색으로 함께 보여 줍니다."
+    right={<button type="button" className="yh-done-btn" onClick={()=>u("yhText",{...edits,...IPJ_YH_DONE})} disabled={doneOn} title="접면도로·건물 구조·이용상태·설비의 「예정」 문구를 준공·입주 완료 문구로 바꿉니다(바꾼 뒤에도 자유 수정)"
+      style={{...S.btn,background:doneOn?"#e2e8f0":"#fff",color:"#1e293b",border:"1px solid #cbd5e1",fontSize:12}}>🏢 준공·입주 완료 건 문구로</button>}>
+    <div style={{display:"flex",gap:14,alignItems:"center",fontSize:12,color:"#555",marginBottom:6,flexWrap:"wrap"}}>
       <span><span style={{display:"inline-block",width:34,height:12,background:"#eef4ff",borderBottom:"2px solid #2563eb",verticalAlign:"middle",marginRight:4}}></span>= 채우는 칸(파란 플레이스홀더)</span>
-      <span><span style={{display:"inline-block",width:34,height:12,borderBottom:"1px solid #999",verticalAlign:"middle",marginRight:4}}></span>= 양식 고정 문구</span>
+      <span><span style={{display:"inline-block",width:34,height:12,borderBottom:"1px solid #999",verticalAlign:"middle",marginRight:4}}></span>= 양식 문구(고칠 수 있음)</span>
     </div>
     <div style={{background:"#fff",border:"1px solid #d9dde3",borderRadius:6,padding:"14px 22px 18px",fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif"}}>
-      <div style={{fontSize:18,fontWeight:700,color:"#111",marginBottom:6}}>Ⅰ. 입지조건</div>
-      <div style={H}>1. 지리적 위치</div>
-      <div style={P}>대상물건은 <YhBlank value={ov.yhAddr} onChange={v=>u("yhAddr",v)} ph="서울특별시 서초구 방배동" min={22}/> 소재 <YhBlank value={ov.yhLandmark} onChange={v=>u("yhLandmark",v)} ph="지하철 7호선 '이수역' 동측" min={22}/> 인근에 위치하고 있음.</div>
-      <div style={H}>2. 부근상황</div>
-      <div style={P}>본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.</div>
-      <div style={H}>3. 교통상황</div>
-      <div style={P}>본건까지 차량의 진출입이 가능하며, 인근에 버스정류장 및 <YhBlank value={ov.yhTraffic} onChange={v=>u("yhTraffic",v)} ph="지하철 7호선 '이수역'" min={18}/>이 소재하는 등 대중교통 상황은 보통임.</div>
-      <div style={H}>4. 접면도로 상황</div>
-      <div style={P}>아파트단지 내 포장도로를 통해 외곽 공도와 연계될 예정임.</div>
-      <div style={H}>5. 토지이용계획 및 공법상제한사항</div>
-      <div style={P}>기준시점 현재 지적 미정리된 상태임.</div>
-      <div style={H}>6. 기타사항</div>
-      <div style={P}>해당사항 없음.</div>
+      {IPJ_YH_ITEMS.map(it=>{const parts=ipjYhParts(it.t),ch=changed(it);
+        return <React.Fragment key={it.k}>
+          {it.sec&&<div style={{fontSize:18,fontWeight:700,color:"#111",margin:it.k==="1-1"?"0 0 4px":"22px 0 4px"}}>{it.sec}</div>}
+          <div style={{...H,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>{it.h.trim()}</span>
+            {ch&&<button type="button" onClick={()=>restore(it.k)} style={{border:0,background:"none",fontSize:11,color:"#2563eb",cursor:"pointer"}}>↺ 기본 문구로</button>}</div>
+          <div className="yh-item" data-k={it.k} style={{paddingLeft:14,fontSize:13,lineHeight:2.1}}>
+            {parts.map((part,j)=>{
+              if(part.startsWith("{{")){const [f,ph,mn]=BL[part.slice(2,-2)]||[];return <YhBlank key={j} value={ov[f]} onChange={v=>u(f,v)} ph={ph} min={mn}/>;}
+              if(!part.trim())return null;const key=it.k+":"+j;
+              return <IpjMethodText key={j} label={"요항표 "+it.h.trim()+(parts.length>1?" "+(j/2+1):"")} value={edits[key]!=null?edits[key]:part} onChange={v=>setPart(key,v)}/>;})}
+            {ch&&<div style={{fontSize:11,color:"#94a3b8",lineHeight:1.6,marginTop:2}}>양식 기본 문구: {parts.map(x=>x.startsWith("{{")?"[파란 칸]":x).join("")}</div>}
+          </div>
+        </React.Fragment>;})}
     </div>
   </Card>);
 }
@@ -2069,7 +2132,11 @@ function ipjRefundDefaults(rf){
 const ipjFillTokens=(t,m)=>String(t||"").replace(/\{\{([^}]+)\}\}/g,(a,k)=>m[k]!=null?m[k]:a);
 function IpjMethodText({label,value,onChange}){
   const ref=useRef(null);
-  useEffect(()=>{const el=ref.current;if(el){el.style.height="auto";el.style.height=el.scrollHeight+"px";}},[value]);
+  // 글 높이에 맞춰 늘림 — 숨은 탭에서 처음 그려지면 높이가 0이라, 보이게 되어 폭이 생길 때 다시 맞춘다(요항표 카드는 ② 탭에 있음)
+  useEffect(()=>{const el=ref.current;if(!el)return;
+    const fit=()=>{el.style.height="auto";const h=el.scrollHeight;if(h)el.style.height=h+"px";};fit();
+    let w=el.offsetWidth;const ro=window.ResizeObserver?new ResizeObserver(()=>{if(el.offsetWidth!==w){w=el.offsetWidth;fit();}}):null;
+    if(ro)ro.observe(el);return()=>{if(ro)ro.disconnect();};},[value]);
   return <textarea ref={ref} aria-label={label} value={value} onChange={e=>onChange(e.target.value)} rows={2} style={{display:"block",width:"100%",padding:"4px 6px",border:"1px solid #edf0f4",borderRadius:4,background:"#fcfcfd",color:"#222",fontSize:13,fontFamily:"inherit",lineHeight:2.1,resize:"vertical",overflow:"hidden",boxSizing:"border-box"}}/>;
 }
 function IpjOpinionMethodCard({ov,u,fmtSigned,rf}){
