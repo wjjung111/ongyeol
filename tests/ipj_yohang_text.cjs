@@ -57,6 +57,8 @@ const bodyAfter=(xml,h)=>{const T=texts(xml),i=T.indexOf(h);assert(i>=0,h);retur
     await page.click('text=② 접수개요');
     await page.locator('.yh-item[data-k="1-4"]').locator('xpath=preceding-sibling::div[1]').getByText('↺ 기본 문구로').click();
     assert.equal(await ta('요항표 4. 접면도로 상황').inputValue(),'아파트단지 내 포장도로를 통해 외곽 공도와 연계되어 있음.','↺ = 단계 기본값');
+    await page.locator('.yh-item[data-k="1-4"]').locator('xpath=preceding-sibling::div[1]').locator('.yh-undo').click();
+    assert.equal(await ta('요항표 4. 접면도로 상황').inputValue(),'아파트단지 내 도로를 통해 공도와 연계되어 있음.','↩ 고친 문구로');
     assert.deepEqual(errors,[]);await ctx.close();console.log('PASS');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -40,7 +40,11 @@ const flat=(apt,ov,unit)=>({ov:{rndAmt:'100000',finalRndMode:'none',...ov},unit:
     if(spec){const s=seed(spec);await page.addInitScript(([id,d])=>{try{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('ipj:case-list',JSON.stringify([{id,label:id,updated:'2026.10.15'}]));localStorage.setItem('ipj:case:'+id,d);}catch(e){}},[s.id,s.data]);}
     else await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');}catch(e){}});
     await page.goto(url+'/입주권.html',{waitUntil:'domcontentloaded'});await page.waitForSelector('text=④ 가격산출',{timeout:60000});return {ctx,page,errors,dialogs};};
-  let n=0;const save=async(page,name)=>{const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),page.getByRole('button',{name}).click()]);const f=path.join(tmp,(n++)+'.hwpx');await dl.saveAs(f);return unzip(fs.readFileSync(f))['Contents/section0.xml'].toString('utf8');};
+  let n=0;const saveZ=async(page,name)=>{const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),page.getByRole('button',{name}).click()]);const f=path.join(tmp,(n++)+'.hwpx');await dl.saveAs(f);return unzip(fs.readFileSync(f));};
+  const save=async(page,name)=>(await saveZ(page,name))['Contents/section0.xml'].toString('utf8');
+  // 글자모양 id → 굵게/밑줄 여부
+  const charPrs=hdr=>Object.fromEntries((hdr.match(/<hh:charPr\b[\s\S]*?<\/hh:charPr>/g)||[]).map(c=>[c.match(/\bid="(\d+)"/)[1],{bold:/<hh:bold\/>/.test(c),under:/<hh:underline type="BOTTOM"/.test(c)}]));
+  const runCpr=(xml,text)=>{const i=xml.indexOf('<hp:t>'+text+'</hp:t>');assert(i>=0,text);const r=xml.lastIndexOf('<hp:run ',i);return xml.slice(r,i).match(/charPrIDRef="(\d+)"/)[1];};
   const sidebar=async page=>(await page.getByText('📋 대상물건(입주권)',{exact:true}).locator('xpath=../..').innerText()).replace(/\s+/g,' ');
   try{
     // A. 광명 ① 미수령 포함 + 병기(기본) — [별첨] 1,287,870,000
@@ -72,6 +76,14 @@ const flat=(apt,ov,unit)=>({ov:{rndAmt:'100000',finalRndMode:'none',...ov},unit:
       assert(ap[1].startsWith('본건은 조합원 입주권에 대한 평가로서'),'별첨 설명');
       assert.deepEqual(ap.slice(2,10),['기호','수량','참고금액(원)','비고','가','1식','1,287,870,000','귀 요청에 의거 별도 병기'],'별첨 표');
       assert(ap.some(t=>t==='※ 기준시점 현재 미지급 환급금 342,130,000원(비례율 109.83% 기준)을 입주권 감정평가액에서 공제한 금액이며, 상기 가액은 단순 참고용으로 병기한 금액으로서 조합원 입주권 감정평가액과는 별개의 금액임.'),'별첨 ※');
+      // 선정 사례 행 굵게(목록표 첫 「두산위브」 = ㉠ 행), 선정사유 「사례 ㉠」 굵게·밑줄, 개별요인 소수 둘째 자리
+      {const z=await saveZ(page,'3. 의견서'),x=z['Contents/section0.xml'].toString('utf8'),cp=charPrs(z['Contents/header.xml'].toString('utf8'));
+        assert(cp[runCpr(x,'두산위브')].bold,'선정 사례 행 굵게');
+        {const a=runCpr(x,'사례 '),j=x.indexOf('<hp:t>사례 </hp:t>'),nx=x.slice(j).match(/<hp:run charPrIDRef="(\d+)"><hp:t>([^<]*)<\/hp:t>/);   // 값 색칠 때 「사례 」|「㉠」 두 런으로 나뉨
+          assert(cp[a].bold&&cp[a].under&&nx[2]==='㉠'&&cp[nx[1]].bold&&cp[nx[1]].under,'선정사유 사례 ㉠ 굵게·밑줄');}
+        const hc=z['Contents/header.xml'].toString('utf8'),ids=(hc.match(/<hh:charPr\b[^>]*\bid="(\d+)"/g)||[]).map(t=>+t.match(/id="(\d+)"/)[1]);
+        assert.deepEqual(ids,ids.map((_,i)=>i),'글자모양 id 연속');assert.equal(+hc.match(/<hh:charProperties itemCnt="(\d+)"/)[1],ids.length,'itemCnt 일치');
+        const P=paras(x),k=P.indexOf('- 개별요인 비교치');assert(k>0&&P.slice(k).includes('1.00')&&P.slice(k).includes('1.30')&&P.slice(k).includes('0.99'),'개별요인 1.00/1.30/0.99');}
       const gw=paras(await save(page,'2. 괄호감정표'));assert.deepEqual(after(gw,'감정평가조건',1),['-'],'괄감 조건 -');
       assert.deepEqual(errors,[]);await ctx.close();console.log('A 광명 ①+별첨 OK');
     }
@@ -160,6 +172,12 @@ const flat=(apt,ov,unit)=>({ov:{rndAmt:'100000',finalRndMode:'none',...ov},unit:
       await page.locator('.op-item[data-k="4마"]').getByText('↺ 기본 문구로').click();
       await page.click('text=④ 가격산출');ps=paras(await save(page,'3. 의견서'));
       assert(item(ps,'마').startsWith('마. 부동산을 취득할 수 있는 권리'),'↺ 복원');
+      // ↩ 고친 문구로 — 기본 문구로 갔다가 다시 고친 문구로
+      await page.click('text=① 대상물건개요');
+      await page.locator('.op-item[data-k="4마"] .op-undo').click();
+      assert.equal(await page.locator('.op-item[data-k="4마"] .op-undo').count(),0,'↩ 버튼 사라짐');
+      await page.click('text=④ 가격산출');ps=paras(await save(page,'3. 의견서'));
+      assert.equal(item(ps,'마'),'마. 사용자가 고친 마항 문구.','↩ 고친 문구로');
       assert.deepEqual(errors,[]);await ctx.close();console.log('H 옛 수정값 OK');
     }
     // I. 받은 환급금 = 환급금 전액(수령완료) → 병기·별첨·6.라 없음, ② 342,130,000
