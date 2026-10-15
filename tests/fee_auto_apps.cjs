@@ -55,8 +55,21 @@ const num=s=>Number(String(s).replace(/[^\d]/g,''));
       const t=await auto.innerText();const amt=num(t.match(/예상평가액\s*([\d,]+)원/)[1]),a=F.calc(amt);
       assert(t.includes(a.하한수수료.toLocaleString('ko-KR')),'입주권 하한 표시 '+t);
       const fv=await page.evaluate(()=>{const td=[...document.querySelectorAll('td')].find(x=>x.textContent.trim().startsWith('평가수수료'));const inp=td&&td.parentElement.querySelector('input');return inp?inp.value:null;});
-      assert.equal(num(fv),a.하한수수료,'입주권 평가수수료 칸 = 하한(칸에는 원 단위, 청구서 계산에서 천원 미만 절사)');
-      console.log('입주권 예상평가액',amt,'평가수수료 칸',fv);
+      assert.equal(num(fv),Math.floor(a.하한수수료/1000)*1000,'입주권 평가수수료 칸 = 하한 천원 미만 절사(집건과 같게 — 청구서에 나가는 값)');
+      assert(await page.locator('.fee-auto-note').getByText('감정평가액으로 자동 계산').isVisible(),'집건과 같은 안내');
+      // 요율 기준 → 칸 자동, 특별용역비 상한-기준 자동(천원 반올림)
+      await page.getByLabel('수수료 요율').selectOption('기준');
+      const fv2=await page.evaluate(()=>{const td=[...document.querySelectorAll('td')].find(x=>x.textContent.trim().startsWith('평가수수료'));return td.parentElement.querySelector('input').value;});
+      assert.equal(num(fv2),Math.floor(a.기준수수료/1000)*1000,'기준요율 자동');
+      await page.getByLabel('특별용역비 방식').selectOption('상한-기준');
+      const sp=await page.evaluate(()=>{const td=[...document.querySelectorAll('td')].find(x=>x.textContent.trim().startsWith('특별용역비'));return td.parentElement.querySelector('input').value;});
+      assert.equal(num(sp),Math.round((a.상한수수료-a.기준수수료)/1000)*1000,'특용비 상한-기준 자동');
+      // 계산서 붙여넣기 → 자동과 같으면 ✓, 다르면 ⚠
+      await page.getByLabel('수수료 계산서').fill(F.statementText(amt));
+      assert(await page.getByText('붙여넣은 계산서 = 자동 계산과 같음 ✓').isVisible(),'같음 ✓');
+      await page.getByLabel('수수료 계산서').fill(F.statementText(amt).replace(/2 하한 수수료 [\d,]+/,'2 하한 수수료 1,000,000'));
+      assert(await page.getByText(/붙여넣은 계산서가 자동 계산과 다릅니다/).isVisible(),'다름 ⚠');
+      console.log('입주권 예상평가액',amt,'평가수수료 칸',fv,'기준',fv2,'특용비',sp);
       assert.deepEqual(errors,[]);
       await ctx.close();
     }
