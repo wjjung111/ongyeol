@@ -132,7 +132,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>ETC_ITEMS[1]),await page.evaluate(()=>ETC_ITEM_BLD));
     assert.equal(await page.locator('#fn_opinion').inputValue(),await page.evaluate(()=>FN_OPINION_BLD));
     // ④ 저장·복원
-    await page.evaluate(()=>{document.getElementById('ov_caseNo').value='BLD-TEST';doSave();});
+    await page.evaluate(()=>{document.getElementById('ov_caseNo').value='BLD-TEST';commitCaseNo();doSave();});
     await page.goto(base+'/토지건물.html?last=1',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
     assert.equal(await page.evaluate(()=>BLD_ONLY),true,'저장 건은 건물만으로 복원');
     assert.equal(await page.evaluate(()=>LAND_FINAL),0);

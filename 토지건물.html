@@ -247,6 +247,11 @@
   #tblAppr td.grip-c:hover .grip{color:#2563eb;}
   #tblAppr tr.dragover td{background:#dbeafe;}
   #tblAppr tr.dragging td{opacity:.45;}
+  #landTbl td.land-grip{cursor:grab;white-space:nowrap;}
+  #landTbl td.land-grip:active{cursor:grabbing;}
+  #landTbl td.land-grip:hover .grip{color:#2563eb;}
+  #landTbl tr.dragover td{background:#dbeafe;}
+  #landTbl tr.dragging td{opacity:.45;}
   .mv{color:#94a3b8;cursor:pointer;font-weight:700;padding:0 1px;}
   .mv:hover{color:#2563eb;}
   /* 건 관리 바 (집합건물과 동일 UX) */
@@ -256,6 +261,10 @@
   .casebar-status{font-size:11px;font-weight:600;}
   .casebar-status .warn,.casebar-status .ing{color:#f59e0b;}
   .casebar-status .ok{color:#059669;} .casebar-status .err{color:#dc2626;}
+  /* 접수번호 확정 저장(집합건물과 같은 UX) — 저장 전 빨간 안내 + 💾 저장 / 번호 바꿔 저장 */
+  .casebar-status .unsaved{color:#dc2626;font-weight:700;font-size:12px;} .casebar-status .pend{color:#b45309;}
+  .save-btn{font-weight:700;padding:3px 12px;margin-left:6px;}
+  .save-btn[disabled]{background:#cbd5e1;border-color:#cbd5e1;color:#fff;cursor:not-allowed;}
   .ctag{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:700;}
   .ctag.alt{background:#ecfdf5;color:#065f46;border-color:#a7f3d0;}
   .caselist{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:10px;margin-bottom:8px;max-height:300px;overflow-y:auto;}
@@ -1359,7 +1368,7 @@ function renderLands(){
     // 부분 줄(구분평가·일부 평가외) — 소재지~지목·용도지역~공시지가는 원 필지와 같으므로 한 칸으로 합쳐 안내만
     if(isSub(L)){
       var pn=landParcelNo(i),out=isOut(L);
-      h+='<tr class="land-sub'+(out?' land-out':'')+'"><td title="'+pn+'번 필지의 일부">'+landNo(i)+'</td>'
+      h+='<tr class="land-sub'+(out?' land-out':'')+'" ondragover="landDragOver(event,'+i+')" ondragleave="landDragLeave(event)" ondrop="landDrop(event,'+i+')"><td title="'+pn+'번 필지의 일부">'+landNo(i)+'</td>'
         +'<td colspan="3" class="hint" style="text-align:left">↳ '+pn+'번 필지의 일부</td>'
         +'<td class="hint">—</td>'
         +'<td class="jud-c"><input value="'+esc(L['사정면적'])+'" placeholder="부분 면적" title="이 부분의 면적 — 넣으면 원 필지 사정면적이 공부면적에서 이만큼 줄어듭니다"'
@@ -1380,8 +1389,10 @@ function renderLands(){
       h+='<td><span class="del" title="나눈 줄 삭제" onclick="delLand('+i+')">✕</span></td></tr>';
       return;
     }
-    var st=gubunState(i);
-    h+='<tr'+(isOut(L)?' class="land-out"':'')+'><td>'+landNo(i)+'</td>'+LAND_COLS.map(function(c){
+    var st=gubunState(i),canMove=landParcelCount()>1;
+    h+='<tr'+(isOut(L)?' class="land-out"':'')+' ondragover="landDragOver(event,'+i+')" ondragleave="landDragLeave(event)" ondrop="landDrop(event,'+i+')">'
+      +(canMove?'<td class="grip-c land-grip" draggable="true" title="끌어서 위아래로 옮기기 — 일련번호(기호)는 자리 순서대로 다시 매겨집니다. 나눈 줄은 같이 옮겨집니다"'
+        +' ondragstart="landDragStart(event,'+i+')" ondragend="landDragEnd()"><span class="grip">⠿</span> '+landNo(i)+'</td>':'<td>'+landNo(i)+'</td>')+LAND_COLS.map(function(c){
       if(c==='면적'){
         var gongbuCell='<td><input value="'+esc(L['면적'])+'" oninput="LANDS['+i+'][\'면적\']=this.value;landAreaChanged('+i+');"></td>';
         // 묶기 — 사정면적 칸을 필지 수만큼 세로로 합친 한 칸으로 (첫 행에서만 그린다)
@@ -1427,6 +1438,45 @@ function renderLands(){
     else{w.style.display=anySaj?'':'none';w.firstChild.textContent='사정면적 합계: ';
       document.getElementById('landSajSum').textContent=fmtArea(roundArea(j))+(o?' (평가외 '+fmtArea(roundArea(o))+')':'');}}
 }
+// ── 본건 필지 순서 바꾸기 (일련번호 칸 ⠿를 끌어서 위아래로, 2026-10-19) ──
+// 나눈 줄(구분평가·평가외)은 원 필지와 한 덩어리로 옮긴다. 필지 순서를 따라가는 것들도 같이 옮긴다:
+//  · 거래사례별 기억(gaMem.gaf/gaApply/gaop — LANDS 순서 배열) · 요항표 기호1(고정 칸 y_*)↔기호2~(LANDS[i].yh)
+function landBlock(p){return [p].concat(landSubIdx(p));}
+function moveLand(f,t){
+  f=landParentIdx(+f);t=landParentIdx(+t);
+  if(!(f>=0&&t>=0)||f===t||f>=LANDS.length||t>=LANDS.length)return;
+  try{histFlush();}catch(e){console.error('undo flush',e);}   // 옮기기 직전 상태를 되돌리기 기록에
+  // 요항표 기호1 값(고정 칸)을 첫 필지에 잠시 담아 두고, 옮긴 뒤 새 첫 필지 값을 고정 칸으로
+  var first=landParcels()[0],y1={};YH_KEYS.forEach(function(k){y1[k]=cgVal('y_'+k);});first.yh=y1;
+  var idx=LANDS.map(function(_,i){return i;}),fb=landBlock(f),tb=landBlock(t);
+  var moving=idx.splice(f,fb.length);
+  var at=idx.indexOf(t>f?tb[tb.length-1]:t)+(t>f?1:0);   // 아래로 = 대상 덩어리 뒤, 위로 = 대상 앞
+  idx.splice.apply(idx,[at,0].concat(moving));
+  LANDS=idx.map(function(i){return LANDS[i];});
+  TRADES.forEach(function(c){var m=c&&c.gaMem;if(!m)return;['gaf','gaApply','gaop'].forEach(function(k){if(Array.isArray(m[k]))m[k]=idx.map(function(i){return m[k][i];});});});
+  var nf=landParcels()[0],ny=nf.yh||{};
+  YH_KEYS.forEach(function(k){var el=document.getElementById('y_'+k);if(el)el.value=(ny[k]==null?(k==='roadCnt'?'2':''):ny[k]);});
+  delete nf.yh;
+  applyRoadCnt();renderLands();calcGongsi();renderYohangLands();saveForm();sd();try{renderGjs();}catch(e){}
+  etcSyncGubun();if(MAPV)mapOpen();
+}
+var LAND_DRAG=-1;
+function landDragStart(e,i){LAND_DRAG=i;
+  var tr=e.currentTarget.parentNode;if(tr)tr.classList.add('dragging');
+  try{e.dataTransfer.setData('text/plain',String(i));e.dataTransfer.effectAllowed='move';}catch(_){}}
+function landDragOver(e,i){
+  if(LAND_DRAG<0)return;
+  e.preventDefault();try{e.dataTransfer.dropEffect='move';}catch(_){}
+  if(landParentIdx(LAND_DRAG)!==landParentIdx(i))e.currentTarget.classList.add('dragover');}
+function landDragLeave(e){e.currentTarget.classList.remove('dragover');}
+function landDrop(e,i){
+  e.preventDefault();
+  var f=LAND_DRAG;
+  if(f<0){var d=parseInt(e.dataTransfer.getData('text/plain'),10);f=isNaN(d)?-1:d;}
+  landDragEnd();
+  if(f>=0)moveLand(f,i);}
+function landDragEnd(){LAND_DRAG=-1;
+  document.querySelectorAll('#landTbl tr').forEach(function(el){el.classList.remove('dragover','dragging');});}
 function addLand(){LANDS.push({});if(isLandGroup())recalcGroupArea();renderLands();calcGongsi();saveForm();}
 function delLand(i){
   var L=LANDS[i];if(!L)return;
@@ -3835,13 +3885,13 @@ function collect(){
 }
 var saveTimer=null;
 function saveForm(){clearTimeout(saveTimer);
-  if(document.getElementById('ov_caseNo').value.trim()){saveStatus='⏳';renderCaseBar();}
+  if(currentId){saveStatus='⏳';renderCaseBar();}
   saveTimer=setTimeout(doSave,400);renderUndoBtns();}
 // 실제 저장. 저장할 때마다 판 번호(_rev)를 붙여 두고, 저장소의 판이 이 탭이 아는 판과 다르면(다른 탭이 먼저 저장·같은 접수번호 건 존재) 덮어쓰지 않고 멈춘다.
 function doSave(){clearTimeout(saveTimer);saveTimer=null;
   try{histCommit();}catch(e){console.error('undo history',e);}
   if(checkConflict()){saveStatus='❌';renderCaseBar();return;}
-  try{var o=collect();o._rev=newRev();var raw=JSON.stringify(o);
+  try{var o=collect();o._rev=newRev();o._curId=currentId||'';var raw=JSON.stringify(o);   // _curId = 확정한 접수번호(새로고침 뒤에도 그 번호로 계속 저장)
     localStorage.setItem(FORM_STORAGE,raw);REVS[FORM_STORAGE]=o._rev;saveCurrentCase(o,raw);}
   catch(e){console.error('form save',e);saveStatus='❌';renderCaseBar();}}
 // ── 되돌리기(Ctrl+Z)·다시 실행(Ctrl+Y) — 자동저장(0.4초 멈춤)마다 화면 전체 상태를 한 칸씩 기록(최대 60칸) ──
@@ -3892,9 +3942,9 @@ function readJson(key){try{return JSON.parse(localStorage.getItem(key)||'null');
 // 저장소에 있는 판. 없으면 null, 옛 데이터(판 없음)면 ''
 function storedRev(key){var o=readJson(key);if(!o)return null;return o._rev||'';}
 function adoptRev(key){var r=storedRev(key);if(r==null)delete REVS[key];else REVS[key]=r;}
-function guardKey(){var id=document.getElementById('ov_caseNo').value.trim();return id?landCaseKey(id):FORM_STORAGE;}
+function guardKey(){return currentId?landCaseKey(currentId):FORM_STORAGE;}
 function checkConflict(){
-  var id=document.getElementById('ov_caseNo').value.trim(),key=id?landCaseKey(id):FORM_STORAGE;
+  var id=currentId||'',key=id?landCaseKey(id):FORM_STORAGE;
   if(CONFLICT&&CONFLICT.key!==key)CONFLICT=null;   // 접수번호를 바꾸면 이전 충돌은 의미 없음
   if(CONFLICT)return true;
   var cur=storedRev(key);
@@ -4052,12 +4102,16 @@ function bindSync(){if(LAND_SYNC)LAND_SYNC.bindPanel(document.getElementById('ca
 function eh(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
 function jsq(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
 
-// 현재 폼을 '건'으로 저장 (접수번호가 ID). 접수번호 없으면 저장 안 함.
+// 현재 폼을 '건'으로 저장. 저장 번호 = 💾 저장으로 확정한 접수번호(currentId) — 칸에 번호를 치는 것만으로는 저장하지 않는다
+// (치는 도중 「HI26」 같은 반쪽 번호 건이 생기거나, 고친 번호가 다른 건을 덮어쓰지 않도록. 집합건물과 같은 규칙 2026-10-19).
+// 칸 번호를 바꾸고 아직 「💾 번호 바꿔 저장」을 안 눌렀으면 원래 번호로 계속 저장한다(그 건의 접수번호 칸도 원래 번호로).
 function saveCurrentCase(o,raw){
-  var id=document.getElementById('ov_caseNo').value.trim();
-  if(!id){currentId=null;saveStatus='';renderCaseBar();return;}
+  var id=currentId;
+  if(!id){saveStatus='';renderCaseBar();return;}
   try{
-    o=o||collect();if(!o._rev)o._rev=newRev();raw=raw||JSON.stringify(o);
+    o=o||collect();if(!o._rev)o._rev=newRev();
+    if(!o.ov||String(o.ov.ov_caseNo||'').trim()!==id){o=JSON.parse(JSON.stringify(o));o.ov=o.ov||{};o.ov.ov_caseNo=id;delete o._curId;raw=null;}
+    raw=raw||JSON.stringify(o);
     var key=landCaseKey(id),prevRaw=null;try{prevRaw=localStorage.getItem(key);}catch(e){}
     if(prevRaw&&prevRaw!==raw)backupBefore(id,prevRaw,o);   // 덮어쓰기 전 내용을 이전 버전으로 보관
     localStorage.setItem(key,raw);REVS[key]=o._rev;
@@ -4066,9 +4120,34 @@ function saveCurrentCase(o,raw){
     var list=getLandList().filter(function(c){return c.id!==id;});
     list.unshift({id:id,label:label,updated:new Date().toISOString()});
     setLandList(list);caseList=list;
-    currentId=id;saveStatus='✅';
+    saveStatus='✅';
   }catch(e){saveStatus='❌';console.error('case save',e);}
   renderCaseBar();
+}
+// 💾 저장 / 💾 번호 바꿔 저장 — 칸의 접수번호를 저장 번호로 확정한다.
+// 이미 다른 건이 쓰는 번호는 거절. 저장된 건이면 「이름 바꾸기」: 옛 번호 건·메모·이전 버전을 새 번호로 옮기고 목록에서 옛 줄을 뺀다.
+function commitCaseNo(){
+  var id=document.getElementById('ov_caseNo').value.trim();
+  if(!id){alert('접수번호를 먼저 입력하세요.');document.getElementById('ov_caseNo').focus();return;}
+  var prev=currentId;if(id===prev)return;
+  if(lsGet(landCaseKey(id))){alert(id+' 접수번호로 저장된 건이 이미 있습니다.\n그 건이면 📂 저장된 건에서 여시고, 아니면 번호를 바꿔 주세요.');return;}
+  if(prev&&!confirm('접수번호를 '+prev+' → '+id+' 로 바꿀까요?\n(건 내용은 그대로, 번호만 바뀝니다)'))return;
+  clearTimeout(saveTimer);saveTimer=null;
+  try{
+    if(prev){
+      var pk=landCaseKey(prev);
+      try{localStorage.removeItem(pk);}catch(e){}delete REVS[pk];
+      var b=lsGet(bakKey(prev));if(b!=null){try{if(lsGet(bakKey(id))==null)localStorage.setItem(bakKey(id),b);localStorage.removeItem(bakKey(prev));}catch(e){console.error('bak move',e);}}
+      var m=lsGet(MEMO_PREFIX+prev);if(m!=null){try{if(lsGet(MEMO_PREFIX+id)==null)localStorage.setItem(MEMO_PREFIX+id,m);localStorage.removeItem(MEMO_PREFIX+prev);}catch(e){console.error('memo move',e);}}
+      setLandList(getLandList().filter(function(c){return c.id!==prev;}));
+      if(bakOpen===prev)bakOpen=null;
+    }else{   // 저장 전에 적어 둔 메모(_temp)를 이 건으로 옮긴다
+      var t=lsGet(MEMO_PREFIX+'_temp');if(t!=null&&lsGet(MEMO_PREFIX+id)==null){try{localStorage.setItem(MEMO_PREFIX+id,t);localStorage.removeItem(MEMO_PREFIX+'_temp');}catch(e){console.error('memo adopt',e);}}
+    }
+  }catch(e){console.error('commit case no',e);}
+  currentId=id;delete REVS[landCaseKey(id)];CONFLICT=null;renderConflict();
+  doSave();renderMemos();
+  if(showCaseList)renderCaseListPanel();
 }
 
 // 폼 전체 비우기 (새 평가서용)
@@ -4211,11 +4290,17 @@ function renderCaseBar(){
   if(btn){btn.textContent='📂 저장된 건 ('+caseList.length+')';btn.classList.toggle('on',showCaseList);}
   var st=document.getElementById('caseStatus');
   if(st){
-    if(!id)st.innerHTML='<span class="warn">⚠️ 접수번호 입력 시 자동저장</span>';
-    else if(saveStatus==='⏳')st.innerHTML='<span class="ing">⏳ '+eh(id)+' 저장중…</span>';
-    else if(saveStatus==='✅')st.innerHTML='<span class="ok">💾 '+eh(id)+' 저장완료</span>';
-    else if(saveStatus==='❌')st.innerHTML='<span class="err">❌ 저장 실패</span>';
-    else st.innerHTML='';
+    var cid=currentId,h='';
+    if(!cid)h='<span class="unsaved">⚠️ 아직 저장 안 됨 — 접수번호 입력 후 💾 저장을 누르세요</span>'
+      +'<button class="btn sm save-btn" onclick="commitCaseNo()"'+(id?'':' disabled')+'>💾 저장'+(id?' ('+eh(id)+')':'')+'</button>';
+    else{
+      if(saveStatus==='⏳')h='<span class="ing">⏳ '+eh(cid)+' 저장중…</span>';
+      else if(saveStatus==='✅')h='<span class="ok">💾 '+eh(cid)+' 저장완료</span>';
+      else if(saveStatus==='❌')h='<span class="err">❌ 저장 실패</span>';
+      if(id&&id!==cid)h+=' <span class="pend">접수번호 변경 대기: '+eh(cid)+' → '+eh(id)+' (누르기 전까지 '+eh(cid)+'로 저장)</span>'
+        +'<button class="btn sm save-btn" onclick="commitCaseNo()">💾 번호 바꿔 저장</button>';
+    }
+    st.innerHTML=h;
   }
   var tag=document.getElementById('caseTag');
   if(tag){if(id){tag.textContent=id+(id.indexOf('SAMPLE-')===0?' (샘플)':'');tag.hidden=false;}else tag.hidden=true;}
@@ -4263,7 +4348,7 @@ function renderCaseListPanel(){
 
 // ================= 우측 메모장 (집합건물과 동일 UX, 접수번호별 저장) =================
 var MEMO_PREFIX='tojigeonmul-memo:', MEMO_COLLAPSE_KEY='tojigeonmul-memo-collapsed';
-function memoKey(){return MEMO_PREFIX+(document.getElementById('ov_caseNo').value.trim()||'_temp');}
+function memoKey(){return MEMO_PREFIX+(currentId||'_temp');}   // 메모도 확정한 접수번호 기준(저장 전엔 _temp → 💾 저장 때 옮김)
 function getMemos(){try{return JSON.parse(localStorage.getItem(memoKey())||'[]')||[];}catch(e){return [];}}
 function setMemos(list){try{localStorage.setItem(memoKey(),JSON.stringify(list));}catch(e){console.warn('memo save',e);}}
 function addMemoText(){var ta=document.getElementById('memoInput'),t=ta.value;if(!t.trim())return;
@@ -4289,7 +4374,7 @@ function initMemo(){
   var ta=document.getElementById('memoInput');
   ta.addEventListener('paste',memoPaste);
   ta.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addMemoText();}});
-  document.getElementById('ov_caseNo').addEventListener('input',renderMemos);
+  document.getElementById('ov_caseNo').addEventListener('input',function(){renderMemos();renderCaseBar();});
   renderMemos();}
 
 // ================= 좌/우 너비 조절 (2단 레이아웃 가운데 손잡이 + 메모장 왼쪽 가장자리) =================
@@ -4377,7 +4462,7 @@ document.getElementById('cg_travel').addEventListener('blur',function(){renderCh
 // 북마크·새 탭으로 들어오면 빈 새 평가서(2026-10-19 사용자 요청). 새로고침(F5)·주소 끝 ?last=1 이면 하던 건 그대로.
 // 접수번호가 없어 저장 목록에 없는 작성 중 화면은 지우면 날아가므로 그대로 연다
 (function(){var last=/[?&]last=1(&|$)/.test(location.search);try{var n=performance.getEntriesByType('navigation')[0];if(n&&n.type==='reload')last=true;}catch(e){}
-  if(last)return;var o=readJson(FORM_STORAGE),cn=o&&o.ov&&String(o.ov.ov_caseNo||'').trim();
+  if(last)return;var o=readJson(FORM_STORAGE),cn=o&&String(o._curId!=null?o._curId:((o.ov&&o.ov.ov_caseNo)||'')).trim();
   var saved=false;try{saved=!!(cn&&localStorage.getItem(landCaseKey(cn)));}catch(e){}
   if(saved)try{localStorage.removeItem(FORM_STORAGE);}catch(e){}})();
 if(!restore()){window.BLD_STATE=bldNewState();renderStds();renderLands();addBldRow({});addBldRow({});renderEtcItems();}
@@ -4388,8 +4473,9 @@ document.addEventListener('keydown',function(e){var el=e.target;
 applyOvDefaults();
 // 저장된 건 목록 로드 + 현재 작업건(접수번호) 목록 편입
 caseList=getLandList();
-(function(){var id=document.getElementById('ov_caseNo').value.trim();
-  if(id){currentId=id;saveStatus='✅';adoptRev(landCaseKey(id));   // 켤 때 저장소에 있는 판을 그대로 받아들임
+// 켤 때 저장 번호: 작업저장의 _curId(확정한 번호) — 옛 작업저장(_curId 없음)은 접수번호 칸 값이 저장된 건이면 그 번호
+(function(){var o=readJson(FORM_STORAGE)||{},id=String(o._curId!=null?o._curId:document.getElementById('ov_caseNo').value).trim();
+  if(id&&lsGet(landCaseKey(id))){currentId=id;saveStatus='✅';adoptRev(landCaseKey(id));   // 켤 때 저장소에 있는 판을 그대로 받아들임
     if(!caseList.some(function(c){return c.id===id;}))saveCurrentCase();}})();
 renderCaseBar();
 ensureTrade3();   // 거래사례: 실입력이 하나도 없으면 빈 열 3개로 시작
