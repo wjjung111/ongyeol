@@ -171,6 +171,18 @@
   /* 평가사례 표의 kapa hub 칸 — '선정' 열만큼만 차지하게 좁힌다(붙여넣기 전용이라 넓을 필요가 없음) */
   td.kp-c.kp-narrow{width:38px;min-width:0;}
   td.kp-c.kp-narrow .kp{min-width:0;box-sizing:border-box;padding:2px 1px;}
+  /* 사례 소재지 「외」 옆 — 함께 거래·평가된 지번 입력 버튼(누르면 창) */
+  .loc-w{display:flex;align-items:center;gap:3px;}
+  .loc-w input{flex:1;min-width:0;}
+  .relbtn{flex-shrink:0;border:1px solid #cbd5e1;background:#fff;color:#2563eb;border-radius:4px;font:inherit;font-size:11px;padding:0 5px;line-height:18px;cursor:pointer;white-space:nowrap;}
+  .relbtn.has{background:#2563eb;color:#fff;border-color:#2563eb;}
+  #relModal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:6000;display:flex;align-items:center;justify-content:center;}
+  #relModal .box{background:#fff;border-radius:8px;padding:14px 16px;width:min(460px,calc(100vw - 32px));max-height:80vh;overflow:auto;box-shadow:0 10px 30px rgba(15,23,42,.35);font-size:13px;}
+  #relModal h3{font-size:14px;margin:0 0 6px;color:#1a2744;}
+  #relModal .rrow{display:flex;gap:6px;align-items:center;margin:4px 0;}
+  #relModal .rrow input{width:120px;border:1px solid #cbd5e1;border-radius:4px;padding:3px 6px;font:inherit;}
+  #relModal .rrow .pv{flex:1;color:#64748b;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #relModal .ops{display:flex;gap:6px;justify-content:flex-end;margin-top:10px;}
   .calc-c.ovr input{color:#2563eb;}
   /* 그 밖의 요인 표 — 자동 칸을 직접 고쳐 자동계산값과 달라지면 빨간 글씨 */
   .calc-c.mis{background:#fef2f2;}
@@ -1797,6 +1809,18 @@ async function roneCumulative(reg,use,g,e,progressCb){
   var rates={},cum=null,ymS=g.y*100+g.mo,ymE=e.y*100+e.mo;
   var F=window.ARAP_JIBYUN_DATA,fr=F&&F.rates&&F.rates[reg]&&F.rates[reg][use];
   if(fr){Object.keys(fr).forEach(function(k){rates[+k]=fr[k];});var fc=F.cum&&F.cum[reg]&&F.cum[reg][use];if(fc){cum={};Object.keys(fc).forEach(function(k){cum[+k]=fc[k];});}}
+  // 신설 구(2026.02 화성시 → 만세구·효행구·병점구·동탄구 등)는 신설 전 달 값이 없다 → 상위 지역(화성시) 값으로 채운다.
+  // arm_시점수정.html buildLandText와 같은 규칙(KAIS 계산식도 1월은 화성시 값). 섞이면 연도 누계 대신 월별 곱.
+  // 파일 안 달(신설 전)은 통신 전에 채우고, 파일 밖 달은 통신 뒤에도 비면 한 번 더 채운다.
+  var top=Math.min(ymE,jbState.latestYm||ymE);
+  function parentFill(onlyBefore){
+    for(var parent=reg;F&&F.rates&&parent.indexOf('>')>=0;){
+      parent=parent.split('>').slice(0,-1).map(function(x){return x.trim();}).join(' > ');
+      var pr=F.rates[parent]&&F.rates[parent][use];if(!pr)continue;
+      for(var m=ymS;m<=top;m=ymAdd(m,1))if(!(m in rates)&&pr[m]!=null&&(!onlyBefore||m<onlyBefore)){rates[m]=pr[m];cum=null;}
+    }
+  }
+  if(fr){var first=Math.min.apply(null,Object.keys(fr).map(Number));if(first>+(F.months||[0])[0])parentFill(first);}
   for(var ym=ymS;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
     if(ym in rates)continue;                      // 파일에 있는 달은 통신 없음
     if(!jbState.tbl)jbState.tbl=await jbFindTable(ymE);
@@ -1806,6 +1830,7 @@ async function roneCumulative(reg,use,g,e,progressCb){
     var hit=rows.find(function(r){var d=jbSplit(r);return d.reg===reg&&d.use===use;});
     if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=='')rates[ym]=parseFloat(hit.DTA_VAL);
   }
+  parentFill(0);
   return jbFactor(rates,g,e,cum);
 }
 async function jbCompute(){
@@ -1857,7 +1882,9 @@ function jbPrepare(st,endYm){
 // 용도지역 문구(정식·약칭 모두) → 지가변동률 표의 용도 항목(주거·상업·공업·녹지·관리·농림·자연환경) 고르기
 function jbUseGroup(v){v=String(v||'');
   if(/상업/.test(v))return '상업';if(/공업/.test(v))return '공업';if(/녹지/.test(v))return '녹지';
-  if(/관리/.test(v))return '관리';if(/농림/.test(v))return '농림';if(/자연환경/.test(v))return '자연환경';
+  // 관리지역은 세분(계획·생산·보전)을 먼저 — 그냥 '관리'로 찾으면 목록 첫 '보전관리지역'이 잡혔다(2026-10-19 계획관리 사례 오조회)
+  if(/계획관리/.test(v))return '계획관리';if(/생산관리/.test(v))return '생산관리';if(/보전관리/.test(v))return '보전관리';
+  if(/관리/.test(v))return '관리(통합)';if(/농림/.test(v))return '농림';if(/자연환경/.test(v))return '자연환경';
   if(/주/.test(v))return '주거';return '';}
 function jbPickUse(uses,hint){var h=jbUseGroup(hint)||String(hint||'').replace(/지역$/,'');if(!h)return -1;
   return uses.findIndex(function(u){return u.indexOf(h)>=0;});}
@@ -1882,7 +1909,9 @@ async function computeCaseTime(c,type,st,force){
   var g=parseYmd(startStr);
   if(!g)throw new Error('선택한 사례의 '+(type==='t'?'거래일자':'기준시점')+'가 없습니다.');
   var m0=c.timeMeta;
-  if(!force&&m0&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
+  // 저장된 값의 용도가 사례 용도지역과 다르면(옛 오조회 — 계획관리 사례가 보전관리로) 다시 계산
+  var ug=jbUseGroup(c.use),useOk=!m0||!ug||String(m0.use||'').indexOf(ug)>=0;
+  if(!force&&m0&&useOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
   c.timeBusy=true;delete c.timeErr;refreshTradeTime();
   try{
     await jbPrepare(st,e.y*100+e.mo);
@@ -2020,7 +2049,7 @@ function pick(head,r,names){
 
 // ================= 거래사례 (세로 표, 공시지가기준법/거래사례비교법 공용) =================
 var TRADE_ROWS=[
-  ['소재지','loc','in'],['용도지역','use','in'],['지목','jimok','in'],
+  ['소재지','loc','in'],['용도지역','use','in'],['지목','jimok','in'],['도로교통','road','in'],
   ['토지면적(㎡)','landA','in'],['건물면적(㎡)','bldA','in'],
   ['사용승인일','appr','in'],['주구조','struct','jud'],
   ['재조달원가(원/㎡)','reCost','jud'],['내용연수','life','jud'],['잔존연수','rest','auto'],
@@ -2069,6 +2098,8 @@ function tradeCell(c,i,r){
   if(t==='auto'){var cal=tradeCalc(c),ov=manualNum(c[k]);
     return '<td class="calc-c'+(ov?' ovr':'')+'"><input data-i="'+i+'" data-k="'+k+'" value="'+(ov?attr(c[k]):fmtAuto(k,cal))+'" title="'+attr(tradeTitle(k,c,cal))+'" oninput="tradeIn('+i+',\''+k+'\',this.value)" onblur="refreshTradeCol('+i+')"></td>';}
   var dv=c[k]||'';
+  if(k==='loc')return '<td><div class="loc-w"><input value="'+attr(dv)+'" oninput="tradeIn('+i+',\'loc\',this.value,this)">'+relBtn('t',i,c)+'</div></td>';
+  if(k==='road')return '<td><input value="'+attr(dv)+'" placeholder="예: 세로(가)" oninput="tradeIn('+i+',\'road\',this.value,this)"></td>';
   if(k==='reCost'&&dv){var dd=String(dv).replace(/[^\d]/g,'');if(dd)dv=Number(dd).toLocaleString('ko-KR');}   // 옛 저장값(콤마 없음)도 표시할 때 콤마
   return '<td class="'+(t==='jud'?'jud-c':'')+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(dv)+'" oninput="tradeIn('+i+',\''+k+'\',this.value,this)"></td>';
 }
@@ -2078,6 +2109,7 @@ function tradeIn(i,k,v,el){
   TRADES[i][k]=v;
   // 거래일자·소재지·용도지역이 바뀌면 계산해 둔 시점수정치는 더 이상 맞지 않으므로 지운다(다시 선정하면 재계산)
   if(k==='date'||k==='loc'||k==='use'){delete TRADES[i].timeMeta;delete TRADES[i].timeErr;if(k==='loc')delete TRADES[i].sgg;refreshTradeTime();}
+  if(k==='loc')relBtnSync('t',i);
   refreshTradeCol(i);calcGongsi();saveForm();}
 function refreshTradeCol(i){
   var c=TRADES[i];if(!c)return;var cal=tradeCalc(c),tbl=document.getElementById('tblTrade');
@@ -2106,7 +2138,7 @@ function renderTrade(){
       return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" data-kind="'+k[0]+'" data-i="'+i+'" title="실거래가 엑셀의 '+k[1]+'을 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워집니다" onpaste="kaisPaste(event,'+i+',\''+k[0]+'\')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
   });
   TRADE_ROWS.forEach(function(r){
-    h+='<tr><th class="rowh">'+r[0]+'</th>';
+    h+='<tr><th class="rowh">'+r[0]+(r[1]==='road'?roadAutoBtn('t'):'')+'</th>';
     TRADES.forEach(function(c,i){h+=tradeCell(c,i,r);});
     h+='</tr>';
   });
@@ -2123,6 +2155,20 @@ function renderTrade(){
     return '<td><input value="'+attr(c.note||'')+'" placeholder="자유 입력" oninput="tradeIn('+i+',\'note\',this.value)"></td>';}).join('')+'</tr>';
   document.getElementById('tblTrade').innerHTML=h;
   renderTradePick();
+  fixStaleTimeMeta();
+}
+// 용도지역과 다른 용도로 저장된 시점수정치(2026-10-19 이전 — 계획관리 사례가 '보전관리지역'으로 계산됨)를 지우고,
+// 그 사례가 그 밖의 요인·거래사례비교법에 선정돼 있으면 바로 다시 계산한다
+function fixStaleTimeMeta(){
+  var redoEtc=false,redoGa=false;
+  TRADES.concat(APPRS).forEach(function(c){
+    var m=c&&c.timeMeta,ug=m&&jbUseGroup(c.use);
+    if(!m||!ug||String(m.use||'').indexOf(ug)>=0)return;
+    delete c.timeMeta;
+    if(window.ETC&&c===etcCase())redoEtc=true;
+    if(window.GA&&c===TRADES[GA.idx])redoGa=true;
+  });
+  if(redoEtc||redoGa)setTimeout(function(){refreshTradeTime();if(redoEtc)autoEtcTime(true);if(redoGa)autoGaTime(true);},0);
 }
 function renderTradePick(){
   var tbl=document.getElementById('tblTradePick');if(!tbl)return;
@@ -2206,22 +2252,130 @@ function undoTrade(){
 
 // ================= 평가사례 (가로 표) =================
 var APPRS=[];
-var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지목','jimok'],['이용<br>상황','cond'],['사례단가<br>(원/㎡)','unit'],['기준시점','base'],['평가<br>목적','purp'],['비고','memo']];
+var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지목','jimok'],['이용<br>상황','cond'],['도로<br>교통','road'],['사례단가<br>(원/㎡)','unit'],['기준시점','base'],['평가<br>목적','purp'],['비고','memo']];
 // 비고는 화면 메모 전용 — 값이 있어도 '사례가 입력됐다'고 보지 않고, 의견서 문서에도 나가지 않는다.
-function apprHasData(a){return a&&['loc','use','jimok','cond','unit','base','purp'].some(function(k){return String(a[k]||'').trim()!=='';});}
+function apprHasData(a){return a&&['loc','use','jimok','cond','road','unit','base','purp'].some(function(k){return String(a[k]||'').trim()!=='';});}
 function renderAppr(){
   while(APPRS.length<3)APPRS.push({});   // 기본 화면은 항상 빈 3행(거래사례와 같은 규격)
-  var h='<tr><th style="width:22px"></th><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+'</th>';}).join('')+'<th></th></tr>';
+  var h='<tr><th style="width:22px"></th><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
     h+='<tr ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
       +'<td class="grip-c" draggable="true" title="끌어서 위아래로 옮기기 — 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다"'
       +' ondragstart="apprDragStart(event,'+i+')" ondragend="apprDragEnd()"><span class="grip">⠿</span></td>';
     h+='<td class="jud-c"><input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onclick="togEtc(\'a\','+i+')"></td>';
     h+='<td class="kp-c kp-narrow"><textarea class="kp" rows="1" cols="3" placeholder="" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
-    APPR_COLS.forEach(function(c){h+='<td><input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;syncPick();calcGongsi();saveForm();"></td>';});
+    APPR_COLS.forEach(function(c){
+      var inp='<input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;'+(c[1]==='loc'?'relBtnSync(\'a\','+i+');':'')+'syncPick();calcGongsi();saveForm();">';
+      h+='<td>'+(c[1]==='loc'?'<div class="loc-w">'+inp+relBtn('a',i,a)+'</div>':inp)+'</td>';});
     h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
   document.getElementById('tblAppr').innerHTML=h;
+}
+
+// ── 사례 「외」 필지 (2026-10-19) ── 소재지가 「… 134-1 외」면 여러 필지가 함께 거래(평가)된 것.
+// 소재지 칸 옆 버튼 → 창에서 나머지 지번을 넣는다. 저장 = 사례의 rel=[{jibun, _xy}] (_xy는 위치도 좌표, 건과 함께 저장).
+// 위치도에서는 대표 지번 + rel 필지 테두리를 모두 그리고 이름표는 하나(본건 일단지와 같은 묶음 방식). 문서에는 안 나간다.
+var OE_RE=/\s*외(?:\s*\d+\s*필지)?\s*$/;
+function stripOe(loc){return String(loc||'').replace(OE_RE,'').trim();}
+function hasOe(loc){return OE_RE.test(String(loc||''))&&stripOe(loc)!=='';}
+function relOf(o){return (o&&Array.isArray(o.rel))?o.rel.filter(function(p){return p&&hasV(p.jibun);}):[];}
+function caseArr(kind){return kind==='t'?TRADES:APPRS;}
+// 지번 → 전체 주소: 「134-2」면 대표 소재지의 지번 자리만 바꾸고, 「구장리 12」처럼 마을 이름부터 적으면 그 앞(시군구·읍면)만 빌린다
+function relLoc(base,j){
+  var b=stripOe(base),t=String(j||'').trim().replace(/\s+/g,' ');if(!t)return '';
+  if(/^(?:산\s*)?\d+(?:-\d+)?$/.test(t)){var m=b.match(/^(.*?)\s*(?:산\s*)?\d+(?:-\d+)?$/);return ((m?m[1]:b)+' '+t).trim();}
+  var w=t.split(' ')[0],k=b.indexOf(w);
+  if(k>0)return (b.slice(0,k)+t).trim();
+  if(/(동|리|가)$/.test(w)){var bs=b.split(' '),r=-1;bs.forEach(function(x,q){if(/(동|리|가)$/.test(x))r=q;});
+    if(r>=0)return bs.slice(0,r).concat([t]).join(' ');}   // 다른 마을(리·동) → 대표의 같은 자리만 바꾼다
+  return t;
+}
+function relPreview(base,j){return relSplit(j).map(function(x){return relLoc(base,x);}).join(', ');}
+function relBtnLabel(o){var n=relOf(o).length;return n?('외 '+n+'필지'):'＋지번';}
+function relBtn(kind,i,o){
+  var n=relOf(o).length,show=n||hasOe(o.loc);
+  return '<button type="button" class="relbtn'+(n?' has':'')+'" id="relbtn_'+kind+'_'+i+'"'+(show?'':' style="display:none"')
+    +' title="함께 '+(kind==='t'?'거래':'평가')+'된 나머지 지번 입력 — 위치도에 필지를 함께 표시합니다" onclick="relOpen(\''+kind+'\','+i+')">'+relBtnLabel(o)+'</button>';
+}
+function relBtnSync(kind,i){
+  var b=document.getElementById('relbtn_'+kind+'_'+i),o=caseArr(kind)[i];if(!b||!o)return;
+  var n=relOf(o).length;b.style.display=(n||hasOe(o.loc))?'':'none';b.className='relbtn'+(n?' has':'');b.textContent=relBtnLabel(o);
+}
+var REL_EDIT=null;
+function relOpen(kind,i){
+  var o=caseArr(kind)[i];if(!o)return;
+  REL_EDIT={kind:kind,i:i,list:relOf(o).map(function(p){return p.jibun;})};
+  if(!REL_EDIT.list.length)REL_EDIT.list=['',''];
+  relRender();
+  var f=document.querySelector('#relModal .rrow input');if(f)f.focus();
+}
+function relRender(){
+  var e=REL_EDIT;if(!e)return;
+  var o=caseArr(e.kind)[e.i],name=e.kind==='t'?('거래사례 #'+(e.i+1)):('평가사례 '+(o.no||(e.i+1)));
+  var m=document.getElementById('relModal');
+  if(!m){m=document.createElement('div');m.id='relModal';document.body.appendChild(m);
+    m.addEventListener('mousedown',function(ev){if(ev.target===m)relClose();});}
+  var h='<div class="box"><h3>'+esc(name)+' — 함께 '+(e.kind==='t'?'거래':'평가')+'된 필지</h3>'
+    +'<div class="hint" style="margin-bottom:6px">대표: <b>'+esc(stripOe(o.loc)||'(소재지 없음)')+'</b><br>나머지 지번을 넣으세요(예: 134-2). 한 칸에 「134-2, 134-3」처럼 여러 개를 넣어도 저장할 때 나눠집니다. 위치도에 필지가 함께 표시됩니다.</div>';
+  e.list.forEach(function(j,k){
+    h+='<div class="rrow"><input value="'+esc(j)+'" placeholder="지번" oninput="REL_EDIT.list['+k+']=this.value;this.nextElementSibling.textContent=relPreview(caseArr(REL_EDIT.kind)[REL_EDIT.i].loc,this.value)"'
+      +' onkeydown="if(event.key===\'Enter\'){event.preventDefault();relAdd();}">'
+      +'<span class="pv">'+esc(relPreview(o.loc,j))+'</span><button type="button" class="btn gh sm" style="color:#dc2626" title="이 지번 빼기" onclick="relDelRow('+k+')">✕</button></div>';
+  });
+  h+='<div class="ops"><button type="button" class="btn gh sm" style="margin-right:auto" onclick="relAdd()">＋ 지번 추가</button>'
+    +'<button type="button" class="btn gh sm" onclick="relClose()">취소</button><button type="button" class="btn sm" onclick="relSave()">저장</button></div></div>';
+  m.innerHTML=h;
+}
+function relAdd(){REL_EDIT.list.push('');relRender();var a=document.querySelectorAll('#relModal .rrow input');if(a.length)a[a.length-1].focus();}
+function relDelRow(k){REL_EDIT.list.splice(k,1);relRender();}
+function relClose(){REL_EDIT=null;var m=document.getElementById('relModal');if(m)m.remove();}
+// 한 칸 → 지번 여러 개: 쉼표·줄바꿈으로 나누고, 숫자 지번만 띄어 쓴 것도 나눈다(「산 12」는 한 지번). 마을 이름이 섞이면 그 칸은 통째로 하나.
+function relSplit(s){
+  var out=[];
+  String(s||'').split(/[,，、;\n]+/).forEach(function(p){
+    p=p.trim();if(!p)return;
+    var ts=[],raw=p.split(/\s+/);
+    for(var q=0;q<raw.length;q++){if(raw[q]==='산'&&q+1<raw.length){ts.push('산 '+raw[++q]);}else ts.push(raw[q]);}
+    if(ts.every(function(t){return /^(?:산\s*)?\d+(?:-\d+)?$/.test(t);}))out.push.apply(out,ts);else out.push(p);
+  });
+  return out;
+}
+function relSave(){
+  var e=REL_EDIT;if(!e)return;
+  var o=caseArr(e.kind)[e.i],old={};
+  relOf(o).forEach(function(p){old[p.jibun]=p;});   // 같은 지번이면 찾아 둔 위치도 좌표(_xy)를 그대로 쓴다
+  var seen={},list=[];
+  e.list.forEach(function(s){relSplit(s).forEach(function(j){if(!seen[j]){seen[j]=1;list.push(old[j]||{jibun:j});}});});
+  o.rel=list;
+  if(list.length&&!hasOe(o.loc)&&hasV(o.loc))o.loc=String(o.loc).trim()+' 외';   // 지번을 넣었는데 「외」가 없으면 붙인다
+  relClose();
+  if(e.kind==='t')renderTrade();else renderAppr();
+  syncPick();calcGongsi();saveForm();
+  if(MAPV)mapOpen();   // 위치도를 이미 열었으면 바로 다시 그린다
+}
+
+// ── 도로교통 자동 채우기 ── 사례 소재지(대표 지번)로 토지특성을 조회해 빈 도로교통 칸만 채운다(적어 둔 값은 그대로)
+function roadAutoBtn(kind){return ' <button type="button" class="btn gh sm" style="padding:0 4px;font-size:10px" title="소재지로 토지특성을 조회해 빈 도로교통 칸만 채웁니다" onclick="roadAutoFill(\''+kind+'\')">자동</button>';}
+function caseQuery(loc){
+  var s=stripOe(loc),r=subjectSgg();if(!s)return '';
+  return (!r||/(시|군|구|도)$/.test(s.split(' ')[0]))?s:(r+' '+s);   // 시군구부터 적었으면 그대로, 아니면 본건 시군구를 앞에
+}
+async function roadAutoFill(kind){
+  var arr=caseArr(kind),msg=document.getElementById(kind==='t'?'pTradeMsg':'pApprMsg'),ok=0,bad=[];
+  var todo=arr.map(function(o,i){return i;}).filter(function(i){return hasV(arr[i].loc)&&!hasV(arr[i].road);});
+  if(!todo.length){msg.className='pst';msg.textContent='채울 도로교통 칸이 없습니다(소재지가 있고 도로교통이 빈 사례만 채웁니다).';return;}
+  msg.className='pst';msg.textContent='도로교통 조회 중… (0/'+todo.length+')';
+  for(var k=0;k<todo.length;k++){
+    var i=todo[k],o=arr[i];
+    try{var v=extract(await queryParcel(caseQuery(o.loc),getKey()));if(hasV(v.도로교통)&&!hasV(o.road)){o.road=v.도로교통;ok++;}else bad.push(i);}
+    catch(err){console.warn('도로교통 조회',err);bad.push(i);}
+    msg.textContent='도로교통 조회 중… ('+(k+1)+'/'+todo.length+')';
+  }
+  if(kind==='t')renderTrade();else renderAppr();
+  saveForm();if(MAPV)mapRestyle();
+  var nm=function(i){return kind==='t'?('#'+(i+1)):(arr[i].no||(i+1));};
+  msg.className='pst'+(bad.length?'':' ok');
+  msg.textContent=(ok?'✅ 도로교통 '+ok+'건 채움':'채운 칸 없음')+(bad.length?(' — 못 찾음: '+bad.map(nm).join(', ')+' (직접 입력해 주세요)'):'');
 }
 var APPR_SYM='abcdefghij';
 function apprSym(i){return APPR_SYM[i]||String(i+1);}
@@ -4332,8 +4486,8 @@ function mapInfo(parts){return parts.filter(function(s){return hasV(s);}).join('
 var MAPLAB_KEY='arap-toji-maplab';
 var MAPLAB_FIELDS={
   '비교표준지':[['용도지역','use'],['지목','jimok'],['면적','area'],['이용상황','cond'],['도로교통','road'],['형상','shape'],['공시지가','gongsi'],['공시기준일','gday']],
-  '거래사례':[['용도지역','use'],['지목','jimok'],['토지면적','landA'],['거래금액','total'],['거래시점','date'],['토지단가','landUnit']],
-  '평가사례':[['평가목적','purp'],['용도지역','use'],['지목','jimok'],['이용상황','cond'],['기준시점','base'],['사례단가','unit']]
+  '거래사례':[['용도지역','use'],['지목','jimok'],['도로교통','road'],['토지면적','landA'],['거래금액','total'],['거래시점','date'],['토지단가','landUnit']],
+  '평가사례':[['평가목적','purp'],['용도지역','use'],['지목','jimok'],['이용상황','cond'],['도로교통','road'],['기준시점','base'],['사례단가','unit']]
 };
 var MAPLAB_DEFAULT={'비교표준지':['use','cond','gongsi'],'거래사례':['use','jimok','date','landUnit'],'평가사례':['purp','base','unit']};
 function mapLabSel(kind){
@@ -4358,7 +4512,7 @@ function mapLabVal(key,v){
   return String(v).trim();
 }
 function mapBubble(kind,o,loc,vals){
-  var lines=[mapDongJibun(loc)];
+  var n=relOf(o).length,lines=[mapDongJibun(n?(stripOe(loc)+' 외 '+n+'필지'):loc)];
   MAPLAB_FIELDS[kind].forEach(function(f){if(mapLabSel(kind).indexOf(f[1])>=0){var t=mapLabVal(f[1],vals[f[1]]);if(t)lines.push(t);}});
   return {lines:lines,labelHidden:!!o.labOff,onCloseLabel:function(){o.labOff=true;saveForm();mapRestyle();}};
 }
@@ -4406,18 +4560,26 @@ function mapItems(){
       info:mapInfo([mapUnit(num(S['공시지가']),'공시지가'),mapDate(gongsiDay,'공시기준일')])},
       mapBubble('비교표준지',S,loc,{use:S['용도지역'],jimok:S['지목'],area:S['면적'],cond:S['이용상황'],road:S['도로교통'],shape:S['형상'],gongsi:S['공시지가'],gday:gongsiDay})));
   });
+  // 「외」 필지(rel)가 있으면 대표 지번 + 나머지 필지를 한 묶음으로 — 테두리는 필지마다, 이름표(말풍선)는 하나
+  function pushCase(o,grp,base,label){
+    var rel=relOf(o),g=rel.length?grp:'';
+    out.push(Object.assign({},base,{o:o,label:label,loc:stripOe(o.loc),labelGroup:g,boundaryLeader:!!g}));
+    rel.forEach(function(p){
+      out.push(Object.assign({},base,{o:p,label:label,loc:relLoc(o.loc,p.jibun),labelGroup:g,boundaryLeader:true,info:mapInfo([base.info,'함께 '+(base.kind==='거래사례'?'거래':'평가')+' '+p.jibun])}));
+    });
+  }
   TRADES.forEach(function(c,i){
     var cal=tradeCalc(c);
-    if(hasV(c.loc))out.push(Object.assign({o:c,kind:'거래사례',label:'거래 #'+(i+1),color:'#16a34a',loc:c.loc,region:region,poly:true,
+    if(hasV(c.loc))pushCase(c,'trade'+i,Object.assign({kind:'거래사례',color:'#16a34a',region:region,poly:true,
       pick:(ETC.type==='t'&&ETC.idx===i)||GA.idx===i,
       info:mapInfo([mapUnit(cal.landUnit,'토지단가'),mapDate(c.date,'거래시점')])},
-      mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})));
+      mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,road:c.road,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})),'거래 #'+(i+1));
   });
   APPRS.forEach(function(a,i){
-    if(hasV(a.loc))out.push(Object.assign({o:a,kind:'평가사례',label:'평가 '+(a.no||(i+1)),color:'#ea580c',loc:a.loc,region:region,poly:true,
+    if(hasV(a.loc))pushCase(a,'appr'+i,Object.assign({kind:'평가사례',color:'#ea580c',region:region,poly:true,
       pick:ETC.type==='a'&&ETC.idx===i,
       info:mapInfo([mapUnit(leadNum(a.unit),'사례단가'),mapDate(a.base,'기준시점')])},
-      mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,base:a.base,unit:leadNum(a.unit)})));
+      mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,road:a.road,base:a.base,unit:leadNum(a.unit)})),'평가 '+(a.no||(i+1)));
   });
   return out;
 }
