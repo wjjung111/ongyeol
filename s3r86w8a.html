@@ -1544,6 +1544,7 @@ async function recognizePDFs(files){
   "zoning": "용도지역 (토지이용계획확인서 기준, 예: 제2종일반주거지역). 필지가 여러 개라 용도지역이 둘 이상이면 전부 콤마로 나열 (예: '일반상업지역, 준공업지역'). 하나만 적지 말 것",
   "structure": "주구조 + 지붕 (예: 철근콘크리트구조 (철근)콘크리트평지붕)",
   "regStructure": "명세표용 구조 — 반드시 등기사항전부증명서 표제부(1동의 건물의 표시) '건물내역'의 맨 앞 구조+지붕 전체를 빠짐없이 (예: 철근콘크리트조 (철근)콘크리트지붕). 재질명(콘크리트 등) 바로 뒤에 붙는 '지붕'/'평지붕'/'슬래브' 같은 지붕 단어에서 절대 끊지 말고 그 단어까지 포함할 것 — 지붕 단어를 빠뜨리면 명세표가 틀어짐. 건축물대장 주구조는 절대 사용 금지(등기와 표기가 다름). 등기 표제부가 없으면 빈 문자열.",
+  "regUse": "명세표용 용도 — 등기사항전부증명서 표제부(1동의 건물의 표시) '건물내역'에서 구조·지붕·층수 뒤에 적힌 용도 전체를 빠짐없이 그대로 (예: 업무시설 및 제1종근린생활시설 및 제2종근린생활시설 및 교육연구시설 및 운동시설). 층별 면적 줄은 넣지 말 것. 없으면 빈 문자열",
   "complexScale": "단지규모 동수/세대수. 오피스텔 등 세대수가 없으면 대장 호수 사용. 총괄표제부 우선, 없으면 주건축물 표제부 합계. 수치를 추측하지 말 것",
   "totalFloorArea": "142동 연면적 (㎡)",
   "landAreaTotal": "대지면적 (㎡). 총괄표제부/표제부 기준. 단 그 값이 0이거나 없으면, 등기사항전부증명서(등기)의 '토지의 표시'에 기재된 각 필지 면적을 전부 합산한 값 (지번이 2필지면 면적 2개를 더함)",
@@ -1669,11 +1670,11 @@ function Step2({ov,setOv,propType,setPropType}){
       // 인식 결과로 필드 자동 채우기 (빈 값은 덮어쓰지 않음)
       setOv(prev=>{
         const next={...prev};
-        const fields=["jibun","road","buildingName","dong","floor","ho","area","commonArea","landArea","landRatioDenom","approvalDate","zoning","structure","regStructure","complexScale","totalFloorArea","landAreaTotal","floors","owner","mainUse","mainUseJeonyu","floorDetail","annexName","annexArea","feeDownPayment","feeSpecial","feeBasis"];
+        const fields=["jibun","road","buildingName","dong","floor","ho","area","commonArea","landArea","landRatioDenom","approvalDate","zoning","structure","regStructure","regUse","complexScale","totalFloorArea","landAreaTotal","floors","owner","mainUse","mainUseJeonyu","floorDetail","annexName","annexArea","feeDownPayment","feeSpecial","feeBasis"];
         // 새 등기(지번이나 전유면적을 읽음)면 물건 칸은 이번 인식값으로 통째로 바꾼다 — 다른 건을 복사해 쓴 경우 옛 건의
         // 대지권·연면적 등이 남지 않게(2026-10-14 사용자 결정). 접수 이미지만 올린 경우(물건 칸 없음)는 종전처럼 읽은 칸만
         const isReg=["jibun","area"].some(k=>result[k]!=null&&String(result[k]).trim());
-        const PROP=["jibun","road","buildingName","dong","floor","ho","area","commonArea","landArea","landRatioDenom","approvalDate","zoning","structure","regStructure","complexScale","totalFloorArea","landAreaTotal","floors","owner","mainUse","mainUseJeonyu","floorDetail","annexName","annexArea"];
+        const PROP=["jibun","road","buildingName","dong","floor","ho","area","commonArea","landArea","landRatioDenom","approvalDate","zoning","structure","regStructure","regUse","complexScale","totalFloorArea","landAreaTotal","floors","owner","mainUse","mainUseJeonyu","floorDetail","annexName","annexArea"];
         if(isReg)for(const k of PROP)next[k]="";
         for(const k of fields){
           if(result[k]!=null&&String(result[k]).trim()){
@@ -1813,6 +1814,9 @@ function Step2({ov,setOv,propType,setPropType}){
       </div>
       <div style={{...S.row,marginTop:8}}><span style={S.lbl}>구조(명세표·등기)</span>
         <input style={{...S.inp,width:"100%"}} value={ov.regStructure||""} onChange={e=>u("regStructure",e.target.value)} placeholder="등기 표제부 '건물내역' 구조 (예: 철근콘크리트조 (철근)콘크리트지붕). 비우면 주구조 사용"/>
+      </div>
+      <div style={{...S.row,marginTop:8}}><span style={S.lbl}>용도(명세표·등기)</span>
+        <input aria-label="용도(명세표·등기)" style={{...S.inp,width:"100%"}} value={ov.regUse||""} onChange={e=>u("regUse",e.target.value)} placeholder="등기 표제부 '건물내역' 용도 (예: 업무시설 및 제1종근린생활시설 및 …). 비우면 주용도(표제부) 사용"/>
       </div>
       {/* 부속면적: 등기 전유부분 건물내역이 '철근콘크리트조 150.65㎡ / 지하실 9.09㎡'처럼 두 줄이면 둘째 줄 — 명세표 전유 줄 아래 별도 줄로 표기(지분평가면 지분 곱한 사정면적). 단가·평가면적엔 미포함 */}
       <div style={{...S.row,marginTop:8}}><span style={S.lbl}>부속면적(명세표용)</span>
@@ -2434,7 +2438,7 @@ function buildMyeongseCellMap(ov,totalAmount){
   const toNum=v=>{const n=parseFloat(String(v||"").replace(/,/g,""));return isNaN(n)?"":n;};
   // 소재지: 뒤쪽 지번/외/N필지 토큰 제거 → 시/구/동
   const jTokens=(ov.jibun||"").trim().split(/\s+/).filter(Boolean);
-  while(jTokens.length&&/^(\d[\d-]*|외|\d+필지)$/.test(jTokens[jTokens.length-1]))jTokens.pop();
+  while(jTokens.length&&/^(\d[\d-]*,?|,|외|\d+필지)$/.test(jTokens[jTokens.length-1]))jTokens.pop();   // 「175-6, 175-7」처럼 콤마 붙은 지번도 뗀다(2026-10-19)
   cells["C11"]=jTokens[0]||"";cells["C12"]=jTokens[1]||"";cells["C13"]=jTokens.slice(2).join(" ");
   // 필지 목록(등기 '토지의 표시'): [{jibun,area}]. 없으면 jibun의 첫 지번 1필지로 폴백
   let parcels=(Array.isArray(ov.landParcels)?ov.landParcels:[]).filter(p=>p&&p.jibun);
@@ -2445,19 +2449,31 @@ function buildMyeongseCellMap(ov,totalAmount){
   // 지번 D열: D7,D8.. 각 필지(마지막 빼고 콤마), 이어서 동명. 템플릿 기본값 제거 위해 먼저 비움
   ["D11","D12","D13","D14"].forEach(r=>cells[r]="");
   // 지번 나열: 사용할 수 있는 줄이 D11~D14(동명 표기 시 D11~D13)뿐 → 필지가 많으면 한 줄에 여러 개씩 묶음
-  {const jibuns=parcels.map((p,i)=>(p.jibun||"")+(i<parcels.length-1?",":""));
-   const availRows=ov.dong?3:4;
+  // 동: 「102」「가」「A」「B1」처럼 짧은 동 표시면 「제N동」, 「J타워」처럼 이름이면 등기 표기대로 건물명(없으면 그 이름 그대로) — 2026-10-19 잠실 제이타워 건
+  const dongRaw=String(ov.dong||"").trim().replace(/^제/,"").replace(/동$/,"");
+  const dongLine=!dongRaw?"":(/\d/.test(dongRaw)||dongRaw.length<=2)?`제${dongRaw}동`:(String(ov.buildingName||"").trim()||dongRaw);
+  // 한 줄에 지번 하나면 콤마 없이(발송 양식), 필지가 많아 한 줄에 여러 개 묶을 때만 「, 」로 잇는다
+  {const jibuns=parcels.map(p=>p.jibun||"");
+   const availRows=dongLine?3:4;
    const perRow=Math.max(1,Math.ceil(jibuns.length/availRows));
    let dRow=11;
-   for(let i=0;i<jibuns.length;i+=perRow){cells["D"+dRow]=jibuns.slice(i,i+perRow).join(" ");dRow++;}
-   if(ov.dong)cells["D"+dRow]=`제${ov.dong}동`;}
-  // 용도: '(' 앞에서 한 번 끊고 나머지는 5자씩 — E11~E15 5줄
-  const use=(ov.mainUse||"").trim();
-  const pIdx=use.indexOf("(");
-  const useLines=[];
-  if(pIdx>0){useLines.push(use.slice(0,pIdx));let rest=use.slice(pIdx);while(rest.length){useLines.push(rest.slice(0,5));rest=rest.slice(5);}}
-  else{let rest=use;while(rest.length){useLines.push(rest.slice(0,5));rest=rest.slice(5);}}
-  ["E11","E12","E13","E14","E15"].forEach((r,i)=>{cells[r]=i<4?(useLines[i]||""):useLines.slice(4).join("");});
+   for(let i=0;i<jibuns.length;i+=perRow){cells["D"+dRow]=jibuns.slice(i,i+perRow).join(", ")+(perRow>1&&i+perRow<jibuns.length?",":"");dRow++;}
+   if(dongLine)cells["D"+dRow]=dongLine;}
+  // 용도: 등기 표제부 건물내역 용도(regUse) 우선, 없으면 주용도(mainUse). 열 너비에 맞춰 한 줄 한글 5자 남짓(한글 1·숫자·영문·띄어쓰기 0.6, 합 5.6 이하)으로
+  // 띄어쓰기에서 끊고, 긴 낱말은 글자 단위로 — E11~E23(13줄). 층별면적은 F열이라 겹치지 않음(2026-10-19)
+  const use=String(ov.regUse||ov.mainUse||"").trim().replace(/\s+/g," ");
+  const useLines=[];{const W=5.6,cw=ch=>/[가-힣]/.test(ch)?1:0.6,wd=t=>[...t].reduce((a,ch)=>a+cw(ch),0);let line="";
+    for(const word of use.split(" ").filter(Boolean)){
+      const cand=line?line+" "+word:word;
+      if(wd(cand)<=W){line=cand;continue;}
+      if(line)useLines.push(line);line="";
+      // 긴 낱말은 「근린·생활·시설·주택·연구」 뒤나 「(」 앞에서 끊고(제1종근린생활시설 → 제1종근린 / 생활시설), 그런 자리가 없을 때만 글자 단위
+      let w=word;while(wd(w)>W){let k=0,acc=0;for(const ch of w){if(acc+cw(ch)>W)break;acc+=cw(ch);k++;}
+        let cut=0;const re=/(근린|생활|시설|주택|연구)(?=.)|(?=\()/g;let mm;while((mm=re.exec(w))){const at=mm.index+mm[0].length;if(at>0&&at<=k)cut=at;if(!mm[0])re.lastIndex++;}
+        if(cut>0)k=cut;useLines.push(w.slice(0,k));w=w.slice(k);}
+      line=w;}
+    if(line)useLines.push(line);}
+  for(let i=0;i<13;i++)cells["E"+(11+i)]=i<12?(useLines[i]||""):useLines.slice(12).join(" ");
   // 구조: 명세표는 반드시 등기 표제부 건물내역 기준(regStructure). 없으면 주구조(structure) 폴백. "철근콘크리트조 (철근)콘크리트지붕" → F11/F12, 지상층수 → F13
   const stTokens=(ov.regStructure||ov.structure||"").trim().split(/\s+/).filter(Boolean);
   cells["F11"]=stTokens[0]||"";cells["F12"]=stTokens.slice(1).join(" ");
