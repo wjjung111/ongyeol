@@ -364,7 +364,7 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   const lm=String(T.latest||"").match(/^(\d{4})(\d)$/);if(!lm)return{err:"자본수익률 최신 분기 정보가 없습니다."};
   const latest={y:+lm[1],q:+lm[2]};
   const rateOf=(y,q)=>{let yy=y,qq=q;if(qCmp({y,q},latest)>0){yy=latest.y;qq=latest.q;}const v=ser[`${yy}${qq}`];return v==null?null:v/100;};
-  const facs=[],qlist=[];
+  const facs=[],qlist=[];let mgDay=0,mgRate=0,mgStr="",mgDen=1;
   let cur={y:qa.y,q:qa.q};
   while(qCmp(cur,qb)<=0){
     const first=qCmp(cur,qa)===0,last=qCmp(cur,qb)===0,di=diQ(cur.y,cur.q);
@@ -377,11 +377,15 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
     if(first&&last)day=doQ(t1,cur.y,cur.q)-doQ(t0,cur.y,cur.q)+1;
     else if(first)day=di-doQ(t0,cur.y,cur.q)+1;
     else if(last)day=doQ(t1,cur.y,cur.q);
-    facs.push((first||last)?{str:`(1+${rStr}*${day}/${dayDenominator})`,val:1+r*day/dayDenominator}:{str:`(1+${rStr})`,val:1+r});
+    else day=di;
+    // 미공표 분기가 여럿이면 카이스처럼 한 항으로 묶는다: (1+최근공표율×미공표 일수 합/최근공표분기 일수) — 예 2026.3Q 미발표·기준 10.15 → (1+0.0109*107/91) (2026-10-19)
+    if(isMg){mgDay+=day;mgRate=r;mgStr=rStr;mgDen=dayDenominator;}
+    else facs.push((first||last)?{str:`(1+${rStr}*${day}/${dayDenominator})`,val:1+r*day/dayDenominator}:{str:`(1+${rStr})`,val:1+r});
     const pct=Math.round(r*1e6)/1e4;
     qlist.push(`${cur.y}년 ${cur.q}분기 : ${pct}%`+(isMg?` (${latest.y}년 ${latest.q}분기 자료)`:""));
     cur=nextQ(cur.y,cur.q);
   }
+  if(mgDay>0)facs.push({str:`(1+${mgStr}*${mgDay}/${mgDen})`,val:1+mgRate*mgDay/mgDen});
   const product=facs.reduce((a,f)=>a*f.val,1);
   const adj=Math.round(product*1e5)/1e5;
   const formula=facs.map(f=>f.str).join("*")+` ≒ ${adj.toFixed(5)}`;
