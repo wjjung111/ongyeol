@@ -124,10 +124,13 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   assert.ok(copy.bld.split('\n')[4].includes('사정면적(㎡)'));
 
   // ⑧ 명세표 행: 공부면적 / 사정면적이 갈라진다
-  const st=await page.evaluate(()=>window.ArapTojiDocuments.statementRows().map(r=>({기호:r['명세_기호'],공부:r['명세_공부면적'],사정:r['명세_사정면적'],액:r['명세_평가액']})));
+  // 건물은 발송 양식대로 「가」 머리행(면적 없음, header:true) 아래에 층별 행이 붙으므로 머리행은 빼고 본다
+  const st=await page.evaluate(()=>window.ArapTojiDocuments.statementRows().map(r=>({기호:r['명세_기호'],공부:r['명세_공부면적'],사정:r['명세_사정면적'],액:r['명세_평가액'],header:!!r.header})));
   console.log('⑧ 명세표 행',st);
-  assert.equal(st[0].공부,271.3);assert.equal(st[0].사정,135.6);
-  assert.equal(st[1].공부,100);assert.equal(st[1].사정,30);
+  const body=st.filter(r=>!r.header),floorRows=body.slice(1);
+  assert.equal(body[0].공부,271.3);assert.equal(body[0].사정,135.6);
+  assert.equal(floorRows.length,2,'층별 행 2개(1층·2층)');
+  floorRows.forEach(r=>{assert.equal(r.기호,'');assert.equal(r.공부,100);assert.equal(r.사정,30);});
 
   // ⑨ 의견서 시산가액 표: 평가에 쓴 사정면적이 「공부 x 지분 = 사정」으로 적힌다(공시지가기준법·거래사례비교법 둘 다)
   const opinion=await page.evaluate(async()=>{
