@@ -28,14 +28,14 @@ async function gh(route){const req=route.request(),u=new URL(req.url()),m=req.me
   await page.goto(base+'/토지건물.html');await page.waitForFunction(()=>window.LAND_SYNC&&window.doSave);
   // 저장건 하나 + 연결
   await page.evaluate(()=>{newCase();document.getElementById('ov_caseNo').value='T-9';commitCaseNo();STDS=[{'지번':'586'}];renderStds();doSave();toggleCaseList();});
-  await page.fill('#caseListPanel .arap-sync-tok','TOK');await page.click('#caseListPanel .arap-sync-go');
-  await page.waitForFunction(()=>/백업됨/.test(document.querySelector('#caseListPanel .arap-sync-st').textContent));
+  await page.fill('#syncBar .arap-sync-tok','TOK');await page.click('#syncBar .arap-sync-go');
+  await page.waitForFunction(()=>/백업됨/.test(document.querySelector('#syncBar .arap-sync-st').textContent));
   const g=Object.values(gists)[0];assert.ok(g.files['arap_sync_toji.json']);
   assert.equal(JSON.parse(JSON.parse(g.files['arap_sync_toji.json'].content).cases['T-9']).STDS[0]['지번'],'586');
   console.log('① 토지 백업 OK');
   // 저장하면 자동으로 다시 올라감
   await page.evaluate(()=>{STDS=[{'지번':'777'}];renderStds();doSave();});
-  await page.waitForFunction(()=>/백업됨/.test(document.querySelector('#caseListPanel .arap-sync-st').textContent)&&true);
+  await page.waitForFunction(()=>/백업됨/.test(document.querySelector('#syncBar .arap-sync-st').textContent)&&true);
   await page.waitForTimeout(3600);
   assert.equal(JSON.parse(JSON.parse(g.files['arap_sync_toji.json'].content).cases['T-9']).STDS[0]['지번'],'777');
   console.log('① 저장 → 자동 백업 OK');
@@ -43,8 +43,8 @@ async function gh(route){const req=route.request(),u=new URL(req.url()),m=req.me
   await page.evaluate(()=>localStorage.clear());await page.reload();await page.waitForFunction(()=>window.LAND_SYNC);
   await page.evaluate(()=>{toggleCaseList();});
   assert.match(await page.textContent('#caseListPanel'),/되살아나요/);
-  await page.fill('#caseListPanel .arap-sync-tok','TOK');
-  const nav=page.waitForNavigation();await page.click('#caseListPanel .arap-sync-go');await nav;   // 받아온 뒤 새로고침
+  await page.fill('#syncBar .arap-sync-tok','TOK');
+  const nav=page.waitForNavigation();await page.click('#syncBar .arap-sync-go');await nav;   // 받아온 뒤 새로고침
   await page.waitForFunction(()=>window.getLandList);
   const back=await page.evaluate(()=>({list:getLandList().map(c=>c.id),d:JSON.parse(localStorage.getItem('tojigeonmul-case:T-9')).STDS[0]['지번']}));
   assert.deepEqual(back.list,['T-9']);assert.equal(back.d,'777');
