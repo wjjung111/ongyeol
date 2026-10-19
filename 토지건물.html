@@ -1359,7 +1359,7 @@ function renderLands(){
         +'<td colspan="7" style="text-align:left"><div style="display:flex;align-items:center;gap:6px">'
         +'<span class="hint" style="white-space:nowrap">사유(비고)</span>'
         +'<input value="'+esc(L['비고'])+'" placeholder="'+(out?'예: 타인점유 부분, 도로':'예: 송전선로 선하지 부분, 하천 저촉 부분')+'" title="비고 — 명세표 비고 칸과 그 밖의 사항 문구에 들어갑니다"'
-        +' style="flex:1;min-width:140px;text-align:left" oninput="LANDS['+i+'][\'비고\']=this.value;landChanged();">'
+        +' style="flex:1;min-width:140px;text-align:left" oninput="LANDS['+i+'][\'비고\']=this.value;landTextChanged();">'
         +'<span class="hint" style="white-space:nowrap">'+(out?'감정평가 외':'개별요인 → 토지평가 탭 '+landNo(i))+'</span></div></td>';
       if(multiStd){
         h+='<td><select style="width:100%;border:none;font:inherit;font-size:12px;background:transparent" onchange="LANDS['+i+'].stdIdx=+this.value;calcGongsi();saveForm();">'
@@ -1392,7 +1392,8 @@ function renderLands(){
           +(hasSub?'<div style="display:flex;gap:2px;margin-top:2px;white-space:nowrap"><button class="btn gh sm" style="padding:0 4px;font-size:10px" title="구분평가 줄 하나 더" onclick="addLandPart('+i+',false);renderLands();calcGongsi();saveForm();etcSyncGubun();">＋구분</button>'
             +'<button class="btn gh sm" style="padding:0 4px;font-size:10px" title="평가외 줄 하나 더" onclick="addLandPart('+i+',true);renderLands();calcGongsi();saveForm();etcSyncGubun();">＋평가외</button></div>':'')
           +'</td>';}
-      return '<td><input value="'+esc(L[c])+'" oninput="LANDS['+i+'][\''+c+'\']=this.value;landChanged();"></td>';}).join('');
+      // 글자 칸(소재지·지목·비고 …)은 표를 다시 그리지 않는다 — 다시 그리면 한글 조합이 끊겨 「ㅅㅓㄴ」처럼 써짐
+      return '<td><input value="'+esc(L[c])+'" oninput="LANDS['+i+'][\''+c+'\']=this.value;landTextChanged();"></td>';}).join('');
     if(multiStd){
       h+='<td><select style="width:100%;border:none;font:inherit;font-size:12px;background:transparent" onchange="LANDS['+i+'].stdIdx=+this.value;calcGongsi();saveForm();">'
         +STDS.map(function(S,j){return '<option value="'+j+'"'+(((L.stdIdx||0)===j)?' selected':'')+'>'+String.fromCharCode(65+j)+'</option>';}).join('')+'</select></td>';
@@ -1429,6 +1430,11 @@ function delLand(i){
   removeLandRow(i);
   if(isLandGroup())recalcGroupArea();renderLands();calcGongsi();saveForm();etcSyncGubun();}
 function landChanged(){renderLands();calcGongsi();saveForm();sd();try{renderGjs();}catch(e){}
+  etcSyncGubun();}
+// 본건 토지 표의 글자 칸 입력 — 값·계산·저장만 하고 표(renderLands)는 다시 그리지 않는다.
+// 표를 통째로 다시 그리면 입력 중인 칸이 새 칸으로 바뀌어 한글 조합(ㅅ+ㅓ+ㄴ → 선)이 매번 끊긴다(사용자 제보 2026-10-19).
+// 면적·사정면적처럼 다른 칸(원 필지 사정면적 자동값·합계)이 따라 바뀌는 숫자 칸만 landChanged로 다시 그린다.
+function landTextChanged(){calcGongsi();saveForm();sd();try{renderGjs();}catch(e){}
   etcSyncGubun();}   // 평가외 필지 비고(사유)를 고치면 그 밖의 사항 자동 문구도 따라간다(바뀐 게 없으면 아무 일 없음)
 
 function renderStds(){
