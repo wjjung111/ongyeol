@@ -20,7 +20,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);
         localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'T',label:'t'}]));
         localStorage.setItem(pre+'case:T',JSON.stringify({ov:{caseNo:'T',jibun:'서울 중구 87'},cases:[],precs:[],propType:'주거용'}));},{mode,pre});
-      await page.goto(base+'/s3r86w8a.html');
+      await page.goto(base+'/s3r86w8a.html?last=1');
       const openMemo=async()=>{const b=page.locator('span:text-is("◀ 메모"):visible');await b.first().waitFor();await b.first().click();};   // 메모장은 켤 때 접혀 있다(2026-10-13) — 펼친 뒤 검사
       await openMemo();
       const ta=page.locator('textarea[placeholder*="Enter / 이미지"]:visible').first();await ta.waitFor();

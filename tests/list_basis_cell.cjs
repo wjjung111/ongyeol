@@ -26,7 +26,7 @@ function cellLines(xml){const i=xml.indexOf('>목록표시근거<');assert(i>=0,
     // ① 집합건물 단일
     for(const [val,want] of [['귀 제시목록 등',['귀 제시목록 등']],
                              ['등기사항전부증명서(집합건물), 집합건축물대장, 귀 제시목록 등',['등기사항전부증명서(집합건물),','집합건축물대장, 귀 제시목록 등']]]){
-      const {ctx,page,errors}=await open('/s3r86w8a.html',()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
+      const {ctx,page,errors}=await open('/s3r86w8a.html?last=1',()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
       const scope=page.locator('#root');
       await scope.getByText('1. 접수개요',{exact:true}).click({timeout:60000});
       await scope.locator('div:has(> span:text-is("목록표시근거")) input').first().fill(val);

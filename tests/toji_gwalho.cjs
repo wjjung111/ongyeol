@@ -41,13 +41,13 @@ async function gwalAfterReload(page,url){
     page.on('pageerror',e=>errors.push(e.message));
     page.on('dialog',d=>d.accept());
     await context.route('**/*',route=>{const u=route.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return route.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return route.continue();return route.abort();});
-    await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});
+    await page.goto(base+'/토지건물.html?last=1',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiOpinion);
     const calc=await fixture(page);
     assert.equal(calc.size,200);assert(calc.bld>0);
 
     // 1) 고친 화면: 새로고침 뒤 바로 괄감을 뽑아도 건물 칸이 채워진다.
-    const fixed=await gwalAfterReload(page,base+'/토지건물.html');
+    const fixed=await gwalAfterReload(page,base+'/토지건물.html?last=1');
     assert.equal(fixed['괄_건물_공부면적'],'200');
     assert.equal(fixed['괄_건물_사정면적'],'200');
     assert.notEqual(fixed['괄_건물_단가'],'-');

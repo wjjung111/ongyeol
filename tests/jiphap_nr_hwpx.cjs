@@ -19,7 +19,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const ctx=await browser.newContext({acceptDownloads:true,viewport:{width:1300,height:900}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');localStorage.setItem('arap-nrcap-kind','집합상가');localStorage.setItem('arap-nrcap-region','서울');});
-    await page.goto(base+'/s3r86w8a.html');const scope=page.locator('#root');
+    await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
     await scope.getByText('2. 대상물건개요',{exact:true}).click({timeout:60000});
     await scope.locator('button',{hasText:/^비주거용$/}).first().click();
     if(process.env.SHARE){await scope.locator('select').filter({has:page.locator('option[value="share"]')}).first().selectOption('share');

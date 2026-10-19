@@ -16,7 +16,7 @@ const TSV=['소재지\t지번\t기타주소\t거래시점\t전용면적\t물건�
       const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.setDefaultTimeout(20000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
       await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
-      await page.goto(base+'/s3r86w8a.html');
+      await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
       await scope.getByText('3. 사례 등 입력',{exact:true}).click({timeout:60000});
       // 카이스 복붙 두 건

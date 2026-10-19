@@ -16,7 +16,7 @@ const REG={jibun:"서울특별시 강남구 신사동 616-2",road:"서울특별�
       if(u.startsWith('https://api.anthropic.com'))return r.fulfill({json:{content:[{type:'text',text:JSON.stringify(REG)}]}});
       return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(k=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');localStorage.setItem(k,'sk-test');},'v2:appraisal-api-key');
-    await page.goto(base+'/s3r86w8a.html');const scope=page.locator('#root');
+    await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
     await scope.getByText('2. 대상물건개요',{exact:true}).click({timeout:60000});
     const form=scope.locator('xpath=//div[normalize-space(text())="대상물건 정보"]/.. | //div[normalize-space(text())="건물 개요 (의견서용)"]/..');
     const getF=async l=>form.locator(`xpath=.//span[normalize-space(text())="${l}"]/following-sibling::input[1]`).first().inputValue();

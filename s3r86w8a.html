@@ -4325,8 +4325,9 @@ function App(){
       }catch(e){console.error('v2 샘플 심기 실패',e);}
       const list=window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":""),true);   // 목록에서 빠진 저장건은 다시 올린다
       setCaseList(list);
-      // 마지막 작업건 복원
-      if(list.length>0){
+      // 마지막 작업건 복원 — 새로고침(F5)·주소 끝 ?last=1 일 때만. 북마크·새 탭으로 들어오면 빈 새 평가서(2026-10-19 사용자 요청)
+      const openLast=(()=>{if(/[?&]last=1(&|$)/.test(location.search))return true;try{const n=performance.getEntriesByType("navigation")[0];return !!n&&n.type==="reload";}catch(e){return false;}})();
+      if(openLast&&list.length>0){
         const lastId=list[0].id;
         try{
           const r=storageGet(caseKey(lastId));
@@ -7708,8 +7709,9 @@ function App(){
     (async()=>{try{
       const list=window.ArapCaseBak.readList((LIST_KEY.indexOf("v2:")===0?"v2:":""),true);   // 목록에서 빠진 저장건은 다시 올린다
       setCaseList(list);
-      // 마지막 작업건 복원
-      if(list.length>0){
+      // 마지막 작업건 복원 — 새로고침(F5)·주소 끝 ?last=1 일 때만. 북마크·새 탭으로 들어오면 빈 새 평가서(2026-10-19 사용자 요청)
+      const openLast=(()=>{if(/[?&]last=1(&|$)/.test(location.search))return true;try{const n=performance.getEntriesByType("navigation")[0];return !!n&&n.type==="reload";}catch(e){return false;}})();
+      if(openLast&&list.length>0){
         const lastId=list[0].id;
         try{
           const r=storageGet(caseKey(lastId));

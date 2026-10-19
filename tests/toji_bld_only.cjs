@@ -29,7 +29,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     const ctx=await browser.newContext({acceptDownloads:true}),page=await ctx.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
-    await page.goto(base+'/토지건물.html?mode=bld',{waitUntil:'domcontentloaded'});
+    await page.goto(base+'/토지건물.html?mode=bld&last=1',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiOpinion&&window.ArapTojiDocuments);
     // ① 화면
     assert.equal(await page.evaluate(()=>BLD_ONLY),true,'?mode=bld → 건물만');
@@ -133,7 +133,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.locator('#fn_opinion').inputValue(),await page.evaluate(()=>FN_OPINION_BLD));
     // ④ 저장·복원
     await page.evaluate(()=>{document.getElementById('ov_caseNo').value='BLD-TEST';doSave();});
-    await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
+    await page.goto(base+'/토지건물.html?last=1',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
     assert.equal(await page.evaluate(()=>BLD_ONLY),true,'저장 건은 건물만으로 복원');
     assert.equal(await page.evaluate(()=>LAND_FINAL),0);
     await page.click('#ek_tb');
