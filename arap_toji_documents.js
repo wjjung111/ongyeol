@@ -255,6 +255,35 @@ async function bldOnlyGwal(b64){
   var u=new Uint8Array(bytes.buffer||bytes),s='';for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
   return btoa(s);
 }
+// 괄호감정표 — 토지에 감정평가 외 면적(토지건물.html isOut)이 있으면 평가내역 토지 줄 바로 아래에 같은 서식의 줄을 하나 끼운다
+// (사용자 샘플: 사정 「토지 1,818 / 655」, 금액 「400,314,000 / 감정평가 외」). 끼운 줄은 종별·공부면적을 비우고 값은 {{괄_토지외_*}}.
+// 양식 파일은 그대로, 출력할 때만 줄을 복제한다. base64로 돌려준다.
+async function gwalOutRow(b64){
+  var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
+  var kids=function(el,n){return Array.from(el.children).filter(function(x){return x.localName===n;});};
+  entries.filter(function(e){return /^Contents\/section\d+\.xml$/.test(e.name);}).forEach(function(e){
+    var d=xml(dec.decode(e.data));
+    var tr=Array.from(d.getElementsByTagNameNS('*','tr')).find(function(t){return t.textContent.indexOf('{{괄_토지_')>=0;});
+    if(!tr)return;
+    var tbl=tr.parentNode,c=tr.cloneNode(true),h=0;
+    Array.from(c.getElementsByTagNameNS('*','t')).forEach(function(t){
+      if(t.textContent.trim()==='토지')t.textContent='';
+      else if(t.textContent.indexOf('{{괄_토지_')>=0)t.textContent=t.textContent.split('{{괄_토지_').join('{{괄_토지외_');});
+    Array.from(c.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+    kids(c,'tc').forEach(function(tc){var sz=kids(tc,'cellSz')[0],sp=kids(tc,'cellSpan')[0];
+      var rs=sp?Number(sp.getAttribute('rowSpan'))||1:1;if(sz)h=Math.max(h,Number(sz.getAttribute('height'))/rs);});
+    tbl.insertBefore(c,tr.nextSibling);
+    kids(tbl,'tr').forEach(function(r,i){kids(r,'tc').forEach(function(tc){var ad=kids(tc,'cellAddr')[0];if(ad)ad.setAttribute('rowAddr',String(i));});});
+    tbl.setAttribute('rowCnt',String(kids(tbl,'tr').length));
+    var sz=kids(tbl,'sz')[0];if(sz&&h)sz.setAttribute('height',String(Math.round(Number(sz.getAttribute('height'))+h)));
+    var p=tbl.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
+    if(p)Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){if(!tbl.contains(n))n.remove();});
+    e.data=enc.encode(ser(d));
+  });
+  var bytes=A.createZipStored(entries);if(bytes instanceof Promise)bytes=await bytes;
+  var u=new Uint8Array(bytes.buffer||bytes),s='';for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
+  return btoa(s);
+}
 async function buildYohang(){
   var b64=await fetchTplB64('템플릿/토건 요항표 템플릿.hwpx');
   var entries=await A.parseZip(Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);}).buffer);
@@ -307,7 +336,15 @@ function statementRows(){
   if(bldRows().some(function(r){return num(r['연면적'])>0;})&&br.rows.some(function(r){return r.size>0&&!r.reCost;}))throw Error('건물평가 탭에서 모든 층의 재조달원가를 입력해 주세요.');
   var loc=function(L){return (typeof landLoc==='function')?landLoc(L):String((L||{})['소재지']||'');};
   // 건물만 — 토지 행 없이 건물 행만(지번은 '상동' 대신 실제 지번)
-  var rows=bldOnly()?[]:LANDS.map(function(l,i){var g=gs.rows[i];return {'명세_기호':String(i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),'명세_사정면적':landArea(l),'명세_단가':g.apply,'명세_평가액':g.total,'명세_비고':l['비고']||''};});
+  // 구분평가·평가외로 나눈 필지(토지건물.html isSub/isOut): 원 필지 줄 아래 나눈 줄을 같은 기호로 잇는다 — 기호·소재지~공부 칸은 비우고
+  // (소재지는 원 필지 줄에서 흘러내림) 사정면적·단가·금액·비고만. 사정면적은 괄호선 ┌ │ └로 묶는다(br). 평가외는 단가 '-', 금액 「감정평가 외」.
+  var sub=function(l){return typeof isSub==='function'&&isSub(l);},out=function(l){return typeof isOut==='function'&&isOut(l);};
+  var rows=bldOnly()?[]:LANDS.map(function(l,i){var g=gs.rows[i]||{},hasSub=!sub(l)&&sub(LANDS[i+1]);
+    var br=hasSub?'top':sub(l)?(sub(LANDS[i+1])?'mid':'end'):null;
+    var note=String(l['비고']||'');if(out(l)&&note.trim()==='-')note='';
+    var common={'명세_사정면적':landArea(l),'명세_단가':out(l)?'-':g.apply,'명세_평가액':out(l)?0:g.total,'명세_비고':note,br:br,out:out(l)};
+    if(sub(l))return Object.assign(common,{'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':'','명세_지역구조':'','명세_공부면적':null,minRows:2,drain:br==='end'});
+    return Object.assign(common,{'명세_기호':String(typeof landParcelNo==='function'?landParcelNo(i):i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),minRows:hasSub?2:undefined});});
   var land=LANDS[0]||{};
   // 건물은 발송 양식대로: 「가」 머리행(소재지 + [도로명주소] / 지번은 필지와 같으면 '상동' / 주용도 / 구조·층수)
   // 아래에 층별 행(용도·층·면적·단가·금액·비고, 3행씩)만 이어 붙인다. 동이 여럿이면 동마다 머리행.
@@ -353,6 +390,34 @@ function chunks(v,n){return String(v||'').split('\n').flatMap(function(line){
   if(cur)out.push(cur);
   return out.length?out:[''];
 });}
+// 나눈 필지(구분평가·평가외)의 사정면적 괄호선 서식 — 사정면적 칸 서식(baseId)을 복제해 숫자 서식만 바꾼다:
+//   top = "┌"를 칸 왼쪽 끝에 붙인 숫자, mid = "│", end = "└", line = 칸 왼쪽의 "│" 글자(값 줄 사이 빈 줄)
+// 숫자는 그대로 숫자라 금액 수식(단가×사정)이 깨지지 않는다. 출력 파일의 서식 목록 끝에만 덧붙이고 기존 서식 번호는 건드리지 않는다.
+function addBracketStyles(entries,baseId,dec,enc){
+  var e=entries.find(function(x){return x.name==='xl/styles.xml';});if(!e)return null;
+  var d=xml(dec.decode(e.data)),ss=d.documentElement;
+  var fmts=nodes(d,'numFmts')[0];
+  if(!fmts){fmts=d.createElementNS(X,'numFmts');ss.insertBefore(fmts,ss.firstElementChild);}
+  var used=nodes(fmts,'numFmt').map(function(n){return +n.getAttribute('numFmtId');}),next=Math.max(184,...used)+1;
+  var xfs=nodes(d,'cellXfs')[0],list=Array.from(xfs.children).filter(function(n){return n.localName==='xf';});
+  var base=list[+baseId]||list[0],out={};
+  var baseFmt=nodes(fmts,'numFmt').find(function(n){return n.getAttribute('numFmtId')===base.getAttribute('numFmtId');});
+  var numCode=baseFmt?baseFmt.getAttribute('formatCode'):'#,##0.00##';
+  var add=function(key,fmtId,left){
+    var x=base.cloneNode(true);x.setAttribute('numFmtId',String(fmtId));x.setAttribute('applyNumberFormat','1');
+    if(left){var al=Array.from(x.children).find(function(n){return n.localName==='alignment';});
+      if(!al){al=d.createElementNS(X,'alignment');x.appendChild(al);}al.setAttribute('horizontal','left');x.setAttribute('applyAlignment','1');}
+    xfs.appendChild(x);out[key]=String(Array.from(xfs.children).filter(function(n){return n.localName==='xf';}).length-1);
+  };
+  [['top','┌'],['mid','│'],['end','└']].forEach(function(p){
+    var f=d.createElementNS(X,'numFmt');f.setAttribute('numFmtId',String(next));f.setAttribute('formatCode','"'+p[1]+'"* '+numCode);fmts.appendChild(f);
+    add(p[0],next,false);next++;});
+  add('line',49,true);
+  fmts.setAttribute('count',String(nodes(fmts,'numFmt').length));
+  xfs.setAttribute('count',String(Array.from(xfs.children).filter(function(n){return n.localName==='xf';}).length));
+  e.data=enc.encode(ser(d));
+  return out;
+}
 async function buildStatement(rows){
   var raw=await fetchTplB64('템플릿/토건 명세표 템플릿.xlsx'),entries=await A.parseZip(Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
   // 토지만 — 제목 「(토지·건물)감정평가명세표」 → 「(토지)감정평가명세표」(앞 공백은 그대로)
@@ -366,6 +431,8 @@ async function buildStatement(rows){
   var footer=original.find(function(row){return nodes(row,'f').some(function(f){return /^SUM\(/.test(f.textContent);});});
   if(!sample||!footer)throw Error('명세표 양식에서 플레이스홀더 행 또는 합계행을 찾지 못했습니다.');
   var style={};nodes(sample,'c').forEach(function(c){style[c.getAttribute('r').replace(/\d/g,'')]=c.getAttribute('s');});
+  // 구분평가·평가외로 나눈 필지가 있을 때만 — 사정면적 괄호선 서식을 출력 파일의 서식 목록 끝에 덧붙인다(양식 파일·기존 서식은 그대로).
+  var brStyle=rows.some(function(x){return x.br;})?addBracketStyles(entries,style.H,dec,enc):null;
   var start=+sample.getAttribute('r'),base=+footer.getAttribute('r');
   var rowAttrs=['ht','customHeight','spans','x14ac:dyDescent'].map(function(a){return [a,sample.getAttribute(a)];}).filter(function(p){return p[1]!=null;});
   // B~K 열 순서. J(금액)는 값이 아니라 단가×사정면적 수식으로 넣는다(양식과 동일).
@@ -386,13 +453,20 @@ async function buildStatement(rows){
       split[c]=chunks(item['명세_'+k],wide[c]||8).map(function(line){return c==='K'&&/^[\d,]+$/.test(line)?Number(line.replace(/,/g,'')):line;});
     });
     // 블록 높이: 기본 4행(층별 행은 2행). 머리행 소재지가 그보다 길면 남는 줄은 아래 층별 행 옆으로 흘려보낸다(발송 양식과 같게).
-    var height=Math.max(item.minRows||4,...cols.filter(function(c){return c!=='C';}).map(function(c){return split[c].length;}));
+    // 나눈 필지의 마지막 나눈 줄(drain)은 원 필지에서 흘러내린 소재지 줄을 다 받을 만큼 늘린다(다음 필지에서 끊기지 않게).
+    var height=Math.max(item.minRows||4,...cols.filter(function(c){return c!=='C';}).map(function(c){return split[c].length;}),item.drain?carry.length:0);
     if(split.C){carry=split.C.slice(height);split.C=split.C.slice(0,height);}
     else split.C=carry.splice(0,height);
-    var hasUnit=item['명세_단가']!=null&&item['명세_단가']!=='';
+    var hasUnit=typeof item['명세_단가']==='number';   // 평가외 '-'·머리행 null이면 금액 수식 없음
     for(var j=0;j<height;j++){var row=newRow(r);
       (function(rr,first){cols.forEach(function(c){
-        row.append(c==='J'?cell(d,'J'+rr,style.J,null,(first&&hasUnit)?'+I'+rr+'*H'+rr:null):cell(d,c+rr,style[c],split[c][j]));
+        if(c==='J'){row.append(first&&item.out?cell(d,'J'+rr,style.J,'감정평가 외'):cell(d,'J'+rr,style.J,null,(first&&hasUnit)?'+I'+rr+'*H'+rr:null));return;}
+        // 사정면적 괄호선: 값 줄은 ┌(원 필지)·│(가운데 나눈 줄)·└(마지막 나눈 줄) 서식, 그 사이 빈 줄은 │
+        if(c==='H'&&item.br&&brStyle){
+          if(first){row.append(cell(d,'H'+rr,brStyle[item.br],split.H[0]));return;}
+          if(item.br!=='end'){row.append(cell(d,'H'+rr,brStyle.line,'│'));return;}
+        }
+        row.append(cell(d,c+rr,style[c],split[c][j]));
       });})(r,j===0);
       sd.insertBefore(row,footer);r++;}
     total+=item['명세_평가액']||0;
@@ -422,5 +496,5 @@ $('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=a
 function downloadYohang(btn,statusId){return run(btn,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'5. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');},statusId);}
 $('btnYohang').onclick=function(){return downloadYohang(this);};
 if($('btnYohang2'))$('btnYohang2').onclick=function(){return downloadYohang(this,'y_status');};
-window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang,landOnlyGwal:landOnlyGwal,bldOnlyGwal:bldOnlyGwal};
+window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang,landOnlyGwal:landOnlyGwal,bldOnlyGwal:bldOnlyGwal,gwalOutRow:gwalOutRow};
 })();

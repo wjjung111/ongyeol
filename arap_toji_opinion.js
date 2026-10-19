@@ -220,7 +220,8 @@ function opinionData(){
     '거래_채택기호':TRADES[GA.idx]?'거래사례#'+(GA.idx+1):'','거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
     '거래_시점률':gt.time==null?'':fixed((gt.time-1)*100,3)+'%','거래_시점':fixed(gt.time,5),
     '공시_시산가액':money(gs.total),'거래_시산가액':money(ga.total),'토지감정평가액':money(window.LAND_FINAL),
-    '토지_면적':area(gs.gongbuSize||gs.size),'토지_사정면적':area(gs.size),   // 합계 자리 — 공부면적/사정면적 각각
+    // 합계 자리 — 공부면적/사정면적 각각. 공부면적은 산출근거 표에 나오는 필지만(전체 감정평가 외 필지는 뺀 evalGongbu — 없으면 종전 값)
+    '토지_면적':area((gs.evalGongbu!=null?gs.evalGongbu:gs.gongbuSize)||gs.size),'토지_사정면적':area(gs.size),
     // Ⅳ 결정표 단가 — 여러 필지(일단지·묶기 아님)면 필지마다 달라 '-', 1필지·일단지는 단가 하나(괄호감정표와 같은 규칙)
     '공시_적용단가':typeof landUnitDoc==='function'?landUnitDoc():(gs.rows.every(function(r){return r.apply===gs.rows[0].apply;})?money(gs.applyUnit):'-'),
     '건물_합계면적':area(br.size),'건물가액':money(br.total),'감정평가액':money((window.LAND_FINAL||0)+br.total)
@@ -232,6 +233,31 @@ function opinionData(){
   // 단가·시산가액은 일단지 전체 값(화면 시산가액 표와 같은 한 줄). 명세표는 이와 달리 필지별 행을 유지한다.
   var group=(typeof isLandGroup==='function')&&isLandGroup()&&LANDS.length>1;
   var perParcel=LANDS.map(function(L,i){return parcelMap(L,i,gs,ga);});
+  // 구분평가·평가외로 나눈 필지(토지건물.html isSub/isOut, 사용자 샘플 2026-10-19 구산동 1530-3):
+  //  · 산출근거 표(개별요인·단가·시산가액)는 평가하는 줄만 — 감정평가 외 줄은 뺀다
+  //  · 나눈 줄은 공부면적 칸을 비우고 비고에 사유(「하천 저촉 부분」). 개별요인 표 번호는 「1(하천 저촉)」, 단가·시산가액 표는
+  //    번호를 비워 두고 원 필지 번호 칸과 세로로 합친다(parcelRuns → opinionXml)
+  //  · 「평가대상 토지」 표는 필지마다 한 줄 — 사정면적은 그 필지에서 평가한 면적 합, 비고에 「일부 구분평가(286㎡)」 등
+  var gub=typeof isSub==='function'&&typeof hasGubun==='function'&&hasGubun();
+  var parcelRuns=[];
+  if(gub){
+    var shortWhy=function(L){return text(subReason(L)).replace(/\s*부분$/,'').trim()||'일부';};
+    perParcel.forEach(function(m,i){var L=LANDS[i];
+      if(!isSub(L))return;
+      var pno=String(landParcelNo(i));
+      m['토지_면적']='';m['필지_번호']='';m['공시개별_번호']=pno+'('+shortWhy(L)+')';m['토지_번호']=pno;
+      if(!text(m['토지_비고']).trim()||m['토지_비고']==='-')m['토지_비고']=isOut(L)?'감정평가 외':'-';
+      m._note=text(subReason(L)).trim();   // 시산가액 표 비고 칸(양식은 '-' 고정 글자)에 넣을 사유
+    });
+    perParcel.forEach(function(m,i){if(!isSub(LANDS[i]))m['필지_번호']=m['토지_번호']=m['공시개별_번호']=String(landParcelNo(i));});
+    // 단가·시산가액 표에서 합칠 번호 칸 — 평가하는 줄 기준 [시작 줄, 줄 수]
+    var evalIdx=LANDS.map(function(L,i){return isOut(L)?-1:i;}).filter(function(i){return i>=0;});
+    evalIdx.forEach(function(i,k){
+      if(isSub(LANDS[i]))return;
+      var n=1;while(k+n<evalIdx.length&&isSub(LANDS[evalIdx[k+n]])&&landParentIdx(evalIdx[k+n])===i)n++;
+      if(n>1)parcelRuns.push([k,n]);
+    });
+  }
   var parcels=group?[(function(){
       var L0=LANDS[0]||{},m=parcelMap(L0,0,gs,ga);
       m['토지_지번']=text(L0['지번'])+' 외 '+(LANDS.length-1)+'필지';
@@ -240,7 +266,7 @@ function opinionData(){
       m['공시_시산가액']=money(gs.total);
       if(ga&&ga.total)m['거래_시산가액']=money(ga.total);
       return m;})()]
-    :perParcel;
+    :gub?perParcel.filter(function(m,i){return !isOut(LANDS[i]);}):perParcel;
   // 「대상물건 개요 - 평가대상 토지」 표만은 일단지라도 **필지별 줄**로 나간다 —
   // 소재지·지번·지목·공부면적은 필지마다, 나머지(일련번호·사정면적·용도지역·도로교통·형상지세·공시지가·비고)는
   // 세로로 합친 한 칸(사정면적은 묶은 면적 전체). 산출근거 표들은 위 parcels대로 한 줄이다(2026-09-22 요청).
@@ -248,15 +274,29 @@ function opinionData(){
       var o=Object.assign({},m);
       if(!i)o['토지_사정면적']=area(gs.size);   // 합친 칸에 들어갈 값 = 묶은 면적 전체
       return o;})
+    :gub?LANDS.map(function(L,i){
+      if(isSub(L))return null;
+      var o=Object.assign({},perParcel[i]),sz=function(k){return num((gs.rows[k]||{}).size);},ev=isOut(L)?0:sz(i),notes=[];
+      if(isOut(L))notes.push('감정평가 외'+(subReason(L)?'('+subReason(L)+')':''));
+      landSubIdx(i).forEach(function(k){var S=LANDS[k];if(!isOut(S))ev+=sz(k);
+        notes.push((isOut(S)?'일부 감정평가 외':'일부 구분평가')+'('+area(sz(k))+'㎡)');});
+      o['토지_사정면적']=isOut(L)?area(sz(i)):area(ev);
+      var base=text(o['토지_비고']).trim();   // 전체 평가외 필지는 비고가 곧 사유 — 「감정평가 외(사유)」로만 적는다
+      o['토지_비고']=[(base==='-'||isOut(L))?'':base].concat(notes).filter(Boolean).join(', ')||'-';
+      return o;}).filter(Boolean)
     :perParcel;
   // _selected = 본건 필지 중 하나라도 이 표준지를 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)
-  var standards=STDS.map(function(S,i){var used=gs.rows.map(function(r,j){return r.stdIdx===i?j+1:null;}).filter(Boolean);
+  var standards=STDS.map(function(S,i){var used=gs.rows.map(function(r,j){
+      if(r.stdIdx!==i||r.out)return null;   // 감정평가 외 줄은 표준지를 쓰지 않는다
+      return typeof landParcelNo==='function'?landParcelNo(j):j+1;}).filter(function(v,k,a){return v&&a.indexOf(v)===k;});   // 나눈 줄은 원 필지 번호(중복 제거)
     return Object.assign(standardMap(S,i),{
     '필지_번호':(group&&used.length)?(typeof groupWord==='function'?groupWord():'일단지'):used.join(', '),
     '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2),
     _selected:used.length>0
   });});
-  return {global:m,detail:detail,parcels:parcels,subject:subject,landGroup:group,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
+  // 거래사례 개별요인 표는 번호 칸이 {{필지_번호}} — 나눈 줄도 번호가 보여야 하므로 개별요인 표 번호(「1(하천 저촉)」)로 바꾼 사본을 쓴다
+  var parcelsGa=gub?parcels.map(function(x){return Object.assign({},x,{'필지_번호':x['공시개별_번호']});}):parcels;
+  return {global:m,detail:detail,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
@@ -657,7 +697,7 @@ function opinionXml(xml,data){
     // 본건/표준지 개별요인 표: 필지마다 [요인 행 + 의견 행] 두 줄 묶음으로 늘린다(일련번호 칸은 두 줄 세로 병합)
     else if(hasToken(tbl,'공시개별_번호'))resizeRows(tbl,1,2,2,data.parcels,state);
     // 본건/거래사례 개별요인 표도 같은 구조 — 필지마다 [요인 행 + 의견 행]. ('필지_번호'를 쓰므로 아래 '필지_번호' 분기보다 먼저)
-    else if(hasToken(tbl,'거래개별_가로'))resizeRows(tbl,1,2,2,data.parcels,state);
+    else if(hasToken(tbl,'거래개별_가로'))resizeRows(tbl,1,2,2,data.parcelsGa||data.parcels,state);
     else if(hasToken(tbl,'평사1_기호'))resizeRows(tbl,1,3,1,data.appraisals.length?data.appraisals:[blankMap(tbl)],state);
     else if(hasToken(tbl,'그밖_사례단가')){
       scope(tbl,data.detail,state);
@@ -668,10 +708,23 @@ function opinionXml(xml,data){
       // 그 밖의 요인 보정치 결정 표: 선정하지 않은 표준지는 빼고 선정한 표준지만(모두 미선정이면 양식 빈 행)
       var sisan=hasToken(tbl,'토지_면적')&&(hasToken(tbl,'공시_시산가액')||hasToken(tbl,'거래_시산가액'));
       var isGa=hasToken(tbl,'거래_시산가액');
-      resizeRows(tbl,1,1,1,hasToken(tbl,'그밖_사례기호')?picked:data.parcels,state);
+      var gbak=hasToken(tbl,'그밖_사례기호');
+      resizeRows(tbl,1,1,1,gbak?picked:data.parcels,state);
       // 토지만 — 시산가액 표(공시지가기준법·거래사례비교법)는 여러 필지면 맨 아래 합계 행(공부·사정면적 합계, 단가 '-', 시산가액 합계)
       if(sisan&&data.landOnly&&data.parcels.length>1)appendSumRow(tbl,[
         '합계',data.global['토지_면적'],data.global['토지_사정면적'],'-',isGa?data.global['거래_시산가액']:data.global['공시_시산가액'],'-']);
+      // 구분평가로 나눈 필지 — 단가·시산가액 표의 번호 칸(첫 열)을 원 필지 줄과 나눈 줄에 걸쳐 세로로 합친다(사용자 샘플).
+      // 합계 행은 마지막 줄을 복제하므로 합치기 전에 붙인다(합친 뒤 복제하면 번호 칸이 빠진 줄이 복제됨)
+      // 시산가액 표 비고 칸(양식의 '-' 고정 글자) — 나눈 줄은 그 사유로(「하천 저촉 부분」)
+      if(sisan)children(tbl,'tr').slice(1,1+data.parcels.length).forEach(function(tr,k){
+        var note=(data.parcels[k]||{})._note;if(!note)return;
+        var tc=children(tr,'tc').find(function(c){return children(c,'cellAddr')[0].getAttribute('colAddr')==='5';});
+        var t=tc&&descendants(tc,'t')[0];if(t&&t.textContent.trim()==='-'){t.textContent=note;clearLines(tc);}
+      });
+      if(!gbak&&data.parcelRuns&&data.parcelRuns.length){
+        var keep={};children(children(tbl,'tr')[1],'tc').forEach(function(tc){var col=children(tc,'cellAddr')[0].getAttribute('colAddr');keep[col]=col!=='0';});
+        data.parcelRuns.forEach(function(rn){mergeRows(tbl,1+rn[0],rn[1],keep);});
+      }
     }
     else if(hasToken(tbl,'층1_번호')){
       if(hasToken(tbl,'층1_유효경과연수')&&!data.observed)plainAgeCols(tbl);   // 토큰 칸이 빠지므로 행 채우기 전에
