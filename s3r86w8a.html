@@ -1932,7 +1932,11 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
   const crC=useColResize("cases",14),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
-  const sortAndApply=(arr,setArr,sort,isPrec)=>{const sorted=[...arr].sort((a,b)=>{let va=a[sort.key],vb=b[sort.key];if(typeof va==="string")va=va||"";if(typeof vb==="string")vb=vb||"";const na=parseFloat(String(va).replace(/,/g,"")),nb=parseFloat(String(vb).replace(/,/g,""));if(!isNaN(na)&&!isNaN(nb))return sort.asc?na-nb:nb-na;return sort.asc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});setArr(reIdx(sorted,isPrec));};
+  // 날짜(2025.11.03·2025-11-03·25.11.03)는 YYYYMMDD 숫자로 바꿔 비교 — parseFloat로 읽으면 2025.11 / 2025 로 잘려 같은 해 안에서 순서가 안 맞았음(2026-10-19). 빈 값은 항상 맨 뒤
+  const sortAndApply=(arr,setArr,sort,isPrec)=>{const dk=v=>{const m=String(v).trim().match(/^(\d{2}|\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(!m)return null;const y=m[1].length===2?2000+ +m[1]:+m[1];return y*10000+ +m[2]*100+ +m[3];};
+    const key=v=>{if(v==null||String(v).trim()==="")return null;const d=dk(v);if(d!=null)return d;const t=String(v).replace(/,/g,"").trim();return /^-?\d+(\.\d+)?$/.test(t)?parseFloat(t):String(v);};
+    const sorted=[...arr].sort((a,b)=>{const va=key(a[sort.key]),vb=key(b[sort.key]);if(va==null||vb==null)return va==null?(vb==null?0:1):-1;
+      const r=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));return sort.asc?r:-r;});setArr(reIdx(sorted,isPrec));};
   const toggleCSort=(key)=>{const next=cSort.key===key?{key,asc:!cSort.asc}:{key,asc:true};setCSort(next);sortAndApply(cases,setCases,next,false);};
   const togglePSort=(key)=>{const next=pSort.key===key?{key,asc:!pSort.asc}:{key,asc:true};setPSort(next);sortAndApply(precs,setPrecs,next,true);};
   const CSortTh=({label,sortKey,style:st,i})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>toggleCSort(sortKey)}>{label}{cSort.key===sortKey?(cSort.asc?" ▲":" ▼"):""}{crC.grip(i)}</th>;
@@ -5833,7 +5837,11 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
   const crC=useColResize("cases",14),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
-  const sortAndApply=(arr,setArr,sort,isPrec)=>{const sorted=[...arr].sort((a,b)=>{let va=a[sort.key],vb=b[sort.key];if(typeof va==="string")va=va||"";if(typeof vb==="string")vb=vb||"";const na=parseFloat(String(va).replace(/,/g,"")),nb=parseFloat(String(vb).replace(/,/g,""));if(!isNaN(na)&&!isNaN(nb))return sort.asc?na-nb:nb-na;return sort.asc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});setArr(reIdx(sorted,isPrec));};
+  // 날짜(2025.11.03·2025-11-03·25.11.03)는 YYYYMMDD 숫자로 바꿔 비교 — parseFloat로 읽으면 2025.11 / 2025 로 잘려 같은 해 안에서 순서가 안 맞았음(2026-10-19). 빈 값은 항상 맨 뒤
+  const sortAndApply=(arr,setArr,sort,isPrec)=>{const dk=v=>{const m=String(v).trim().match(/^(\d{2}|\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(!m)return null;const y=m[1].length===2?2000+ +m[1]:+m[1];return y*10000+ +m[2]*100+ +m[3];};
+    const key=v=>{if(v==null||String(v).trim()==="")return null;const d=dk(v);if(d!=null)return d;const t=String(v).replace(/,/g,"").trim();return /^-?\d+(\.\d+)?$/.test(t)?parseFloat(t):String(v);};
+    const sorted=[...arr].sort((a,b)=>{const va=key(a[sort.key]),vb=key(b[sort.key]);if(va==null||vb==null)return va==null?(vb==null?0:1):-1;
+      const r=typeof va==="number"&&typeof vb==="number"?va-vb:String(va).localeCompare(String(vb));return sort.asc?r:-r;});setArr(reIdx(sorted,isPrec));};
   const toggleCSort=(key)=>{const next=cSort.key===key?{key,asc:!cSort.asc}:{key,asc:true};setCSort(next);sortAndApply(cases,setCases,next,false);};
   const togglePSort=(key)=>{const next=pSort.key===key?{key,asc:!pSort.asc}:{key,asc:true};setPSort(next);sortAndApply(precs,setPrecs,next,true);};
   const CSortTh=({label,sortKey,style:st,i})=><th style={{...S.th,...st,cursor:"pointer",userSelect:"none"}} onClick={()=>toggleCSort(sortKey)}>{label}{cSort.key===sortKey?(cSort.asc?" ▲":" ▼"):""}{crC.grip(i)}</th>;
