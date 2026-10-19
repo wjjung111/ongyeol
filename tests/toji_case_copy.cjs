@@ -19,7 +19,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
 
   // 원본 건 만들기: 접수번호 + 표준지 A
   await page.evaluate(()=>{
-    newCase();document.getElementById('ov_caseNo').value='T-001';
+    newCase();document.getElementById('ov_caseNo').value='T-001';commitCaseNo();
     STDS=[{'소재지':'신사동','지번':'586','공시지가':'23010000'}];renderStds();
     localStorage.setItem('tojigeonmul-memo:T-001',JSON.stringify([{t:'메모'}]));
     doSave();

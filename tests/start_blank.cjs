@@ -31,14 +31,14 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       const go=async u=>{await page.goto(u,{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>typeof doSave==='function');await page.waitForTimeout(300);};
       await go(url);
       // 접수번호 있는 건 저장
-      await page.evaluate(()=>{document.getElementById('ov_caseNo').value='TEST-START-1';document.getElementById('ov_client').value='저장건의뢰인';doSave();});
+      await page.evaluate(()=>{document.getElementById('ov_caseNo').value='TEST-START-1';commitCaseNo();document.getElementById('ov_client').value='저장건의뢰인';doSave();});
       await go(url);
       assert.equal(await val('ov_caseNo'),'','토건 북마크 → 접수번호 빈칸');assert.equal(await val('ov_client'),'','토건 북마크 → 의뢰인 빈칸');
       assert.equal(await val('ov_purpose'),'일반거래(시가참고)','새 평가서 기본값은 채움');
       await go(url+'?last=1');
       assert.equal(await val('ov_caseNo'),'','저장 목록 건은 북마크로 들어올 때 지운 화면이라 ?last=1 에도 빈 화면');
       // 새로고침은 하던 화면 그대로
-      await page.evaluate(()=>{document.getElementById('ov_caseNo').value='TEST-START-2';document.getElementById('ov_client').value='두번째';doSave();});
+      await page.evaluate(()=>{document.getElementById('ov_caseNo').value='TEST-START-2';commitCaseNo();document.getElementById('ov_client').value='두번째';doSave();});
       await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>typeof doSave==='function');
       assert.equal(await val('ov_caseNo'),'TEST-START-2','토건 새로고침 → 하던 건');
       await go(url+'?last=1');assert.equal(await val('ov_client'),'두번째','토건 ?last=1 → 하던 건');

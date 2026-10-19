@@ -27,7 +27,7 @@ async function gh(route){const req=route.request(),u=new URL(req.url()),m=req.me
   let page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
   await page.goto(base+'/토지건물.html');await page.waitForFunction(()=>window.LAND_SYNC&&window.doSave);
   // 저장건 하나 + 연결
-  await page.evaluate(()=>{newCase();document.getElementById('ov_caseNo').value='T-9';STDS=[{'지번':'586'}];renderStds();doSave();toggleCaseList();});
+  await page.evaluate(()=>{newCase();document.getElementById('ov_caseNo').value='T-9';commitCaseNo();STDS=[{'지번':'586'}];renderStds();doSave();toggleCaseList();});
   await page.fill('#caseListPanel .arap-sync-tok','TOK');await page.click('#caseListPanel .arap-sync-go');
   await page.waitForFunction(()=>/백업됨/.test(document.querySelector('#caseListPanel .arap-sync-st').textContent));
   const g=Object.values(gists)[0];assert.ok(g.files['arap_sync_toji.json']);
