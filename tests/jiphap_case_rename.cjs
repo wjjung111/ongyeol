@@ -26,7 +26,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       localStorage.setItem(pre+'case:D-1',d('D-1','남의빌딩',2));
       localStorage.setItem(pre+'case:Z-9',d('Z-9','빠진빌딩',1));   // 목록에 없는 저장건
       localStorage.setItem(pre+'appraisal-memo:C-1',JSON.stringify([{t:'메모'}]));},{mode,pre});
-    await page.goto(base+'/s3r86w8a.html');
+    await page.goto(base+'/s3r86w8a.html?last=1');
     const scope=page.locator(mode==='single'?'#root':'#root-multi');
     const S=k=>page.evaluate(k=>localStorage.getItem(k),k);
     const J=async k=>JSON.parse(await S(k)||'null');

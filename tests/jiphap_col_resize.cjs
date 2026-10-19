@@ -23,7 +23,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         localStorage.setItem(prefix+'appraisal-case-list',JSON.stringify([{id:'TEST-COLW',label:'열너비 검증'}]));
         localStorage.setItem(prefix+'case:TEST-COLW',JSON.stringify({ov:{caseNo:'TEST-COLW',jibun:'서울특별시 성동구 행당동 87',units:[{id:1,dong:'',floor:'4',ho:'404',area:'100'},{id:2,dong:'',floor:'5',ho:'505',area:'90'}],area:'100',baseDate:'2026.09.17',writeDate:'2026.09.17'},cases:[c('c1','1','404',2200000000),c('c2','2','2701',2140000000)],precs:[p('p1','a'),p('p2','b')],propType:'주거용'}));
       },{mode});
-      await page.goto(base+'/s3r86w8a.html');
+      await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
       await scope.getByText('3. 사례 등 입력',{exact:true}).click();
 

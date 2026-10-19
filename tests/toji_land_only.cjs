@@ -30,7 +30,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     const ctx=await browser.newContext({acceptDownloads:true}),page=await ctx.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
-    await page.goto(base+'/토지건물.html?mode=land',{waitUntil:'domcontentloaded'});
+    await page.goto(base+'/토지건물.html?mode=land&last=1',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.ArapTojiOpinion&&window.ArapTojiDocuments);
     // ① 화면
     assert.equal(await page.evaluate(()=>LAND_ONLY),true,'?mode=land → 토지만');
@@ -129,7 +129,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(brow.length,3);assert.equal(brow[1]-brow[0],5,'필지 사이 빈 줄 1');assert.equal(brow[2]-brow[1],5);
     // ⑥ 저장·복원 + 평가대상 전환
     await page.evaluate(()=>{document.getElementById('ov_caseNo').value='LAND-TEST';doSave();});
-    await page.goto(base+'/토지건물.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
+    await page.goto(base+'/토지건물.html?last=1',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
     assert.equal(await page.evaluate(()=>LAND_ONLY),true,'저장 건은 토지만으로 복원');
     await page.click('#ek_tb');
     assert.equal(await page.evaluate(()=>LAND_ONLY),false);assert(await page.locator('#tabbtn-bld').isVisible(),'토건 전환 → 건물 탭');
@@ -138,7 +138,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>opinionTplPath()),'템플릿/토건 의견서(산출근거) 템플릿.hwpx');
     // ⑦ 저장된 토건 건을 연 채로 ?mode=land → 새 평가서(토지만)
     await page.evaluate(()=>doSave());
-    await page.goto(base+'/토지건물.html?mode=land',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
+    await page.goto(base+'/토지건물.html?mode=land&last=1',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>window.ArapTojiOpinion);
     assert.equal(await page.evaluate(()=>LAND_ONLY),true);assert.equal(await page.locator('#ov_caseNo').inputValue(),'','새 평가서');
     assert(await page.evaluate(()=>getLandList().some(c=>c.id==='LAND-TEST')),'전 건은 목록에 남음');
     assert.deepEqual(errors,[]);

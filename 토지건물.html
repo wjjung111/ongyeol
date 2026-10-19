@@ -4023,6 +4023,12 @@ document.getElementById('y_trafficNear').addEventListener('change',saveForm);
 document.getElementById('y_usestateAdd').onclick=addUsestateItem;
 document.getElementById('y_usestateFromBld').onclick=usestateFromBld;
 document.getElementById('cg_travel').addEventListener('blur',function(){renderCheonggu();saveForm();});
+// 북마크·새 탭으로 들어오면 빈 새 평가서(2026-10-19 사용자 요청). 새로고침(F5)·주소 끝 ?last=1 이면 하던 건 그대로.
+// 접수번호가 없어 저장 목록에 없는 작성 중 화면은 지우면 날아가므로 그대로 연다
+(function(){var last=/[?&]last=1(&|$)/.test(location.search);try{var n=performance.getEntriesByType('navigation')[0];if(n&&n.type==='reload')last=true;}catch(e){}
+  if(last)return;var o=readJson(FORM_STORAGE),cn=o&&o.ov&&String(o.ov.ov_caseNo||'').trim();
+  var saved=false;try{saved=!!(cn&&localStorage.getItem(landCaseKey(cn)));}catch(e){}
+  if(saved)try{localStorage.removeItem(FORM_STORAGE);}catch(e){}})();
 if(!restore()){window.BLD_STATE=bldNewState();renderStds();renderLands();addBldRow({});addBldRow({});renderEtcItems();}
 // 빈 칸에서 Tab → 연회색 안내 글씨(placeholder) 그대로 채움 (평가구분 등 data-tabfill 칸)
 document.addEventListener('keydown',function(e){var el=e.target;

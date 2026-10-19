@@ -48,7 +48,7 @@ try{
       localStorage.setItem(pre+'case:TRAVEL',JSON.stringify({ov:{caseNo:'TRAVEL',client:'검증',
         jibun:'경기도 성남시 분당구 정자동 178',buildingName:'검증아파트',dong:'101',floor:'3',ho:'304',
         baseDate:'2026.09.21',kind:'아파트',units:[{id:1,dong:'101',floor:'3',ho:'304',area:'84'}]},cases:[],precs:[],propType:'주거용'}));},{mode});
-    await page.goto(base+'/s3r86w8a.html');
+    await page.goto(base+'/s3r86w8a.html?last=1');
     await page.locator(rootSel).waitFor({timeout:60000});
     const v=await travelValue(page,rootSel);
     assert.equal(v.replace(/,/g,''),'95600',`집건(${mode}) 여비 칸이 ${v}`);
@@ -124,7 +124,7 @@ try{
   // ── 3. 토지건물 — 본건 토지 소재지(LANDS[0])로 1차, 시군구 입력칸(jb_region)으로 2차 ──
   {
     const {ctx,page,errors}=await mk();
-    await page.goto(base+'/토지건물.html');
+    await page.goto(base+'/토지건물.html?last=1');
     await page.waitForFunction(()=>window.ArapCheonggu&&typeof cgTravelAuto==='function',null,{timeout:60000});
     for(const [label,setup,want] of [
       ['본건 소재지(LANDS[0])',()=>{LANDS=[{fullAddr:'경기도 성남시 분당구 정자동 178'}];document.getElementById('jb_region').value='';},'95,600'],
