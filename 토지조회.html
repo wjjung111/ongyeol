@@ -188,7 +188,7 @@ function buildRow(out){
   var priceByYear={};out.prices.forEach(function(p){priceByYear[Number(p.stdrYear)]=p.pblntfPclnd;});
   var vals={};
   vals['소재지']=(c.ldCodeNm||'').split(' ').pop();
-  vals['지번']=c.mnnmSlno||'';
+  var jb=String(c.mnnmSlno||'').trim();vals['지번']=(jb&&String(out.pnu||c.pnu||'').charAt(10)==='2'&&!/^산/.test(jb))?'산'+jb:jb;   // PNU 11번째 자리 2 = 산(임야대장)
   vals['지목']=c.lndcgrCodeNm||'';
   vals['면적']=c.lndpclAr||'';
   vals['공시지가']=fmtWon(c.pblntfPclnd);

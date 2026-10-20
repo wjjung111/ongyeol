@@ -1151,10 +1151,12 @@ function queryParcel(query,key){
     out.char=latestRecord(fields);return out;
   });
 }
+// 지번 — 토지특성의 mnnmSlno에는 「산」이 없다(「34-2」). PNU 11번째 자리가 2면 임야대장(산) → 「산34-2」(2026-10-20 사용자 제보)
+function sanJibun(pnu,jb){jb=String(jb||'').trim();return (jb&&String(pnu||'').charAt(10)==='2'&&!/^산/.test(jb))?'산'+jb:jb;}
 function extract(out){
   var c=out.char;
   return {
-    소재지:(c.ldCodeNm||'').split(' ').pop(), 지번:c.mnnmSlno||'', 지목:c.lndcgrCodeNm||'', 면적:c.lndpclAr||'',
+    소재지:(c.ldCodeNm||'').split(' ').pop(), 지번:sanJibun(out.pnu||c.pnu,c.mnnmSlno), 지목:c.lndcgrCodeNm||'', 면적:c.lndpclAr||'',
     용도지역:mapWith(MAP_YONGDO,c.prposArea1Nm||'')+(c.prposArea2Nm&&c.prposArea2Nm!=='지정되지않음'?(', '+mapWith(MAP_YONGDO,c.prposArea2Nm)):''),
     이용상황:c.ladUseSittnNm||'', 도로교통:mapWith(MAP_JEOPMYEON,c.roadSideCodeNm||''), 형상:mapWith(MAP_HYEONGSANG,c.tpgrphFrmCodeNm||''),
     지세:c.tpgrphHgCodeNm||'', 공시지가:fmtWon(c.pblntfPclnd), 시군구:(c.ldCodeNm||'').split(' ').slice(0,-1).join(' ')
