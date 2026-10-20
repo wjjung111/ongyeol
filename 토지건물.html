@@ -249,6 +249,7 @@
   #tblAppr tr.dragover td{background:#dbeafe;}
   #tblAppr tr.dragging td{opacity:.45;}
   #landTbl td.land-grip{cursor:grab;white-space:nowrap;}
+  select.std-pick{border:1px solid #cbd5e1;border-radius:4px;font:inherit;font-size:12px;background:#fff;padding:0 2px;}
   #landTbl td.land-grip:active{cursor:grabbing;}
   #landTbl td.land-grip:hover .grip{color:#2563eb;}
   #landTbl tr.dragover td{background:#dbeafe;}
@@ -668,8 +669,8 @@
               <div class="row" style="margin-bottom:7px">
                 <b style="font-size:12px">적용사례</b>
                 <select class="box" id="etcPick" style="max-width:240px"></select>
-                <span class="hint">/ 표준지</span>
-                <select class="box" id="etcStd" style="max-width:120px;display:none" onchange="calcGongsi()"></select>
+                <span class="hint" id="etcStdLab" style="display:none">/ 비교표준지</span>
+                <select class="box" id="etcStd" style="max-width:120px;display:none" title="이 사례와 비교할 표준지 — 표준지가 둘 이상이면 고르세요(사례마다 기억)" onchange="ETC.std=+this.value;calcGongsi();saveForm();"></select>
                 <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime(true)" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
               </div>
               <div class="tw"><table>
@@ -1512,15 +1513,25 @@ function renderStds(){
       +'<td><span class="del" title="표준지 삭제" onclick="delStd('+j+')">✕</span></td></tr>';
   });
   document.getElementById('stdTbl').innerHTML=h;
-  var sel=document.getElementById('etcStd');
-  sel.innerHTML=STDS.map(function(S,j){return '<option value="'+j+'">표준지 '+String.fromCharCode(65+j)+'</option>';}).join('');
+  renderEtcStd();
+}
+// 그 밖의 요인 비교표준지 드롭다운 — 고른 값(ETC.std)을 다시 그려도 유지. 안 골랐으면 본건 첫 필지의 적용 표준지
+function renderEtcStd(){
+  var sel=document.getElementById('etcStd');if(!sel)return;
+  var cur=etcStdIdx();
+  sel.innerHTML=STDS.map(function(S,j){return '<option value="'+j+'"'+(j===cur?' selected':'')+'>표준지 '+String.fromCharCode(65+j)+'</option>';}).join('');
   sel.style.display=STDS.length>1?'':'none';
+  var lab=document.getElementById('etcStdLab');if(lab)lab.style.display=STDS.length>1?'':'none';
 }
 function addStd(){STDS.push({});renderStds();renderLands();calcGongsi();saveForm();}
 function delStd(j){
   if(STDS.length<=1){alert('마지막 표준지는 지울 수 없습니다.');return;}
   STDS.splice(j,1);
-  LANDS.forEach(function(L){if((L.stdIdx||0)>=STDS.length)L.stdIdx=STDS.length-1;});
+  // 지운 표준지 뒤의 것을 가리키던 선택은 한 칸 당겨 같은 표준지를 가리키게(지운 것을 가리켰으면 A로)
+  var fix=function(v){v=v||0;return v>j?v-1:(v===j?0:v);};
+  LANDS.forEach(function(L){L.stdIdx=fix(L.stdIdx);});
+  if(ETC.std!=null)ETC.std=fix(ETC.std);
+  TRADES.concat(APPRS).forEach(function(c){if(c&&c.etcMem&&c.etcMem.std!=null)c.etcMem.std=fix(c.etcMem.std);});
   renderStds();renderLands();calcGongsi();saveForm();
 }
 
@@ -2598,7 +2609,7 @@ function etcFmt(k,v){
   if(k==='ratio')return v.toFixed(2);   // 그 밖의 요인 비교치: 셋째 자리에서 절사한 값(둘째 자리까지)
   return won(v);
 }
-function etcStdIdx(){return Math.min(+(document.getElementById('etcStd').value||0),STDS.length-1);}
+function etcStdIdx(){var v=(ETC&&ETC.std!=null)?ETC.std:((LANDS[0]||{}).stdIdx||0);return Math.max(0,Math.min(+v||0,STDS.length-1));}
 function etcOv(k,v){
   var S=STDS[etcStdIdx()];if(!S)return;
   S.etcOvr=S.etcOvr||{};
@@ -2663,12 +2674,12 @@ function pickGa(i){
   var had=gaMemLoad();
   syncGeorae();autoGaTime(false,had&&hasV(document.getElementById('ga_time').value));saveForm();
 }
-function etcMemSave(){var c=etcCase();if(!c)return;c.etcMem={f:memFields(ETC_MEM_IDS)};}
-function etcMemLoad(){var c=etcCase(),m=c&&c.etcMem;if(!m)return false;memApply(m.f);return true;}
+function etcMemSave(){var c=etcCase();if(!c)return;c.etcMem={f:memFields(ETC_MEM_IDS),std:ETC.std};}   // 비교표준지도 사례마다 기억
+function etcMemLoad(){var c=etcCase(),m=c&&c.etcMem;if(!m)return false;memApply(m.f);if(m.std!=null)ETC.std=m.std;return true;}
 // 그 밖의 요인 적용사례 선택(거래사례 표 라디오·평가사례 표 라디오·그밖의요인 탭 드롭다운 공통)
 // 이미 고른 라디오를 한 번 더 누르면 선정 해제(idx -1). 입력해 둔 보정치는 사례별 기억(etcMem·gaMem)에 남는다.
 function togEtc(type,idx){
-  if(ETC.type===type&&ETC.idx===idx){etcMemSave();ETC={type:type,idx:-1};syncPick();renderTrade();renderAppr();calcGongsi();saveForm();return;}
+  if(ETC.type===type&&ETC.idx===idx){etcMemSave();ETC={type:type,idx:-1,std:ETC.std};syncPick();renderTrade();renderAppr();calcGongsi();saveForm();return;}
   pickEtc(type,idx);
 }
 function togGa(i){
@@ -2677,7 +2688,7 @@ function togGa(i){
 }
 function pickEtc(type,idx){
   if(ETC.type===type&&ETC.idx===idx)return;
-  etcMemSave();ETC={type:type,idx:idx};
+  etcMemSave();ETC={type:type,idx:idx,std:ETC.std};   // 비교표준지는 그대로 두고, 그 사례에 기억된 게 있으면 그걸로
   var had=etcMemLoad();
   syncPick();renderTrade();renderAppr();calcGongsi();
   if(!(had&&hasV(document.getElementById('eTime').value)))autoEtcTime();
@@ -2697,18 +2708,29 @@ function landGaop(L){L=L||{};if(L.gaop!=null)return L.gaop;var g=document.getEle
 function gaopRow(i){
   return '<tr><td colspan="8" style="text-align:left"><input value="'+esc(landGaop(LANDS[i]))+'" placeholder="본건은 거래사례와 비교하여 …" aria-label="'+landNo(i)+'번 필지 거래사례 비교의견" style="text-align:left" oninput="LANDS['+i+'].gaop=this.value;saveForm();"></td></tr>';
 }
+// 개별요인비교 표 「비교표준지」 칸 — 표준지가 둘 이상이면 여기서도 고른다(대상물건 개요 「적용 표준지」와 같은 값)
+function stdPickCell(i,group){
+  var L=LANDS[i]||{},cur=Math.min(L.stdIdx||0,STDS.length-1),tag=String.fromCharCode(65+cur);
+  if(STDS.length<2)return '<td>'+tag+'</td>';
+  return '<td class="jud-c"><select class="std-pick" title="이 필지와 비교할 표준지" onchange="setLandStd('+i+','+(group?1:0)+',+this.value)">'
+    +STDS.map(function(S,j){return '<option value="'+j+'"'+(j===cur?' selected':'')+'>'+String.fromCharCode(65+j)+'</option>';}).join('')+'</select></td>';
+}
+function setLandStd(i,group,v){
+  if(group)LANDS.forEach(function(L){L.stdIdx=v;});else if(LANDS[i])LANDS[i].stdIdx=v;
+  renderLands();calcGongsi();saveForm();if(MAPV)mapRestyle();
+}
 function renderGaebyeol(){
   var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>가로</th><th>접근</th><th>환경</th><th>획지</th><th>행정</th><th>기타</th><th>계</th></tr>';
   if(isLandGroup()){   // 묶기 — 묶은 필지 전체에 대해 한 세트만 입력
     var L0=LANDS[0]||{},f0=landFactors(L0);
-    h+='<tr><td rowspan="2" style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td><td>'+String.fromCharCode(65+(L0.stdIdx||0))+'</td>'+
+    h+='<tr><td rowspan="2" style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td>'+stdPickCell(0,true)+
       f0.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="setGroupFac(\'\','+k+',this.value);calcGongsi();saveForm();"></td>';}).join('')+
       '<td class="calc-c fac">'+facProduct(f0).toFixed(3)+'</td></tr>'+gopRow(0);
   }
   else LANDS.forEach(function(L,i){
     if(isOut(L))return;   // 감정평가 외 줄은 개별요인 비교가 없다
     var f=landFactors(L);
-    h+='<tr><td rowspan="2"'+(isSub(L)?' title="'+landParcelNo(i)+'번 필지의 나눈 줄 '+esc(subReason(L))+'"':'')+'>'+landNo(i)+'</td><td>'+String.fromCharCode(65+(L.stdIdx||0))+'</td>'+
+    h+='<tr><td rowspan="2"'+(isSub(L)?' title="'+landParcelNo(i)+'번 필지의 나눈 줄 '+esc(subReason(L))+'"':'')+'>'+landNo(i)+'</td>'+stdPickCell(i,false)+
       f.map(function(v,k){return '<td class="jud-c"><input class="fac" value="'+esc(v)+'" oninput="LANDS['+i+'].gf['+k+']=this.value;calcGongsi();saveForm();"></td>';}).join('')+
       '<td class="calc-c fac">'+facProduct(f).toFixed(3)+'</td></tr>'+gopRow(i);
   });
@@ -2721,7 +2743,7 @@ function calcGongsi(){
   facToneAll();
 
   // ── 그 밖의 요인: 선택된 표준지 기준 ──
-  var sj=Math.min(+(document.getElementById('etcStd').value||0),STDS.length-1);
+  var sj=etcStdIdx();renderEtcStd();
   var S=STDS[sj]||{};
   var su=srcUnit(),et=num(document.getElementById('eTime').value),ea=num(document.getElementById('eArea').value)||1;
   // 회색(자동) 칸 직접 수정값: 표준지별 S.etcOvr에 보관. 값이 있으면 그 값을 우선, 비우면 자동 (뒤 칸으로 그대로 이어짐)
