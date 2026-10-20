@@ -177,7 +177,8 @@
   .relbtn{flex-shrink:0;border:1px solid #cbd5e1;background:#fff;color:#2563eb;border-radius:4px;font:inherit;font-size:11px;padding:0 5px;line-height:18px;cursor:pointer;white-space:nowrap;}
   .relbtn.has{background:#2563eb;color:#fff;border-color:#2563eb;}
   #relModal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:6000;display:flex;align-items:center;justify-content:center;}
-  #relModal .box{background:#fff;border-radius:8px;padding:14px 16px;width:min(460px,calc(100vw - 32px));max-height:80vh;overflow:auto;box-shadow:0 10px 30px rgba(15,23,42,.35);font-size:13px;}
+  /* 클래스 이름 .box는 개요 칸 스타일(flex:1)과 겹쳐 창이 화면 너비로 늘어났다 → rel-box */
+  #relModal .rel-box{flex:none;background:#fff;border-radius:8px;padding:14px 16px;width:min(460px,calc(100vw - 32px));max-height:80vh;overflow:auto;box-shadow:0 10px 30px rgba(15,23,42,.35);font-size:13px;}
   #relModal h3{font-size:14px;margin:0 0 6px;color:#1a2744;}
   #relModal .rrow{display:flex;gap:6px;align-items:center;margin:4px 0;}
   #relModal .rrow input{width:120px;border:1px solid #cbd5e1;border-radius:4px;padding:3px 6px;font:inherit;}
@@ -2369,7 +2370,7 @@ function relRender(){
   var m=document.getElementById('relModal');
   if(!m){m=document.createElement('div');m.id='relModal';document.body.appendChild(m);
     m.addEventListener('mousedown',function(ev){if(ev.target===m)relClose();});}
-  var h='<div class="box"><h3>'+esc(name)+' — 함께 '+(e.kind==='t'?'거래':'평가')+'된 필지</h3>'
+  var h='<div class="rel-box"><h3>'+esc(name)+' — 함께 '+(e.kind==='t'?'거래':'평가')+'된 필지</h3>'
     +'<div class="hint" style="margin-bottom:6px">대표: <b>'+esc(stripOe(o.loc)||'(소재지 없음)')+'</b><br>나머지 지번을 넣으세요(예: 134-2). 한 칸에 「134-2, 134-3」처럼 여러 개를 넣어도 저장할 때 나눠집니다. 위치도에 필지가 함께 표시됩니다.</div>';
   e.list.forEach(function(j,k){
     h+='<div class="rrow"><input value="'+esc(j)+'" placeholder="지번" oninput="REL_EDIT.list['+k+']=this.value;this.nextElementSibling.textContent=relPreview(caseArr(REL_EDIT.kind)[REL_EDIT.i].loc,this.value)"'
