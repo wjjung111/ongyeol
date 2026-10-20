@@ -131,6 +131,12 @@ function fakeData(id){const i=Number(String(id).slice(-3))||1,x=126.9+i*0.002,y=
   assert.equal(labs.filter(t=>t==='거래 #1').length,1,'거래 #1 이름표 하나');
   assert.equal(labs.filter(t=>t==='평가 a').length,1,'평가 a 이름표 하나');
 
+  // ⑦-2 kapa hub 붙여넣기 — (개별)도로교통 칸도 읽는다
+  const KAPA='평가목적\t소재지\t지번(*)\t단가\t(개별)지목\t(개별)이용상황\t(개별)용도지역\t(개별)도로교통\t기준시점\n'+
+    '담보\t경기도 화성시 팔탄면 율암리\t653-10\t696,352\t공장용지\t공업용\t계획관리\t세로(가)\t2025-02-10';
+  const pa=await page.evaluate(k=>parseApprText(k).out[0],KAPA);
+  assert.equal(pa.road,'세로(가)');assert.equal(pa.loc,'율암리 653-10');
+  console.log('⑦-2 평가사례 붙여넣기 도로교통',pa.road);
   // ⑧ 저장·복원
   const back=await page.evaluate(()=>{saveForm();const o=collect();return {rel:o.TRADES?o.TRADES[0].rel:null,raw:JSON.stringify(o).includes('134-3')};});
   assert.ok(back.raw,'저장 데이터에 외 필지 포함');

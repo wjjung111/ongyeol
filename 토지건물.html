@@ -2568,7 +2568,7 @@ function parseApprText(text){
     var loc=pick(head,r,['소재지']).split(' ').filter(Boolean).pop()||'';
     var jib=pick(head,r,['지번']).replace(/\*/g,'').trim();
     out.push({no:'',loc:(loc+' '+jib).trim(),use:pick(head,r,['(개별)용도지역','용도지역/구조','용도지역']),
-      jimok:pick(head,r,['(개별)지목','지목/건물용도','지목']),cond:pick(head,r,['(개별)이용상황','이용상황']),
+      jimok:pick(head,r,['(개별)지목','지목/건물용도','지목']),cond:pick(head,r,['(개별)이용상황','이용상황']),road:pick(head,r,['(개별)도로교통','도로교통','도로조건']),
       unit:pick(head,r,['단가']),base:pick(head,r,['기준시점']),purp:pick(head,r,['평가목적'])});}
   out=out.filter(function(a){return a.loc.trim()||leadNum(a.unit);});
   if(!out.length)return {err:'데이터 행을 읽지 못했습니다. 머리글째 다시 복사해보세요.'};
