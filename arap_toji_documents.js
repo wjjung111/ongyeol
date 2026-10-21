@@ -56,6 +56,33 @@ var LAND_PARAS=[
   {tok:'{{요항_지세}}',keys:{'요항_지세':'jise','토지_형상':'shape'}},
   {tok:'{{요항_이용상황}}',keys:{'요항_이용상황':'use'}},
   {tok:'{{요항_도로1방위}}',keys:{'요항_도로1방위':'road1dir','요항_도로1노폭':'road1w','요항_도로2방위':'road2dir','요항_도로2노폭':'road2w'},road:true}];
+// ── 요항표 맹지·직접 입력·문장형 이용상황(2026-10-21) ── 토지건물.html 요항표 탭 접면도로 드롭다운 '0' 맹지 / 'free' 직접 입력
+function ownRoadText(cnt,free){free=String(free==null?'':free).trim();return cnt==='0'?(free||'맹지임.'):cnt==='free'?free:'';}
+function useSentence(v){v=String(v==null?'':v).trim();return /(임|음|함)\.?$|\.$/.test(v);}
+// 문단 글자를 한 문장으로 — 값 자리(빨강 런)에 넣고 나머지 글자는 비운다(문단·글자 모양은 양식 그대로)
+function oneSentence(p,text,red){
+  var runs=Array.from(p.children).filter(function(n){return n.localName==='run';});
+  var host=runs.find(function(r){return red.has(r.getAttribute('charPrIDRef'))&&r.getElementsByTagNameNS('*','t').length;})||runs.find(function(r){return r.getElementsByTagNameNS('*','t').length;});
+  Array.from(p.getElementsByTagNameNS('*','t')).forEach(function(t){t.textContent='';});
+  if(host)host.getElementsByTagNameNS('*','t')[0].textContent=text;
+  Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+}
+// 토큰 자리에 값을 넣고 그 뒤 글자(「로 이용중임.」)는 비운다 — 끝에 마침표가 없으면 붙인다
+function trimAfter(p,tok,value){
+  var ts=Array.from(p.getElementsByTagNameNS('*','t')),k=ts.findIndex(function(t){return t.textContent.indexOf(tok)>=0;});if(k<0)return;
+  if(!/\.$/.test(value))value+='.';
+  ts[k].textContent=ts[k].textContent.slice(0,ts[k].textContent.indexOf(tok))+value;
+  ts.slice(k+1).forEach(function(t){t.textContent='';});
+  Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
+}
+// 필지가 하나이거나 일단지(기호별로 안 나눔)일 때 — 기호1 칸 값으로 같은 처리
+function singleLandSentences(doc,red){
+  var paraOf=function(tok){var t=Array.from(doc.getElementsByTagNameNS('*','t')).find(function(n){return n.textContent.indexOf(tok)>=0;});var p=t&&t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;return p||null;};
+  var rt=ownRoadText(cgVal('y_roadCnt'),cgVal('y_roadFree')),pr=rt&&paraOf('{{요항_도로1방위}}');
+  if(pr)oneSentence(pr,/^본건/.test(rt)?rt:'본건은 '+rt,red);
+  var use=cgVal('y_use'),pu=useSentence(use)&&paraOf('{{요항_이용상황}}');
+  if(pu)trimAfter(pu,'{{요항_이용상황}}',use.trim());
+}
 function splitLandParas(doc,red){
   var lands=(typeof yohangLands==='function')?yohangLands():[];
   var runsOf=function(p){return Array.from(p.children).filter(function(n){return n.localName==='run';});};
@@ -92,9 +119,15 @@ function splitLandParas(doc,red){
     lands.forEach(function(ld,i){
       var c=p.cloneNode(true);
       if(spec.road){
+        // 맹지·직접 입력 — 정형 문장 대신 그 한 문장(「(2) 기호2 : 맹지임.」)
+        var rt=ownRoadText(ld.roadCnt,ld.roadFree);
+        if(rt){oneSentence(c,rt,red);prefix(c,'('+(i+1)+') 기호'+(i+1)+' : ');
+          Array.from(c.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});p.parentNode.insertBefore(c,p);return;}
         if(ld.roadCnt==='1')dropSecondRoadIn(c);
         dropBon(c);
       }
+      // 이용상황을 문장으로 썼으면(「도로임.」) 뒤 「로 이용중임.」을 뺀다
+      if(spec.keys['요항_이용상황']&&useSentence(ld.use))trimAfter(c,'{{요항_이용상황}}',String(ld.use).trim());
       tsOf(c).forEach(function(n){n.textContent=n.textContent.replace(/\{\{([^{}]+)\}\}/g,function(full,k){
         if(!Object.prototype.hasOwnProperty.call(spec.keys,k))return full;
         var v=String(ld[spec.keys[k]]||'').trim();if(k==='요항_지세')v=v.replace(/한$/,'');
@@ -307,6 +340,7 @@ async function buildYohang(){
     if(bldOnly())dropLandSection(d);   // 건물만 — 「Ⅱ. 토지의 개황」 절 없음, 건물의 개황이 Ⅱ
     fillLocationNarrative(d);
     splitLandParas(d,red);   // 여러 필지면 토지의 개황 1~3항을 기호별 문단으로(이 뒤 dropSecondRoad는 할 일이 없어진다)
+    singleLandSentences(d,red);   // 남은(1필지·일단지) 문단 — 맹지·직접 입력·문장형 이용상황
     dropSecondRoad(d);
     setTrafficNear(d);
     splitUsestate(d);
