@@ -666,6 +666,9 @@
 
             <!-- 그 밖의 요인 -->
             <div class="sub">
+              <!-- 본건 필지가 표준지 둘 이상(공장용지 A·임야 B)을 쓰면 아래 한 벌 패널 대신 표준지(사례×표준지)마다 산정 블록을 나란히(renderEtcBlocks) -->
+              <div id="etcBlocks" style="display:none"></div>
+              <div id="etcSingle">
               <div class="row" style="margin-bottom:7px">
                 <b style="font-size:12px">적용사례</b>
                 <select class="box" id="etcPick" style="max-width:240px"></select>
@@ -718,6 +721,7 @@
                 <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
                 <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="calc-c"><input id="eDecide" placeholder="-" oninput="calcGongsi();saveForm();"></td><td>1</td></tr>
               </table></div>
+              </div>
             </div>
           </div>
         </div>
@@ -2751,8 +2755,8 @@ function etcMemLoad(){var c=etcCase(),m=c&&c.etcMem;if(!m)return false;memApply(
 function etcPairMem(r,j){if(!r||!r.c)return null;var by=r.c.etcMemBy&&r.c.etcMemBy[j];if(by)return by;
   var m=r.c.etcMem;return (m&&(m.std==null?j===((LANDS[0]||{}).stdIdx||0):+m.std===j))?{f:m.f,dec:null}:null;}
 // 그 밖의 요인 계산(사례 × 표준지 쌍, 입력 f) — 화면 패널(calcGongsi)과 같은 공식. 회색 칸 직접 수정(표준지별 etcOvr)도 같이 반영
-function etcPairCalc(r,j,f){
-  f=f||{};var S=STDS[j]||{},OV=S.etcOvr||{},ov=function(k,a){return hasV(OV[k])?num(OV[k]):a;};
+function etcPairCalc(r,j,f,noOv){
+  f=f||{};var S=STDS[j]||{},OV=noOv?{}:(S.etcOvr||{}),ov=function(k,a){return hasV(OV[k])?num(OV[k]):a;};
   var su=ov('src',r?(r.type==='t'?tradeCalc(r.c).landUnit:leadNum(r.c.unit)):0);
   var et=num(f.eTime)||num(r&&r.c&&r.c.timeMeta&&r.c.timeMeta.factor),ea=num(f.eArea)||1,saj1=num(f.eSaj1)||1;
   var fac=[1,2,3,4,5,6].map(function(q){return hasV(f['e_f'+q])?f['e_f'+q]:'1.00';}),ef=1;fac.forEach(function(v){ef*=num(v)||1;});ef=Math.round(ef*1000)/1000;
@@ -2764,7 +2768,7 @@ function etcPairCalc(r,j,f){
 }
 // 이 쌍의 결정 보정치와 계산 내역 — 지금 패널에 띄운 쌍이면 패널 값, 아니면 기억한 입력으로 계산
 function etcPairResult(r,j){
-  var act=r&&r.type===ETC.type&&r.idx===ETC.idx&&j===etcStdIdx();
+  var act=!ETC_MULTI&&r&&r.type===ETC.type&&r.idx===ETC.idx&&j===etcStdIdx();   // 표준지별 블록 화면이면 늘 기억값(블록이 기억에 바로 쓴다)
   var m=act?{f:memFields(ETC_MEM_IDS),dec:(STDS[j]||{}).etcDecide}:etcPairMem(r,j);
   var d=etcPairCalc(r,j,m&&m.f);d.decide=num(m&&m.dec)||d.ratio;d.remembered=!!m;d.active=act;return d;
 }
@@ -2778,7 +2782,7 @@ function etcPairsUsed(rows){
 }
 function renderEtcPairs(rows){
   var el=document.getElementById('etcPairs');if(!el)return;
-  if(!rows.some(function(r){return r.etcOwn;})){el.style.display='none';el.innerHTML='';return;}
+  if(ETC_MULTI||!rows.some(function(r){return r.etcOwn;})){el.style.display='none';el.innerHTML='';return;}
   el.style.display='';
   el.innerHTML='<b style="color:#0f2547">표준지·필지별 그 밖의 요인</b> <span style="color:#64748b">— ✎를 눌러 각각 위 표에서 입력</span>'+etcPairsUsed(rows).map(function(p){
     var r={type:p.type,idx:p.idx,c:p.type==='t'?TRADES[p.idx]:APPRS[p.idx]},res=etcPairResult(r,p.std);
@@ -2788,6 +2792,124 @@ function renderEtcPairs(rows){
       +(!res.remembered&&!act?' <span style="color:#b91c1c">⚠ 아직 입력 안 함</span>':'')
       +(act?' <span style="color:#1d4ed8">지금 위 표</span>':' <button class="btn gh sm" style="padding:0 6px" onclick="editEtcPair('+p.rows[0]+')">✎ 위 표에 띄우기</button>')+'</div>';
   }).join('');
+}
+// ── 표준지별 그 밖의 요인 블록(2026-10-21 후속) ──
+// 본건 필지가 표준지를 둘 이상 쓰면(공장용지 → 표준지 A, 임야 → 표준지 B) 드롭다운으로 바꿔 보는 한 벌 패널 대신
+// 「사례 × 표준지」마다 산정 블록을 모두 펼쳐 보인다. 블록 입력은 그 쌍의 기억(사례.etcMemBy[표준지])에 바로 쓰고,
+// 회색(자동) 칸 직접 수정은 종전처럼 표준지별 etcOvr. 패널에 띄워 둔 쌍(ETC)의 값은 숨은 패널에도 같이 넣어 둔다(한 벌로 돌아갈 때 그대로).
+var ETC_MULTI=false,ETC_BLOCKS=[],ETC_BLK_SIG='',ETC_TIME_TRIED=new WeakSet();   // 시점수정 자동 계산은 사례마다 한 번만 시도(날짜 없음 등)
+var ETC_DEF_F={eSaj1:'',eTime:'',eArea:'1.000',eSaj2:'',eArea2:'1.000',eInd2:'',e_f1:'1.00',e_f2:'1.00',e_f3:'1.00',e_f4:'1.00',e_f5:'1.00',e_f6:'1.00',e_opinion:''};
+function etcBlocksOf(){
+  var out=[];if(isLandGroup())return out;
+  LANDS.forEach(function(L,i){if(isOut(L))return;var r=etcRefOf(L),j=landStdOf(L),key=(r?r.type+r.idx:'-')+'|'+j;
+    var b=out.find(function(x){return x.key===key;});
+    if(!b){b={key:key,type:r?r.type:'',idx:r?r.idx:-1,std:j,rows:[]};out.push(b);}b.rows.push(i);});
+  return out.sort(function(a,b){return a.std-b.std||a.rows[0]-b.rows[0];});
+}
+// calcGongsi 맨 앞 — 표준지가 둘 이상 쓰이면 지금 선정 사례로 필지를 고정(pinEtcPicks)하고 블록 화면으로
+function etcModeSync(){
+  var stds=[];if(!isLandGroup())LANDS.forEach(function(L){if(!isOut(L)&&stds.indexOf(landStdOf(L))<0)stds.push(landStdOf(L));});
+  if(stds.length>1&&LANDS.some(function(L){return !isOut(L)&&!etcOwn(L);}))pinEtcPicks();
+  var blocks=etcBlocksOf(),multi=blocks.length>1;
+  if(multi&&!ETC_MULTI)etcMemSave();   // 패널에 띄워 둔 쌍의 입력을 기억으로 넘긴 뒤 블록이 그 기억을 쓴다
+  ETC_MULTI=multi;ETC_BLOCKS=blocks;
+  var one=document.getElementById('etcSingle'),box=document.getElementById('etcBlocks');
+  if(one)one.style.display=multi?'none':'';if(box)box.style.display=multi?'':'none';
+}
+function etcBlkRef(b){if(!b||!b.type)return null;var c=b.type==='t'?TRADES[b.idx]:APPRS[b.idx];return c?{type:b.type,idx:b.idx,c:c}:null;}
+function etcBlkMem(b,create){
+  var r=etcBlkRef(b);if(!r)return null;var by=r.c.etcMemBy&&r.c.etcMemBy[b.std];
+  if(by||!create)return by||etcPairMem(r,b.std);
+  var old=etcPairMem(r,b.std),f=Object.assign({},ETC_DEF_F,old&&old.f);
+  if(!hasV(f.eTime)&&r.c.timeMeta)f.eTime=r.c.timeMeta.factor;
+  by={f:f,dec:old?old.dec:null};r.c.etcMemBy=r.c.etcMemBy||{};r.c.etcMemBy[b.std]=by;return by;
+}
+function etcBlkMirror(b,m){if(b.type===ETC.type&&b.idx===ETC.idx&&b.std===etcStdIdx()){memApply(m.f);if(STDS[b.std])STDS[b.std].etcDecide=m.dec;}}
+function etcBlkInput(el){
+  var b=ETC_BLOCKS[+el.dataset.b],r=etcBlkRef(b);if(!r)return;var m=etcBlkMem(b,true);
+  if(el.dataset.o){var S=STDS[b.std];S.etcOvr=S.etcOvr||{};if(hasV(el.value))S.etcOvr[el.dataset.o]=el.value;else delete S.etcOvr[el.dataset.o];}
+  else if(el.dataset.f==='dec'){var auto=etcPairCalc(r,b.std,m.f).ratio;m.dec=(hasV(el.value)&&num(el.value)!==num(auto.toFixed(2)))?el.value:null;}
+  else m.f[el.dataset.f]=el.value;
+  etcBlkMirror(b,m);calcGongsi();saveForm();
+}
+// 블록의 적용사례 바꾸기 — 그 블록 필지 전부에 그 사례(L.etcPick)
+function etcBlkCase(n,v){
+  var b=ETC_BLOCKS[n];if(!b||!v)return;var c=v[0]==='t'?TRADES[+v.slice(1)]:APPRS[+v.slice(1)];if(!c)return;
+  pinEtcPicks();b.rows.forEach(function(i){LANDS[i].etcPick=caseId(c);});
+  if(!c.timeMeta)computeCaseTime(c,v[0],document.getElementById('jbStatus')).then(function(){calcGongsi();saveForm();}).catch(function(e){console.error('그 밖의 요인 블록 시점수정',e);});
+  renderTrade();renderAppr();calcGongsi();saveForm();
+}
+function etcBlkTime(n){
+  var b=ETC_BLOCKS[n],r=etcBlkRef(b),st=document.getElementById('jbStatus');if(!r)return;
+  computeCaseTime(r.c,r.type,st,true).then(function(res){var m=etcBlkMem(b,true);m.f.eTime=res.meta.factor;etcBlkMirror(b,m);calcGongsi();saveForm();
+    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 = '+res.meta.factor+'  '+timeMetaLabel(res.meta);}})
+    .catch(function(e){console.error('그 밖의 요인 블록 시점수정',e);if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: '+e.message;}});
+}
+// 블록 한 개의 화면 값 — 입력칸(기억)·회색 칸(직접 수정 or 자동)·글자 칸
+function etcBlkVals(b){
+  var r=etcBlkRef(b);if(!r)return null;
+  var m=etcBlkMem(b,false),f=Object.assign({},ETC_DEF_F,m&&m.f),tm=r.c.timeMeta;
+  if(!hasV(f.eTime)&&tm)f.eTime=tm.factor;
+  var d=etcPairCalc(r,b.std,f),A=etcPairCalc(r,b.std,f,true),OV=(STDS[b.std]||{}).etcOvr||{};
+  var auto={src:A.source,ind:A.individual,out1:A.out1,std:A.price,stdTime:A.stdTime,out2:A.out2,ratio:A.ratio},ov={};
+  Object.keys(auto).forEach(function(k){var over=hasV(OV[k]),at=etcFmt(k,auto[k]);
+    ov[k]={val:over?OV[k]:at,mis:over&&etcFmt(k,num(OV[k]))!==at,title:over?('직접 입력값 (자동계산: '+(at||'-')+') — 비우면 자동계산으로 돌아갑니다'):'자동계산값 — 직접 고칠 수 있습니다'};});
+  var autoD=d.ratio?d.ratio.toFixed(2):'',dec=m&&hasV(m.dec)?m.dec:autoD;
+  var tl=(d.time&&tm&&tm.factor===d.time.toFixed(5))?(' — '+timeMetaLabel(tm)):'';
+  return {f:f,ov:ov,dec:{val:dec,mis:m&&hasV(m.dec)&&num(m.dec)!==num(autoD)},
+    t:{efSum:(function(){var e=1;[1,2,3,4,5,6].forEach(function(q){e*=num(f['e_f'+q])||1;});return (Math.round(e*1000)/1000).toFixed(3);})(),
+       fnTime:(d.time?d.time.toFixed(5):'-')+tl+(r.c.timeBusy?' ⏳ 계산 중…':''),fnArea:(num(f.eArea)||1).toFixed(3),ratio2:d.ratio?d.ratio.toFixed(2):'-'},
+    remembered:!!m};
+}
+function renderEtcBlocks(){
+  var box=document.getElementById('etcBlocks');if(!box)return;
+  if(!ETC_MULTI){if(box.innerHTML)box.innerHTML='';ETC_BLK_SIG='';return;}
+  var opts=[];TRADES.forEach(function(c,k){if(tradeHasData(c))opts.push(['t'+k,'거래사례 #'+(k+1)+' — '+(c.loc||'')]);});
+  APPRS.forEach(function(a,k){if(apprHasData(a))opts.push(['a'+k,'평가사례 '+(a.no||k+1)+' — '+(a.loc||'')]);});
+  var sig=ETC_BLOCKS.map(function(b){return b.key+':'+b.rows.join(',');}).join(';')+'#'+opts.map(function(o){return o.join('=');}).join(';');
+  ETC_BLOCKS.forEach(function(b){var r=etcBlkRef(b);   // 시점수정치가 아직 없는 사례는 한 번 계산(실패하면 timeErr가 남아 다시 안 함)
+    if(r&&!r.c.timeMeta&&!r.c.timeBusy&&!r.c.timeErr&&!ETC_TIME_TRIED.has(r.c)&&ETC_TIME_TRIED.add(r.c))computeCaseTime(r.c,r.type,document.getElementById('jbStatus')).then(function(){calcGongsi();saveForm();}).catch(function(e){console.error('그 밖의 요인 블록 시점수정',e);});});
+  if(sig!==ETC_BLK_SIG){ETC_BLK_SIG=sig;
+    var inp=function(n,k,ph,cls){return '<td class="jud-c"><input class="eb'+(cls?' '+cls:'')+'" data-b="'+n+'" data-f="'+k+'" placeholder="'+(ph||'')+'" oninput="etcBlkInput(this)"></td>';};
+    var gray=function(n,k,attr){return '<td class="calc-c"'+(attr||'')+'><input class="ebo" data-b="'+n+'" data-o="'+k+'" placeholder="-" oninput="etcBlkInput(this)"></td>';};
+    box.innerHTML='<div class="hint" style="margin:0 0 8px">본건 필지가 표준지 '+ETC_BLOCKS.map(function(b){return String.fromCharCode(65+b.std);}).filter(function(v,k,a){return a.indexOf(v)===k;}).join('·')
+      +'를 쓰므로 표준지마다 그 밖의 요인을 따로 산정합니다. 적용사례는 블록마다 고르세요(사례 표 「선정」에서 표준지를 골라도 됩니다).</div>'
+      +ETC_BLOCKS.map(function(b,n){
+      var r=etcBlkRef(b),cur=r?r.type+r.idx:'',tag=String.fromCharCode(65+b.std);
+      var head='<div class="row" style="margin-bottom:6px;gap:6px;flex-wrap:wrap"><b style="font-size:13px;color:#0f2547">■ 표준지 '+tag+'</b>'
+        +'<span class="hint">(기호 '+b.rows.map(landNo).join(', ')+')</span>'
+        +'<b style="font-size:12px;margin-left:8px">적용사례</b><select class="box" style="max-width:240px" onchange="etcBlkCase('+n+',this.value)">'
+        +(r?'':'<option value="" selected>(선정 안 함)</option>')
+        +opts.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>';}).join('')+'</select>'
+        +(r?'<span class="hint eb-new" data-b="'+n+'" style="color:#b91c1c"></span><button class="btn gh sm" style="margin-left:auto" onclick="etcBlkTime('+n+')" title="이 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 다시 계산">↻ 시점수정 자동</button>':'')+'</div>';
+      if(!r)return '<div class="etc-blk" id="etcBlk-'+n+'" style="margin-bottom:12px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px">'+head+'<div class="hint">적용사례를 고르면 산정 표가 나옵니다.</div></div>';
+      return '<div class="etc-blk" id="etcBlk-'+n+'" style="margin-bottom:12px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px">'+head
+        +'<div class="tw"><table>'
+        +'<tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>'
+        +'<tr><th class="rowh">사례기준<br>표준지평가</th>'+gray(n,'src')+inp(n,'eSaj1','-')+inp(n,'eTime','1.00699')+inp(n,'eArea','1.000')+gray(n,'ind')+gray(n,'out1')+gray(n,'ratio',' rowspan="2"')+'</tr>'
+        +'<tr><th class="rowh">표준지공시지가<br>시점수정</th>'+gray(n,'std')+inp(n,'eSaj2','-')+gray(n,'stdTime')+inp(n,'eArea2','1.000')+inp(n,'eInd2','-','fac')+gray(n,'out2')+'</tr>'
+        +'</table></div>'
+        +'<div class="fnote">1) 시점수정(사례시점~기준시점) : <b class="ebt" data-b="'+n+'" data-t="fnTime">-</b></div>'
+        +'<div class="fnote">2) 지역요인비교치 : <b class="ebt" data-b="'+n+'" data-t="fnArea">1.000</b></div>'
+        +'<div class="fnote">3) 개별요인비교치</div>'
+        +'<div class="tw"><table><tr><th>가로<br>조건</th><th>접근<br>조건</th><th>환경<br>조건</th><th>획지<br>조건</th><th>행정적<br>조건</th><th>기타<br>조건</th><th>계</th></tr><tr>'
+        +[1,2,3,4,5,6].map(function(q){return inp(n,'e_f'+q,'1.00','fac');}).join('')
+        +'<td class="calc-c fixed fac ebt" data-b="'+n+'" data-t="efSum" title="자동 계산(여섯 조건의 곱)">1.000</td></tr>'
+        +'<tr><th class="rowh">의견</th><td colspan="6" style="text-align:left"><input class="eb" data-b="'+n+'" data-f="e_opinion" placeholder="표준지는 '+(b.type==='t'?'거래사례':'평가사례')+'와 비교하여 …" style="text-align:left" oninput="etcBlkInput(this)"></td></tr></table></div>'
+        +'<div class="tw" style="margin-top:8px"><table><tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>'
+        +'<tr><td class="calc-c ebt" data-b="'+n+'" data-t="ratio2">-</td><td class="calc-c"><input class="eb" data-b="'+n+'" data-f="dec" placeholder="-" oninput="etcBlkInput(this)"></td><td>'+b.rows.map(landNo).join(', ')+'</td></tr></table></div></div>';
+    }).join('');
+  }
+  // 값 채우기 — 다시 그리지 않고 칸 값만(입력 중인 칸은 건드리지 않음 → 한글 입력이 안 깨짐)
+  ETC_BLOCKS.forEach(function(b,n){var v=etcBlkVals(b);if(!v)return;
+    box.querySelectorAll('[data-b="'+n+'"]').forEach(function(el){
+      if(el.classList.contains('ebt')){el.textContent=v.t[el.dataset.t];return;}
+      if(el.classList.contains('eb-new')){el.textContent=v.remembered?'':'⚠ 아직 입력 안 함(기본값)';return;}
+      if(el.dataset.o){var o=v.ov[el.dataset.o];el.parentNode.classList.toggle('mis',!!o.mis);el.title=o.title;if(el!==document.activeElement)el.value=o.val;return;}
+      if(el.dataset.f==='dec'){el.parentNode.classList.toggle('mis',!!v.dec.mis);if(el!==document.activeElement)el.value=v.dec.val;return;}
+      if(el.dataset.f&&el!==document.activeElement)el.value=v.f[el.dataset.f]==null?'':v.f[el.dataset.f];
+    });});
+  if(typeof facToneAll==='function')facToneAll();
 }
 // 필지별 그 밖의 요인 사례 고르기 — '' = 선정 사례 그대로
 // 처음 따로 고르는 순간 나머지 필지도 지금 쓰던 사례로 고정한다 — 그 뒤로 위 패널(ETC)은 편집용이라 바꿔도 다른 필지가 안 흔들린다
@@ -2806,7 +2928,9 @@ function setEtcStd(v){var c=etcCase();if(c)etcMemSave();ETC.std=v;
   var by=c&&c.etcMemBy&&c.etcMemBy[etcStdIdx()];if(by){memApply(by.f);STDS[etcStdIdx()].etcDecide=by.dec;}
   calcGongsi();saveForm();}
 // 이 필지의 사례 × 표준지 쌍을 위 그 밖의 요인 패널에 띄워 입력·확인
-function editEtcPair(i){var L=LANDS[i],r=etcRefOf(L);if(!r)return;
+function editEtcPair(i){var L=LANDS[i],r=etcRefOf(L);
+  if(ETC_MULTI){var bn=ETC_BLOCKS.findIndex(function(b){return b.rows.indexOf(i)>=0;}),be=document.getElementById('etcBlk-'+bn);if(be&&be.scrollIntoView)be.scrollIntoView({block:'center'});return;}   // 블록 화면 — 그 필지 블록으로
+  if(!r)return;
   pinEtcPicks();   // 패널을 이 쌍으로 바꿔도 다른 필지는 쓰던 사례 그대로
   var j=landStdOf(L);
   if(!(ETC.type===r.type&&ETC.idx===r.idx&&etcStdIdx()===j)){
@@ -2893,6 +3017,7 @@ function renderGaebyeol(){
   setTableHtml('tblGaebyeol',h);facToneAll();
 }
 function calcGongsi(){
+  etcModeSync();
   renderGaebyeol();
   var ef=mul('.ef');
   document.getElementById('efSum').textContent=ef.toFixed(3);   // 아래 개별요인비교치 박스의 '계' — 항상 자동값(기준)
@@ -2986,7 +3111,7 @@ function calcGongsi(){
 
   // size = 평가한 사정면적 합(평가외 제외) · outSize = 감정평가 외 면적 합 · gongbuSize = 공부면적 합(평가외 필지 포함, 괄감 공부 칸)
   // evalGongbu = 평가외 필지를 뺀 공부면적 합(의견서 시산가액 표 합계 행 — 표에 나오는 필지만)
-  renderEtcPairs(docRows);
+  renderEtcPairs(docRows);renderEtcBlocks();
   window.GONGSI_RESULT={applyUnit:firstApply,total:sumTotal,size:sumSize,gongbuSize:sumGongbu,evalGongbu:evalGongbu,outSize:outSize,rows:docRows,
     etc:{stdIdx:sj,source:su,sajeong:saj1,time:et,area:ea,individual:ind,out1:o1,price:sp,stdTime:stf2,stdSajeong:saj2,stdArea:ea2,stdIndividual:ind2,out2:o2,ratio:ratio}};
   renderTradePick();
