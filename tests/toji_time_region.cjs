@@ -2,6 +2,8 @@
 //  ① 지역 이름 바로 뒤에 면·읍·동·리가 붙으면 맞는 것으로 치지 않음 → 소재지만으로는 못 찾고(-1) 시군구 조회로 넘어감
 //  ② 「장안구 정자동」처럼 진짜 구 이름이면 그대로 수원시 장안구
 //  ③ 이미 수원시 장안구로 계산해 둔 사례는 다시 계산 대상(jbStaleReg), 화성시로 계산된 건 아님
+//  ⑤ 「우정읍 화산리」의 '정읍'이 전북 정읍시로 잡히던 것도 — 띄어쓰기 낱말 단위로만 일치
+//  ④ 새로고침(켤 때)해도 자동으로 다시 계산 — 처음엔 건을 바꿔 열 때만 돌아서 F5로는 안 고쳐졌다(사용자 제보)
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_time_region.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -18,17 +20,34 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   await page.goto(base+'/토지건물.html?mode=land',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>window.jbPickRegion&&window.jbStaleReg);
   const r=await page.evaluate(()=>{
-    const regs=['경기 > 수원시','경기 > 수원시 > 장안구','경기 > 수원시 > 권선구','경기 > 화성시','경기 > 화성시 > 만세구','서울 > 강남구'];
+    const regs=['경기 > 수원시','경기 > 수원시 > 장안구','경기 > 수원시 > 권선구','경기 > 화성시','경기 > 화성시 > 만세구','서울 > 강남구','전북 > 정읍시','서울 > 중랑구'];
     const pick=h=>{const i=jbPickRegion(regs,h);return i<0?null:regs[i];};
     return {loc:pick('장안면 사곡리 309-17'),sgg:pick('경기도 화성시 만세구 장안면 사곡리 309-17'),real:pick('수원시 장안구 정자동 100'),real2:pick('장안구 정자동 100'),
       stale:jbStaleReg({reg:'경기 수원시 장안구'},'장안면 사곡리 309-17'),ok:jbStaleReg({reg:'경기 화성시 만세구'},'장안면 사곡리 309-17'),
-      okReal:jbStaleReg({reg:'경기 수원시 장안구'},'장안구 정자동 100')};
+      okReal:jbStaleReg({reg:'경기 수원시 장안구'},'장안구 정자동 100'),
+      ujeong:pick('우정읍 화산리 45-20외'),ujeongStale:jbStaleReg({reg:'전북 정읍시'},'우정읍 화산리 45-20외'),
+      jeongeup:pick('전북특별자치도 정읍시 수성동 1'),jung:pick('서울특별시 중랑구'),jungSub:pick('중랑구 상봉동 74-6')};
   });
   console.log(r);
   assert.equal(r.loc,null,'장안면은 수원시 장안구가 아님');
   assert.equal(r.sgg,'경기 > 화성시 > 만세구');
   assert.equal(r.real,'경기 > 수원시 > 장안구');assert.equal(r.real2,'경기 > 수원시 > 장안구');
   assert.equal(r.stale,true);assert.equal(r.ok,false);assert.equal(r.okReal,false);
+  assert.equal(r.ujeong,null,'우정읍은 정읍시가 아님');assert.equal(r.ujeongStale,true);
+  assert.equal(r.jeongeup,'전북 > 정읍시');assert.equal(r.jung,'서울 > 중랑구');assert.equal(r.jungSub,'서울 > 중랑구');
+  // ④ 저장 → 새로고침 → 켤 때 자동 재계산(통신 막힘 → 본건 시군구 화성시로)
+  await page.evaluate(()=>{
+    LANDS=[{소재지:'우정읍 화산리',지번:'664-75',fullAddr:'경기도 화성시 우정읍 화산리 664-75',지목:'임',면적:'2000',용도지역:'계획관리',공시지가:'100000',stdIdx:0}];
+    STDS=[{소재지:'화산리',지번:'2',공시지가:'100000'}];
+    TRADES=[{loc:'장안면 사곡리 309-17',use:'계획관리',jimok:'임야',date:'2025.08.04',landA:'2475',total:'273595291',timeMeta:{reg:'경기 수원시 장안구',use:'계획관리지역',from:'25.08.04',to:'26.10.19',factor:'1.02191'},
+      gaMem:{f:{ga_time:'1.02191'}}},{}];
+    document.getElementById('base_gijun').value='2026.10.19';renderLands();renderTrade();calcGongsi();saveForm();
+  });
+  await page.goto(base+'/토지건물.html?mode=land&last=1',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>window.TRADES&&TRADES[0]&&TRADES[0].timeMeta&&!/수원/.test(TRADES[0].timeMeta.reg),null,{timeout:20000});
+  const re=await page.evaluate(()=>({reg:TRADES[0].timeMeta.reg,f:TRADES[0].timeMeta.factor,mem:TRADES[0].gaMem.f.ga_time,cell:document.getElementById('tradeTime_0').textContent}));
+  console.log('④ 새로고침 뒤',re);
+  assert.ok(/화성시/.test(re.reg));assert.equal(re.mem,re.f,'옮겨 적어 둔 거래사례비교법 시점수정도 새 값');assert.ok(re.cell.includes('화성시'));
   assert.deepEqual(errs,[]);
   console.log('\n✅ 사례 시점수정 지역 검증 통과');
   await browser.close();server.close();

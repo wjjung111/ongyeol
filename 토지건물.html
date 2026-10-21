@@ -1892,20 +1892,21 @@ function jbSplit(r){
   return {reg:reg,use:use};
 }
 function jbPickRegion(regs,hint){
-  hint=String(hint||'').replace(/\s/g,'');if(!hint)return -1;
+  hint=String(hint||'').trim();if(!hint)return -1;
   var bi=-1,bs=0;
   // 접미사를 뗀 조각이 한 글자(동구→'동', 중구→'중', 남구→'남')면 동 이름과 우연히 겹치므로 무시 — "상봉동 74-6"이 "대전 동구"로 잡히는 것 방지
   regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p.length>=2&&jbHasName(hint,p))score+=p.length;});if(score>bs){bs=score;bi=i;}});
   return bi;
 }
-// 지역 이름 조각이 주소에 「그 이름으로」 들어 있는지 — 바로 뒤에 면·읍·동·리·가·로·길이 붙으면 아래 단위 이름과 우연히 겹친 것
-// (「장안면 사곡리」의 '장안'이 수원시 장안구로 잡히던 문제, 2026-10-21 사용자 제보: 화성시 장안면 사례가 수원시 시점수정)
-function jbHasName(hint,p){for(var k=hint.indexOf(p);k>=0;k=hint.indexOf(p,k+1)){if(!/^[면읍동리가로길]/.test(hint.slice(k+p.length)))return true;}return false;}
+// 지역 이름 조각이 주소에 「그 이름으로」 들어 있는지 — 주소를 띄어쓰기로 나눈 낱말 하나가 그 이름(+시·군·구·도 등)이어야 한다.
+// 낱말 일부와 겹친 건 아님: 「장안면 사곡리」의 '장안' ≠ 수원시 장안구, 「우정읍 화산리」의 '정읍' ≠ 전북 정읍시(2026-10-21 사용자 제보)
+var JB_SUFFIX=/^(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/;
+function jbHasName(hint,p){return String(hint||'').split(/\s+/).some(function(t){return t===p||(t.indexOf(p)===0&&JB_SUFFIX.test(t.slice(p.length)));});}
 // 이미 계산해 둔 시점수정 지역이 위 문제로 잘못 잡힌 것인지(지역 조각이 사례 소재지에 면·읍·동·리 이름으로만 들어 있음) — 그러면 다시 계산
 function jbStaleReg(m,loc){
-  if(!m||!m.reg)return false;loc=String(loc||'').replace(/\s/g,'');
+  if(!m||!m.reg)return false;loc=String(loc||'').trim();
   return m.reg.split(' ').slice(1).some(function(p){p=p.replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');
-    return p.length>=2&&loc.indexOf(p)>=0&&!jbHasName(loc,p);});
+    return p.length>=2&&loc.replace(/\s/g,'').indexOf(p)>=0&&!jbHasName(loc,p);});
 }
 // 월별 변동률(%) → 시점수정치. 부동산원 지가변동률 조회 화면과 같은 규칙(arm_시점수정.html jbFactor와 동일 — 수정 시 양쪽 함께):
 //  ① 첫 달 일할 ② 그 해 1월 1일부터 포함되는 해는 월별 곱 대신 연도 누계(cum) 한 덩어리 ③ 미공표 구간은 (1+마지막 공표월 r×경과일수/공표월 일수) 한 번
@@ -2279,7 +2280,7 @@ function renderTrade(){
     return '<td class="jud-c"><input type="radio" name="pickTradeGa" '+(GA.idx===i?'checked':'')+' onclick="togGa('+i+')"></td>';}).join('')+'</tr>';
   // 시점수정치: 선정할 때 계산되고, 계산된 값은 사례별로 남아 다른 사례로 옮겨도 계속 보인다
   h+='<tr><th class="rowh" title="선정 시 사례 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준). 한 번 계산되면 저장돼 계속 보임">시점<br>수정치</th>'+TRADES.map(function(c,i){
-    return '<td class="tt-c'+(usedCases().t[i]?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
+    return '<td class="tt-c'+(usedCases().t[i]?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'" style="cursor:pointer" title="누르면 이 사례의 시점수정치를 다시 계산합니다(거래일자~기준시점, 사례 소재지 기준)" onclick="redoCaseTime(\'t\','+i+',true)">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
   // 비고: 사례별 자유 메모 (화면에서만 보이고 문서에는 나가지 않음)
   h+='<tr><th class="rowh" title="사례에 대한 메모 — 자유롭게 적으세요. 화면에만 남고 문서에는 나가지 않습니다">비고</th>'+TRADES.map(function(c,i){
     return '<td><input value="'+attr(c.note||'')+'" placeholder="자유 입력" oninput="tradeIn('+i+',\'note\',this.value)"></td>';}).join('')+'</tr>';
@@ -4592,22 +4593,26 @@ function refreshAfterLoad(){fillEtcArea();updatePeriod();sumBld();renderTrade();
 // 저장건을 열 때 — 옛 오조회(장안면 → 수원시 장안구)로 계산해 둔 사례 시점수정치를 다시 계산하고,
 // 그 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로. 손으로 고친 값은 안 건드린다.
 function fixStaleTimes(){
-  var st=document.getElementById('jbStatus');
   [['t',TRADES],['a',APPRS]].forEach(function(pr){pr[1].forEach(function(c,i){
-    if(!c||!c.timeMeta||!jbStaleReg(c.timeMeta,c.loc))return;
-    var old=c.timeMeta.factor;
-    computeCaseTime(c,pr[0],st).then(function(r){var nf=r.meta.factor;if(nf===old)return;
-      var sw=function(f,k){if(f&&f[k]===old)f[k]=nf;};
+    if(c&&c.timeMeta&&jbStaleReg(c.timeMeta,c.loc))redoCaseTime(pr[0],i,false);});});
+}
+// 사례 하나의 시점수정치를 다시 계산(force = 같은 기간이어도 새로 조회) — 거래사례 표 시점수정치 칸을 누르면 이것.
+// 예전 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로, 손으로 고친 값은 그대로.
+function redoCaseTime(type,i,force){
+  var c=(type==='t'?TRADES:APPRS)[i],st=document.getElementById('jbStatus');if(!c)return;
+  var old=c.timeMeta&&c.timeMeta.factor;
+  if(force&&c.timeMeta&&jbStaleReg(c.timeMeta,c.loc))delete c.sgg;   // 옛 오조회 사례는 시군구도 다시 찾게
+  var p=computeCaseTime(c,type,st,force);refreshTradeTime();
+  p.then(function(r){var nf=r.meta.factor;
+    if(old&&nf!==old){var sw=function(f,k){if(f&&f[k]===old)f[k]=nf;};
       if(c.gaMem)sw(c.gaMem.f,'ga_time');if(c.etcMem)sw(c.etcMem.f,'eTime');
       Object.keys(c.etcMemBy||{}).forEach(function(j){sw(c.etcMemBy[j].f,'eTime');});
-      if(pr[0]==='t'&&GA.idx===i){var g=document.getElementById('ga_time');if(g.value===old)g.value=nf;}
-      if(ETC.type===pr[0]&&ETC.idx===i){var e=document.getElementById('eTime');if(e.value===old)e.value=nf;}
-      renderTrade();renderAppr();calcGongsi();saveForm();
-      if(st){st.className='status';st.textContent='✅ 사례 시점수정 지역을 바로잡았습니다: '+(pr[0]==='t'?'거래사례 #'+(i+1):'평가사례 '+(c.no||i+1))+' → '+timeMetaLabel(r.meta);}
-    }).catch(function(e){console.error('시점수정 지역 바로잡기',e);});
-  });});
+      if(type==='t'&&GA.idx===i){var g=document.getElementById('ga_time');if(g.value===old)g.value=nf;}
+      if(ETC.type===type&&ETC.idx===i){var e=document.getElementById('eTime');if(e.value===old)e.value=nf;}}
+    renderTrade();renderAppr();calcGongsi();saveForm();
+    if(st){st.className='status';st.textContent='✅ '+(type==='t'?'거래사례 #'+(i+1):'평가사례 '+(c.no||i+1))+' 시점수정 = '+nf+'  '+timeMetaLabel(r.meta);}
+  }).catch(function(e){console.error('사례 시점수정 다시 계산',e);refreshTradeTime();if(st){st.className='status err';st.textContent='시점수정 다시 계산: '+e.message;}});
 }
-
 function newCase(){
   clearForm();applyOvDefaults();
   TRADES=[{},{},{}];   // 새 평가서는 거래사례 빈 열 3개로 시작
@@ -4916,6 +4921,7 @@ caseList=getLandList();
 renderCaseBar();renderSyncBar();
 ensureTrade3();   // 거래사례: 실입력이 하나도 없으면 빈 열 3개로 시작
 updatePeriod();sumBld();renderTrade();renderAppr();syncPick();
+fixStaleTimes();   // 켤 때(새로고침 포함)도 옛 오조회 시점수정(장안면 → 수원시 장안구)을 바로잡는다
 document.getElementById('btnAddBld').onclick=function(){addBldRow({});saveForm();};
 document.getElementById('btnHwpx').onclick=function(){showTab('doc');};   // 사이드바 버튼 → 「7. 감정평가서 다운로드」 탭으로
 // 탁상가격: 숫자만 쳐도 천단위 콤마 (집합건물 개요 탭의 탁상가격 칸과 같은 동작) — 값은 왼쪽 요약바에도 바로 반영
