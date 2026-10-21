@@ -118,6 +118,24 @@ const outDir=process.env.TOJI_OUT||'';
   console.log('선정으로 복귀',back);
   assert.equal(back.own,false);assert.equal(back.pairs,'none');assert.equal(back.blocks,null);assert.deepEqual(back.ga,[1,1]);
 
+  // ⑥ 표준지별 사례 — 사례 표 「선정」 칸에서 표준지 A·B를 고르면 그 표준지 필지 전부에(사용자 화면 방식)
+  const ps=await page.evaluate(async()=>{
+    APPRS=[{no:'a',loc:'화산리 30',unit:'800000',base:'2025.06.01',timeMeta:{reg:'경기도 화성시',use:'계획관리',from:'25.06.01',to:'26.10.01',factor:'1.00000'}},
+           {no:'g',loc:'쌍송리 1',unit:'130000',base:'2025.06.01',timeMeta:{reg:'경기도 화성시',use:'계획관리',from:'25.06.01',to:'26.10.01',factor:'1.00000'}},{}];
+    renderAppr();renderTrade();
+    const radios=document.querySelectorAll('#tblAppr input[name="pickAppr"]').length,sels=document.querySelectorAll('#tblAppr select.std-pick').length;
+    setStdCase('etc','a',0,'0');setStdCase('etc','a',1,'1');
+    setStdCase('ga','t',1,'0');setStdCase('ga','t',0,'1');
+    await new Promise(r=>setTimeout(r,200));calcGongsi();   // 시점수정 자동 채움(비동기) 끝난 뒤
+    return {radios,sels,etcKey:GONGSI_RESULT.rows.map(r=>r.etcKey),etc:GONGSI_RESULT.rows.map(r=>r.etc),ga:GEORAE_RESULT.rows.map(r=>r.caseIdx),
+      bar:document.getElementById('etcPairs').innerText,blocks:(ArapTojiOpinion.data().etcBlocks||[]).length};
+  });
+  console.log('⑥ 표준지별 사례',JSON.stringify(ps));
+  assert.equal(ps.radios,0);assert.equal(ps.sels,3);
+  assert.deepEqual(ps.etcKey,['a0','a1']);near(ps.etc[0],2);near(ps.etc[1],1.3);   // 800,000/400,000 · 130,000/100,000
+  assert.deepEqual(ps.ga,[1,0]);
+  assert.ok(ps.bar.includes('평가사례 a ↔ 표준지 A')&&ps.bar.includes('평가사례 g ↔ 표준지 B'));assert.equal(ps.blocks,2);
+
   assert.deepEqual(errs,[],'페이지 오류: '+errs.join(' / '));
   console.log('\n✅ 필지별 사례 검증 통과');
   await browser.close();server.close();
