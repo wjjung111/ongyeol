@@ -146,6 +146,10 @@ const outDir=process.env.TOJI_OUT||'';
   assert.deepEqual(ps.etcKey,['a0','a1']);near(ps.etc[0],2);near(ps.etc[1],1.3);   // 800,000/400,000 · 130,000/100,000
   assert.deepEqual(ps.ga,[1,0]);
   assert.deepEqual(ps.picks,['a0','a1']);assert.equal(ps.blocks,2);   // 블록 A = 평가사례 a, 블록 B = 평가사례 g
+  // 위치도 강조 — 표준지 A·B에 고른 사례가 모두 칠해짐(예전엔 위에서 선정한 하나만)
+  const mp=await page.evaluate(()=>{const it=mapItems().filter(x=>x.kind==='거래사례'||x.kind==='평가사례');return it.filter(x=>x.pick).map(x=>x.label);});
+  console.log('⑥ 위치도 강조',mp);
+  assert.deepEqual(mp.sort(),['거래 #1','거래 #2','평가 a','평가 g']);
 
   // ⑦ 블록의 적용사례 드롭다운으로 바꾸기 → 그 표준지 필지에만
   const bc=await page.evaluate(()=>{const s=document.querySelector('#etcBlk-1 .row select');s.value='t0';s.dispatchEvent(new Event('change'));

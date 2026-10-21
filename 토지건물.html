@@ -1895,8 +1895,17 @@ function jbPickRegion(regs,hint){
   hint=String(hint||'').replace(/\s/g,'');if(!hint)return -1;
   var bi=-1,bs=0;
   // 접미사를 뗀 조각이 한 글자(동구→'동', 중구→'중', 남구→'남')면 동 이름과 우연히 겹치므로 무시 — "상봉동 74-6"이 "대전 동구"로 잡히는 것 방지
-  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p.length>=2&&hint.indexOf(p)>=0)score+=p.length;});if(score>bs){bs=score;bi=i;}});
+  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p.length>=2&&jbHasName(hint,p))score+=p.length;});if(score>bs){bs=score;bi=i;}});
   return bi;
+}
+// 지역 이름 조각이 주소에 「그 이름으로」 들어 있는지 — 바로 뒤에 면·읍·동·리·가·로·길이 붙으면 아래 단위 이름과 우연히 겹친 것
+// (「장안면 사곡리」의 '장안'이 수원시 장안구로 잡히던 문제, 2026-10-21 사용자 제보: 화성시 장안면 사례가 수원시 시점수정)
+function jbHasName(hint,p){for(var k=hint.indexOf(p);k>=0;k=hint.indexOf(p,k+1)){if(!/^[면읍동리가로길]/.test(hint.slice(k+p.length)))return true;}return false;}
+// 이미 계산해 둔 시점수정 지역이 위 문제로 잘못 잡힌 것인지(지역 조각이 사례 소재지에 면·읍·동·리 이름으로만 들어 있음) — 그러면 다시 계산
+function jbStaleReg(m,loc){
+  if(!m||!m.reg)return false;loc=String(loc||'').replace(/\s/g,'');
+  return m.reg.split(' ').slice(1).some(function(p){p=p.replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');
+    return p.length>=2&&loc.indexOf(p)>=0&&!jbHasName(loc,p);});
 }
 // 월별 변동률(%) → 시점수정치. 부동산원 지가변동률 조회 화면과 같은 규칙(arm_시점수정.html jbFactor와 동일 — 수정 시 양쪽 함께):
 //  ① 첫 달 일할 ② 그 해 1월 1일부터 포함되는 해는 월별 곱 대신 연도 누계(cum) 한 덩어리 ③ 미공표 구간은 (1+마지막 공표월 r×경과일수/공표월 일수) 한 번
@@ -2029,7 +2038,8 @@ async function computeCaseTime(c,type,st,force){
   var m0=c.timeMeta;
   // 저장된 값의 용도가 사례 용도지역과 다르면(옛 오조회 — 계획관리 사례가 보전관리로) 다시 계산
   var ug=jbUseGroup(c.use),useOk=!m0||!ug||String(m0.use||'').indexOf(ug)>=0;
-  if(!force&&m0&&useOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
+  var regOk=!jbStaleReg(m0,c.loc);   // 옛 오조회(장안면 → 수원시 장안구)면 다시 계산
+  if(!force&&m0&&useOk&&regOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
   c.timeBusy=true;delete c.timeErr;refreshTradeTime();
   try{
     await jbPrepare(st,e.y*100+e.mo);
@@ -2131,7 +2141,7 @@ function tradeTimeText(c){
 }
 function refreshTradeTime(){
   TRADES.forEach(function(c,i){var td=document.getElementById('tradeTime_'+i);if(!td)return;
-    td.textContent=tradeTimeText(c);td.classList.toggle('sel',ETC.type==='t'&&ETC.idx===i);td.classList.toggle('busy',!!c.timeBusy);});
+    td.textContent=tradeTimeText(c);td.classList.toggle('sel',!!usedCases().t[i]);td.classList.toggle('busy',!!c.timeBusy);});
   gaTimeNote();
 }
 document.getElementById('jb_selRegion').onchange=jbCompute;
@@ -2269,7 +2279,7 @@ function renderTrade(){
     return '<td class="jud-c"><input type="radio" name="pickTradeGa" '+(GA.idx===i?'checked':'')+' onclick="togGa('+i+')"></td>';}).join('')+'</tr>';
   // 시점수정치: 선정할 때 계산되고, 계산된 값은 사례별로 남아 다른 사례로 옮겨도 계속 보인다
   h+='<tr><th class="rowh" title="선정 시 사례 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준). 한 번 계산되면 저장돼 계속 보임">시점<br>수정치</th>'+TRADES.map(function(c,i){
-    return '<td class="tt-c'+(ETC.type==='t'&&ETC.idx===i?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
+    return '<td class="tt-c'+(usedCases().t[i]?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
   // 비고: 사례별 자유 메모 (화면에서만 보이고 문서에는 나가지 않음)
   h+='<tr><th class="rowh" title="사례에 대한 메모 — 자유롭게 적으세요. 화면에만 남고 문서에는 나가지 않습니다">비고</th>'+TRADES.map(function(c,i){
     return '<td><input value="'+attr(c.note||'')+'" placeholder="자유 입력" oninput="tradeIn('+i+',\'note\',this.value)"></td>';}).join('')+'</tr>';
@@ -3151,7 +3161,10 @@ function calcGongsi(){
     etc:{stdIdx:sj,source:su,sajeong:saj1,time:et,area:ea,individual:ind,out1:o1,price:sp,stdTime:stf2,stdSajeong:saj2,stdArea:ea2,stdIndividual:ind2,out2:o2,ratio:ratio}};
   renderTradePick();
   calcGeorae();sd();
+  // 쓰는 사례가 바뀌면 위치도 강조도 다시(지도를 띄워 둔 경우만)
+  var us=JSON.stringify(usedCases());if(us!==USED_SIG){USED_SIG=us;if(typeof MAPV!=='undefined'&&MAPV)mapRestyle();}
 }
+var USED_SIG='';
 
 // ================= 거래사례비교법 계산 =================
 // 거래사례비교법 사례 공통 보정치(사정보정·시점수정·지역요인) — 선정 사례(GA.idx)는 화면 숨은 칸, 필지별로 고른 다른 사례는
@@ -4575,7 +4588,25 @@ var ETC_AREA_IDS=['eArea','eArea2'];
 function fillEtcArea(){ETC_AREA_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&!hasV(el.value))el.value='1.000';});}
 function etcAreaBlur(el){if(!hasV(el.value)){el.value='1.000';calcGongsi();saveForm();}}
 
-function refreshAfterLoad(){fillEtcArea();updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();renderToice();renderYohangLands();}
+function refreshAfterLoad(){fillEtcArea();updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderMemos();renderToice();renderYohangLands();fixStaleTimes();}
+// 저장건을 열 때 — 옛 오조회(장안면 → 수원시 장안구)로 계산해 둔 사례 시점수정치를 다시 계산하고,
+// 그 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로. 손으로 고친 값은 안 건드린다.
+function fixStaleTimes(){
+  var st=document.getElementById('jbStatus');
+  [['t',TRADES],['a',APPRS]].forEach(function(pr){pr[1].forEach(function(c,i){
+    if(!c||!c.timeMeta||!jbStaleReg(c.timeMeta,c.loc))return;
+    var old=c.timeMeta.factor;
+    computeCaseTime(c,pr[0],st).then(function(r){var nf=r.meta.factor;if(nf===old)return;
+      var sw=function(f,k){if(f&&f[k]===old)f[k]=nf;};
+      if(c.gaMem)sw(c.gaMem.f,'ga_time');if(c.etcMem)sw(c.etcMem.f,'eTime');
+      Object.keys(c.etcMemBy||{}).forEach(function(j){sw(c.etcMemBy[j].f,'eTime');});
+      if(pr[0]==='t'&&GA.idx===i){var g=document.getElementById('ga_time');if(g.value===old)g.value=nf;}
+      if(ETC.type===pr[0]&&ETC.idx===i){var e=document.getElementById('eTime');if(e.value===old)e.value=nf;}
+      renderTrade();renderAppr();calcGongsi();saveForm();
+      if(st){st.className='status';st.textContent='✅ 사례 시점수정 지역을 바로잡았습니다: '+(pr[0]==='t'?'거래사례 #'+(i+1):'평가사례 '+(c.no||i+1))+' → '+timeMetaLabel(r.meta);}
+    }).catch(function(e){console.error('시점수정 지역 바로잡기',e);});
+  });});
+}
 
 function newCase(){
   clearForm();applyOvDefaults();
@@ -5030,7 +5061,17 @@ function renderMapLab(){
   });
   el.innerHTML=h;
 }
+// 실제로 쓰는 사례(위치도 강조용) — 필지·표준지별로 고른 사례(그 밖의 요인 etcRefOf, 거래사례비교법 gaCaseIdx)를 모두.
+// 예전엔 위에서 선정한 사례 하나(ETC·GA)만 봐서 표준지 A·B에 사례를 둘씩 골라도 하나만 칠해졌다(2026-10-21 사용자 제보)
+function usedCases(){
+  var u={t:{},a:{}},group=isLandGroup();
+  LANDS.forEach(function(L,i){if(isOut(L)||(group&&i))return;
+    var r=etcRefOf(L);if(r&&r.idx>=0)u[r.type][r.idx]=true;
+    var k=gaCaseIdx(L);if(k>=0&&TRADES[k])u.t[k]=true;});
+  return u;
+}
 function mapItems(){
+  var used=usedCases();
   var region=subjectSgg(),out=[];
   var gs=window.GONGSI_RESULT||{},gijun=cgVal('base_gijun'),gongsiDay=cgVal('base_gongsi');
   LANDS.forEach(function(L,i){
@@ -5062,13 +5103,13 @@ function mapItems(){
   TRADES.forEach(function(c,i){
     var cal=tradeCalc(c);
     if(hasV(c.loc))pushCase(c,'trade'+i,Object.assign({kind:'거래사례',color:'#16a34a',region:region,poly:true,
-      pick:(ETC.type==='t'&&ETC.idx===i)||GA.idx===i,
+      pick:!!used.t[i],
       info:mapInfo([mapUnit(cal.landUnit,'토지단가'),mapDate(c.date,'거래시점')])},
       mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,road:c.road,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})),'거래 #'+(i+1));
   });
   APPRS.forEach(function(a,i){
     if(hasV(a.loc))pushCase(a,'appr'+i,Object.assign({kind:'평가사례',color:'#ea580c',region:region,poly:true,
-      pick:ETC.type==='a'&&ETC.idx===i,
+      pick:!!used.a[i],
       info:mapInfo([mapUnit(leadNum(a.unit),'사례단가'),mapDate(a.base,'기준시점')])},
       mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,road:a.road,base:a.base,unit:leadNum(a.unit)})),'평가 '+(a.no||(i+1)));
   });
