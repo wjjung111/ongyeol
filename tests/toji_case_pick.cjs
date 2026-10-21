@@ -3,7 +3,7 @@
 //  ② 거래사례비교법: 1번 = #1, 2번 = #2 → 사례단가·시점수정이 필지별로
 //  ③ 사례 순서를 바꿔도 필지가 고른 사례를 따라감 · 저장·복원
 //  ④ 의견서: 그 밖의 요인 산정 표 쌍마다 반복·결정 표 두 줄, 거래사례 시점수정 표 두 줄, 남은 토큰 0
-//  ⑤ 따로 안 고르면 종전과 같음(의견서 반복 없음)
+//  ⑤ 따로 안 골라도 필지가 표준지 둘을 쓰면 그 밖의 요인 산정 블록이 표준지마다(드롭다운 없이 둘 다 보임)
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_case_pick.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -38,31 +38,33 @@ const outDir=process.env.TOJI_OUT||'';
     for(let i=1;i<=6;i++)set('e_f'+i,'1.00');
     renderStds();renderLands();renderTrade();syncPick();calcGongsi();
   });
-  const base0=await page.evaluate(()=>({etc:GONGSI_RESULT.rows.map(r=>r.etc),pairs:document.getElementById('etcPairs').style.display,own:anyOwnCase(),
-    blocks:ArapTojiOpinion.data().etcBlocks}));
+  const base0=await page.evaluate(()=>({etc:GONGSI_RESULT.rows.map(r=>r.etc),pairs:document.getElementById('etcPairs').style.display,
+    single:document.getElementById('etcSingle').style.display,box:document.getElementById('etcBlocks').style.display,
+    heads:[...document.querySelectorAll('#etcBlocks .etc-blk > .row > b:first-child')].map(b=>b.textContent),
+    blocks:(ArapTojiOpinion.data().etcBlocks||[]).map(b=>b.head)}));
   console.log('⑤ 따로 안 고름',base0);
-  near(base0.etc[0],2.52);assert.equal(base0.etc[1],0);   // 종전: 표준지 A만 결정치, B는 안 정함(0)
-  assert.equal(base0.pairs,'none');assert.equal(base0.own,false);assert.equal(base0.blocks,null);
+  near(base0.etc[0],2.52);near(base0.etc[1],10.1);   // B도 선정 사례(#1 1,010,000 ÷ 100,000)로 바로 산정 — 0으로 비지 않음
+  assert.equal(base0.pairs,'none');assert.equal(base0.single,'none');assert.equal(base0.box,'');
+  assert.deepEqual(base0.heads,['■ 표준지 A','■ 표준지 B']);
+  assert.deepEqual(base0.blocks,['■ 거래사례 #1 ↔ 표준지 A (기호 1)','■ 거래사례 #1 ↔ 표준지 B (기호 2)']);
 
-  // ① 2번 필지만 그 밖의 요인 사례 #2 → 아직 입력 안 함 → ✎로 패널에 띄워 입력
+  // ① 2번 필지만 그 밖의 요인 사례 #2 → 표준지 B 블록이 #2로, 아직 입력 안 함 → 블록 칸에 바로 입력
   const e1=await page.evaluate(()=>{
     const sel=document.querySelectorAll('#tblSisan tr')[2].querySelector('select');sel.value='t1';sel.dispatchEvent(new Event('change'));
-    const before={etc:GONGSI_RESULT.rows[1].etc,warn:document.getElementById('etcPairs').textContent};
-    editEtcPair(1);   // 패널 = 거래사례 #2 ↔ 표준지 B
-    const panel={pick:ETC.idx,std:etcStdIdx()};
-    document.getElementById('eTime').value='1.02';document.getElementById('e_f3').value='0.90';calcGongsi();
-    const mid={etc:GONGSI_RESULT.rows.map(r=>r.etc)};
-    pickEtc('t',0);   // 패널을 #1로 되돌려도 2번 필지 값은 #2 기억으로
-    const after={etc:GONGSI_RESULT.rows.map(r=>r.etc),list:document.getElementById('etcPairs').textContent};
-    return {before,panel,mid,after};
+    const blk=()=>document.getElementById('etcBlk-1');
+    const before={etc:GONGSI_RESULT.rows[1].etc,warn:blk().textContent,pick:blk().querySelector('select').value,time:blk().querySelector('[data-f="eTime"]').value};
+    const f3=blk().querySelector('[data-f="e_f3"]');f3.focus();f3.value='0.90';f3.dispatchEvent(new Event('input'));
+    const mid={etc:GONGSI_RESULT.rows.map(r=>r.etc),same:blk().querySelector('[data-f="e_f3"]')===f3,ratio:blk().querySelector('[data-t="ratio2"]').textContent,
+      a:document.getElementById('etcBlk-0').querySelector('[data-t="ratio2"]').textContent,warn:blk().textContent.includes('아직 입력 안 함')};
+    f3.blur();
+    return {before,mid};
   });
   console.log('① 그 밖의 요인 필지별',JSON.stringify(e1));
   near(e1.before.etc,1.53);assert.ok(e1.before.warn.includes('아직 입력 안 함'));   // 입력 전 = 사례 시점수정만 반영한 기본값(150,000×1.02/100,000) + 경고
-  assert.deepEqual(e1.panel,{pick:1,std:1});
-  // #2 ↔ B: 150,000×1.02×0.9 = 137,700 / 100,000 → 1.37
-  near(e1.mid.etc[0],2.52);near(e1.mid.etc[1],1.37);   // 패널을 2번 쌍으로 바꿔도 1번 필지는 고정된 #1 ↔ A 그대로
-  near(e1.after.etc[1],1.37);near(e1.after.etc[0],2.52);   // 1번은 #1 ↔ A 그대로(1,010,000/400,000 = 2.525 → 2.52)
-  assert.ok(e1.after.list.includes('거래사례 #2 ↔ 표준지 B'));
+  assert.equal(e1.before.pick,'t1');assert.equal(e1.before.time,'1.02000');
+  // #2 ↔ B: 150,000×1.02×0.9 = 137,700 / 100,000 → 1.37 · 1번은 #1 ↔ A 그대로(1,010,000/400,000 = 2.525 → 2.52)
+  near(e1.mid.etc[0],2.52);near(e1.mid.etc[1],1.37);assert.equal(e1.mid.ratio,'1.37');assert.equal(e1.mid.a,'2.52');
+  assert.ok(e1.mid.same,'입력 중 블록을 다시 그리지 않음(한글 입력 보호)');assert.equal(e1.mid.warn,false);
 
   // ② 거래사례비교법: 2번 필지 = #2 (시점수정 1.02 — 거래사례 표에 계산해 둔 값)
   const g1=await page.evaluate(()=>{
@@ -117,11 +119,14 @@ const outDir=process.env.TOJI_OUT||'';
   assert.ok(/\|150,000\|/.test(op.blk2)&&/\|100,000\|/.test(op.blk2)&&/\|1\.37\|/.test(op.blk2),op.blk2);
   if(outDir)fs.writeFileSync(path.join(outDir,'필지별사례_의견서.hwpx'),Buffer.from(op.b64,'base64'));
 
-  // 「선정」으로 되돌리면 종전 방식
-  const back=await page.evaluate(()=>{LANDS.forEach(L=>{delete L.etcPick;delete L.gaPick;});calcGongsi();
-    return {own:anyOwnCase(),pairs:document.getElementById('etcPairs').style.display,blocks:ArapTojiOpinion.data().etcBlocks,ga:GEORAE_RESULT.rows.map(x=>x.caseIdx)};});
+  // 필지가 표준지 하나만 쓰고 「선정」으로 되돌리면 종전 한 벌 패널
+  const back=await page.evaluate(()=>{const keep=JSON.parse(JSON.stringify(LANDS));LANDS.forEach(L=>{delete L.etcPick;delete L.gaPick;L.stdIdx=0;});calcGongsi();
+    const r={own:anyOwnCase(),pairs:document.getElementById('etcPairs').style.display,single:document.getElementById('etcSingle').style.display,
+      box:document.getElementById('etcBlocks').style.display,blocks:ArapTojiOpinion.data().etcBlocks,ga:GEORAE_RESULT.rows.map(x=>x.caseIdx)};
+    LANDS=keep;LANDS.forEach(L=>{delete L.etcPick;delete L.gaPick;});renderLands();calcGongsi();return r;});
   console.log('선정으로 복귀',back);
   assert.equal(back.own,false);assert.equal(back.pairs,'none');assert.equal(back.blocks,null);assert.deepEqual(back.ga,[1,1]);
+  assert.equal(back.single,'');assert.equal(back.box,'none');
 
   // ⑥ 표준지별 사례 — 사례 표 「선정」 칸에서 표준지 A·B를 고르면 그 표준지 필지 전부에(사용자 화면 방식)
   const ps=await page.evaluate(async()=>{
@@ -133,13 +138,19 @@ const outDir=process.env.TOJI_OUT||'';
     setStdCase('ga','t',1,'0');setStdCase('ga','t',0,'1');
     await new Promise(r=>setTimeout(r,200));calcGongsi();   // 시점수정 자동 채움(비동기) 끝난 뒤
     return {radios,sels,etcKey:GONGSI_RESULT.rows.map(r=>r.etcKey),etc:GONGSI_RESULT.rows.map(r=>r.etc),ga:GEORAE_RESULT.rows.map(r=>r.caseIdx),
-      bar:document.getElementById('etcPairs').innerText,blocks:(ArapTojiOpinion.data().etcBlocks||[]).length};
+      picks:[...document.querySelectorAll('#etcBlocks .etc-blk > .row select')].map(s=>s.value),blocks:(ArapTojiOpinion.data().etcBlocks||[]).length};
   });
   console.log('⑥ 표준지별 사례',JSON.stringify(ps));
   assert.equal(ps.radios,0);assert.equal(ps.sels,3);
   assert.deepEqual(ps.etcKey,['a0','a1']);near(ps.etc[0],2);near(ps.etc[1],1.3);   // 800,000/400,000 · 130,000/100,000
   assert.deepEqual(ps.ga,[1,0]);
-  assert.ok(ps.bar.includes('평가사례 a ↔ 표준지 A')&&ps.bar.includes('평가사례 g ↔ 표준지 B'));assert.equal(ps.blocks,2);
+  assert.deepEqual(ps.picks,['a0','a1']);assert.equal(ps.blocks,2);   // 블록 A = 평가사례 a, 블록 B = 평가사례 g
+
+  // ⑦ 블록의 적용사례 드롭다운으로 바꾸기 → 그 표준지 필지에만
+  const bc=await page.evaluate(()=>{const s=document.querySelector('#etcBlk-1 .row select');s.value='t0';s.dispatchEvent(new Event('change'));
+    return {etcKey:GONGSI_RESULT.rows.map(r=>r.etcKey),picks:[...document.querySelectorAll('#etcBlocks .etc-blk > .row select')].map(s=>s.value)};});
+  console.log('⑦ 블록 사례 바꾸기',bc);
+  assert.deepEqual(bc.etcKey,['a0','t0']);assert.deepEqual(bc.picks,['a0','t0']);
 
   assert.deepEqual(errs,[],'페이지 오류: '+errs.join(' / '));
   console.log('\n✅ 필지별 사례 검증 통과');
