@@ -617,7 +617,7 @@
           <div class="card">
             <h2>개별요인비교 (본건/표준지)</h2>
             <div class="row" style="margin-bottom:6px"><span class="hint">지대:</span>
-              <select class="box" id="g_daegu" style="max-width:120px"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select></div>
+              <select class="box" id="g_daegu" style="max-width:120px"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select><span id="daeguStd" style="display:none;align-items:center;gap:6px"></span></div>
             <div class="tw"><table id="tblGaebyeol"></table></div>
             <!-- 비교의견은 필지 행마다 아래 줄에 따로 쓴다(LANDS[i].gop). 이 숨은 칸은 그 기능 전 저장건의 공통 의견 — 필지 의견이 없으면 이 값을 보여 준다 -->
             <input type="hidden" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함.">
@@ -1517,7 +1517,7 @@ function renderStds(){
       +'<td><span class="del" title="표준지 삭제" onclick="delStd('+j+')">✕</span></td></tr>';
   });
   document.getElementById('stdTbl').innerHTML=h;
-  renderEtcStd();
+  renderEtcStd();renderDaeguStd();
 }
 // 그 밖의 요인 비교표준지 드롭다운 — 고른 값(ETC.std)을 다시 그려도 유지. 안 골랐으면 본건 첫 필지의 적용 표준지
 function renderEtcStd(){
@@ -1526,6 +1526,19 @@ function renderEtcStd(){
   sel.innerHTML=STDS.map(function(S,j){return '<option value="'+j+'"'+(j===cur?' selected':'')+'>표준지 '+String.fromCharCode(65+j)+'</option>';}).join('');
   sel.style.display=STDS.length>1?'':'none';
   var lab=document.getElementById('etcStdLab');if(lab)lab.style.display=STDS.length>1?'':'none';
+}
+// 표준지별 지대(2026-10-21) — 공장용지 필지는 공업지대, 임야 필지는 임야지대처럼 비교표준지마다 지대를 따로(STDS[j].daegu).
+// 표준지가 둘 이상이면 「지대」 자리에 표준지마다 고르는 칸을 띄운다. 안 고른 표준지는 기본 지대(g_daegu). 의견서 비교항목 표는 지대마다 하나씩.
+var DAEGU_LIST=['상업지대','주택지대','공업지대','농경지대','임야지대'];
+function stdDaegu(j){var d=(STDS[j]||{}).daegu;return DAEGU_LIST.indexOf(d)>=0?d:(cgVal('g_daegu')||'상업지대');}
+function renderDaeguStd(){
+  var box=document.getElementById('daeguStd'),g=document.getElementById('g_daegu');if(!box||!g)return;
+  var multi=STDS.length>1;g.style.display=multi?'none':'';box.style.display=multi?'inline-flex':'none';
+  if(!multi){box.innerHTML='';return;}
+  box.innerHTML=STDS.map(function(S,j){var cur=stdDaegu(j);
+    return '<label class="hint" style="display:inline-flex;align-items:center;gap:3px">표준지 '+String.fromCharCode(65+j)
+      +' <select class="box" style="max-width:110px" title="표준지 '+String.fromCharCode(65+j)+'와 비교하는 필지의 개별요인 비교항목 지대" onchange="STDS['+j+'].daegu=this.value;saveForm();">'
+      +DAEGU_LIST.map(function(d){return '<option'+(d===cur?' selected':'')+'>'+d+'</option>';}).join('')+'</select></label>';}).join('');
 }
 function addStd(){STDS.push({});renderStds();renderLands();renderTrade();renderAppr();calcGongsi();saveForm();}   // 표준지가 둘이 되면 사례 표 「선정」이 표준지 고르기로
 function delStd(j){

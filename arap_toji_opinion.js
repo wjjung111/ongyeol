@@ -335,7 +335,17 @@ function opinionData(){
   });});
   // 거래사례 개별요인 표는 번호 칸이 {{필지_번호}} — 나눈 줄도 번호가 보여야 하므로 개별요인 표 번호(「1(하천 저촉)」)로 바꾼 사본을 쓴다
   var parcelsGa=gub?parcels.map(function(x){return Object.assign({},x,{'필지_번호':x['공시개별_번호']});}):parcels;
-  return {global:m,detail:detail,etcBlocks:etcBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
+  // 표준지별 지대(토지건물.html stdDaegu) — 평가하는 필지가 쓰는 표준지들의 지대가 둘 이상이면 비교항목 표를 지대마다
+  var daeguBlocks=null;
+  if(typeof stdDaegu==='function'&&STDS.length>1&&!group){
+    var dmap=[];gs.rows.forEach(function(r,i){if(r.out)return;var d=stdDaegu(r.stdIdx),b=dmap.find(function(x){return x.daegu===d;});
+      if(!b){b={daegu:d,stds:[],nos:[]};dmap.push(b);}
+      var sl=String.fromCharCode(65+r.stdIdx);if(b.stds.indexOf(sl)<0)b.stds.push(sl);
+      var no=String(typeof landParcelNo==='function'?landParcelNo(i):i+1);if(b.nos.indexOf(no)<0)b.nos.push(no);});
+    if(dmap.length===1)m['지대']=dmap[0].daegu;
+    if(dmap.length>1)daeguBlocks=dmap.map(function(b){return {daegu:b.daegu,label:'표준지 '+b.stds.join(', ')+' (기호 '+b.nos.join(', ')+')'};});
+  }
+  return {global:m,detail:detail,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
@@ -839,9 +849,26 @@ function opinionXml(xml,data){
   });
   // 개별요인 비교항목 표 — 화면에서 고른 지대의 항목으로 바꾼다(템플릿 원본은 상업지대).
   var daegu=text(data.global['지대'])||'상업지대',items=FACTOR_ITEMS[daegu]||FACTOR_ITEMS['상업지대'];
-  tables.filter(function(t){var r=children(t,'tr')[0];return r&&r.textContent.replace(/\s/g,'')==='조건항목세항목';})
-    .forEach(function(t,i){if(items[i])fillFactorTable(t,items[i]);});
-  replacePlain(doc,'개별요인 비교항목(상업지대)','개별요인 비교항목('+daegu+')');
+  var isItemTbl=function(t){var r=children(t,'tr')[0];return r&&r.textContent.replace(/\s/g,'')==='조건항목세항목';};
+  // 표준지별 지대가 둘 이상이면(공장용지 → 공업지대, 임야 → 임야지대) 「(1) 개별요인 비교항목(○○지대)」 제목 + 항목 표 두 개를 지대마다 반복
+  var dblocks=data.daeguBlocks&&data.daeguBlocks.length>1?data.daeguBlocks:null;
+  if(dblocks){
+    var top=children(doc.documentElement,'p');
+    var hi=top.findIndex(function(p){return !descendants(p,'tbl').length&&p.textContent.indexOf('개별요인 비교항목(')>=0;});
+    var tis=[];top.forEach(function(p,k){if(k>hi&&tis.length<2&&descendants(p,'tbl').some(isItemTbl))tis.push(k);});
+    if(hi>=0&&tis.length===2){
+      var blk=top.slice(hi,tis[1]+1),after=top[tis[1]].nextSibling;
+      var sets=dblocks.map(function(b,k){return k===0?blk:blk.map(function(p){var c=p.cloneNode(true);doc.documentElement.insertBefore(c,after);return c;});});
+      dblocks.forEach(function(b,k){var ps=sets[k],it=FACTOR_ITEMS[b.daegu]||FACTOR_ITEMS['상업지대'];
+        replacePlain(ps[0],'개별요인 비교항목(상업지대)','개별요인 비교항목('+b.daegu+') — '+b.label);clearLines(ps[0]);
+        var ts=[];ps.forEach(function(p){descendants(p,'tbl').forEach(function(t){if(isItemTbl(t))ts.push(t);});});
+        ts.forEach(function(t,i){if(it[i])fillFactorTable(t,it[i]);});});
+    }else dblocks=null;
+  }
+  if(!dblocks){
+    tables.filter(isItemTbl).forEach(function(t,i){if(items[i])fillFactorTable(t,items[i]);});
+    replacePlain(doc,'개별요인 비교항목(상업지대)','개별요인 비교항목('+daegu+')');
+  }
   // 6. 그 밖의 사항 — 첫 탭 목록으로 가·나·다 문단을 갈아 끼운다(아래 평가목적 치환이 항목 문구에도 적용되도록 먼저).
   fillEtcSection(doc,data.etcItems);
   // 비교표준지 선정사유 — 표준지가 둘 이상이면 어느 것을 골랐는지 문장에 넣고(굵게·밑줄) 나머지는 양식 문구 그대로
