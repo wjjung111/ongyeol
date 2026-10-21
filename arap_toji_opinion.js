@@ -49,7 +49,7 @@ function evalArea(L,row){
 }
 function parcelMap(L,i,gs,ga){
   var g=gs.rows[i],a=(ga.rows||[])[i]||{};
-  return Object.assign(landMap(L,i),standardMap(STDS[g.stdIdx]||{},g.stdIdx),factors('공시개별',g.factors),factors('거래개별',a.factors||[]),{
+  return Object.assign({_daegu:typeof stdDaegu==='function'?stdDaegu(g.stdIdx):''},landMap(L,i),standardMap(STDS[g.stdIdx]||{},g.stdIdx),factors('공시개별',g.factors),factors('거래개별',a.factors||[]),{
     '토지_사정면적':evalArea(L,g),
     '공시개별_의견':typeof landGop==='function'?text(landGop(L)):val('g_opinion'),   // 필지별 비교의견(개별요인 표의 필지마다 의견 행)
     '거래개별_의견':typeof landGaop==='function'?text(landGaop(L)):val('ga_opinion'),   // 거래사례비교법 개별요인 표도 필지마다 의견 행
@@ -213,7 +213,7 @@ function opinionData(){
     '그밖_사례단가':money(etc.source),'그밖_사정':fixed(etc.sajeong,3),'그밖_시점':fixed(etc.time,5),
     '그밖_지역':fixed(etc.area,3),'그밖_개별':fixed(etc.individual,3),'그밖_산출단가':money(etc.out1),
     '그밖_비교치':fixed(etc.ratio,2),'그밖_표준지_시점':fixed(etc.stdTime,5),'그밖_표준지_개별':fixed(etc.stdIndividual,3),
-    '그밖_표준지현재':money(etc.out2),'그밖개별_계':fixed(mul('.ef'),3),
+    '그밖_표준지현재':money(etc.out2),'그밖개별_계':fixed(typeof etcPanelFac==='function'?etcPanelFac():mul('.ef'),3),
     '그밖_시점설명':(tm?timeMetaLabel(tm):'')+') : '+fixed(etc.time,5),
     // 「2) 거래사례의 선정 및 그 이유」 문장 — '#2'만 적으면 무엇의 2번인지 안 보여서
     // 아래 표 머리(거래사례#1·#2·#3)와 같은 말로 '거래사례#2'로 내보낸다(2026-09-22 요청).
@@ -248,7 +248,7 @@ function opinionData(){
       // 「라. 그 밖의 요인 보정치의 결정」 표 — 쌍마다 한 줄(표준지·사례·결정 보정치·적용 필지)
       if(etcPairs.length>1){
         etcRows=etcPairs.map(function(x){return {'표준지_기호':String.fromCharCode(65+x.std),'그밖_사례기호':x.code,'그밖_결정보정치':fixed(x.etc,2),'필지_번호':x.nos.join(', ')};});
-        etcBlocks=etcPairs.map(function(x){return {map:x.map,d:x.d,head:'■ '+x.label+' ↔ 표준지 '+String.fromCharCode(65+x.std)+' (기호 '+x.nos.join(', ')+')'};});
+        etcBlocks=etcPairs.map(function(x){return {map:x.map,d:x.d,daegu:typeof stdDaegu==='function'?stdDaegu(x.std):'',head:'■ '+x.label+' ↔ 표준지 '+String.fromCharCode(65+x.std)+' (기호 '+x.nos.join(', ')+')'};});
       }
     }
     // 거래사례비교법 — 필지마다 쓴 거래사례. 둘 이상이면 시점수정 표를 사례마다 한 줄, 개별요인 표 사례 칸은 필지별
@@ -345,7 +345,8 @@ function opinionData(){
     if(dmap.length===1)m['지대']=dmap[0].daegu;
     if(dmap.length>1)daeguBlocks=dmap.map(function(b){return {daegu:b.daegu,label:'표준지 '+b.stds.join(', ')+' (기호 '+b.nos.join(', ')+')'};});
   }
-  return {global:m,detail:detail,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
+  var etcDaegu=typeof stdDaegu==='function'?stdDaegu(own&&etcPairs.length?etcPairs[0].std:etc.stdIdx):'';
+  return {global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
@@ -515,27 +516,25 @@ var FACTOR_ITEMS={
     ['행정적조건',[['행정상의 조장 및 규제정도','조장의 정도, 규제의 정도']]],
     ['기타조건',[['기타','장래의 동향, 기타']]]
   ]],
+  // 농경·임야지대 — 사용자가 준 개별요인 표(2026-10-21): 농경 = 접근·자연·획지·행정·기타, 임야 = 접근·자연·행정·기타(획지 없음)
   '농경지대':[[
     ['접근조건',[['교통의 편부','취락과의 접근성, 농로의 상태']]],
-    ['자연조건',[['일조 등','일조, 건습, 온도, 통풍, 강우량'],
+    ['자연조건',[['일조 등','일조, 통풍 등'],
                  ['토양, 토질','토양, 토질의 양부'],
-                 ['관개, 배수','관개의 양부, 배수의 양부'],
-                 ['재해의 위험성','수해, 기타 재해의 위험성']]]
+                 ['관개, 배수','관개의 양부, 배수의 양부']]]
   ],[
     ['획지조건',[['면적, 경사 등','면적, 경사도, 경사의 방향'],
-                 ['경작의 편부','형상에 의한 장애정도, 기계화 가능성']]],
+                 ['경작의 편부','형상부정 및 장애물에 의한 장애의 정도']]],
     ['행정적조건',[['행정상의 조장 및 규제정도','보조금, 융자금 등 조장의 정도, 규제의 정도']]],
     ['기타조건',[['기타','장래의 동향, 기타']]]
   ]],
   '임야지대':[[
-    ['접근조건',[['교통의 편부','인근 역·취락과의 접근성'],
-                 ['반출의 난이','반출 도로의 상태, 운반거리']]],
-    ['자연조건',[['일조 등','일조, 기온, 우량, 안개 등'],
+    ['접근조건',[['교통의 편부 등','인근지역과의 접근성, 인근취락과의 접근성, 임도의 배치·폭·구조 등, 반출지점까지의 거리, 반출지점에서 시장까지의 거리']]],
+    ['자연조건',[['일조 등','일조, 통풍 등'],
+                 ['지세, 방위 등','표고, 방위, 경사, 경사면의 위치, 경사의 굴곡'],
                  ['토양, 토질','토양, 토질의 양부']]]
   ],[
-    ['획지조건',[['면적','면적'],
-                 ['경사 등','고저, 경사도, 경사의 방향']]],
-    ['행정적조건',[['행정상의 조장 및 규제정도','조장의 정도, 규제의 정도']]],
+    ['행정적조건',[['행정상의 조장 및 규제정도','조장의 정도, 국·도립공원, 보안림 사방지 지정 등의 규제, 기타규제']]],
     ['기타조건',[['기타','장래의 동향, 기타']]]
   ]]
 };
@@ -707,6 +706,49 @@ function plainAgeCols(tbl){
 }
 function blankMap(el){var m={};(el.textContent.match(tokenRE)||[]).forEach(function(s){m[s.slice(2,-2)]='';});return m;}
 function replacePlain(root,from,to){descendants(root,'t').forEach(function(t){if(t.textContent.indexOf(from)>=0)t.textContent=t.textContent.split(from).join(to);});}
+// 개별요인 표 열을 지대에 맞춘다(2026-10-21) — 양식은 6조건(가로·접근·환경·획지·행정적·기타). 농경지대는 가로 열을 빼고 환경 → 자연,
+// 임야지대는 가로·획지 열을 뺀다. 표 전체 너비는 그대로 두고 뺀 너비를 남은 조건·계 열에 나눠 준다(양식 파일은 안 건드림, 출력 때만).
+// first = 「가로조건」 열 번호(공시·거래 표 2, 그 밖의 요인 표 0)
+var OP_FAC_SLOTS={'농경지대':[1,2,3,4,5],'임야지대':[1,2,4,5]};
+function factorCols(tbl,daegu,first){
+  var keep=OP_FAC_SLOTS[daegu];if(!keep)return;
+  var drop=[0,1,2,3,4,5].filter(function(k){return keep.indexOf(k)<0;}).map(function(k){return first+k;});
+  var rows=children(tbl,'tr'),cols=Number(tbl.getAttribute('colCnt'));
+  var cs=function(tc){return {a:children(tc,'cellAddr')[0],sp:children(tc,'cellSpan')[0],sz:children(tc,'cellSz')[0]};};
+  // 열 너비(머리 행은 칸마다 한 열) → 뺀 너비를 남은 조건·계 열에 나눔
+  var oldW=[];children(rows[0],'tc').forEach(function(tc){var x=cs(tc);oldW[Number(x.a.getAttribute('colAddr'))]=Number(x.sz.getAttribute('width'));});
+  var lost=0,newW=[];for(var c=0;c<cols;c++){if(drop.indexOf(c)>=0)lost+=oldW[c]||0;else newW.push(oldW[c]||0);}
+  var nc=newW.length,share=nc-first,add=Math.floor(lost/share);
+  for(var k=first;k<nc;k++)newW[k]+=add+(k===nc-1?lost-add*share:0);
+  var before=function(c){return drop.filter(function(d){return d<c;}).length;};
+  rows.forEach(function(tr,ri){var steal=0;
+    children(tr,'tc').forEach(function(tc){
+      var x=cs(tc),c=Number(x.a.getAttribute('colAddr')),n=Number(x.sp.getAttribute('colSpan'))||1;
+      var inside=drop.filter(function(d){return d>=c&&d<c+n;}).length,nc0=c-before(c);
+      if(inside===n){
+        if(ri<2){tc.remove();return;}
+        steal++;inside=0;   // 의견 줄의 「의견」 머리칸이 빠지는 열에 있으면 칸은 두고 옆 칸에서 한 열을 가져온다
+      }else if(steal){nc0+=steal;inside+=steal;steal=0;}
+      x.a.setAttribute('colAddr',String(nc0));n-=inside;x.sp.setAttribute('colSpan',String(n));
+      var w=0;for(var q=nc0;q<nc0+n;q++)w+=newW[q]||0;x.sz.setAttribute('width',String(w));
+    });});
+  tbl.setAttribute('colCnt',String(nc));
+  // 환경조건 → 자연조건(머리 칸 글자가 「환경 / 조건」 두 조각일 수 있어 칸 단위로 찾는다)
+  if(keep.indexOf(2)>=0)children(rows[0],'tc').forEach(function(tc){if(tc.textContent.replace(/\s/g,'')!=='환경조건')return;
+    var t=descendants(tc,'t').find(function(n){return n.textContent.indexOf('환경')>=0;});if(t)t.textContent=t.textContent.replace('환경','자연');});
+  clearLines(tbl);
+}
+// 필지별 개별요인 표(공시·거래) — 필지들의 지대가 둘 이상이면 표를 지대마다 나눠(양식 표 문단 복제) 각자 열을 맞춘다
+function factorTables(tbl,maps,state){
+  var groups=[];maps.forEach(function(m){var d=m._daegu||'',g=groups.find(function(x){return x.d===d;});if(!g){g={d:d,maps:[]};groups.push(g);}g.maps.push(m);});
+  if(!groups.length)groups=[{d:'',maps:maps}];
+  var host=tbl;while(host.parentNode&&!(host.namespaceURI===HP&&host.localName==='p'))host=host.parentNode;
+  var hosts=[host],last=host;
+  groups.slice(1).forEach(function(){var c=host.cloneNode(true);last.parentNode.insertBefore(c,last.nextSibling);hosts.push(c);last=c;});   // 채우기 전에 복제
+  groups.forEach(function(g,k){var t=k?descendants(hosts[k],'tbl')[0]:tbl;
+    if(k)t.setAttribute('id',String(1900000000+state.seq++));
+    resizeRows(t,1,2,2,g.maps,state);factorCols(t,g.d,2);});
+}
 function opinionXml(xml,data){
   var doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.getElementsByTagName('parsererror').length)throw new Error('의견서 템플릿 XML을 읽을 수 없습니다.');
@@ -727,12 +769,14 @@ function opinionXml(xml,data){
         ps.forEach(function(p){
           descendants(p,'tbl').forEach(function(t){if(!hasToken(t,'그밖_사례단가'))return;   // 표준지측 사정·지역 고정 칸('-')도 이 쌍 값으로
             var r2=children(t,'tr')[2];if(r2)[2,4].forEach(function(col,k){var tc=children(r2,'tc')[col],tt=tc&&descendants(tc,'t')[0];if(tt)tt.textContent=fixed(k?bk.d.stdArea:bk.d.stdSajeong,3);});});
+          descendants(p,'tbl').forEach(function(t){if(hasToken(t,'그밖개별_가로'))factorCols(t,bk.daegu,0);});
           scope(p,bk.map,state);
         });
       });
     }
   }
   var tables=descendants(doc,'tbl');
+  tables.filter(function(t){return hasToken(t,'그밖개별_가로');}).forEach(function(t){factorCols(t,data.etcDaegu,0);});   // 그 밖의 요인 개별요인 표 — 비교표준지 지대의 조건만
   // 산출개요의 관찰감가 문장 — 체크 안 했으면 문단째 뺀다
   if(!data.observed)children(doc.documentElement,'p').forEach(function(p){
     if(!descendants(p,'tbl').length&&p.textContent.indexOf('관찰감가법을 병용')>=0)p.remove();});
@@ -766,9 +810,9 @@ function opinionXml(xml,data){
     }
     else if(hasToken(tbl,'공시시점_설명'))resizeRows(tbl,1,1,1,data.standards,state);
     // 본건/표준지 개별요인 표: 필지마다 [요인 행 + 의견 행] 두 줄 묶음으로 늘린다(일련번호 칸은 두 줄 세로 병합)
-    else if(hasToken(tbl,'공시개별_번호'))resizeRows(tbl,1,2,2,data.parcels,state);
+    else if(hasToken(tbl,'공시개별_번호'))factorTables(tbl,data.parcels,state);   // 지대가 다르면 표를 나눔(임야지대 = 접근·자연·행정·기타)
     // 본건/거래사례 개별요인 표도 같은 구조 — 필지마다 [요인 행 + 의견 행]. ('필지_번호'를 쓰므로 아래 '필지_번호' 분기보다 먼저)
-    else if(hasToken(tbl,'거래개별_가로'))resizeRows(tbl,1,2,2,data.parcelsGa||data.parcels,state);
+    else if(hasToken(tbl,'거래개별_가로'))factorTables(tbl,data.parcelsGa||data.parcels,state);
     else if(hasToken(tbl,'평사1_기호'))resizeRows(tbl,1,3,1,data.appraisals.length?data.appraisals:[blankMap(tbl)],state);
     else if(hasToken(tbl,'그밖_사례단가')){
       scope(tbl,data.detail,state);

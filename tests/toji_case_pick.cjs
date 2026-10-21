@@ -68,7 +68,8 @@ const outDir=process.env.TOJI_OUT||'';
 
   // ② 거래사례비교법: 2번 필지 = #2 (시점수정 1.02 — 거래사례 표에 계산해 둔 값)
   const g1=await page.evaluate(()=>{
-    const sel=document.querySelectorAll('#tblGaFactors tr')[3].querySelector('select');sel.value='1';sel.dispatchEvent(new Event('change'));
+    // 2번 필지 = 표준지 B 표(표준지별로 나뉨)
+    const sel=document.querySelectorAll('#tblGaFactors_1 tr')[1].querySelector('select');sel.value='1';sel.dispatchEvent(new Event('change'));
     const r=GEORAE_RESULT.rows;return {src:r.map(x=>x.source),time:r.map(x=>x.time),cases:r.map(x=>x.caseIdx),apply:r.map(x=>x.apply)};
   });
   console.log('② 거래사례비교법 필지별',g1);
