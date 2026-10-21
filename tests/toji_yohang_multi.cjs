@@ -119,9 +119,9 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     assert.deepEqual(await page.evaluate(()=>['답','대','골','전','건부지','공장','주거용(단독)','3','',null,'다가구주택(1가구)','제1종근린생활시설(소매점)','주거용（단독）','(주택)','다가구주택 (3가구) '].map(josaRo)),
       ['으로','로','로','으로','로','으로','으로',null,null,null,'으로','로','으로','으로','으로']);
     await page.locator('#y_use').fill('공장');
-    assert.equal(await page.locator('#y_use + .y-ro').textContent(),'으로','화면 조사 = 으로');
+    assert.equal(await page.locator('#y_use + .y-usetail .y-ro').textContent(),'으로','화면 조사 = 으로');
     await page.locator('#y_use').fill('대');
-    assert.equal(await page.locator('#y_use + .y-ro').textContent(),'로','화면 조사 = 로');
+    assert.equal(await page.locator('#y_use + .y-usetail .y-ro').textContent(),'로','화면 조사 = 로');
     await page.locator('#y_road1dir').fill('서');await page.locator('#y_usestate').fill('공장');
     const jo=await page.evaluate(async()=>{const bytes=await ArapTojiDocuments.buildYohang();const es=await ArapCheonggu.parseZip(bytes.buffer);
       return new TextDecoder().decode(es.find(e=>e.name==='Contents/section0.xml').data).replace(/<[^>]+>/g,'');});
@@ -139,7 +139,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       return new TextDecoder().decode(es.find(e=>e.name==='Contents/section0.xml').data).replace(/<[^>]+>/g,'');});
     assert(blank.includes('본건 {{요항_도로1방위}}으로 노폭'),'빈 방위 칸 뒤 = 으로(양식)');
     assert(blank.includes('{{요항_이용상황}}로 이용중임.'),'빈 이용상황 칸 뒤 = 로(양식)');
-    assert.equal(await page.locator('#y_use + .y-ro').textContent(),'로','화면도 양식 조사');
+    assert.equal(await page.locator('#y_use + .y-usetail .y-ro').textContent(),'로','화면도 양식 조사');
     assert.deepEqual(errors,[]);
     console.log('PASS',file);
   }finally{await browser.close();server.close();}

@@ -892,11 +892,11 @@
             <p><span class="y-kiho" hidden>(1) 기호1 : </span>인접토지 및 인접도로 대비 <input type="text" id="y_jise" class="y-inline y-terrain" aria-label="지세" placeholder="등고평탄한"> <input type="text" id="y_shape" class="y-inline y-shape" aria-label="형상" placeholder="정방형">의 토지임.</p>
             <div id="y_landMore1"></div>
             <h4>2. 이용상황</h4>
-            <p><span class="y-kiho" hidden>(1) 기호1 : </span><input type="text" id="y_use" class="y-inline" aria-label="이용상황" placeholder="주상용 건부지"><span class="y-ro" data-base="로">로</span> 이용중임.</p>
+            <p><span class="y-kiho" hidden>(1) 기호1 : </span><input type="text" id="y_use" class="y-inline" aria-label="이용상황" placeholder="주상용 건부지"><span class="y-usetail" title="칸에 「도로임.」처럼 문장(임·마침표로 끝)을 쓰면 이 말은 빠집니다"><span class="y-ro" data-base="로">로</span> 이용중임.</span></p>
             <div id="y_landMore2"></div>
             <h4>3. 접면도로 상황</h4>
             <!-- 접면도로 수: 한 면만 접하면 ② 문구("…m, 북측으로 노폭 약 0m")와 "각각"을 빼고 출력한다(2026-09-22) -->
-            <p><select id="y_roadCnt" class="y-inline y-roadcnt" aria-label="접면도로 수"><option value="2">두 면 접함</option><option value="1">한 면만 접함</option></select> <span class="y-kiho" data-road="1" hidden>(1) 기호1 : </span><span id="y_roadBon">본건 </span><input type="text" id="y_road1dir" class="y-inline y-direction" aria-label="접면도로① 방위" placeholder="남서측"><span class="y-ro" data-base="으로">으로</span> 노폭 약 <input type="text" id="y_road1w" class="y-inline y-width" aria-label="접면도로① 노폭(m)" placeholder="0">m<span id="y_road2wrap">, <input type="text" id="y_road2dir" class="y-inline y-direction" aria-label="접면도로② 방위" placeholder="북측"><span class="y-ro" data-base="으로">으로</span> 노폭 약 <input type="text" id="y_road2w" class="y-inline y-width" aria-label="접면도로② 노폭(m)" placeholder="0">m</span> 내외의 아스팔트 포장도로와 <span id="y_roadEach">각각 </span>접하고 있음.</p>
+            <p><select id="y_roadCnt" class="y-inline y-roadcnt" aria-label="접면도로 수"><option value="2">두 면 접함</option><option value="1">한 면만 접함</option><option value="0">맹지</option><option value="free">직접 입력</option></select> <span class="y-kiho" data-road="1" hidden>(1) 기호1 : </span><input type="text" id="y_roadFree" class="y-inline" style="display:none;min-width:320px" aria-label="접면도로 직접 입력" placeholder="예: 지목 및 현황 도로임."><span id="y_roadStd"><span id="y_roadBon">본건 </span><input type="text" id="y_road1dir" class="y-inline y-direction" aria-label="접면도로① 방위" placeholder="남서측"><span class="y-ro" data-base="으로">으로</span> 노폭 약 <input type="text" id="y_road1w" class="y-inline y-width" aria-label="접면도로① 노폭(m)" placeholder="0">m<span id="y_road2wrap">, <input type="text" id="y_road2dir" class="y-inline y-direction" aria-label="접면도로② 방위" placeholder="북측"><span class="y-ro" data-base="으로">으로</span> 노폭 약 <input type="text" id="y_road2w" class="y-inline y-width" aria-label="접면도로② 노폭(m)" placeholder="0">m</span> 내외의 아스팔트 포장도로와 <span id="y_roadEach">각각 </span>접하고 있음.</span></p>
             <div id="y_landMore3"></div>
           </div>
 
@@ -3449,7 +3449,7 @@ var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
-var Y_IDS=['y_dong','y_near','y_surroundings','y_trafficNear','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_roadCnt','y_road1dir','y_road1w','y_road2dir','y_road2w','y_struct','y_wall','y_window','y_usestate','y_usestateMore'];
+var Y_IDS=['y_dong','y_near','y_surroundings','y_trafficNear','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_roadCnt','y_road1dir','y_road1w','y_road2dir','y_road2w','y_roadFree','y_struct','y_wall','y_window','y_usestate','y_usestateMore'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_specialApplied','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_SPECIAL_MANUAL=false;  // 특별용역비 적용액(차액 × 배수)을 평가사가 직접 고쳤는지 — 고쳤으면 자동값으로 덮지 않는다
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
@@ -3658,7 +3658,7 @@ function fillYohangFromData(){
 // ── 요항표 Ⅱ. 토지의 개황 — 본건 필지가 둘 이상이면(묶기 아님) 1. 지세 및 형상 · 2. 이용상황 · 3. 접면도로 상황을 기호별로 ──
 // 기호1은 기존 칸(y_jise·y_shape·y_use·y_roadCnt·y_road…), 기호2부터는 필지에 LANDS[i].yh = {jise,shape,use,roadCnt,road1dir,road1w,road2dir,road2w}.
 // 의견서 출력은 arap_toji_documents.js가 yohangLands()를 읽어 문단을 "(1) 기호1 : …", "(2) 기호2 : …"로 나눈다.
-var YH_KEYS=['jise','shape','use','roadCnt','road1dir','road1w','road2dir','road2w'];
+var YH_KEYS=['jise','shape','use','roadCnt','road1dir','road1w','road2dir','road2w','roadFree'];   // roadCnt: '2' 두 면·'1' 한 면·'0' 맹지·'free' 직접 입력(roadFree 문장)
 // 일단지(체크박스 ILDANJI)이거나 사정면적 묶기면 여러 필지라도 요항표를 기호별로 나누지 않는다(값 한 벌).
 function yohangOneSet(){return ILDANJI||isLandGroup();}
 function yohangMulti(){return landParcelCount()>1&&!yohangOneSet();}   // 나눈 줄은 같은 필지라 기호를 따로 두지 않는다
@@ -3688,12 +3688,17 @@ function renderYohangLands(){
     if(isSub(Li))return;   // 나눈 줄은 원 필지와 같은 기호 — 요항표 문단을 따로 두지 않는다
     pno++;if(pno===1)return;
     var n=pno,y=Li.yh||{},pre='('+n+') 기호'+n+' : ',one=y.roadCnt==='1',hide=one?' style="display:none"':'';
+    var own=y.roadCnt==='0'||y.roadCnt==='free';   // 맹지·직접 입력 — 정형 문장 대신 한 문장
     var inp=function(k,cls,label,ph){return '<input type="text" class="y-inline '+cls+'" data-i="'+i+'" data-k="'+k+'" aria-label="기호'+n+' '+label+'" placeholder="'+ph+'" value="'+esc(y[k]||'')+'">';};
     boxes[0].insertAdjacentHTML('beforeend','<p>'+pre+'인접토지 및 인접도로 대비 '+inp('jise','y-terrain','지세','등고평탄한')+' '+inp('shape','y-shape','형상','정방형')+'의 토지임.</p>');
-    boxes[1].insertAdjacentHTML('beforeend','<p>'+pre+inp('use','','이용상황','주상용 건부지')+'<span class="y-ro" data-base="로">로</span> 이용중임.</p>');
-    boxes[2].insertAdjacentHTML('beforeend','<p><select class="y-inline y-roadcnt" data-i="'+i+'" data-k="roadCnt" aria-label="기호'+n+' 접면도로 수"><option value="2">두 면 접함</option><option value="1"'+(one?' selected':'')+'>한 면만 접함</option></select> '+pre+
-      inp('road1dir','y-direction','접면도로① 방위','남서측')+'<span class="y-ro" data-base="으로">으로</span> 노폭 약 '+inp('road1w','y-width','접면도로① 노폭(m)','0')+'m<span class="y-road2"'+hide+'>, '+
-      inp('road2dir','y-direction','접면도로② 방위','북측')+'<span class="y-ro" data-base="으로">으로</span> 노폭 약 '+inp('road2w','y-width','접면도로② 노폭(m)','0')+'m</span> 내외의 아스팔트 포장도로와 <span class="y-road2"'+hide+'>각각 </span>접하고 있음.</p>');
+    boxes[1].insertAdjacentHTML('beforeend','<p>'+pre+inp('use','','이용상황','주상용 건부지')+'<span class="y-usetail" title="칸에 「도로임.」처럼 문장(임·마침표로 끝)을 쓰면 이 말은 빠집니다"><span class="y-ro" data-base="로">로</span> 이용중임.</span></p>');
+    var opt=function(v,t){return '<option value="'+v+'"'+((y.roadCnt||'2')===v?' selected':'')+'>'+t+'</option>';};
+    boxes[2].insertAdjacentHTML('beforeend','<p><select class="y-inline y-roadcnt" data-i="'+i+'" data-k="roadCnt" aria-label="기호'+n+' 접면도로 수">'
+      +opt('2','두 면 접함')+opt('1','한 면만 접함')+opt('0','맹지')+opt('free','직접 입력')+'</select> '+pre
+      +'<span class="y-roadfree"'+(own?'':' style="display:none"')+'>'+inp('roadFree','','접면도로 직접 입력','예: 지목 및 현황 도로임.').replace('class="y-inline ','style="min-width:320px" class="y-inline ')+'</span>'
+      +'<span class="y-roadstd"'+(own?' style="display:none"':'')+'>'
+      +inp('road1dir','y-direction','접면도로① 방위','남서측')+'<span class="y-ro" data-base="으로">으로</span> 노폭 약 '+inp('road1w','y-width','접면도로① 노폭(m)','0')+'m<span class="y-road2"'+hide+'>, '
+      +inp('road2dir','y-direction','접면도로② 방위','북측')+'<span class="y-ro" data-base="으로">으로</span> 노폭 약 '+inp('road2w','y-width','접면도로② 노폭(m)','0')+'m</span> 내외의 아스팔트 포장도로와 <span class="y-road2"'+hide+'>각각 </span>접하고 있음.</span></p>');
   });
   yohangJosa();
 }
@@ -3715,8 +3720,9 @@ function josaRo(word){
 }
 // 요항표 화면의 '로/으로'(.y-ro) — 바로 앞 입력칸(또는 data-src 칸)의 값에 맞춘다. 비었으면 양식 문구(data-base).
 function yohangJosa(){
+  yohangUseTails();
   [].forEach.call(document.querySelectorAll('.y-ro'),function(sp){
-    var src=sp.dataset.src?document.getElementById(sp.dataset.src):sp.previousElementSibling;
+    var src=sp.dataset.src?document.getElementById(sp.dataset.src):(sp.previousElementSibling||(sp.parentNode&&sp.parentNode.classList.contains('y-usetail')?sp.parentNode.previousElementSibling:null));   // 이용상황 「로 이용중임.」은 한 겹 감싸 있음
     sp.textContent=josaRo(src&&src.value)||sp.dataset.base||'로';
   });
 }
@@ -3724,7 +3730,10 @@ function yohangLandInput(e){
   var el=e.target;if(!el||!el.dataset||el.dataset.i==null)return;
   var Li=LANDS[+el.dataset.i];if(!Li)return;
   (Li.yh||(Li.yh={}))[el.dataset.k]=el.value;
-  if(el.dataset.k==='roadCnt'){var one=el.value==='1';[].forEach.call(el.parentNode.querySelectorAll('.y-road2'),function(sp){sp.style.display=one?'none':'';});}
+  if(el.dataset.k==='roadCnt'){var one=el.value==='1',own=el.value==='0'||el.value==='free',P=el.parentNode;
+    [].forEach.call(P.querySelectorAll('.y-road2'),function(sp){sp.style.display=one?'none':'';});
+    var fs=P.querySelector('.y-roadfree'),ss=P.querySelector('.y-roadstd');if(fs)fs.style.display=own?'':'none';if(ss)ss.style.display=own?'none':'';
+    if(el.value==='0'&&!String(Li.yh.roadFree||'').trim()){Li.yh.roadFree='맹지임.';var fi=fs&&fs.querySelector('input');if(fi)fi.value='맹지임.';}}
   saveForm();
 }
 // 대상물건개요의 구조·층수(지상/지하 = "4/1")로 만드는 건물 구조 자동 문구. groundOnly=true 면 예전 방식(지상만)
@@ -3778,10 +3787,18 @@ function usestateFromBld(){
 }
 function applyRoadCnt(){
   var sel=document.getElementById('y_roadCnt');if(!sel)return;
-  if(sel.value!=='1')sel.value='2';
-  var one=sel.value==='1';
+  if(['1','0','free'].indexOf(sel.value)<0)sel.value='2';
+  var one=sel.value==='1',own=sel.value==='0'||sel.value==='free';
   ['y_road2wrap','y_roadEach'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=one?'none':'';});
+  // 맹지·직접 입력 — 「…으로 노폭 약 …m … 접하고 있음」 문장 대신 한 문장(맹지 = 「맹지임.」)
+  var std=document.getElementById('y_roadStd'),fr=document.getElementById('y_roadFree');
+  if(std)std.style.display=own?'none':'';
+  if(fr){fr.style.display=own?'':'none';if(sel.value==='0'&&!fr.value.trim())fr.value='맹지임.';}
 }
+// 이용상황 칸에 「도로임.」「자연림임」처럼 문장을 쓰면(임·마침표로 끝) 뒤 「로 이용중임.」을 빼고 그 문장 그대로 쓴다
+function useIsSentence(v){v=String(v==null?'':v).trim();return /(임|음|함)\.?$|\.$/.test(v);}
+function yohangUseTails(){[].forEach.call(document.querySelectorAll('.y-usetail'),function(sp){
+  var inp=sp.previousElementSibling;sp.style.display=(inp&&useIsSentence(inp.value))?'none':'';});}
 // ── 토지이용계획(토이계) 복붙 정리 — 집합건물(s3r86w8a.html)과 같은 로직 ──
 // 토지이음 머리문구 제거 + 줄바꿈 이어붙이기. <추가기재>만 별도 줄로 남긴다.
 var TOICE={};
