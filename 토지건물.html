@@ -3043,7 +3043,12 @@ function calcGeorae(){
 
   // 시산가액 — 필지별 + 합계. 사정보정·시점수정·지역요인은 사례별 공통값이며 표 셀에서 바로 고침(같은 사례를 쓰는 필지에 같이 적용)
   var hs='<tr><th>일련<br>번호</th><th>사례단가<br>(원/㎡)</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th>'
-        +'<th>산정단가<br>(원/㎡)</th><th>적용단가<br>(원/㎡)</th><th title="사정면적이 있으면 사정면적, 없으면 공부면적">면적(㎡)</th><th>시산가액(원)</th></tr>';
+        +'<th>산정단가<br>(원/㎡)</th><th>적용단가<br>(원/㎡)</th><th title="같은 필지의 공시지가기준법 적용단가와 격차율(거래사례비교법 적용단가 ÷ 공시지가기준법 적용단가 − 1). 10% 이상이면 빨강">공시지가기준법<br>대비</th><th title="사정면적이 있으면 사정면적, 없으면 공부면적">면적(㎡)</th><th>시산가액(원)</th></tr>';
+  // 필지별 공시지가기준법 적용단가 대비 격차(2026-10-21 요청) — 공시지가기준법 결과(GONGSI_RESULT)는 이 함수보다 먼저 계산돼 있다
+  var gsRows=(window.GONGSI_RESULT&&window.GONGSI_RESULT.rows)||[];
+  var vsCell=function(i,apply){var g=gsRows[i],ga=g&&!g.out?g.apply:0;
+    if(!ga||!apply)return '<td>-</td>';var pct=(apply/ga-1)*100;
+    return '<td title="거래사례비교법 '+won(apply)+' ÷ 공시지가기준법 '+won(ga)+' = '+(apply/ga).toFixed(4)+'">'+won(ga)+'<br><b style="color:'+(Math.abs(pct)>=10?'#b91c1c':'#1d4ed8')+'">'+(pct>=0?'+':'')+pct.toFixed(2)+'%</b></td>';};
   var facCell=function(k,rawVal,id,ph){
     return '<td class="jud-c"><input value="'+esc(rawVal)+'" placeholder="'+ph+'" title="사례 공통 보정치(거래사례 #'+(k+1)+') — 자동 채움, 직접 고칠 수 있음(이 사례를 쓰는 필지에 같이 적용)" oninput="setGaCaseField('+k+',\''+id+'\',this.value);"></td>';};
   // 사례별 값 묶음 — 사례단가·사정·시점·지역
@@ -3059,7 +3064,7 @@ function calcGeorae(){
     sumGongbu+=gongbu||0;
     if(isOut(L)){   // 감정평가 외 — 공시지가기준법 표와 같게 면적만, 금액 없음
       docRows.push({out:true,caseIdx:gv.k,source:gv.unit,sajeong:gv.sj,time:gv.st,area:gv.ar,factors:landGaFactors(L).slice(),individual:0,calculated:0,apply:0,size:size,gongbu:gongbu,total:0});
-      if(!group)hs+='<tr class="land-out"><td>'+landNo(i)+'</td><td colspan="7" class="out-c">감정평가 외'+(subReason(L)?' — '+esc(subReason(L)):'')+'</td>'
+      if(!group)hs+='<tr class="land-out"><td>'+landNo(i)+'</td><td colspan="8" class="out-c">감정평가 외'+(subReason(L)?' — '+esc(subReason(L)):'')+'</td>'
         +areaCell(size,gongbu)+'<td class="out-c">감정평가 외</td></tr>';
       return;}
     var gfp=facProduct(landGaFactors(L));
@@ -3074,7 +3079,7 @@ function calcGeorae(){
        +'<td>'+gfp.toFixed(3)+'</td>'
        +'<td class="calc-c">'+(calc?won(calc):'-')+'</td>'
        +applyCell(L.gaApply,autoApply,'LANDS['+i+'].gaApply=this.value;calcGeorae();saveForm();')
-       +areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
+       +vsCell(i,apply)+areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
   var cal={landUnit:gv0?gv0.unit:0},sajRaw=gv0?gv0.sajRaw:'1.000',timeRaw=gv0?gv0.timeRaw:'',areaRaw=gv0?gv0.areaRaw:'1.000';
   // 묶기 — 한 줄로: 개별요인·적용단가 한 세트, 면적은 묶은 면적
@@ -3085,10 +3090,10 @@ function calcGeorae(){
        +'<td>'+(a0.individual||0).toFixed(3)+'</td>'
        +'<td class="calc-c">'+(a0.calculated?won(a0.calculated):'-')+'</td>'
        +applyCell(Lg0.gaApply,applyAuto(a0.calculated||0,'ga'),'setGroupApply(\'ga\',this.value);calcGeorae();saveForm();')
-       +areaCell(roundArea(sumSize),roundArea(sumGongbu))+'<td class="calc-c">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
+       +vsCell(0,a0.apply)+areaCell(roundArea(sumSize),roundArea(sumGongbu))+'<td class="calc-c">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   }
   else if(LANDS.length>1)
-    hs+='<tr class="sumrow"><td colspan="8" class="sum-label">합계</td><td>'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
+    hs+='<tr class="sumrow"><td colspan="9" class="sum-label">합계</td><td>'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
        +'<td class="sum-amt">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblGaSisan',hs);
   sisanHint(firstCalc,'ga');

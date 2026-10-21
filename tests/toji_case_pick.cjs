@@ -70,6 +70,11 @@ const outDir=process.env.TOJI_OUT||'';
     const r=GEORAE_RESULT.rows;return {src:r.map(x=>x.source),time:r.map(x=>x.time),cases:r.map(x=>x.caseIdx),apply:r.map(x=>x.apply)};
   });
   console.log('② 거래사례비교법 필지별',g1);
+  // 필지별 공시지가기준법 적용단가 대비 격차(적용단가 오른쪽 칸)
+  const vs=await page.evaluate(()=>[...document.querySelectorAll('#tblGaSisan tr')].slice(1,3).map(tr=>tr.cells[8].innerText.replace(/\s+/g,' ')));
+  console.log('② 공시지가기준법 대비',vs);
+  const exp=await page.evaluate(()=>GEORAE_RESULT.rows.map((r,i)=>((r.apply/GONGSI_RESULT.rows[i].apply-1)*100).toFixed(2)));
+  vs.forEach((t,i)=>assert.ok(t.includes(exp[i]+'%'),t+' / '+exp[i]));
   assert.deepEqual(g1.cases,[0,1]);assert.deepEqual(g1.src,[1000000,150000]);
   near(g1.time[0],1.01);near(g1.time[1],1.02);
   // 2번 사례 시점수정 칸을 고치면 2번 필지만 바뀐다
