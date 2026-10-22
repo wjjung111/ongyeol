@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>온결 · 집합건물 기준시가</title><link rel="stylesheet" href="condo-standard-price.css"></head>
+<body>
+<header><div class="wrap"><span class="brand">ONGYEOL <span>/ 집합건물 전용</span></span><h1>한 호의 기준시가를,<br>면적과 대지권으로 정확하게.</h1><p>동·호를 고르면 전유·공용면적을 불러옵니다. 대지권은 등기부를 보고 직접 입력하세요.</p><div class="pills"><span>2025 · 2026 고시</span><span>복수감정 기준 구분</span><span>기존 계산기와 독립</span></div></div></header>
+<main class="wrap">
+<div class="workspace"><div class="inputs">
+<section><h2><b>01</b> 기준일과 평가 방식</h2>
+<div class="grid"><label>평가기준일<input id="date" type="date" data-date><small>상속개시일·증여일</small></label><label>호별 고시 여부<select id="mode"><option value="">선택하세요</option><option value="manual">일괄고시 없는 비주거 집합건물</option><option value="official">호별 고시된 오피스텔·상업용 건물</option><option value="housing">공동주택가격이 있는 주택</option></select></label></div>
+<p class="hint">고시 여부는 자동 판정하지 않습니다. <a href="https://www.hometax.go.kr/" target="_blank" rel="noopener">홈택스</a> 또는 <a href="https://www.realtyprice.kr/" target="_blank" rel="noopener">부동산공시가격 알리미</a>에서 해당 호를 먼저 확인하세요.</p>
+<div id="officialPanel" hidden><label>해당 호 전체의 토지·건물 일괄가격 (원)<input id="officialTotal" type="number" min="1" step="1" placeholder="호별 고시 총액"></label><label class="check"><input id="officialConfirmed" type="checkbox">평가기준일에 적용되는 해당 호 전체 가격임을 확인했습니다.</label><p class="hint">토지·건물 포함 가격입니다. 대지권 금액을 다시 더하지 않습니다. 고시 전 취득분 환산이나 미공시 주택의 별도 평가는 지원하지 않습니다.</p></div>
+</section>
+<div id="manualPanel" hidden>
+<section><h2><b>02</b> 주소 → 동 → 호</h2><div class="search"><label>지번주소<input id="address" placeholder="시·구·동·번지까지 입력" autocomplete="off"></label><button id="search" type="button">주소 조회</button></div>
+<p class="hint">국토교통부 건축HUB·V-World 조회. API가 응답하지 않아도 아래 항목을 직접 입력해 계산할 수 있습니다.</p>
+<div id="candidatesPanel" hidden><label>조회된 주소<select id="candidates"><option value="">주소를 선택하세요</option></select></label></div>
+<div class="grid"><label>동<select id="dong"><option value="">주소를 먼저 조회하세요</option></select></label><label>호<select id="ho"><option value="">동을 선택하세요</option></select></label></div>
+<p id="status" class="status" role="status">주소 조회 없이 수동 입력도 가능합니다.</p>
+<div class="grid"><label>신축연도<input id="built" type="number" min="1800" max="2026" step="1" placeholder="사용승인 연도"></label><label>전체 지상층수<input id="top" type="number" min="1" placeholder="상속·증여 조정률 검토용"></label></div>
+<p id="source" class="hint"></p>
+</section>
+<section><h2><b>03</b> 전유·공용부분</h2><p class="hint">각 행의 용도지수는 수정할 수 있습니다. 공용부분은 귀속되는 주용도 기준으로 검토하세요. 전유면적만으로 계산하지 않습니다.</p>
+<div id="rows"></div><button id="addRow" class="secondary" type="button">+ 부분 추가</button>
+<label class="check"><input id="rowsConfirmed" type="checkbox">면적 합계와 구조·내용연수·용도지수를 확인했습니다.</label>
+</section>
+<section><h2><b>04</b> 대지권 · 등기부 직접 입력</h2><p class="callout">대지권은 API로 불러오거나 면적 비율로 추정하지 않습니다. 등기부의 대지권 비율 또는 실제 지분면적을 입력하세요.</p>
+<div id="lands"></div><button id="addLand" class="secondary" type="button">+ 부속 필지 추가</button>
+<label class="check"><input id="priceConfirmed" type="checkbox">평가기준일 현재 적용할 개별공시지가를 원 단위로 확인했습니다.</label><p class="hint">공시지가 조회값의 연도와 공시 시점을 확인하세요. 연도 자료가 없으면 다른 연도로 자동 대체하지 않습니다. 여러 필지의 위치지수는 전체 필지면적으로 가중평균합니다.</p></section>
+<section><h2><b>05</b> 상속·증여 보충적 평가액 <span class="optional">선택</span></h2><p class="hint">복수감정 판단용 소득세법 기준시가와 구분합니다. 필요한 경우 각 부분에 고시의 개별특성 조정률을 직접 입력하고 확인하세요. 기본값 1은 검토 전 값입니다.</p><label>대수선 연도 (해당 시)<input id="remodel" type="number" min="1800" placeholder="미해당이면 비움"></label><label class="check"><input id="sjConfirmed" type="checkbox">전체 건물의 규모·층수와 부분별 특성을 검토하여 각 행의 조정률을 확정했습니다.</label></section>
+</div>
+</div>
+<aside><section class="result"><div class="eyebrow">상속·증여 감정기관 수 검토</div><h2 id="resultTitle">입력을 기다리고 있습니다</h2><div id="amount" class="amount">—</div><p id="verdict">평가 방식과 기준일을 선택하세요.</p><div id="breakdown"></div><div id="messages" role="status"></div><div class="actions"><button id="copy" type="button" disabled>계산 근거 복사</button><button id="print" class="secondary" type="button">인쇄 / PDF</button></div><p id="copyStatus" role="status"></p></section>
+<section class="notes"><h3>판단의 기준</h3><p>10억 원 이하는 감정기관 1곳, 초과는 2곳 이상 평균액이 원칙입니다. 해당 호 전체의 기준시가로 판단하며, 취득하는 일부 지분만큼 줄여 비교하지 않습니다.</p><p>감정기관 수 요건의 검토 결과입니다. 평가기간 등 다른 시가 인정 요건은 별도로 충족해야 합니다.</p><a href="https://www.law.go.kr/법령/상속세및증여세법시행령/제49조" target="_blank" rel="noopener">상증세법 시행령 제49조 제6항 ↗</a></section></aside>
+</div>
+<section class="basis"><h2>산식과 근거</h2><p>소득세법 기준시가 = 토지 지분면적 × 개별공시지가 + 각 건물부분의 면적 × ㎡당 금액</p><p>㎡당 금액 = 신축가격기준액 × 구조지수 × 용도지수 × 위치지수 × 잔가율 → 천 원 미만 절사. 집합건물은 전유·공용면적을 포함하며, 소득세법 기준에는 개별건물 특성 조정률을 적용하지 않습니다.</p><p>2026년 국세청 고시 제2025-39호 · 2025년 제2024-38호. <a href="https://www.nts.go.kr/nts/na/ntt/selectNttInfo.do?nttSn=1349062" target="_blank" rel="noopener">국세청 2026년 계산방법 해설 ↗</a></p><p>조회한 현행 대장과 과거 평가일의 현황이 다르거나, 미등기 증축·특수구조·최초고시 전 환산 등이 있으면 별도 검토가 필요합니다.</p></section>
+</main><footer class="wrap">ONGYEOL · 집합건물 기준시가 / 독립 버전 1.0 · 입력값은 서버에 저장하지 않습니다.</footer>
+<script src="condo-standard-indices.js"></script><script src="condo-standard-price.js"></script><script src="condo-standard-ui.js"></script>
+</body></html>
