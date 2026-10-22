@@ -19,5 +19,7 @@ x=fixture();x.sjConfirmed=true;x.rows.forEach(a=>a.adjustment=1.3);r=C.calculate
 const original=r.total;x.remodel=2025;r=C.calculate(x);assert.equal(r.total,original,'대수선 할증은 소득세법 기준에 미적용');assert.ok(r.sjTotal>1e9);
 const mapped=C.registerRows([{exposPubuseGbCdNm:'전유',strctCdNm:'프리케스트콘크리트구조',mainPurpsCdNm:'기타공장',etcPurps:'공장(지식산업센터)',area:100},{exposPubuseGbCdNm:'공용',strctCdNm:'프리케스트콘크리트구조',etcPurps:'주차장',area:40}],2026);
 assert.equal(mapped[0].useIndex,115);assert.equal(mapped[1].useIndex,115);assert.equal(mapped[0].structNo,4);assert.equal(mapped[0].group,1);
+for(const [name,expected] of [['아파트형공장',115],['기타공장',78],['업무시설',115]]){const m=C.registerRows([{exposPubuseGbCdNm:'전유',etcPurps:name,strctCdNm:'철근콘크리트구조',area:100}],2026);assert.equal(m[0].useIndex,expected,name+' 호실 면적으로 주용도 변경 금지');}
+const mixed=C.registerRows([{exposPubuseGbCdNm:'전유',etcPurps:'공장',area:100},{exposPubuseGbCdNm:'전유',etcPurps:'업무시설',area:100},{exposPubuseGbCdNm:'공용',etcPurps:'계단실',area:20}],2026);assert.equal(mixed[2].useIndex,'','주용도 혼합 공용은 수동 확인');
 x=fixture();x.lands=[{method:'area',area:10,parcelArea:100,price:1000000},{method:'area',area:10,parcelArea:300,price:3000000}];r=C.calculate(x);assert.equal(r.land,40000000);assert.equal(r.loc.idx,116,'전체 필지면적 가중평균 250만원');
 console.log('PASS: condo arithmetic, 1bn boundary, official routes, missing values, date, land ratio, mapping and basis separation');

@@ -62,12 +62,21 @@
   function registerRows(rows,year){
     const primary=rows.find(r=>/전유/.test(r.exposPubuseGbCdNm||''));
     const main=primary?[primary.mainPurpsCdNm,primary.etcPurps].filter(Boolean).join(' '):'';
+    // Classify the registered use before matching generic words such as "아파트".
+    // A unit's small area does not turn a registered factory/office into 근린생활시설.
+    function mappedUse(text,area){
+      if(/지식산업센터|아파트형공장/.test(text))return {use:46};
+      if(!/근린생활/.test(text)&&/공장/.test(text)&&!/냉동|반도체|디스플레이/.test(text))return {use:48};
+      if(!/근린생활/.test(text)&&/업무시설/.test(text)&&!/오피스텔/.test(text))return {use:29};
+      return G.mapUse(text,area);
+    }
+    const primaryUses=new Set(rows.filter(r=>/전유/.test(r.exposPubuseGbCdNm||'')).map(r=>mappedUse([r.mainPurpsCdNm,r.etcPurps].filter(Boolean).join(' '),Number(r.area)||0).use));
     return rows.map(r=>{
       const label=[r.mainPurpsCdNm,r.etcPurps].filter(Boolean).join(' '),text=r.strctCdNm||r.etcStrct||'';
       const common=!/전유/.test(r.exposPubuseGbCdNm||'');
-      const mapped=common?G.mapUse(main,Number(primary?.area)||0):G.mapUse(label,Number(r.area)||0);
+      const mapped=common?mappedUse(main,Number(primary?.area)||0):mappedUse(label,Number(r.area)||0);
       const sNo=/프리케스트|프리캐스트/.test(text)?4:G.mapStructure(text)[0];
-      return {label:(common?'공용':'전유')+' · '+(r.flrNoNm||'')+' '+label,area:String(r.area||''),structNo:sNo,group:G.structGroup(sNo,text),useIndex:G.useIdx(year,mapped.use),adjustment:1};
+      return {label:(common?'공용':'전유')+' · '+(r.flrNoNm||'')+' '+label,area:String(r.area||''),structNo:sNo,group:G.structGroup(sNo,text),useIndex:common&&primaryUses.size!==1?'':G.useIdx(year,mapped.use),adjustment:1};
     });
   }
   root.CondoStandardPrice={calculate,landValue,registerRows,decision,yearOf,floor1000};
