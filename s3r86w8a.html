@@ -2262,14 +2262,32 @@ function parseFeeStatement(text){
     하한총액:pick("하한 총액"),기준총액:pick("기준 총액"),상한총액:pick("상한 총액"),
   };
 }
-function feeMulArg(ov){return ov.areaOption==="share"?ov.feeMul:"";}
 function feeMulOf(v){const n=parseFloat(String(v==null?"":v).replace(/[^\d.]/g,""));return n>0&&isFinite(n)?n:1;}
-function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee,docFee,etcFee,feeMul){
+// 수수료 할증(「감정평가법인등의 보수에 관한 기준」 2026.2.9.) — 제5조② 특수평가는 100분의 150, 제5조④ 지분감정평가는 150% 이내 협의(1.1·1.5)
+// 하나의 물건이 둘 이상에 해당해도 할증은 한 번만(제5조② 단서) → 사유 할증과 지분 할증 중 큰 배수 하나만 쓴다(2026-10-26 결정)
+const FEE_SUR_REASONS=[["","할증 사유 없음"],["소급","6개월 이상 소급 ×1.5"],["선하지","선하지 ×1.5"],["임야","임야(산림) ×1.5"],["도로","도로·구거 등 ×1.5"]];
+// full = 지분평가의 '전체 토지등 감정평가액'(제5조④ 단서: 지분 수수료는 전체 평가액 기준 수수료를 넘지 못함) — 지분 할증이 적용될 때만 의미
+function feeAdjOf(ov,full){
+  const share=ov.areaOption==="share"?feeMulOf(ov.feeMul):1;
+  const sur=FEE_SUR_REASONS.some(r=>r[0]&&r[0]===ov.feeSurReason)?1.5:1;
+  const mul=Math.max(share,sur);
+  const byShare=share>1&&share>=sur;
+  return{mul,full:byShare?(full||0):0,why:mul===1?"":byShare?"지분평가":FEE_SUR_REASONS.find(r=>r[0]===ov.feeSurReason)[1].replace(/ ×1\.5$/,"")};
+}
+function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee,docFee,etcFee,feeAdj){
   // 평가수수료=ROUNDDOWN(요율기준 수수료,-3) — 접수내용의 하한/기준/상한요율에 따름. 특별용역비=평가사 수동 결정값
   const rd=n=>Math.floor((n||0)/1000)*1000;
-  // 지분평가 등 할증: 요율 수수료 × 배수(1.1·1.5 …) 뒤 천원 미만 절사. 배수가 비었거나 이상하면 1
-  const 배수=feeMulOf(feeMul);
-  const 평가수수료=rd((feeBasis==="기준"?fee.기준수수료:feeBasis==="상한"?fee.상한수수료:fee.하한수수료)*배수);
+  // 할증: 요율 수수료 × 배수 → 최저 375,000원(제4조③) → 지분이면 전체 평가액 기준 수수료로 제한(제5조④ 단서) → 천원 미만 절사
+  const adj=feeAdj||{mul:1};const 배수=adj.mul||1;
+  const pickB=f=>feeBasis==="기준"?f.기준수수료:feeBasis==="상한"?f.상한수수료:f.하한수수료;
+  const 요율수수료=pickB(fee)||0;
+  let 할증수수료=요율수수료*배수,할증메모="";
+  if(배수>1){
+    if(할증수수료<375000){할증수수료=375000;할증메모="할증 최저 375,000원 적용(제4조③)";}
+    const a=adj.full>0&&window.ArapFee?window.ArapFee.calc(adj.full):null;const cap=a?pickB(a):0;
+    if(cap>0&&할증수수료>cap){할증수수료=cap;할증메모="전체 평가액 "+fmt(adj.full)+"원 기준 수수료로 제한(제5조④ 단서)";}
+  }
+  const 평가수수료=rd(할증수수료);
   const 특별용역비=parseInt(String(specialFee||"0").replace(/,/g,""),10)||0;
   const 여비=travelFee==null?40000:(parseInt(String(travelFee).replace(/,/g,""),10)||0);
   const 물건조사비=surveyFee==null?15000:(parseInt(String(surveyFee).replace(/,/g,""),10)||0),공부발급비=docFee==null?15000:(parseInt(String(docFee).replace(/,/g,""),10)||0),기타실비=etcFee==null?0:(parseInt(String(etcFee).replace(/,/g,""),10)||0);
@@ -2279,7 +2297,7 @@ function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee
   const 총계=합계+부가세;
   const 착수금=parseInt(String(downPayment||"0").replace(/,/g,""),10)||0;
   const 정산청구액=총계-착수금;
-  return{평가수수료,여비,물건조사비,공부발급비,기타실비,특별용역비,소계,합계,부가세,총계,착수금,정산청구액};
+  return{평가수수료,요율수수료,배수,할증메모,여비,물건조사비,공부발급비,기타실비,특별용역비,소계,합계,부가세,총계,착수금,정산청구액};
 }
 function buildGeonmyeong(ov){
   const dong=ov.dong?` 제${ov.dong}동`:"";
@@ -2320,11 +2338,11 @@ function openPyojiPdf(ov){
   if(!w){alert("팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요.");return;}
   w.document.write(html);w.document.close();
 }
-function openCheongguHoebo(ov,feeText,downPayment,specialFee,feeBasis){
+function openCheongguHoebo(ov,feeText,downPayment,specialFee,feeBasis,adj){
   if(!ov.client){alert("1. 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
   const fee=parseFeeStatement(feeText);
   if(!fee.하한수수료||!fee.기준수수료){alert("감정평가액이 아직 없어 평가수수료를 계산할 수 없습니다.\n4. 가격산출에서 감정평가액을 먼저 확정하세요.\n(또는 수수료 사이트 계산서1을 청구서 칸에 붙여넣기)");return;}
-  const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput,feeMulArg(ov));
+  const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput,adj||feeAdjOf(ov));
   const esc=s=>String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const fm=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
   const today=(ov.writeDate||"").trim()||(()=>{const n=new Date();return `${n.getFullYear()}. ${String(n.getMonth()+1).padStart(2,"0")}. ${String(n.getDate()).padStart(2,"0")}.`;})(); // 시행/청구 일자: 1. 접수개요 작성일자 우선, 비면 오늘
@@ -3181,10 +3199,10 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black){
   }
   return createZipStored(entries);
 }
-function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis){
+function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis,adj){
   const fee=parseFeeStatement(feeText);
   if(!fee.하한수수료)return null;
-  const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput,feeMulArg(ov));
+  const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput,adj||feeAdjOf(ov));
   const f0=n=>n?fmt(n):"-";
   const stripDot=s=>String(s||"").trim().replace(/\.$/,"");
   return{
@@ -3198,9 +3216,9 @@ function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis){
     "접수번호":ov.caseNoDisplay||ov.caseNo||"","작성일자":stripDot((ov.writeDate||"").trim()||today()),
   };
 }
-async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis){
+async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis,adj){
   if(!ov.client){alert("1. 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
-  const map=buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis);
+  const map=buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis,adj);
   if(!map){alert("수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(핑크 박스 상단 ① 수수료 계산 사이트 → 계산서1 복사 → ② 붙여넣기)");return;}
   try{
     const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);
@@ -3863,6 +3881,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   const [downloadName,setDownloadName]=useState("");
   // 수수료 계산서 입력값들 — ov에 저장해 저장건과 함께 복원(붙여넣은 내용이 사라지지 않게)
   // 붙여넣은 사이트 계산서가 없으면 감정평가액으로 자동 계산한 계산서(arap_fee.js)를 쓴다 — 아래 코드는 feeText만 본다(2026-10-13)
+  const feeAdj=feeAdjOf(ov,shR&&fullT>0?Math.round(fullT):0);   // 할증 배수(사유·지분) — 지분이면 전체 평가액으로 수수료 상한
   const feeTextRaw=ov.feeText||"";
   const feeAmt=fT||0;
   const feeText=feeTextRaw.trim()?feeTextRaw:(window.ArapFee&&feeAmt>0?window.ArapFee.statementText(feeAmt):"");
@@ -3884,8 +3903,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
     const hi=specialFeeMode==="기준-하한"?f.기준수수료:f.상한수수료;
     const lo=specialFeeMode==="상한-기준"?f.기준수수료:f.하한수수료;if(!hi||!lo)return null;
-    return String(Math.round((hi-lo)*feeMulOf(feeMulArg(ov))/1000)*1000);})();  // 기본값: 천원 단위 반올림(755,897→756,000). 칸에서 자유 수정 가능
-  useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setSpecialFee(fmtComma(String(specialFeeAuto)));},[specialFeeMode,feeText,ov.feeMul,ov.areaOption]);
+    return String(Math.round((hi-lo)*feeAdj.mul/1000)*1000);})();  // 기본값: 천원 단위 반올림(755,897→756,000). 칸에서 자유 수정 가능
+  useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setSpecialFee(fmtComma(String(specialFeeAuto)));},[specialFeeMode,feeText,feeAdj.mul]);
   const specialFeeEff=specialFee;  // 자동 모드도 칸에 채워진 값을 쓰므로 자유수정 가능
   // 여비 자동: 소재지(ov.jibun) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
   const travelAuto=arapTravelFee(ov.jibun||"");
@@ -4049,6 +4068,9 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <select style={{...S.sel2,width:96}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
+        <select style={{...S.sel2,width:150,...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
+          {FEE_SUR_REASONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+        </select>
         {ov.areaOption==="share"&&<><span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>지분평가 할증</span>
         <select style={{...S.sel2,width:80,...(feeMulOf(ov.feeMul)!==1?{color:"#2563eb",fontWeight:700}:{})}} value={String(feeMulOf(ov.feeMul))} onChange={e=>setOv(p=>({...p,feeMul:e.target.value==="1"?"":e.target.value}))} title="지분평가 시 평가수수료 배수 (요율 수수료 × 배수, 천원 미만 절사). 특별용역비를 차액 방식으로 계산할 때도 같은 배수가 적용됩니다.">
           {["1","1.1","1.5"].map(o=><option key={o} value={o}>{o==="1"?"할증 없음":"×"+o+"배"}</option>)}
@@ -4061,7 +4083,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       </div>
       {(()=>{
         const fee=parseFeeStatement(feeText);
-        const c=computeCheonggu(fee,downPayment,specialFeeEff,feeBasis,ov.feeTravel,feeSurvey,feeDoc,feeEtc,feeMulArg(ov));
+        const c=computeCheonggu(fee,downPayment,specialFeeEff,feeBasis,ov.feeTravel,feeSurvey,feeDoc,feeEtc,feeAdj);
         const _bd="1px solid #e6d4ee";
         const grpTd={border:_bd,padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#7c3aed",background:"#faf5ff",width:60};
         const nmTd={border:_bd,padding:"5px 12px",color:"#333"};
@@ -4076,7 +4098,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             <th colSpan={2} style={{padding:"7px",border:"1px solid #6d2b2b"}}>과　목</th>
             <th style={{padding:"7px",border:"1px solid #6d2b2b",width:180}}>금　액</th>
           </tr></thead><tbody>
-            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료</td><td style={roTd}>{fmt(c.평가수수료)}</td></tr>
+            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료{c.배수>1&&<div style={{fontSize:11,color:"#2563eb",fontWeight:400}}>{feeAdj.why} 할증: {fmt(c.요율수수료)} × {c.배수}{c.할증메모?<><br/>{c.할증메모}</>:null}</div>}</td><td style={roTd}>{fmt(c.평가수수료)}</td></tr>
             <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비{travelAuto!=null&&<span title="소재지 기준 여비 자동값으로 복원" style={{cursor:"pointer",color:"#2563eb",marginLeft:4}} onClick={()=>setOv(p=>({...p,feeTravel:fmtComma(String(travelAuto))}))}>↺</span>}</td><td style={valTd}><input style={inTd} value={ov.feeTravel==null?"40,000":ov.feeTravel} onChange={e=>setOv(p=>({...p,feeTravel:fmtComma(stripComma(e.target.value))}))}/></td></tr>
             <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input style={inTd} value={feeSurvey} onChange={e=>setFeeSurvey(fmtComma(stripComma(e.target.value)))}/></td></tr>
             <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input style={inTd} value={feeDoc} onChange={e=>setFeeDoc(fmtComma(stripComma(e.target.value)))}/></td></tr>
@@ -4091,7 +4113,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           </tbody></table>);
       })()}
       <div style={{marginTop:8}}>
-        <button style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:13,padding:"8px 22px"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
+        <button style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:13,padding:"8px 22px"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis,feeAdj);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
       </div>
     </div>
     </div>
@@ -7152,14 +7174,32 @@ function parseFeeStatement(text){
     하한총액:pick("하한 총액"),기준총액:pick("기준 총액"),상한총액:pick("상한 총액"),
   };
 }
-function feeMulArg(ov){return ov.areaOption==="share"?ov.feeMul:"";}
 function feeMulOf(v){const n=parseFloat(String(v==null?"":v).replace(/[^\d.]/g,""));return n>0&&isFinite(n)?n:1;}
-function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee,docFee,etcFee,feeMul){
+// 수수료 할증(「감정평가법인등의 보수에 관한 기준」 2026.2.9.) — 제5조② 특수평가는 100분의 150, 제5조④ 지분감정평가는 150% 이내 협의(1.1·1.5)
+// 하나의 물건이 둘 이상에 해당해도 할증은 한 번만(제5조② 단서) → 사유 할증과 지분 할증 중 큰 배수 하나만 쓴다(2026-10-26 결정)
+const FEE_SUR_REASONS=[["","할증 사유 없음"],["소급","6개월 이상 소급 ×1.5"],["선하지","선하지 ×1.5"],["임야","임야(산림) ×1.5"],["도로","도로·구거 등 ×1.5"]];
+// full = 지분평가의 '전체 토지등 감정평가액'(제5조④ 단서: 지분 수수료는 전체 평가액 기준 수수료를 넘지 못함) — 지분 할증이 적용될 때만 의미
+function feeAdjOf(ov,full){
+  const share=ov.areaOption==="share"?feeMulOf(ov.feeMul):1;
+  const sur=FEE_SUR_REASONS.some(r=>r[0]&&r[0]===ov.feeSurReason)?1.5:1;
+  const mul=Math.max(share,sur);
+  const byShare=share>1&&share>=sur;
+  return{mul,full:byShare?(full||0):0,why:mul===1?"":byShare?"지분평가":FEE_SUR_REASONS.find(r=>r[0]===ov.feeSurReason)[1].replace(/ ×1\.5$/,"")};
+}
+function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee,docFee,etcFee,feeAdj){
   // 평가수수료=ROUNDDOWN(요율기준 수수료,-3) — 접수내용의 하한/기준/상한요율에 따름. 특별용역비=평가사 수동 결정값
   const rd=n=>Math.floor((n||0)/1000)*1000;
-  // 지분평가 등 할증: 요율 수수료 × 배수(1.1·1.5 …) 뒤 천원 미만 절사. 배수가 비었거나 이상하면 1
-  const 배수=feeMulOf(feeMul);
-  const 평가수수료=rd((feeBasis==="기준"?fee.기준수수료:feeBasis==="상한"?fee.상한수수료:fee.하한수수료)*배수);
+  // 할증: 요율 수수료 × 배수 → 최저 375,000원(제4조③) → 지분이면 전체 평가액 기준 수수료로 제한(제5조④ 단서) → 천원 미만 절사
+  const adj=feeAdj||{mul:1};const 배수=adj.mul||1;
+  const pickB=f=>feeBasis==="기준"?f.기준수수료:feeBasis==="상한"?f.상한수수료:f.하한수수료;
+  const 요율수수료=pickB(fee)||0;
+  let 할증수수료=요율수수료*배수,할증메모="";
+  if(배수>1){
+    if(할증수수료<375000){할증수수료=375000;할증메모="할증 최저 375,000원 적용(제4조③)";}
+    const a=adj.full>0&&window.ArapFee?window.ArapFee.calc(adj.full):null;const cap=a?pickB(a):0;
+    if(cap>0&&할증수수료>cap){할증수수료=cap;할증메모="전체 평가액 "+fmt(adj.full)+"원 기준 수수료로 제한(제5조④ 단서)";}
+  }
+  const 평가수수료=rd(할증수수료);
   const 특별용역비=parseInt(String(specialFee||"0").replace(/,/g,""),10)||0;
   const 여비=travelFee==null?40000:(parseInt(String(travelFee).replace(/,/g,""),10)||0);
   const 물건조사비=surveyFee==null?15000:(parseInt(String(surveyFee).replace(/,/g,""),10)||0),공부발급비=docFee==null?15000:(parseInt(String(docFee).replace(/,/g,""),10)||0),기타실비=etcFee==null?0:(parseInt(String(etcFee).replace(/,/g,""),10)||0);
@@ -7169,7 +7209,7 @@ function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee
   const 총계=합계+부가세;
   const 착수금=parseInt(String(downPayment||"0").replace(/,/g,""),10)||0;
   const 정산청구액=총계-착수금;
-  return{평가수수료,여비,물건조사비,공부발급비,기타실비,특별용역비,소계,합계,부가세,총계,착수금,정산청구액};
+  return{평가수수료,요율수수료,배수,할증메모,여비,물건조사비,공부발급비,기타실비,특별용역비,소계,합계,부가세,총계,착수금,정산청구액};
 }
 function buildGeonmyeong(ov){
  const units=(ov.units||[]).filter(u=>u.ho||u.dong||u.floor);
@@ -7202,10 +7242,10 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black){
   }
   return createZipStored(entries);
 }
-function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis){
+function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis,adj){
   const fee=parseFeeStatement(feeText);
   if(!fee.하한수수료)return null;
-  const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput,feeMulArg(ov));
+  const c=computeCheonggu(fee,downPayment,specialFee,feeBasis,ov.feeTravel,ov.feeSurveyInput,ov.feeDocInput,ov.feeEtcInput,adj||feeAdjOf(ov));
   const f0=n=>n?fmt(n):"-";
   const stripDot=s=>String(s||"").trim().replace(/\.$/,"");
   return{
@@ -7219,9 +7259,9 @@ function buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis){
     "접수번호":ov.caseNoDisplay||ov.caseNo||"","작성일자":stripDot((ov.writeDate||"").trim()||today()),
   };
 }
-async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis){
+async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis,adj){
   if(!ov.client){alert("1. 접수개요에서 '의뢰인'을 먼저 입력하세요.");return;}
-  const map=buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis);
+  const map=buildCheongguTokenMap(ov,feeText,downPayment,specialFee,feeBasis,adj);
   if(!map){alert("수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(핑크 박스 상단 ① 수수료 계산 사이트 → 계산서1 복사 → ② 붙여넣기)");return;}
   try{
     const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);
@@ -7258,6 +7298,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
   // 수수료 계산서 입력값들 — ov에 저장해 저장건과 함께 복원(붙여넣은 내용이 사라지지 않게)
   // 붙여넣은 사이트 계산서가 없으면 감정평가액으로 자동 계산한 계산서(arap_fee.js)를 쓴다 — 아래 코드는 feeText만 본다(2026-10-13)
+  const feeAdj=feeAdjOf(ov,0);   // 할증 사유 배수(여러 호수는 지분평가 없음)
   const feeTextRaw=ov.feeText||"";
   const feeAmt=(()=>{try{const us=(ov.units||[]).filter(u=>u&&(u.ho||u.dong||u.floor||pNum(u.area)>0));const rs=us.map(u=>ArapMultiHwpx.calculateUnit(u,ArapMultiHwpx.resolveCase(u,cases),{uD,uM,tD,tM},{applyR,getUV}));return rs.length&&rs.every(r=>r.ready)?rs.reduce((a,r)=>a+(r.finalAmt||0),0):0;}catch(e){return 0;}})();
   const feeText=feeTextRaw.trim()?feeTextRaw:(window.ArapFee&&feeAmt>0?window.ArapFee.statementText(feeAmt):"");
@@ -7279,8 +7320,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     // 상한-하한 / 기준-하한 / 상한-기준 — 앞이 큰 쪽, 뒤가 뺄 쪽
     const hi=specialFeeMode==="기준-하한"?f.기준수수료:f.상한수수료;
     const lo=specialFeeMode==="상한-기준"?f.기준수수료:f.하한수수료;if(!hi||!lo)return null;
-    return String(Math.round((hi-lo)*feeMulOf(feeMulArg(ov))/1000)*1000);})();  // 기본값: 천원 단위 반올림(755,897→756,000). 칸에서 자유 수정 가능
-  useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setSpecialFee(fmtComma(String(specialFeeAuto)));},[specialFeeMode,feeText,ov.feeMul,ov.areaOption]);
+    return String(Math.round((hi-lo)*feeAdj.mul/1000)*1000);})();  // 기본값: 천원 단위 반올림(755,897→756,000). 칸에서 자유 수정 가능
+  useEffect(()=>{if(specialFeeMode!=="직접입력"&&specialFeeAuto!=null)setSpecialFee(fmtComma(String(specialFeeAuto)));},[specialFeeMode,feeText,feeAdj.mul]);
   const specialFeeEff=specialFee;  // 자동 모드도 칸에 채워진 값을 쓰므로 자유수정 가능
   // 여비 자동: 소재지(ov.jibun) 지역 매칭 시 기준표 금액 자동입력 (자유수정 가능, 지역 바뀔 때만 재적용)
   const travelAuto=arapTravelFee(ov.jibun||"");
@@ -7510,6 +7551,9 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <select style={{...S.sel2,width:96}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
+        <select style={{...S.sel2,width:150,...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
+          {FEE_SUR_REASONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+        </select>
         <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>특별용역비 방식</span>
         <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
           {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
@@ -7518,7 +7562,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       </div>
       {(()=>{
         const fee=parseFeeStatement(feeText);
-        const c=computeCheonggu(fee,downPayment,specialFeeEff,feeBasis,ov.feeTravel,feeSurvey,feeDoc,feeEtc,feeMulArg(ov));
+        const c=computeCheonggu(fee,downPayment,specialFeeEff,feeBasis,ov.feeTravel,feeSurvey,feeDoc,feeEtc,feeAdj);
         const _bd="1px solid #e6d4ee";
         const grpTd={border:_bd,padding:"6px 8px",textAlign:"center",fontWeight:700,color:"#7c3aed",background:"#faf5ff",width:60};
         const nmTd={border:_bd,padding:"5px 12px",color:"#333"};
@@ -7533,7 +7577,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             <th colSpan={2} style={{padding:"7px",border:"1px solid #6d2b2b"}}>과　목</th>
             <th style={{padding:"7px",border:"1px solid #6d2b2b",width:180}}>금　액</th>
           </tr></thead><tbody>
-            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료</td><td style={roTd}>{fmt(c.평가수수료)}</td></tr>
+            <tr><td style={grpTd}>(가)</td><td style={nmTd}>평가수수료{c.배수>1&&<div style={{fontSize:11,color:"#2563eb",fontWeight:400}}>{feeAdj.why} 할증: {fmt(c.요율수수료)} × {c.배수}{c.할증메모?<><br/>{c.할증메모}</>:null}</div>}</td><td style={roTd}>{fmt(c.평가수수료)}</td></tr>
             <tr><td rowSpan={6} style={grpTd}>(나)<br/>실비</td><td style={nmTd}>여　비{travelAuto!=null&&<span title="소재지 기준 여비 자동값으로 복원" style={{cursor:"pointer",color:"#2563eb",marginLeft:4}} onClick={()=>setOv(p=>({...p,feeTravel:fmtComma(String(travelAuto))}))}>↺</span>}</td><td style={valTd}><input style={inTd} value={ov.feeTravel==null?"40,000":ov.feeTravel} onChange={e=>setOv(p=>({...p,feeTravel:fmtComma(stripComma(e.target.value))}))}/></td></tr>
             <tr><td style={nmTd}>물건조사비</td><td style={valTd}><input style={inTd} value={feeSurvey} onChange={e=>setFeeSurvey(fmtComma(stripComma(e.target.value)))}/></td></tr>
             <tr><td style={nmTd}>공부발급비</td><td style={valTd}><input style={inTd} value={feeDoc} onChange={e=>setFeeDoc(fmtComma(stripComma(e.target.value)))}/></td></tr>
@@ -7548,7 +7592,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           </tbody></table>);
       })()}
       <div style={{marginTop:8}}>
-        <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:13,padding:"8px 22px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
+        <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:13,padding:"8px 22px",cursor:saved?"pointer":"not-allowed"}} disabled={!saved} onClick={()=>{window.arapUsageLog&&window.arapUsageLog("청구서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""}`.trim(),kind:propType,amount:""});downloadCheongguHwpx(ov,feeText,downPayment,specialFeeEff,feeBasis,feeAdj);}} title="청구서 한글파일(.hwpx) — 수수료 계산서 인식 필요">📄 청구서 hwpx 다운로드</button>
       </div>
     </div>
     </div>
