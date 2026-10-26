@@ -45,6 +45,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.ok(!/<hp:colPr/.test(tb),'단가 결정 표에 단 설정 조각 없음');
       const v=tb.match(/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?1\.\d{5}<\/hp:t><\/hp:run>((?:(?!<\/hp:p>)[\s\S])*?)<\/hp:p>/);assert.ok(v,'시점수정 값 문단');assert.ok(!/linesegarray/.test(v[1]),'시점수정 칸 줄배치 캐시 제거');}
     const t=T(x);
+    assert.ok(!/\|[^|]*\d+\/\d+\/\d+호\|/.test(t),'거래사례 동/층/호에 「호」 안 붙음');
     // 개별요인 의견: ■ 네 줄(각각 문단)
     const ops=t.split('|').filter(s=>s.startsWith('■ '));
     assert.deepEqual(ops.map(s=>s.split(':')[0]),['■ 단지외부요인','■ 단지내부요인','■ 호별요인','■ 기타요인'],'■ 네 줄 '+JSON.stringify(ops));
@@ -53,6 +54,9 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.ok(!t.includes('합리성 검토를 생략하였음.|라.|'),'4. 다. 뒤 라. 없음');
       { const k=t.indexOf('업무진행 시 참고 바람');assert.ok(k>0&&t.slice(k).startsWith('업무진행 시 참고 바람|마.| 지분 위치 특정 불가 &amp; 전체 기준 평가|'),'그 밖의 사항 마. 문구 '+t.slice(k,k+80)); }
       assert.equal((t.match(/ × 1\/4\|/g)||[]).length,4,'개요 면적 네 칸 × 1/4');
+      { const rows=[...t.matchAll(/\|([\d.,]+) × 1\/4\|= ([\d.]+)(?=\|)/g)];   // 개요 면적 칸 둘째 줄 「= 계산값」(소수 둘째 자리 반올림)
+        assert.equal(rows.length,4,'개요 면적 네 칸 = 계산값 '+JSON.stringify(rows.map(r=>r[0])));
+        for(const r of rows)assert.equal(r[2],(Math.round(+r[1].replace(/,/g,'')/4*100+1e-7)/100).toFixed(2),'계산값 '+r[0]); }
       assert.ok(t.includes('귀 제시|지분 비율')&&t.includes('귀 제시 지분|감정평가액(원)')&&t.includes('|25%|'),'결정표 지분 열');
       const m=t.match(/□ 산식 : ([\d,]+) × ([\d.]+) ≒ ([\d,]+) × 25% ≒ ([\d,]+)/);assert.ok(m,'산식 문단');
       const n=s=>+s.replace(/,/g,'');
