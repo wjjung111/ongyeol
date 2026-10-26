@@ -57,16 +57,16 @@
   // 이미 이 브라우저에서 코드를 맞힌 적이 있으면 통과
   if(lsGet(KEY)===ARAP_ACCESS_HASH)return;
 
-  // 잠금 화면: 화면 전체를 덮고, 뒤의 앱 본체는 통과 전까지 숨긴다 (구형 브라우저 호환을 위해 inset 대신 top/left/right/bottom)
+  // 잠금 화면: 화면 전체를 덮고, 뒤의 앱 본체는 반투명·흐림으로 비쳐 보이되 통과 전까지 누를 수 없다 (구형 브라우저 호환을 위해 inset 대신 top/left/right/bottom)
   var style=document.createElement("style");
   style.id="arap-access-style";
-  style.textContent="html.arap-locked body>*:not(#arap-access-gate){visibility:hidden!important;}";
+  style.textContent="html.arap-locked body>*:not(#arap-access-gate){pointer-events:none!important;user-select:none!important;}";
   document.head.appendChild(style);
   document.documentElement.classList.add("arap-locked");
 
   var gate=document.createElement("div");
   gate.id="arap-access-gate";
-  gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a 0%,#1e293b 60%,#0f172a 100%);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
+  gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,23,42,.76) 0%,rgba(30,41,59,.68) 60%,rgba(15,23,42,.76) 100%);backdrop-filter:blur(3.5px);-webkit-backdrop-filter:blur(3.5px);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
   gate.innerHTML=
     '<div style="text-align:center;max-width:420px;padding:24px;">'+
     '<div style="font-size:34px;letter-spacing:6px;color:#f8fafc;font-weight:700;">온 결</div>'+
@@ -77,7 +77,7 @@
     '<div id="arap-access-msg" style="height:18px;margin-top:8px;font-size:12px;color:#f87171;"></div>'+
     '<button id="arap-access-btn" type="button" style="margin-top:10px;width:100%;padding:11px;font-size:15px;font-weight:700;color:#fff;background:#2563eb;border:none;border-radius:8px;cursor:pointer;font-family:inherit;">입장</button>'+
     '</div>'+
-    '<div style="margin-top:22px;font-size:12px;color:#64748b;">온결 감정평가사 전용 화면입니다. 시점수정 계산기는 <a href="arm_시점수정.html" style="color:#60a5fa;text-decoration:none;">여기</a>에서 누구나 쓸 수 있습니다.</div>'+
+    '<div style="margin-top:22px;font-size:12px;color:#94a3b8;">온결 감정평가사 전용 화면입니다. 시점수정 계산기는 <a href="arm_시점수정.html" style="color:#60a5fa;text-decoration:none;">여기</a>에서 누구나 쓸 수 있습니다.</div>'+
     '</div>';
   function mount(){
     if(!document.body){setTimeout(mount,10);return;}

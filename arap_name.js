@@ -49,7 +49,7 @@
     if(document.getElementById(STYLE_ID))return;
     var style=document.createElement("style");
     style.id=STYLE_ID;
-    style.textContent="html.arap-name-locked body>*:not(#arap-name-gate){visibility:hidden!important;}";
+    style.textContent="html.arap-name-locked body>*:not(#arap-name-gate){pointer-events:none!important;user-select:none!important;}";
     document.head.appendChild(style);
     document.documentElement.classList.add("arap-name-locked");
   }
@@ -58,7 +58,7 @@
     var st=document.getElementById(STYLE_ID);if(st)st.remove();
   }
 
-  // 이름 화면: 화면 전체를 덮고, 뒤의 앱 본체는 이름을 적기 전까지 숨긴다
+  // 이름 화면: 화면 전체를 덮고, 뒤의 앱 본체는 반투명·흐림으로 비쳐 보이되 이름을 적기 전까지 누를 수 없다
   window.arapAskName=function(){
     if(document.getElementById("arap-name-gate"))return;
     var current=window.arapUserName();
@@ -66,7 +66,7 @@
     if(!changing)lock();
     var gate=document.createElement("div");
     gate.id="arap-name-gate";
-    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:#fff radial-gradient(900px 420px at 50% -8%,#eaf1ff 0%,rgba(255,255,255,0) 70%);font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#0f172a;";
+    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(248,250,252,.54) radial-gradient(900px 420px at 50% -8%,rgba(234,241,255,.68) 0%,rgba(255,255,255,0) 70%);backdrop-filter:blur(3.5px);-webkit-backdrop-filter:blur(3.5px);font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#0f172a;";
     if(!document.getElementById("arap-name-gate-css")){
       var gcss=document.createElement("style");gcss.id="arap-name-gate-css";
       gcss.textContent=
@@ -85,7 +85,7 @@
         "#arap-name-gate .ng-btn:hover{box-shadow:0 8px 20px rgba(37,99,235,.36);}"+
         "#arap-name-gate .ng-btn:active{transform:translateY(1px);}"+
         "#arap-name-gate .ng-cancel{margin-top:10px;width:100%;height:42px;font-size:13px;color:#64748b;background:#fff;border:1px solid #d6dde7;border-radius:12px;cursor:pointer;font-family:inherit;}"+
-        "#arap-name-gate .ng-foot{position:absolute;left:16px;right:16px;bottom:24px;text-align:center;font-size:12px;color:#94a3b8;}";
+        "#arap-name-gate .ng-foot{position:absolute;left:16px;right:16px;bottom:24px;text-align:center;font-size:12px;color:#64748b;}";
       document.head.appendChild(gcss);
     }
     function h(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");}
