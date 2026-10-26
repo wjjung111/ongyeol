@@ -66,7 +66,7 @@
     if(!changing)lock();
     var gate=document.createElement("div");
     gate.id="arap-name-gate";
-    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(248,250,252,.6) radial-gradient(900px 420px at 50% -8%,rgba(234,241,255,.75) 0%,rgba(255,255,255,0) 70%);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#0f172a;";
+    gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(248,250,252,.54) radial-gradient(900px 420px at 50% -8%,rgba(234,241,255,.68) 0%,rgba(255,255,255,0) 70%);backdrop-filter:blur(3.5px);-webkit-backdrop-filter:blur(3.5px);font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#0f172a;";
     if(!document.getElementById("arap-name-gate-css")){
       var gcss=document.createElement("style");gcss.id="arap-name-gate-css";
       gcss.textContent=
