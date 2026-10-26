@@ -2857,7 +2857,7 @@ async function buildEvalHwpxV2(tokenMap,tplB64){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=v2OverviewBuildingName(xml);        // 대상물건 개요 건물명: 동 번호를 붙이지 않음
-      xml=v2ShareLayout(xml,tokenMap);          // 지분평가: 라. 문단·개요 「× 1/4」·결정표 지분 열 (치환 전, 줄배치 제거 전)
+      xml=v2ShareLayout(xml,tokenMap);          // 지분평가: 개요 「× 1/4」·결정표 지분 열 (치환 전, 줄배치 제거 전)
       xml=v2EtcExtraItem(xml,tokenMap);         // 지분평가: 6. 그 밖의 사항 마지막에 앱 「그 밖의 사항 문구」 항목 (치환 전)
       xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)
       xml=v2StrayColPr(xml);                    // 표 칸 속 쓸모없는 단 설정 조각 제거 — 「7. 단가의 결정」 시점수정 칸이 위로 붙던 원인 (줄배치 제거 전)
@@ -3009,17 +3009,12 @@ function v2NrTokens(v,ov,sc){
   return v;
 }
 // 지분평가 양식(온결 비주거 샘플, 2026-10-14 — 주거·비주거 공통): 단일호수 감정평가서를 지분 건이면 이렇게 바꾼다(치환 전)
-//   ① 4. 감정평가방법에 「라. … 귀 제시 지분(1/4)만을 감정평가 …」 문단  ② 대상물건 개요 면적 칸에 「 × 1/4」
+//   (① 4. 라. 문단은 뺌)  ② 대상물건 개요 면적 칸에 「 × 1/4」
 //   ③ 감정평가액의 결정 표: 전유면적(공부)·단가·감정평가액(전체) + 「귀 제시 지분 비율」「귀 제시 지분 감정평가액」 열, 표 아래 「□ 산식」 문단
 function v2ShareLayout(xml,map){
   const sl=map["_지분"];if(!sl)return xml;
   const LS=/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/g;
-  // ① 라. 문단 — 다. 문단을 복제
-  const i=xml.indexOf("합리성 검토를 생략하였음.");
-  if(i>=0){const s=xml.lastIndexOf("<hp:p ",i),e=xml.indexOf("</hp:p>",i)+7;
-    let p=xml.slice(s,e).replace(LS,"").replace("<hp:t>다.</hp:t>","<hp:t>라.</hp:t>")
-      .replace(/(<hp:run charPrIDRef="\d+"><hp:t>) 대상물건의 감정평가는[^<]*(<\/hp:t>)/,"$1 본건 집합건물은 귀 의뢰인의 요청에 따라 전체 지분 중 귀 제시 지분("+sl+")만을 감정평가하였으며, 해당 지분의 위치가 특정되지 않아 전체 면적을 기준으로 감정평가한 후, 귀 제시 지분비율을 적용하여 평가하였음.$2");
-    xml=xml.slice(0,e)+p+xml.slice(e);}
+  // ① 4. 감정평가방법 「라.」 문단은 2026-10-26 사용자 결정으로 뺌 — 같은 뜻을 6. 그 밖의 사항 「마.」(v2EtcExtraItem)로 적음
   // ② 대상물건 개요 면적 칸
   const a=xml.indexOf("Ⅱ. 대상물건 개요"),b=xml.indexOf("Ⅲ. 거래사례비교법");
   if(a>=0&&b>a){let seg=xml.slice(a,b);
