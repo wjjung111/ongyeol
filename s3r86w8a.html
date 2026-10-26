@@ -1951,7 +1951,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   // ── 정렬 ──
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
-  const crC=useColResize("cases",14),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
+  const crC=useColResize("cases",15),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
   // 날짜(2025.11.03·2025-11-03·25.11.03)는 YYYYMMDD 숫자로 바꿔 비교 — parseFloat로 읽으면 2025.11 / 2025 로 잘려 같은 해 안에서 순서가 안 맞았음(2026-10-19). 빈 값은 항상 맨 뒤
   const sortAndApply=(arr,setArr,sort,isPrec)=>{const dk=v=>{const m=String(v).trim().match(/^(\d{2}|\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(!m)return null;const y=m[1].length===2?2000+ +m[1]:+m[1];return y*10000+ +m[2]*100+ +m[3];};
     const key=v=>{if(v==null||String(v).trim()==="")return null;const d=dk(v);if(d!=null)return d;const t=String(v).replace(/,/g,"").trim();return /^-?\d+(\.\d+)?$/.test(t)?parseFloat(t):String(v);};
@@ -2057,7 +2057,8 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
         <CSortTh i={10} label="거래시점" sortKey="tradeDate"/>
         <CSortTh i={11} label="사용승인일" sortKey="approvalDate"/>
         <CSortTh i={12} label="시점수정치" sortKey="timeAdj" style={{width:75}}/>
-        <th style={{...S.th,width:24}}>{crC.grip(13)}</th>
+        <th style={{...S.th,width:95}} title="단가 × 시점수정치 (화면 참고용, 원 단위 반올림 — 한글 파일엔 안 나감)">시점수정 단가{crC.grip(13)}</th>
+        <th style={{...S.th,width:24}}>{crC.grip(14)}</th>
       </tr></thead><tbody>
         {cases.map((c,i)=>(<DragRow key={c.id} index={i} onDrop={dropC} style={{background:dateAfterWarn(c.tradeDate,ov)?"#fee2e2":c.isSelected?C.sel:c.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={c.isShown} onChange={()=>togC(c.id,"isShown")}/></td>
@@ -2071,6 +2072,8 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           <td style={S.td}>{fmtDate(c.tradeDate)}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:4,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td><td style={S.td}><input style={{...S.inp,width:75,border:"none",background:"transparent",fontSize:11,textAlign:"center"}} value={c.approvalDate||""} onChange={e=>updC(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/></td>
           <td style={{...S.td,cursor:"pointer",color:c.timeAdj?C.acc:"#aaa",fontWeight:c.timeAdj?700:400}}
             onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
+          {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
+            return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table>
@@ -3019,7 +3022,10 @@ function v2ShareLayout(xml,map){
   const a=xml.indexOf("Ⅱ. 대상물건 개요"),b=xml.indexOf("Ⅲ. 거래사례비교법");
   if(a>=0&&b>a){let seg=xml.slice(a,b);
     for(const t of ["대지지분","전유면적","공용면적","합계면적"])
-      seg=seg.replace(new RegExp("(<hp:t>\\{\\{"+t+"\\}\\})(</hp:t></hp:run>)(<hp:linesegarray>[\\s\\S]*?</hp:linesegarray>)?"),"$1 × "+sl+"$2");
+      seg=map[t+"_지분"]   // 계산값이 있으면 둘째 줄 「= 67.24」(같은 문단 모양 복제, 줄배치 캐시는 버림 — 한글이 다시 배치)
+        ?seg.replace(new RegExp("(<hp:p\\b[^>]*>)(<hp:run charPrIDRef=\"\\d+\">)<hp:t>\\{\\{"+t+"\\}\\}</hp:t></hp:run>(?:<hp:linesegarray>[\\s\\S]*?</hp:linesegarray>)?</hp:p>"),
+            (m,p0,r0)=>p0+r0+"<hp:t>{{"+t+"}} × "+sl+"</hp:t></hp:run></hp:p>"+p0+r0+"<hp:t>= {{"+t+"_지분}}</hp:t></hp:run></hp:p>")
+        :seg.replace(new RegExp("(<hp:t>\\{\\{"+t+"\\}\\})(</hp:t></hp:run>)(<hp:linesegarray>[\\s\\S]*?</hp:linesegarray>)?"),"$1 × "+sl+"$2");
     xml=xml.slice(0,a)+seg+xml.slice(b);}
   // ③ 결정표 7열 + 산식 문단
   const h=xml.indexOf("감정평가액의 결정");if(h<0)return xml;
@@ -3069,6 +3075,8 @@ function v2ShareTokens(map,ov,fU,fullT,fT){
   map["_지분"]=sl;
   map["그밖의사항_추가"]=shareEtcText(ov).replace(/\s*\n\s*/g," ").trim();
   map["결정_전유면적"]=map["전유면적"]||"";
+  {const dp=parseInt(ov.areaDecimal)||2,md=ov.areaRound||"round";   // 개요 면적 칸 둘째 줄 「= 값」 — 사정면적과 같은 자릿수·처리
+    for(const t of ["대지지분","전유면적","공용면적","합계면적"]){const a=pNum(map[t]);map[t+"_지분"]=a?(t==="전유면적"&&getEffArea(ov)?getEffArea(ov):roundArea(a*r,dp,md)).toFixed(dp):"";}}
   map["지분전_감정평가액"]=fmt(fullT);
   map["지분비율"]=String(Math.round(r*10000)/100)+"%";
   map["지분산식"]=`□ 산식 : ${fmt(fU)} × ${map["전유면적"]||""} ≒ ${fmt(fullT)} × ${map["지분비율"]} ≒ ${fmt(fT)}`;
@@ -3168,7 +3176,7 @@ function buildV2TokenMap(d,ov,cases,comp,fT){
     v["사례"+n+"_법정동"]=c?(c.location||""):"";
     v["사례"+n+"_지번"]=c?(c.jibun||""):"";
     v["사례"+n+"_건물명"]=c?(c.aptName||""):"";
-    v["사례"+n+"_동층호"]=c?((c.dong||"-")+"/"+(c.floor||"-")+"/"+stripHo(c.ho)+"호"):"";
+    v["사례"+n+"_동층호"]=c?((c.dong||"-")+"/"+(c.floor||"-")+"/"+stripHo(c.ho)):"";
     v["사례"+n+"_전유면적"]=c&&c.exclusiveArea?String(c.exclusiveArea):"";
     v["사례"+n+"_가격"]=c?blank(fmt(c.price)):"";
     v["사례"+n+"_단가"]=c?blank(fmt(c.unitPrice)):"";
@@ -3179,7 +3187,7 @@ function buildV2TokenMap(d,ov,cases,comp,fT){
   v["_목록표시근거"]=ov.listBasis||"";   // buildEvalHwpxV2가 감정평가표 목록표시근거 칸에 넣음 — 토큰 아님
   v["_선정순번"]=String(shownC.findIndex(x=>x&&x.id===sc.id)+1);   // 의견서 거래사례 표에서 굵게 할 행(buildEvalHwpxV2) — 토큰 아님
   v["선정_법정동"]=sc.location||"";v["선정_지번"]=sc.jibun||"";v["선정_건물명"]=sc.aptName||"";
-  v["선정_동층호"]=sc.symbol?((sc.dong||"-")+"/"+(sc.floor||"-")+"/"+stripHo(sc.ho)+"호"):"";
+  v["선정_동층호"]=sc.symbol?((sc.dong||"-")+"/"+(sc.floor||"-")+"/"+stripHo(sc.ho)):"";
   v["선정_전유면적"]=sc.exclusiveArea?String(sc.exclusiveArea):"";
   v["선정_가격"]=blank(fmt(sc.price));
   v["선정_단가"]=blank(fmt(sc.unitPrice));
@@ -5912,7 +5920,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   // ── 정렬 ──
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
-  const crC=useColResize("cases",14),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
+  const crC=useColResize("cases",15),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
   // 날짜(2025.11.03·2025-11-03·25.11.03)는 YYYYMMDD 숫자로 바꿔 비교 — parseFloat로 읽으면 2025.11 / 2025 로 잘려 같은 해 안에서 순서가 안 맞았음(2026-10-19). 빈 값은 항상 맨 뒤
   const sortAndApply=(arr,setArr,sort,isPrec)=>{const dk=v=>{const m=String(v).trim().match(/^(\d{2}|\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(!m)return null;const y=m[1].length===2?2000+ +m[1]:+m[1];return y*10000+ +m[2]*100+ +m[3];};
     const key=v=>{if(v==null||String(v).trim()==="")return null;const d=dk(v);if(d!=null)return d;const t=String(v).replace(/,/g,"").trim();return /^-?\d+(\.\d+)?$/.test(t)?parseFloat(t):String(v);};
@@ -6049,7 +6057,8 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
         <CSortTh i={10} label="거래시점" sortKey="tradeDate"/>
         <CSortTh i={11} label="사용승인일" sortKey="approvalDate"/>
         <CSortTh i={12} label="시점수정치" sortKey="timeAdj" style={{width:75}}/>
-        <th style={{...S.th,width:24}}>{crC.grip(13)}</th>
+        <th style={{...S.th,width:95}} title="단가 × 시점수정치 (화면 참고용, 원 단위 반올림 — 한글 파일엔 안 나감)">시점수정 단가{crC.grip(13)}</th>
+        <th style={{...S.th,width:24}}>{crC.grip(14)}</th>
       </tr></thead><tbody>
         {cases.map((c,i)=>(<DragRow key={c.id} index={i} onDrop={dropC} style={{background:dateAfterWarn(c.tradeDate,ov)?"#fee2e2":c.isSelected?C.sel:c.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={c.isShown} onChange={()=>togC(c.id,"isShown")}/></td>
@@ -6063,6 +6072,8 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
           <td style={S.td}>{fmtDate(c.tradeDate)}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:4,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td><td style={S.td}><input style={{...S.inp,width:75,border:"none",background:"transparent",fontSize:11,textAlign:"center"}} value={c.approvalDate||""} onChange={e=>updC(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/></td>
           <td style={{...S.td,cursor:"pointer",color:c.timeAdj?C.acc:"#aaa",fontWeight:c.timeAdj?700:400}}
             onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
+          {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
+            return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table>

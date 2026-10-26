@@ -36,16 +36,16 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
 
       // 1) 안 끌었으면 자동 너비 — 손잡이는 머리글 칸 수만큼 있다
       let i0=await info(0);assert.equal(i0.fixed,false);assert.equal(i0.cols,0);
-      assert.equal(await tbl(0).locator('thead .rsz-grip').count(),14);
+      assert.equal(await tbl(0).locator('thead .rsz-grip').count(),15);
       assert.equal(await tbl(1).locator('thead .rsz-grip').count(),12);
-      const w0=await widths(0);assert.equal(w0.length,14);
+      const w0=await widths(0);assert.equal(w0.length,15);
 
       // 2) 건물명(6번) 열을 +80px — 그 열만 넓어지고 나머지는 그대로
       await dragBy(grip(0,6),80);
       const w1=await widths(0);i0=await info(0);
-      assert.equal(i0.fixed,true);assert.equal(i0.cols,14);
+      assert.equal(i0.fixed,true);assert.equal(i0.cols,15);
       assert.ok(Math.abs(w1[6]-(w0[6]+80))<=2,`건물명 열 ${w0[6]}→${w1[6]}`);
-      for(const j of [0,1,2,3,4,5,7,8,9,10,11,12,13])assert.ok(Math.abs(w1[j]-w0[j])<=2,`열 ${j} 변동 ${w0[j]}→${w1[j]}`);
+      for(const j of [0,1,2,3,4,5,7,8,9,10,11,12,13,14])assert.ok(Math.abs(w1[j]-w0[j])<=2,`열 ${j} 변동 ${w0[j]}→${w1[j]}`);
 
       // 3) 정렬 머리글(소재지, 4번)을 끌어도 정렬이 눌리지 않는다 — 끄는 도중 다시 그려져도 끊기지 않고 좁히기도 된다
       const before=await tbl(0).locator('thead th').nth(4).innerText();
