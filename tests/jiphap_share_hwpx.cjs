@@ -49,8 +49,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const ops=t.split('|').filter(s=>s.startsWith('■ '));
     assert.deepEqual(ops.map(s=>s.split(':')[0]),['■ 단지외부요인','■ 단지내부요인','■ 호별요인','■ 기타요인'],'■ 네 줄 '+JSON.stringify(ops));
     if(share){
-      assert.ok(t.includes('귀 제시 지분(1/4)만을 감정평가하였으며'),'라. 문단');
-      assert.ok(t.includes('|라.|'),'라. 머리');
+      assert.ok(!t.includes('귀 제시 지분(1/4)만을 감정평가하였으며'),'4. 감정평가방법 라. 문단 없음');
+      assert.ok(!t.includes('합리성 검토를 생략하였음.|라.|'),'4. 다. 뒤 라. 없음');
       { const k=t.indexOf('업무진행 시 참고 바람');assert.ok(k>0&&t.slice(k).startsWith('업무진행 시 참고 바람|마.| 지분 위치 특정 불가 &amp; 전체 기준 평가|'),'그 밖의 사항 마. 문구 '+t.slice(k,k+80)); }
       assert.equal((t.match(/ × 1\/4\|/g)||[]).length,4,'개요 면적 네 칸 × 1/4');
       assert.ok(t.includes('귀 제시|지분 비율')&&t.includes('귀 제시 지분|감정평가액(원)')&&t.includes('|25%|'),'결정표 지분 열');

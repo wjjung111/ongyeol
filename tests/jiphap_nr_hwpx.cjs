@@ -55,7 +55,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.ok(!/<hp:colPr/.test(tb),'단가 결정 표에 단 설정 조각 없음');
       const v=tb.match(/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?1\.\d{5}<\/hp:t><\/hp:run>((?:(?!<\/hp:p>)[\s\S])*?)<\/hp:p>/);assert.ok(v,'시점수정 값 문단');assert.ok(!/linesegarray/.test(v[1]),'시점수정 칸 줄배치 캐시 제거');}
     assert.equal(t.split('|').filter(v=>v.startsWith('■ ')).length,4,'개별요인 ■ 네 줄');
-    if(process.env.SHARE)assert.ok(t.includes('귀 제시 지분(1/4)만을')&&/□ 산식 : /.test(t),'지분 양식');
+    if(process.env.SHARE)assert.ok(t.includes('귀 의뢰지분(1/4')&&/□ 산식 : /.test(t),'지분 양식');
     assert.deepEqual(errors,[]);
     console.log(t.slice(t.indexOf('가. 자본수익률'),t.indexOf('나. 시점수정치의 결정')));
     console.log('PASS');
