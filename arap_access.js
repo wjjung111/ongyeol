@@ -66,7 +66,7 @@
 
   var gate=document.createElement("div");
   gate.id="arap-access-gate";
-  gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,23,42,.84) 0%,rgba(30,41,59,.76) 60%,rgba(15,23,42,.84) 100%);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
+  gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,23,42,.76) 0%,rgba(30,41,59,.68) 60%,rgba(15,23,42,.76) 100%);backdrop-filter:blur(3.5px);-webkit-backdrop-filter:blur(3.5px);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
   gate.innerHTML=
     '<div style="text-align:center;max-width:420px;padding:24px;">'+
     '<div style="font-size:34px;letter-spacing:6px;color:#f8fafc;font-weight:700;">온 결</div>'+
