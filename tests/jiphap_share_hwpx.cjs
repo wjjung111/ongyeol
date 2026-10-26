@@ -26,6 +26,12 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     if(share){
       await scope.locator('select').filter({has:page.locator('option[value="share"]')}).first().selectOption('share');
       await scope.locator('input[placeholder="분자"]').fill('1');await scope.locator('input[placeholder="분모"]').fill('4');
+      // 그 밖의 사항 문구: 처음엔 지분·사정면적 따라가는 자동 문구 → 고치면 그 글, ↺ 자동 문구로 복귀
+      const ta=scope.getByLabel('지분평가 그 밖의 사항 문구');
+      assert.match(await ta.inputValue(),/^본건은 귀 의뢰인의 요청에 의거하여 귀 의뢰지분\(1\/4, 사정면적 [\d.]+㎡\)만을 평가하였으며/,'자동 문구');
+      await ta.fill('임시');await scope.getByRole('button',{name:'↺ 자동 문구'}).click();
+      assert.match(await ta.inputValue(),/귀 의뢰지분\(1\/4/,'자동 문구 복귀');
+      await ta.fill('지분 위치 특정 불가 & 전체 기준 평가');
     }
     await scope.getByText('4. 가격산출',{exact:true}).click();
     const btn=scope.getByRole('button',{name:'표지/괄감/의견서'});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
@@ -45,6 +51,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     if(share){
       assert.ok(t.includes('귀 제시 지분(1/4)만을 감정평가하였으며'),'라. 문단');
       assert.ok(t.includes('|라.|'),'라. 머리');
+      { const k=t.indexOf('업무진행 시 참고 바람');assert.ok(k>0&&t.slice(k).startsWith('업무진행 시 참고 바람|마.| 지분 위치 특정 불가 &amp; 전체 기준 평가|'),'그 밖의 사항 마. 문구 '+t.slice(k,k+80)); }
       assert.equal((t.match(/ × 1\/4\|/g)||[]).length,4,'개요 면적 네 칸 × 1/4');
       assert.ok(t.includes('귀 제시|지분 비율')&&t.includes('귀 제시 지분|감정평가액(원)')&&t.includes('|25%|'),'결정표 지분 열');
       const m=t.match(/□ 산식 : ([\d,]+) × ([\d.]+) ≒ ([\d,]+) × 25% ≒ ([\d,]+)/);assert.ok(m,'산식 문단');
@@ -56,6 +63,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.ok(t.includes('|'+m[2]+'|'),'결정표 전유면적(공부)');
     }else{
       assert.ok(!t.includes('귀 제시 지분')&&!t.includes('□ 산식'),'지분 아니면 그대로');
+      assert.ok(!t.includes('|마.|'),'지분 아니면 그 밖의 사항 마. 없음');
     }
     assert.deepEqual(errors,[]);await ctx.close();console.log(share?'지분 OK':'일반 OK');}
     console.log('PASS');

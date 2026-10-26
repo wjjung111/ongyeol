@@ -1022,6 +1022,10 @@ const roundArea=(v,dp,m)=>{const f=Math.pow(10,dp);const x=v*f+1e-7;return (m===
 const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;const dp=parseInt(ov.areaDecimal)||2,m=ov.areaRound||"round";if(ov.areaOption==="share"){const sn=pNum(ov.shareNumer),sd=pNum(ov.shareDenom);if(!sn||!sd)return a;return roundArea(a*sn/sd,dp,m);}if(ov.areaOption==="areaAdj"){const ex=pNum(ov.excludeArea);if(!ex)return a;return roundArea(a-ex,dp,m);}return a;};
 // 지분평가 표기용 "1/2" — 지분평가이고 분자·분모가 다 있을 때만 값, 그 외는 "" (괄호감정표·감정평가표 사정 칸 '1세대 × 1/2')
 const shareLabel=(ov)=>(ov.areaOption==="share"&&pNum(ov.shareNumer)&&pNum(ov.shareDenom))?`${String(ov.shareNumer).trim()}/${String(ov.shareDenom).trim()}`:"";
+// 지분평가 「6. 그 밖의 사항」 마. 문구 — ov.shareEtc가 없으면(손대기 전) 지분·사정면적을 따라가는 자동 문구, 고친 뒤엔 그 글 그대로(빈칸이면 의견서에 안 넣음)
+const shareEtcAuto=(ov)=>{const sl=shareLabel(ov);if(!sl)return"";const ea=getEffArea(ov),dp=parseInt(ov.areaDecimal)||2;
+  return `본건은 귀 의뢰인의 요청에 의거하여 귀 의뢰지분(${sl}${ea?", 사정면적 "+ea.toFixed(dp)+"㎡":""})만을 평가하였으며, 해당 지분의 위치를 특정할 수 없는 바 전체를 기준으로 평가하되 지분비율을 적용하여 면적사정하였음.`;};
+const shareEtcText=(ov)=>ov.shareEtc==null?shareEtcAuto(ov):String(ov.shareEtc);
 
 function preTSV(text){let r="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')q=!q;else if(c==='\n'&&q)r+=" ";else r+=c;}return r;}
 function parseTSV(text){const clean=preTSV(text);const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
@@ -1891,6 +1895,14 @@ function Step2({ov,setOv,propType,setPropType}){
             <span style={{fontWeight:600}}>사정면적:</span> {a} × {ov.shareNumer}/{ov.shareDenom} = <b style={{color:C.dng,fontSize:14}}>{ea} ㎡</b> <span style={{color:"#888",fontSize:11}}>(소수점 {parseInt(ov.areaDecimal)||2}자리 {ov.areaRound==="floor"?"절사":"반올림"})</span>
           </div>
         ):null;})()}
+        <div style={{marginTop:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <span style={{fontSize:12,fontWeight:600,color:"#555"}}>그 밖의 사항 문구</span>
+            <span style={{fontSize:11,color:"#888"}}>감정평가서 「6. 그 밖의 사항」 마지막 항목으로 들어갑니다 (비우면 안 넣음)</span>
+            {ov.shareEtc!=null&&<button style={{...BTN.s,marginLeft:"auto",padding:"2px 8px",fontSize:11}} onClick={()=>setOv(p=>{const n={...p};delete n.shareEtc;return n;})} title="지분·사정면적을 따라가는 자동 문구로 되돌립니다">↺ 자동 문구</button>}
+          </div>
+          <textarea aria-label="지분평가 그 밖의 사항 문구" style={{...S.inp,width:"100%",minHeight:56,resize:"vertical",fontSize:12,lineHeight:1.5,fontFamily:"inherit",boxSizing:"border-box",color:ov.shareEtc!=null?"#111":"#2563eb"}} value={shareEtcText(ov)} onChange={e=>u("shareEtc",e.target.value)}/>
+        </div>
       </div>)}
       {ov.areaOption==="areaAdj"&&(<div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
@@ -2846,6 +2858,7 @@ async function buildEvalHwpxV2(tokenMap,tplB64){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=v2OverviewBuildingName(xml);        // 대상물건 개요 건물명: 동 번호를 붙이지 않음
       xml=v2ShareLayout(xml,tokenMap);          // 지분평가: 라. 문단·개요 「× 1/4」·결정표 지분 열 (치환 전, 줄배치 제거 전)
+      xml=v2EtcExtraItem(xml,tokenMap);         // 지분평가: 6. 그 밖의 사항 마지막에 앱 「그 밖의 사항 문구」 항목 (치환 전)
       xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)
       xml=v2StrayColPr(xml);                    // 표 칸 속 쓸모없는 단 설정 조각 제거 — 「7. 단가의 결정」 시점수정 칸이 위로 붙던 원인 (줄배치 제거 전)
       xml=v2StripValueLineSeg(xml);             // 값 문단 줄배치 캐시 제거 → 긴 값 삽입 시 글자 겹침 방지 (치환 전)
@@ -3034,6 +3047,18 @@ function v2ShareLayout(xml,map){
   const nt=head+"<hp:tr>"+H.join("")+"</hp:tr><hp:tr>"+D.join("")+"</hp:tr></hp:tbl>";
   return xml.slice(0,ts)+nt+xml.slice(te);
 }
+// 「6. 그 밖의 사항」 맨 끝 항목(가.~라.) 다음에 빈 줄 + 다음 글자 항목(마.)을 붙이고 본문은 {{그밖의사항_추가}} 토큰으로 — 값이 없으면 안 건드림
+function v2EtcExtraItem(xml,map){
+  if(!String(map["그밖의사항_추가"]||"").trim())return xml;
+  const h=xml.indexOf("그 밖의 사항"),end=xml.indexOf("Ⅱ. 대상물건 개요",h);if(h<0||end<0)return xml;
+  const seg=xml.slice(h,end),re=/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?<hp:t>([가-하])\.<\/hp:t>[\s\S]*?<\/hp:p>/g;
+  let m,last=null;while((m=re.exec(seg)))last=m;if(!last)return xml;
+  const at=h+last.index+last[0].length,L="가나다라마바사아자차카타파하",nx=L[L.indexOf(last[1])+1]||"";if(!nx)return xml;
+  const pOpen=last[0].match(/^<hp:p\b[^>]*>/)[0],head=last[0].match(/<hp:run charPrIDRef="(\d+)"><hp:t>[가-하]\.<\/hp:t><\/hp:run>/),body=last[0].match(/<hp:run charPrIDRef="(\d+)"><hp:t> /);
+  const hc=head?head[1]:"51",bc=body?body[1]:"34";
+  const p=pOpen+'<hp:run charPrIDRef="'+bc+'"/></hp:p>'+pOpen+'<hp:run charPrIDRef="'+hc+'"><hp:t>'+nx+'.</hp:t></hp:run><hp:run charPrIDRef="'+bc+'"><hp:t> {{그밖의사항_추가}}</hp:t></hp:run></hp:p>';
+  return xml.slice(0,at)+p+xml.slice(at);
+}
 // 지분평가 결정표 바로 아래 「□ 산식」 문단 — 반올림 주석(v2DecisionNote)보다 위에 오도록 그 뒤에 부른다
 function v2ShareFormula(xml,map){
   if(!map["_지분"])return xml;
@@ -3047,6 +3072,7 @@ function v2ShareTokens(map,ov,fU,fullT,fT){
   const sl=shareLabel(ov);if(!sl)return map;
   const r=pNum(ov.shareNumer)/pNum(ov.shareDenom);
   map["_지분"]=sl;
+  map["그밖의사항_추가"]=shareEtcText(ov).replace(/\s*\n\s*/g," ").trim();
   map["결정_전유면적"]=map["전유면적"]||"";
   map["지분전_감정평가액"]=fmt(fullT);
   map["지분비율"]=String(Math.round(r*10000)/100)+"%";
