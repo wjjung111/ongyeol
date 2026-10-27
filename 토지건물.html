@@ -9,7 +9,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>EXACT 토지건물 — Ongyeol</title>
+<title>EXACT 토지건물</title>
 <style>
   /* 집합건물 앱과 통일된 디자인 토큰 (C={pri:#1a2744,acc:#2563eb,bdr:#e2e5ea,hdr:#f0f2f5}) */
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -397,8 +397,8 @@
 
 <script src="arap_jibyun_data.js"></script><!-- 지가변동률+연도 누계(매일 06시 자동갱신). 있으면 통신 없이 계산, 없거나 파일 밖 달은 프록시 -->
 <div id="mode-bar">
-  <a class="mb-home" href="index.html" title="온결 첫 화면으로">🏠 홈</a>
-  <span class="mb-title" id="mbTitle">🏞️ Ongyeol v1.0 · EXACT 토지건물</span>
+  <a class="mb-home" href="index.html" title="첫 화면으로">🏠 홈</a>
+  <span class="mb-title" id="mbTitle">🏞️ EXACT 토지건물</span>
   <span class="mb-tag">개발중 v0.2</span>
   <span class="mb-user" id="mb-user" title="클릭해서 이름 변경">🙋 이름 선택</span>
 </div>
@@ -3479,7 +3479,7 @@ function setEvalKind(k,quiet){
   ['bld','tb','land'].forEach(function(x){var b=document.getElementById('ek_'+x);if(b){b.classList.toggle('gh',x!==k);b.setAttribute('aria-pressed',x===k?'true':'false');}});
   var lab=TAB_LABELS[k];
   Object.keys(lab).forEach(function(n){var b=document.getElementById('tabbtn-'+n);if(b)b.textContent=lab[n];});
-  var t=document.getElementById('mbTitle');if(t)t.textContent='🏞️ Ongyeol v1.0 · EXACT '+EVAL_TITLES[k];
+  var t=document.getElementById('mbTitle');if(t)t.textContent='🏞️ EXACT '+EVAL_TITLES[k];
   document.title='EXACT '+EVAL_TITLES[k];
   var yb=document.getElementById('y_bldNo');if(yb)yb.textContent=BLD_ONLY?'Ⅱ':'Ⅲ';   // 요항표 — 건물만이면 토지의 개황이 빠져 건물의 개황이 Ⅱ
   // 결정의견 기본 문구만 바꾼다(직접 고친 문구는 그대로)

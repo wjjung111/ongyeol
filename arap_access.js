@@ -69,15 +69,15 @@
   gate.style.cssText="position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,23,42,.76) 0%,rgba(30,41,59,.68) 60%,rgba(15,23,42,.76) 100%);backdrop-filter:blur(3.5px);-webkit-backdrop-filter:blur(3.5px);font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;";
   gate.innerHTML=
     '<div style="text-align:center;max-width:420px;padding:24px;">'+
-    '<div style="font-size:34px;letter-spacing:6px;color:#f8fafc;font-weight:700;">온 결</div>'+
-    '<div style="font-size:13px;color:#94a3b8;margin:8px 0 34px;letter-spacing:1px;">온결감정평가법인 내부용 도구</div>'+
+    '<div style="font-size:30px;letter-spacing:3px;color:#f8fafc;font-weight:700;">감정평가 자동화</div>'+
+    '<div style="font-size:13px;color:#94a3b8;margin:8px 0 34px;letter-spacing:1px;">내부용 도구</div>'+
     '<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:26px 22px;">'+
     '<div style="font-size:13px;color:#cbd5e1;margin-bottom:14px;">접속코드를 입력해주세요. <span style="color:#64748b;">(이 기기에서 최초 1회)</span></div>'+
     '<input id="arap-access-input" type="password" autocomplete="off" style="width:200px;padding:9px 10px;font-size:16px;font-weight:700;border:1px solid #475569;border-radius:6px;background:#fff;color:#0f172a;text-align:center;font-family:inherit;">'+
     '<div id="arap-access-msg" style="height:18px;margin-top:8px;font-size:12px;color:#f87171;"></div>'+
     '<button id="arap-access-btn" type="button" style="margin-top:10px;width:100%;padding:11px;font-size:15px;font-weight:700;color:#fff;background:#2563eb;border:none;border-radius:8px;cursor:pointer;font-family:inherit;">입장</button>'+
     '</div>'+
-    '<div style="margin-top:22px;font-size:12px;color:#94a3b8;">온결 감정평가사 전용 화면입니다. 시점수정 계산기는 <a href="arm_시점수정.html" style="color:#60a5fa;text-decoration:none;">여기</a>에서 누구나 쓸 수 있습니다.</div>'+
+    '<div style="margin-top:22px;font-size:12px;color:#94a3b8;">감정평가사 전용 화면입니다. 시점수정 계산기는 <a href="arm_시점수정.html" style="color:#60a5fa;text-decoration:none;">여기</a>에서 누구나 쓸 수 있습니다.</div>'+
     '</div>';
   function mount(){
     if(!document.body){setTimeout(mount,10);return;}
