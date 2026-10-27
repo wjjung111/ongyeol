@@ -33,8 +33,7 @@
       window.ARAP_USERS.map(function(n){return '<option value="'+n+'"'+(n===current?' selected':'')+'>'+n+'</option>';})).join("");
     gate.innerHTML=
       '<div style="text-align:center;max-width:420px;padding:24px;">'+
-      '<div style="font-size:34px;letter-spacing:6px;color:#f8fafc;font-weight:700;">온 결</div>'+
-      '<div style="font-size:13px;color:#94a3b8;margin:8px 0 34px;letter-spacing:1px;">감정평가 자동화 도구</div>'+
+      '<div style="font-size:30px;letter-spacing:3px;color:#f8fafc;font-weight:700;margin-bottom:34px;">감정평가 자동화</div>'+
       '<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:26px 22px;">'+
       '<div style="font-size:13px;color:#cbd5e1;margin-bottom:14px;">'+(changing?'사용하실 이름을 다시 선택해주세요.':'처음 오셨네요! 사용하실 이름을 선택해주세요. <span style="color:#64748b;">(최초 1회)</span>')+'</div>'+
       '<div style="display:flex;align-items:center;justify-content:center;gap:8px;">'+
