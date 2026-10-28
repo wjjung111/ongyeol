@@ -8,6 +8,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script src="arap_storage.js"></script><!-- 저장공간 가득 참 대비: 임시 칸·옛 이전 버전을 비우고 다시 저장, 그래도 안 되면 빨간 띠+파일로 받기 -->
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>EXACT 토지건물</title>
 <style>
@@ -4803,8 +4804,21 @@ function addMemoImage(url){var l=getMemos();l.unshift({id:Date.now(),type:'image
 function delMemo(id){setMemos(getMemos().filter(function(n){return n.id!==id;}));renderMemos();}
 function memoPaste(e){var items=(e.clipboardData||{}).items;if(!items)return;
   for(var i=0;i<items.length;i++){var it=items[i];
-    if(it.type&&it.type.indexOf('image/')===0){e.preventDefault();var f=it.getAsFile();var r=new FileReader();
-      r.onload=function(ev){addMemoImage(ev.target.result);};r.readAsDataURL(f);return;}}}
+    if(it.type&&it.type.indexOf('image/')===0){e.preventDefault();memoShrinkImage(it.getAsFile(),function(url){if(url)addMemoImage(url);});return;}}}
+// 메모 이미지는 긴 변 1600px 이하로 줄여 [원본 / JPEG(0.85) / 줄인 PNG] 중 가장 작은 것을 저장(집합건물 memoShrinkImage와 같은 규칙). 120KB 미만은 원본.
+// 화면 캡처를 그대로 담아 메모 하나가 4MB가 되며 저장공간을 채운 일(2026-10-28) 뒤 도입
+function memoShrinkImage(file,done){
+  var rd=function(cb){var r=new FileReader();r.onload=function(ev){cb(ev.target.result);};r.onerror=function(){cb(null);};r.readAsDataURL(file);};
+  if(!file||file.size<120000)return rd(done);
+  rd(function(orig){if(!orig)return done(null);var url='';
+    try{url=URL.createObjectURL(file);var im=new Image();
+      im.onload=function(){try{var sc=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(1,Math.round(im.naturalWidth*sc)),h=Math.max(1,Math.round(im.naturalHeight*sc));
+        var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);URL.revokeObjectURL(url);
+        var cands=[orig,c.toDataURL('image/jpeg',0.85)];if(sc<1)cands.push(c.toDataURL('image/png'));
+        done(cands.reduce(function(m,v){return v.length<m.length?v:m;}));}catch(e){URL.revokeObjectURL(url);done(orig);}};
+      im.onerror=function(){URL.revokeObjectURL(url);done(orig);};im.src=url;}
+    catch(e){try{URL.revokeObjectURL(url);}catch(e2){}done(orig);}});
+}
 function memoView(src){var v=document.getElementById('memoViewer');v.querySelector('img').src=src;v.hidden=false;}
 function renderMemos(){var box=document.getElementById('memoList');if(!box)return;
   box.innerHTML=getMemos().map(function(n){
