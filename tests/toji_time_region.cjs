@@ -3,6 +3,7 @@
 //  ② 「장안구 정자동」처럼 진짜 구 이름이면 그대로 수원시 장안구
 //  ③ 이미 수원시 장안구로 계산해 둔 사례는 다시 계산 대상(jbStaleReg), 화성시로 계산된 건 아님
 //  ⑤ 「우정읍 화산리」의 '정읍'이 전북 정읍시로 잡히던 것도 — 띄어쓰기 낱말 단위로만 일치
+//  ⑥ 「화산리 1228」 시군구 조회가 강원 삼척시로 잡히던 것(2026-10-28) — 본건 시군구를 붙여 먼저 찾고, 다른 시·도 후보만 여럿이면 안 고름. 옛 오조회 sgg는 켤 때 다시
 //  ④ 새로고침(켤 때)해도 자동으로 다시 계산 — 처음엔 건을 바꿔 열 때만 돌아서 F5로는 안 고쳐졌다(사용자 제보)
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_time_region.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -16,7 +17,11 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});
   const page=await (await browser.newContext()).newPage();const errs=[];page.on('pageerror',e=>errs.push(e.message));
-  await page.context().route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
+  await page.context().route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();
+    if(u.includes('/req/search')){const q=decodeURIComponent((u.match(/query=([^&]*)/)||[])[1]||'');
+      const items=/화성시/.test(q)?['경기도 화성시 만세구 우정읍 화산리 1228']:['강원특별자치도 삼척시 근덕면 화산리 1228','전북특별자치도 고창군 화산리 1228'];
+      return r.fulfill({contentType:'application/json',body:JSON.stringify({response:{result:{items:items.map(a=>({address:{parcel:a}}))}}})});}
+    return r.abort();});
   await page.goto(base+'/토지건물.html?mode=land',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>window.jbPickRegion&&window.jbStaleReg);
   const r=await page.evaluate(()=>{
@@ -35,19 +40,27 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   assert.equal(r.stale,true);assert.equal(r.ok,false);assert.equal(r.okReal,false);
   assert.equal(r.ujeong,null,'우정읍은 정읍시가 아님');assert.equal(r.ujeongStale,true);
   assert.equal(r.jeongeup,'전북 > 정읍시');assert.equal(r.jung,'서울 > 중랑구');assert.equal(r.jungSub,'서울 > 중랑구');
+  // ⑥ 시군구 조회
+  const six=await page.evaluate(async()=>{
+    LANDS=[{fullAddr:'경기도 화성시 만세구 우정읍 화산리 664-75'}];
+    const a=await caseSgg('화산리 1228'),c={sgg:'강원특별자치도 삼척시'},c2={sgg:'강원특별자치도 삼척시',sggV:2},c3={sgg:'경기도 화성시'};
+    return {a,stale:staleSgg(c),fresh:staleSgg(c2),same:staleSgg(c3)};});
+  console.log('⑥',six);
+  assert.equal(six.a,'경기도 화성시 만세구');assert.equal(six.stale,true);assert.equal(six.fresh,false);assert.equal(six.same,false);
   // ④ 저장 → 새로고침 → 켤 때 자동 재계산(통신 막힘 → 본건 시군구 화성시로)
   await page.evaluate(()=>{
     LANDS=[{소재지:'우정읍 화산리',지번:'664-75',fullAddr:'경기도 화성시 우정읍 화산리 664-75',지목:'임',면적:'2000',용도지역:'계획관리',공시지가:'100000',stdIdx:0}];
     STDS=[{소재지:'화산리',지번:'2',공시지가:'100000'}];
     TRADES=[{loc:'장안면 사곡리 309-17',use:'계획관리',jimok:'임야',date:'2025.08.04',landA:'2475',total:'273595291',timeMeta:{reg:'경기 수원시 장안구',use:'계획관리지역',from:'25.08.04',to:'26.10.19',factor:'1.02191'},
-      gaMem:{f:{ga_time:'1.02191'}}},{}];
+      gaMem:{f:{ga_time:'1.02191'}}},{loc:'화산리 1228',sgg:'강원특별자치도 삼척시',use:'계획관리',jimok:'공장용지',date:'2024.12.31',landA:'1000',total:'500000000',
+      timeMeta:{reg:'강원 삼척시',use:'계획관리지역',from:'24.12.31',to:'26.10.19',factor:'1.03812'}}];
     document.getElementById('base_gijun').value='2026.10.19';renderLands();renderTrade();calcGongsi();saveForm();
   });
   await page.goto(base+'/토지건물.html?mode=land&last=1',{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.TRADES&&TRADES[0]&&TRADES[0].timeMeta&&!/수원/.test(TRADES[0].timeMeta.reg),null,{timeout:20000});
-  const re=await page.evaluate(()=>({reg:TRADES[0].timeMeta.reg,f:TRADES[0].timeMeta.factor,mem:TRADES[0].gaMem.f.ga_time,cell:document.getElementById('tradeTime_0').textContent}));
+  await page.waitForFunction(()=>window.TRADES&&TRADES[0]&&TRADES[0].timeMeta&&!/수원/.test(TRADES[0].timeMeta.reg)&&TRADES[1].timeMeta&&!/삼척/.test(TRADES[1].timeMeta.reg),null,{timeout:20000}).catch(async e=>{console.log(await page.evaluate(()=>JSON.stringify(TRADES.map(t=>({m:t.timeMeta,s:t.sgg,e:t.timeErr,b:t.timeBusy})))));throw e;});
+  const re=await page.evaluate(()=>({reg:TRADES[0].timeMeta.reg,f:TRADES[0].timeMeta.factor,mem:TRADES[0].gaMem.f.ga_time,cell:document.getElementById('tradeTime_0').textContent,reg1:TRADES[1].timeMeta.reg}));
   console.log('④ 새로고침 뒤',re);
-  assert.ok(/화성시/.test(re.reg));assert.equal(re.mem,re.f,'옮겨 적어 둔 거래사례비교법 시점수정도 새 값');assert.ok(re.cell.includes('화성시'));
+  assert.ok(/화성시/.test(re.reg));assert.equal(re.mem,re.f,'옮겨 적어 둔 거래사례비교법 시점수정도 새 값');assert.ok(re.cell.includes('화성시'));assert.ok(/화성시/.test(re.reg1),'삼척으로 잡혔던 사례도 화성시로');
   assert.deepEqual(errs,[]);
   console.log('\n✅ 사례 시점수정 지역 검증 통과');
   await browser.close();server.close();
