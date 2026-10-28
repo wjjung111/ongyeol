@@ -1,5 +1,5 @@
 // 목록표시근거 칸 — 접수개요 입력값이 한글 문서 칸에 들어가는지 (템플릿은 고정 글자라 런타임에 바꿔 넣음)
-//  ① 집합건물 단일: 감정평가표(표지/괄감/의견서 묶음 section0) ② 입주권: 2. 괄호감정표
+//  ① 집합건물 단일: 감정평가표(괄감 버튼, 2026-10-28부터 따로) ② 입주권: 2. 괄호감정표
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/list_basis_cell.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict'),zlib=require('zlib'),os=require('os');
@@ -31,7 +31,7 @@ function cellLines(xml){const i=xml.indexOf('>목록표시근거<');assert(i>=0,
       await scope.getByText('1. 접수개요',{exact:true}).click({timeout:60000});
       await scope.locator('div:has(> span:text-is("목록표시근거")) input').first().fill(val);
       await scope.getByText('4. 가격산출',{exact:true}).click();
-      const btn=scope.getByRole('button',{name:'표지/괄감/의견서'});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
+      const btn=scope.getByRole('button',{name:'괄감',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const z=await save(page,()=>btn.click(),'jip.hwpx');
       const xml=z['Contents/section0.xml'].toString('utf8');
       assert.deepEqual(cellLines(xml),want,'집건 감정평가표 칸');

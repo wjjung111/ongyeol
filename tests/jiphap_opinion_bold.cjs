@@ -20,7 +20,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
     await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');await scope.getByText('4. 가격산출',{exact:true}).click({timeout:60000});
-    const btn=scope.getByRole('button',{name:'표지/괄감/의견서'});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
+    const btn=scope.getByRole('button',{name:'의견서',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
     const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);
     const file=path.join(require('os').tmpdir(),'jiphap_opinion_bold.hwpx');await dl.saveAs(file);
     const z=unzip(fs.readFileSync(file));
@@ -30,11 +30,11 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       const info=id=>{const p=prs.find(q=>q.getAttribute('id')===id);return p?{bold:!!p.getElementsByTagNameNS(HH,'bold').length,ul:(p.getElementsByTagNameNS(HH,'underline')[0]||{getAttribute:()=>''}).getAttribute('type'),color:p.getAttribute('textColor')}:null;};
       const sd=new DOMParser().parseFromString(x,'application/xml'),HP='http://www.hancom.co.kr/hwpml/2011/paragraph';
       const rows=[...sd.getElementsByTagNameNS(HP,'tr')].map(tr=>({text:tr.textContent,ids:[...tr.getElementsByTagNameNS(HP,'run')].filter(r=>r.getElementsByTagNameNS(HP,'t').length).map(r=>r.getAttribute('charPrIDRef'))}));
-      const caseRows=rows.filter(r=>/^[㉠-㉭]/.test(r.text)&&/호/.test(r.text));
+      const caseRows=rows.filter(r=>/^[㉠-㉭]/.test(r.text)&&/\d+\/\d+\/\d+/.test(r.text));   // 동/층/호 (「호」는 2026-10 뒤로 안 붙음)
       const why=[...sd.getElementsByTagNameNS(HP,'p')].find(p=>p.textContent.includes('비교사례로 선정하였음')&&!p.getElementsByTagNameNS(HP,'tbl').length);
       const whyRuns=why?[...why.getElementsByTagNameNS(HP,'run')].map(r=>({t:r.textContent,f:info(r.getAttribute('charPrIDRef'))})):[];
       return {cnt:prs.length,itemCnt:+list.getAttribute('itemCnt'),ids:prs.map(p=>+p.getAttribute('id')),caseRows:caseRows.map(r=>({c:r.text.slice(0,1),bold:r.ids.map(info).every(f=>f&&f.bold),anyBold:r.ids.map(info).some(f=>f&&f.bold)})),whyRuns,tw:x.includes('TW:')};
-    },[z['Contents/header.xml'].toString('utf8'),z['Contents/section1.xml'].toString('utf8')]);
+    },[z['Contents/header.xml'].toString('utf8'),z['Contents/section0.xml'].toString('utf8')]);
     assert.equal(r.cnt,r.itemCnt,'itemCnt 일치');assert.deepEqual(r.ids,r.ids.map((_,i)=>i),'글자모양 id 연속');assert.equal(r.tw,false);
     const bold=r.caseRows.filter(x=>x.bold),plain=r.caseRows.filter(x=>!x.anyBold);
     assert.equal(bold.length,1,'굵은 사례 행 하나 '+JSON.stringify(r.caseRows));assert.equal(plain.length,r.caseRows.length-1,'나머지 행은 굵지 않음');

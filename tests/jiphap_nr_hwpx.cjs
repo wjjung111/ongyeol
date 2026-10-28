@@ -34,10 +34,15 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     assert.match(await modal.locator('textarea').inputValue(),/^집합상가\n지역 : 서울/,'자본수익률 산식이 칸에');
     await modal.locator('button',{hasText:/^적용$/}).click();
     await scope.getByText('4. 가격산출',{exact:true}).click();
-    const btn=scope.getByRole('button',{name:'표지/괄감/의견서'});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
-    const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);
-    const file=process.env.OUT||path.join(require('os').tmpdir(),'jiphap_nr.hwpx');await dl.saveAs(file);
-    const z=unzip(fs.readFileSync(file));const x=z['Contents/section1.xml'].toString('utf8'),x0=z['Contents/section0.xml'].toString('utf8');
+    const T=x=>(x.match(/<hp:t>[^<]*<\/hp:t>/g)||[]).map(s=>s.slice(6,-7)).join('|');
+    // 2026-10-28부터 표지·괄감·의견서가 따로 — 의견서(x)·괄감(x0)을 각각 받는다
+    const get=async(name,fname)=>{const btn=scope.getByRole('button',{name,exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
+      const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||require('os').tmpdir(),fname);await dl.saveAs(file);return unzip(fs.readFileSync(file));};
+    const tag='jiphap_nr';
+    const z=await get('의견서',tag+'_의견서.hwpx'),zg=await get('괄감',tag+'_괄감.hwpx'),zp=await get('표지',tag+'_표지.hwpx');
+    assert.ok(!z['Contents/section1.xml']&&!zg['Contents/section1.xml']&&!zp['Contents/section1.xml'],'파일마다 구역 하나');
+    assert.ok(T(zp['Contents/section0.xml'].toString('utf8')).includes('Appraisal Report')&&!zp['Contents/section0.xml'].toString('utf8').includes('chapter'),'표지만');
+    const x=z['Contents/section0.xml'].toString('utf8'),x0=zg['Contents/section0.xml'].toString('utf8');
     const ok=await page.evaluate(([a,b])=>[a,b].every(s=>!new DOMParser().parseFromString(s,'application/xml').getElementsByTagName('parsererror').length),[x,x0]);
     assert.ok(ok,'XML 정상');
     assert.deepEqual([...new Set((x+x0).match(/\{\{[^}]+\}\}/g)||[])],[],'남은 토큰 없음');

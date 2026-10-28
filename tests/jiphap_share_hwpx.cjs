@@ -34,10 +34,14 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await ta.fill('지분 위치 특정 불가 & 전체 기준 평가');
     }
     await scope.getByText('4. 가격산출',{exact:true}).click();
-    const btn=scope.getByRole('button',{name:'표지/괄감/의견서'});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
-    const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);
-    const file=path.join(process.env.OUT||require('os').tmpdir(),share?'주거_단일호수_지분_출력예시.hwpx':'주거_단일호수_출력예시.hwpx');await dl.saveAs(file);
-    const z=unzip(fs.readFileSync(file));const x=z['Contents/section1.xml'].toString('utf8'),x0=z['Contents/section0.xml'].toString('utf8');
+    // 2026-10-28부터 표지·괄감·의견서가 따로 — 의견서(x)·괄감(x0)을 각각 받는다
+    const get=async(name,fname)=>{const btn=scope.getByRole('button',{name,exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
+      const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||require('os').tmpdir(),fname);await dl.saveAs(file);return unzip(fs.readFileSync(file));};
+    const tag=(share?'주거_단일호수_지분_출력예시.hwpx':'주거_단일호수_출력예시.hwpx').replace('.hwpx','');
+    const z=await get('의견서',tag+'_의견서.hwpx'),zg=await get('괄감',tag+'_괄감.hwpx'),zp=await get('표지',tag+'_표지.hwpx');
+    assert.ok(!z['Contents/section1.xml']&&!zg['Contents/section1.xml']&&!zp['Contents/section1.xml'],'파일마다 구역 하나');
+    assert.ok(T(zp['Contents/section0.xml'].toString('utf8')).includes('Appraisal Report')&&!zp['Contents/section0.xml'].toString('utf8').includes('chapter'),'표지만');
+    const x=z['Contents/section0.xml'].toString('utf8'),x0=zg['Contents/section0.xml'].toString('utf8');
     const ok=await page.evaluate(([a,b])=>[a,b].every(s=>!new DOMParser().parseFromString(s,'application/xml').getElementsByTagName('parsererror').length),[x,x0]);
     assert.ok(ok,'XML 정상');assert.deepEqual([...new Set((x+x0).match(/\{\{[^}]+\}\}/g)||[])],[],'남은 토큰 없음');
     { // 「7. 단가의 결정」 시점수정 칸: 단 설정 조각·옛 줄배치 없이 가운데 정렬되게
@@ -45,7 +49,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.ok(!/<hp:colPr/.test(tb),'단가 결정 표에 단 설정 조각 없음');
       const v=tb.match(/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?1\.\d{5}<\/hp:t><\/hp:run>((?:(?!<\/hp:p>)[\s\S])*?)<\/hp:p>/);assert.ok(v,'시점수정 값 문단');assert.ok(!/linesegarray/.test(v[1]),'시점수정 칸 줄배치 캐시 제거');}
     const t=T(x);
-    assert.ok(!/\|[^|]*\d+\/\d+\/\d+호\|/.test(t),'거래사례 동/층/호에 「호」 안 붙음');
+    assert.ok(!/\|[^|]*\d+\/\d+\/\d+호\|/.test(t.slice(0,t.indexOf('감정평가액의 결정'))),'거래사례 동/층/호에 「호」 안 붙음');   // 결정표는 사용자 양식대로 「506/7/702호」
     // 개별요인 의견: ■ 네 줄(각각 문단)
     const ops=t.split('|').filter(s=>s.startsWith('■ '));
     assert.deepEqual(ops.map(s=>s.split(':')[0]),['■ 단지외부요인','■ 단지내부요인','■ 호별요인','■ 기타요인'],'■ 네 줄 '+JSON.stringify(ops));
