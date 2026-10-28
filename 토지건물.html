@@ -2043,6 +2043,7 @@ async function computeCaseTime(c,type,st,force){
   // 저장된 값의 용도가 사례 용도지역과 다르면(옛 오조회 — 계획관리 사례가 보전관리로) 다시 계산
   var ug=jbUseGroup(c.use),useOk=!m0||!ug||String(m0.use||'').indexOf(ug)>=0;
   var regOk=!jbStaleReg(m0,c.loc);   // 옛 오조회(장안면 → 수원시 장안구)면 다시 계산
+  if(staleSgg(c)){delete c.sgg;regOk=false;}   // 옛 시군구 오조회(화산리 → 강원 삼척시)도 다시
   if(!force&&m0&&useOk&&regOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
   c.timeBusy=true;delete c.timeErr;refreshTradeTime();
   try{
@@ -2050,7 +2051,7 @@ async function computeCaseTime(c,type,st,force){
     var regs=jbState.regs,uses=jbState.uses;
     // 지역: 소재지에 시군구가 있으면 그대로, 없으면("상봉동 74-6") 주소 조회로 시군구를 찾아 씀(사례에 sgg로 저장). 그래도 못 찾으면 본건 시군구
     var ri=jbPickRegion(regs,c.loc);
-    if(ri<0&&c.sgg==null){if(st)st.textContent='사례 소재지의 시군구 확인 중… '+(c.loc||'');c.sgg=await caseSgg(c.loc);}
+    if(ri<0&&c.sgg==null){if(st)st.textContent='사례 소재지의 시군구 확인 중… '+(c.loc||'');c.sgg=await caseSgg(c.loc);c.sggV=2;}
     if(ri<0&&c.sgg)ri=jbPickRegion(regs,c.sgg+' '+(c.loc||''));
     if(ri<0)ri=jbPickRegion(regs,subjectSgg());
     if(ri<0)ri=regs.indexOf(document.getElementById('jb_selRegion').value);
@@ -2069,6 +2070,8 @@ async function computeCaseTime(c,type,st,force){
 async function autoEtcTime(force){
   var st=document.getElementById('jbStatus'),eIn=document.getElementById('eTime');
   var type=ETC.type,idx=ETC.idx,c=etcCase();if(!c)return;
+  // 표준지가 둘 이상(블록 화면)이면 위 단일 패널은 숨어 있고 블록마다 따로 계산 — 숨은 패널의 옛 사례로 상태줄을 덮지 않는다
+  if(ETC_MULTI&&!force)return;
   var tok=++etcTimeTok,mine=function(){return ETC.type===type&&ETC.idx===idx&&tok===etcTimeTok;};
   try{
     var p=computeCaseTime(c,type,st,force);
@@ -2120,18 +2123,29 @@ function sggOfAddr(addr){var out=[],ts=String(addr||'').trim().split(/\s+/);
   return out.join(' ');}
 // 사례 소재지(예 "상봉동 74-6")의 시군구를 V-World 주소검색으로 찾는다. 후보가 여럿이면 본건과 같은 시·도를 우선.
 // 실패하면 '' (호출한 쪽에서 본건 시군구로 대체). 수동 붙여넣기 단계(tryManual)는 쓰지 않는다 — 배경 작업이라 사용자에게 창을 띄우지 않기 위해.
+// 「화산리 1228」처럼 전국에 흔한 이름은 검색 상위 10건에 본건 시·도가 없을 수 있어(→ 강원 삼척시로 잡힘, 2026-10-28 사용자 제보)
+// ① 본건 시군구를 붙여 먼저 찾고 ② 안 되면 소재지만으로 찾되 본건 시·도 후보만 쓰며, 다른 시·도 후보만 여럿이면 고르지 않는다('' → 본건 시군구).
+function sidoKey(s){return String(s||'').trim().split(/\s+/)[0].replace(/(특별시|광역시|특별자치시|특별자치도|도)$/,'');}
 function caseSgg(loc){
   loc=String(loc||'').trim();if(!loc)return Promise.resolve('');
-  var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(loc)+'&type=address&category=parcel&format=json&errorformat=json&key='+getKey();
-  return tryFetch(url).catch(function(){return tryJsonp(url);}).then(function(d){
-    var items=(d&&d.response&&d.response.result&&d.response.result.items)||[];
-    var addrs=items.map(function(it){return (it.address&&(it.address.parcel||it.address.road))||it.title||'';}).filter(Boolean);
-    if(!addrs.length)return '';
-    var sido=subjectSgg().split(' ')[0]||'';
-    var pick=addrs.find(function(a){return sido&&a.indexOf(sido)===0;})||addrs[0];
-    return sggOfAddr(pick);
+  var subj=subjectSgg(),sido=sidoKey(subj);
+  var search=function(q){
+    var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(q)+'&type=address&category=parcel&format=json&errorformat=json&key='+getKey();
+    return tryFetch(url).catch(function(){return tryJsonp(url);}).then(function(d){
+      var items=(d&&d.response&&d.response.result&&d.response.result.items)||[];
+      return items.map(function(it){return (it.address&&(it.address.parcel||it.address.road))||it.title||'';}).filter(Boolean);
+    });};
+  var same=function(a){return sido&&sidoKey(a)===sido;};
+  return (subj?search(subj+' '+loc):Promise.resolve([])).catch(function(){return [];}).then(function(a1){
+    var hit=a1.find(same);if(hit)return sggOfAddr(hit);
+    return search(loc).then(function(addrs){
+      var pick=addrs.find(same)||(addrs.length===1?addrs[0]:'');
+      return pick?sggOfAddr(pick):'';
+    });
   }).catch(function(e){console.error('사례 시군구 조회',e);return '';});
 }
+// 옛 방식(위 ①② 전)으로 찾아 둔 사례 시군구가 본건과 다른 시·도면 오조회로 본다(강원 삼척시 등) → 시군구·시점수정 다시
+function staleSgg(c){return !!(c&&c.sgg&&!c.sggV&&sidoKey(subjectSgg())&&sidoKey(c.sgg)!==sidoKey(subjectSgg()));}
 // 각주용 문구: "서울특별시 중랑구 (26.01.31~26.04.14) (주거)"
 function timeMetaLabel(m){if(!m)return '';return m.reg+' ('+m.from+'~'+m.to+') ('+m.use+')';}
 function etcTimeMeta(){var c=etcCase();return (c&&c.timeMeta)||ETC.timeMeta||null;}   // ETC.timeMeta는 옛 저장 호환
@@ -4600,7 +4614,7 @@ function refreshAfterLoad(){fillEtcArea();updatePeriod();sumBld();renderTrade();
 // 그 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로. 손으로 고친 값은 안 건드린다.
 function fixStaleTimes(){
   [['t',TRADES],['a',APPRS]].forEach(function(pr){pr[1].forEach(function(c,i){
-    if(c&&c.timeMeta&&jbStaleReg(c.timeMeta,c.loc))redoCaseTime(pr[0],i,false);});});
+    if(c&&c.timeMeta&&(jbStaleReg(c.timeMeta,c.loc)||staleSgg(c)))redoCaseTime(pr[0],i,false);});});
 }
 // 사례 하나의 시점수정치를 다시 계산(force = 같은 기간이어도 새로 조회) — 거래사례 표 시점수정치 칸을 누르면 이것.
 // 예전 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로, 손으로 고친 값은 그대로.
