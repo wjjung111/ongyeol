@@ -68,7 +68,7 @@ await page.evaluate(inp=>{localStorage.setItem('v2:appraisal-case-list',JSON.str
 await page.reload();const scope=page.locator('#root-multi');await scope.getByText('4. 가격산출',{exact:true}).click();
 await page.waitForFunction(()=>Array.from(document.querySelectorAll('#root-multi button')).some(b=>b.textContent==='명세표(excel)'&&!b.disabled));
 await page.evaluate(()=>{const c=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){window.__dlName=this.download;return c.call(this);};});
-const dl=page.waitForEvent('download');await scope.getByRole('button',{name:'명세표(excel)',exact:true}).click();const d=await dl;await d.saveAs(path.join(out,'ui.xlsx'));assert.equal(await page.evaluate(()=>window.__dlName),'2. 명세표_검증용 의뢰인.xlsx');   // 헤드리스 Chromium은 blob 다운로드 이름을 'download'로 주므로 앵커의 파일명을 본다
+const dl=page.waitForEvent('download');await scope.getByRole('button',{name:'명세표(excel)',exact:true}).click();const d=await dl;await d.saveAs(path.join(out,'ui.xlsx'));assert.equal(await page.evaluate(()=>window.__dlName),'4. 명세표_검증용 의뢰인.xlsx');   // 헤드리스 Chromium은 blob 다운로드 이름을 'download'로 주므로 앵커의 파일명을 본다
 assert.equal(await scope.getByRole('button',{name:'요항표',exact:true}).count(),0);
 await scope.getByText('2. 대상물건개요',{exact:true}).click();assert.equal(await scope.locator('div',{hasText:/^대지권비율 분모\(등기\)/}).locator('input').last().inputValue(),'1064.5');
 console.log('PASS 화면 버튼 다운로드 / 요항표 버튼 없음 / 분모 칸');
