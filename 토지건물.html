@@ -540,6 +540,8 @@
             <span class="fld"><label>층수(지상/지하)</label><input type="text" id="bt_flrs" placeholder="6/1"></span>
             <span class="fld"><label>사용승인일</label><input type="text" id="bt_useApr" data-date placeholder="1993.10.09"></span>
             <span class="fld" style="grid-column:1/-1"><label>도로명주소 (명세표 건물란)</label><input type="text" id="bt_roadAddr" placeholder="서울특별시 강남구 압구정로 165"></span>
+            <span class="fld" style="grid-column:1/-1;align-items:flex-start"><label title="건물 등기사항전부증명서 표제부 「건물내역」을 그대로 붙여넣으면 명세표 건물란(구조·용도·층별 면적)이 등기대로 나갑니다. 비우면 건축물대장 층별 목록대로">건물등기 건물내역<br>(명세표용)</label><textarea id="bt_regText" rows="4" style="flex:1;min-width:0;border:1px solid #e2e5ea;border-radius:3px;padding:4px 7px;font-size:12px;font-family:inherit;resize:vertical" placeholder="등기 표제부 건물내역을 붙여넣기 (비우면 건축물대장대로)&#10;철근콘크리트구조&#10;(철근)콘크리트지붕 4층&#10;근린생활시설&#10;1층 148.26㎡&#10;2층 234.79㎡ …&#10;지1층 294.39㎡&#10;옥탑1 28.35㎡"></textarea></span>
+            <span class="hint" id="bt_regHint" style="grid-column:1/-1"></span>
           </div>
           <div class="tw" style="margin-top:8px">
             <table id="bldTbl">
@@ -3629,7 +3631,7 @@ function sub(i,btn){
 var GIJUN_BASIS_OLD={'귀 의뢰 요청 날짜인':'의뢰일인','실지조사 완료일인':'현장조사완료일인','가격조사 완료일인':'현장조사완료일인'};
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice'];   // 감정서번호 칸은 2026-09-16 삭제(접수번호와 같은 값) — 옛 저장값은 무시
-var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr'];
+var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr','bt_regText'];
 var GONGSI_IDS=['g_daegu','g_opinion','g_tradeNote','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
@@ -4446,6 +4448,8 @@ function applyForm(o){
     if(id==='ov_orderDay')v=String(v).replace(/^(\d{4})\.(\d{2})\.(\d{2})\.?$/,'$1/$2/$3');   // 의뢰일은 집합건물처럼 2026/06/08
     document.getElementById(id).value=v;});
   if(o.bt)BT_IDS.forEach(function(id){if(o.bt[id]!=null)document.getElementById(id).value=o.bt[id];});
+  if(!(o.bt&&o.bt.bt_regText!=null))document.getElementById('bt_regText').value='';   // 건물등기 칸이 생기기 전 저장건 — 앞 건 내용이 남지 않게
+  if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
   var lm=(o.SAJ_MODE&&o.SAJ_MODE.land)||'direct';
   SAJ_MODE={land:(lm==='share'||lm==='group')?lm:'direct',
             bld:(o.SAJ_MODE&&o.SAJ_MODE.bld==='share')?'share':'direct'};
@@ -4574,6 +4578,7 @@ function clearForm(){
   ['base_gongsi','base_gijun','base_josa'].forEach(function(id){document.getElementById(id).value='';});
   OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
   BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
   SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
