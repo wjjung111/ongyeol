@@ -362,6 +362,23 @@ async function buildYohang(){
   var mi=entries.findIndex(function(e){return e.name==='mimetype';});if(mi>0)entries.unshift(entries.splice(mi,1)[0]);
   return A.createZipStored(entries);
 }
+// 건물등기 표제부 「건물내역」(bt_regText) → {struct:[구조 줄…], use:'용도', floors:[{label:'1층',area:'148.26'},…]}
+// 층 줄 = 「층표시 면적㎡」(등기 순서 그대로). 층 줄 앞부분은 구조·지붕·층수 줄까지가 구조, 그 뒤가 용도.
+function parseRegBld(text){
+  text=String(text||'').replace(/\r/g,'').replace(/m²|m2/g,'㎡');
+  var re=/(지하\s*\d+\s*층|지\s*\d+\s*층?|옥탑\s*\d*\s*층?|\d+\s*층|지하층|지층)\s*[:：]?\s*([\d,]+(?:\.\d+)?)\s*㎡/g,m,floors=[],first=-1;
+  while((m=re.exec(text))){if(first<0)first=m.index;floors.push({label:m[1].replace(/\s+/g,''),area:m[2].replace(/,/g,'')});}
+  var head=(first<0?text:text.slice(0,first)).split('\n').map(function(l){return l.trim();}).filter(Boolean),struct=[],use='';
+  if(head.length===1){var h=head[0].match(/^(.*?\d+\s*층)\s+(.+)$/);if(h){struct=[h[1]];use=h[2];}else struct=head;}
+  else if(head.length){var k=-1;head.forEach(function(l,i){if(/\d+\s*층$|지붕$|구조$|조$/.test(l))k=i;});if(k<0)k=0;
+    struct=head.slice(0,k+1);use=head.slice(k+1).join(' ');}
+  return {struct:struct,use:use.trim(),floors:floors};
+}
+// 층 표시 → 비교 키(지1층·지하1층·지1 → B1, 1층·1 → F1, 옥탑1·옥탑1층 → R1)
+function floorKey(t){t=String(t||'').replace(/\s/g,'');var n=(t.match(/\d+/)||[''])[0];
+  if(/옥탑|^옥|^PH/i.test(t))return 'R'+(n||'1');if(/지하|^지|^B/i.test(t))return 'B'+(n||'1');return n?'F'+n:t;}
+function bldFloorKey(d){var gb=String(d['층구분']||''),nm=String(d['층별']||'');
+  return floorKey((/지하/.test(gb)&&!/지|B/i.test(nm)?'지하':'')+(/옥탑/.test(gb)&&!/옥|PH/i.test(nm)?'옥탑':'')+nm);}
 function statementRows(){
   calcGongsi();renderBldCalc();calcFinal();
   var gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{rows:[]};
@@ -388,6 +405,16 @@ function statementRows(){
     var dong=String(r.data['동']||'').trim(),g=groups.find(function(x){return x.dong===dong;});
     if(!g){g={dong:dong,rows:[]};groups.push(g);}g.rows.push(r);});
   var marks='가나다라마바사아자차카타파하';
+  // 건물등기 건물내역을 붙여넣었으면(동 하나일 때) 머리행 구조·용도와 층별 행을 등기대로 — 층 표시·순서·공부면적은 등기, 사정면적·단가·금액은 같은 층의 건물평가 값
+  var reg=parseRegBld(cgVal('bt_regText'));
+  if(reg.floors.length&&groups.length>1)throw Error('건물등기 건물내역은 동이 하나일 때만 명세표에 씁니다. 동이 여럿이면 건물등기 칸을 비워 주세요.');
+  var useReg=reg.floors.length&&groups.length===1;
+  if(useReg){var used={};
+    reg.floors.forEach(function(f){f.rows=groups[0].rows.filter(function(r){return bldFloorKey(r.data)===floorKey(f.label);});
+      if(!f.rows.length)throw Error('건물등기의 「'+f.label+'」 층이 건물평가 층별 목록에 없습니다. 층 표시를 확인해 주세요.');
+      f.rows.forEach(function(r){used[groups[0].rows.indexOf(r)]=1;});});
+    var miss=groups[0].rows.filter(function(r,i){return !used[i];});
+    if(miss.length)throw Error('건물평가 층별 목록의 「'+miss.map(function(r){return r.data['층별']||'?';}).join(', ')+'」 층이 건물등기 건물내역에 없습니다.');}
   groups.forEach(function(g,gi){
     var d0=g.rows[0].data,bLoc=(d0['소재지']||'').trim()||loc(land),bJb=(d0['지번']||'').trim()||land['지번']||'';
     var same=!bldOnly()&&bLoc===loc(land)&&String(bJb)===String(land['지번']||'');
@@ -395,8 +422,19 @@ function statementRows(){
       '명세_지목용도':cgVal('bt_purps').trim()||d0['용도']||'','명세_지역구조':[d0['구조']||cgVal('bt_strct'),floors].filter(Boolean).join('\n'),
       '명세_공부면적':null,'명세_사정면적':null,'명세_단가':null,'명세_평가액':0,'명세_비고':'',header:true});
     // 층별 비고는 원가법 근거 두 줄: 재조달원가 / × 잔존연수/내용연수
+    var noteOf=function(r){return r.data['비고']||[won(r.reCost),'× '+r.remaining+'/'+r.life].join('\n');};
+    if(useReg){var hd=rows[rows.length-1];
+      if(reg.struct.length)hd['명세_지역구조']=reg.struct.map(function(l){return l.replace(/\s+(?=\d+\s*층$)/,'\n');}).join('\n');   // 층수는 따로 한 줄(등기처럼 지붕 / 4층)
+      if(reg.use)hd['명세_지목용도']=reg.use;
+      // 같은 층이 대장에서 여러 줄(용도별)이어도 단가가 같으면 등기처럼 한 줄로 합친다. 단가가 다르면 층 표시를 달고 줄마다.
+      reg.floors.forEach(function(f){var rs=f.rows,one=rs.every(function(r){return r.apply===rs[0].apply&&noteOf(r)===noteOf(rs[0]);});
+        if(one)rows.push({'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':'','명세_지역구조':f.label,'명세_공부면적':num(f.area),
+          '명세_사정면적':Math.round(rs.reduce(function(a,r){return a+r.size;},0)*1e4)/1e4,'명세_단가':rs[0].apply,'명세_평가액':rs.reduce(function(a,r){return a+r.total;},0),'명세_비고':noteOf(rs[0]),minRows:3});
+        else rs.forEach(function(r){rows.push({'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':'','명세_지역구조':f.label,'명세_공부면적':(r.gongbu||r.size),
+          '명세_사정면적':r.size,'명세_단가':r.apply,'명세_평가액':r.total,'명세_비고':noteOf(r),minRows:3});});});
+      return;}
     g.rows.forEach(function(r){var d=r.data;
-      var note=d['비고']||[won(r.reCost),'× '+r.remaining+'/'+r.life].join('\n');
+      var note=noteOf(r);
       rows.push({'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':d['용도']||'','명세_지역구조':d['층별']||'','명세_공부면적':(r.gongbu||r.size),'명세_사정면적':r.size,'명세_단가':r.apply,'명세_평가액':r.total,'명세_비고':note,minRows:3});});   // 층별 행은 3행씩(값·비고 둘째 줄·빈 줄) — 발송 양식 간격
   });
   return rows;
@@ -527,8 +565,12 @@ async function buildStatement(rows){
 async function run(button,action,statusId){var st=$(statusId||'doc_status');button.disabled=true;if(st)st.textContent='문서를 만드는 중…';
   try{await action();if(st)st.textContent='파일을 받았습니다.';}catch(e){if(st)st.textContent=e.message;console.error(e);}finally{button.disabled=false;}}
 $('btnMyeongse').onclick=function(){return run(this,async function(){var bytes=await buildStatement(statementRows());A.triggerDownload(bytes,'4. 명세표_'+(cgVal('ov_client')||'의뢰인')+'.xlsx');});};
+// 건물등기 칸 아래 인식 결과 한 줄
+function regHint(){var h=$('bt_regHint');if(!h)return;var t=cgVal('bt_regText').trim();if(!t){h.textContent='';return;}
+  var r=parseRegBld(t);h.textContent=r.floors.length?'명세표 건물란 = 등기대로 · 구조 「'+r.struct.join(' ')+'」 · 용도 「'+(r.use||'-')+'」 · 층 '+r.floors.map(function(f){return f.label+' '+f.area;}).join(', '):'⚠ 층별 면적 줄(예: 1층 148.26㎡)을 찾지 못해 건축물대장 목록대로 나갑니다.';}
+if($('bt_regText')){$('bt_regText').addEventListener('input',regHint);setTimeout(regHint,0);}
 function downloadYohang(btn,statusId){return run(btn,async function(){var bytes=await buildYohang();A.triggerDownload(bytes,'5. 요항표_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');},statusId);}
 $('btnYohang').onclick=function(){return downloadYohang(this);};
 if($('btnYohang2'))$('btnYohang2').onclick=function(){return downloadYohang(this,'y_status');};
-window.ArapTojiDocuments={statementRows:statementRows,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang,landOnlyGwal:landOnlyGwal,bldOnlyGwal:bldOnlyGwal,gwalOutRow:gwalOutRow};
+window.ArapTojiDocuments={statementRows:statementRows,parseRegBld:parseRegBld,regHint:regHint,buildStatement:buildStatement,yohangMap:yohangMap,buildYohang:buildYohang,landOnlyGwal:landOnlyGwal,bldOnlyGwal:bldOnlyGwal,gwalOutRow:gwalOutRow};
 })();
