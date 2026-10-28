@@ -797,7 +797,11 @@ const idxYmDisp=ym=>ym?`${ym.slice(0,4)}.${ym.slice(4,6)}`:"";
 const idxRegionList=()=>{const D=idxData();if(!D)return[];const rs=D.tables["아파트"].regions;const gu=[],etc=[];Object.keys(rs).forEach(k=>{(rs[k].full.split(">").length===4?gu:etc).push(k);});gu.sort((a,b)=>a.localeCompare(b,"ko"));return[...gu,...etc];};
 // 사례 소재지에서 "◯◯구" 추출 → 지수 지역 자동선택(지수표에 있는 구만). 유형은 건물명으로 추정
 const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs=D.tables["아파트"].regions;
-  for(const t of texts){const ms=String(t||"").match(/[가-힣]{1,4}구(?![가-힣])/g)||[];for(const g of ms)if(regs[g])return g;}return null;};
+  // 시도가 적혀 있으면 그 시도의 구만(대구 중구 ≠ 서울 중구 — 동명은 「대구 중구」 키). 시도 자신(대구)은 구로 치지 않음
+  const sido=(texts.map(t=>String(t||"")).join(" ").match(/서울|경기|인천|대구|부산|광주|대전|울산|세종|강원|충청|충북|충남|전라|전북|전남|경상|경북|경남|제주/)||[])[0]||"";
+  for(const t of texts){const ms=String(t||"").match(/[가-힣]{1,4}[구군](?![가-힣])/g)||[];for(const g of ms){
+    if(sido&&regs[sido+" "+g])return sido+" "+g;
+    const p=regs[g]&&regs[g].full.split(">").map(s=>s.trim());if(p&&p.length>1&&(!sido||p[0]===sido))return g;}}return null;};
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
