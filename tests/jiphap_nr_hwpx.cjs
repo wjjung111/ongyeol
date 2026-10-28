@@ -52,16 +52,28 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     assert.ok(t.includes('개별요인 비교항목(상업용)')&&t.includes('공실률 및 입점업체 구성')&&!t.includes('시공사의 브랜드'),'상업용 항목');
     assert.match(t,/\|\d{4}\.\dQ\(\d+일\) : -?\d+\.\d\d\|/,'분기 내역 줄');
     assert.match(t,/\|\(1[+-]0\.\d{5}×\d+\/\d+\)/,'산식 첫 줄');
-    assert.match(t,/\|\d+\.\d{3}%\|\(\|1\.\d{5}\|\)/,'상승률·시점수정치');
+    assert.match(t,/\|\d+\.\d{3}%\|\(\|?1\.\d{5}\|?\)/,'상승률·시점수정치');   // 사용자 양식은 「(1.00768)」 한 칸
     assert.ok(/\d{4}\.\d\d\.\d\d ~ \d{4}\.\d\d\.\d\d/.test(t),'기간');
-    assert.ok(!/charPrIDRef="5[3-7]"/.test(x),'파란 글자 없음');
+    // (2026-10-28부터 표 밖 채운 값은 파랑 — tests/jiphap_value_blue.cjs가 검사)
     { // 「7. 단가의 결정」 시점수정 칸: 단 설정 조각·옛 줄배치 없이 가운데 정렬되게
-      const k=x.indexOf('7. 전유면적당 단가의 결정');const tb=x.slice(k,x.indexOf('</hp:tbl>',k));
+      const k=x.indexOf('. 전유면적당 단가의 결정');/* 평가사례 절이 있으면 8., 없으면 7. */const tb=x.slice(k,x.indexOf('</hp:tbl>',k));
       assert.ok(!/<hp:colPr/.test(tb),'단가 결정 표에 단 설정 조각 없음');
       const v=tb.match(/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?1\.\d{5}<\/hp:t><\/hp:run>((?:(?!<\/hp:p>)[\s\S])*?)<\/hp:p>/);assert.ok(v,'시점수정 값 문단');assert.ok(!/linesegarray/.test(v[1]),'시점수정 칸 줄배치 캐시 제거');}
     assert.equal(t.split('|').filter(v=>v.startsWith('■ ')).length,4,'개별요인 ■ 네 줄');
     if(process.env.SHARE)assert.ok(t.includes('귀 의뢰지분(1/4')&&/□ 산식 : /.test(t),'지분 양식');
     assert.deepEqual(errors,[]);
+    { // 평가사례가 있으면 「7. 기타 참고자료(평가사례)」 절이 남고 그 수만큼 행, 단가 결정은 8., ※ 문구 / 없으면 ※ 문단만 빠짐
+      for(const note of ['※ 평가사례 기호①은 전면상가임.','']){
+        const arr=await page.evaluate(async(note)=>{const m={'평가1_법정동':'청량리동','평가1_지번':'235-4','평가1_동층호':'A/1/30호','평가1_감정평가액':'1,350,000,000','평가2_법정동':'청량리동','평가2_지번':'235-4','평가사례_비고':note};
+          return Array.from(await buildEvalHwpxV2(m,V2NROPIN_TPL_B64,{ids:V2_IDS_NR}));},note);
+        const px=unzip(Buffer.from(arr))['Contents/section0.xml'].toString('utf8'),pt=T(px);
+        assert.ok(pt.includes('7. 기타 참고자료(평가사례)')&&pt.includes('8. 전유면적당 단가의 결정'),'평가사례 절 유지');
+        const s=px.indexOf('7. 기타 참고자료'),tb=px.slice(px.indexOf('<hp:tbl',s),px.indexOf('</hp:tbl>',s));
+        assert.equal((tb.match(/<hp:tr>/g)||[]).length,3,'머리글+평가사례 2행');assert.match(tb,/rowCnt="3"/);
+        assert.ok(tb.includes('1,350,000,000')&&tb.includes('①')&&tb.includes('②')&&!tb.includes('③'),'평가사례 값');
+        assert.equal(pt.includes('전면상가임'),!!note,'※ 문구 '+(note?'있음':'없으면 문단째 뺌'));
+      }
+    }
     console.log(t.slice(t.indexOf('가. 자본수익률'),t.indexOf('나. 시점수정치의 결정')));
     console.log('PASS');
   }finally{await browser.close();server.close();}
