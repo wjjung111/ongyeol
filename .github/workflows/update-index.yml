@@ -6,6 +6,7 @@ on:
   schedule:
     - cron: '0 21 * * *'   # UTC 21:00 = KST 06:00
   # 받는 지역·표 설정(arap_launch.ps1)이 main에 바뀌면 바로 한 번 받음 — 다음날 6시까지 안 기다리게 (2026-10-06 인천 아파트 추가 때 도입)
+  # 이때는 주거 매매지수만(-ResidOnly, 약 25분). 전체(자본수익률·지가변동률 포함)는 3시간 넘게 걸려서(2026-10-29 전북·전남 추가 때 변경). 나머지는 매일 6시 정기 갱신이 받음
   push:
     branches: [main]
     paths: ['arap_launch.ps1']
@@ -13,6 +14,10 @@ on:
     inputs:
       cap_only:
         description: '자본수익률만 받기 (주거 매매지수 생략 — 테스트용, 2~3분)'
+        type: boolean
+        default: false
+      resid_only:
+        description: '주거 매매지수(아파트·연립·오피스텔)만 받기 — 자본수익률은 기존 것 유지, 지가변동률 생략 (약 25분)'
         type: boolean
         default: false
       jibyun_only:
@@ -36,6 +41,7 @@ jobs:
         run: |
           if ("${{ inputs.jibyun_only }}" -eq "true") { ./arap_launch.ps1 -JibyunOnly }
           elseif ("${{ inputs.cap_only }}" -eq "true") { ./arap_launch.ps1 -FetchOnly -CapOnly }
+          elseif ("${{ inputs.resid_only }}" -eq "true" -or "${{ github.event_name }}" -eq "push") { ./arap_launch.ps1 -FetchOnly -ResidOnly }
           else { ./arap_launch.ps1 -FetchOnly }
 
       - name: 변경분만 커밋·푸시

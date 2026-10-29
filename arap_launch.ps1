@@ -2,7 +2,7 @@
 # - 'EXACT 실행.bat'이 이 파일을 호출한다. 직접 실행해도 된다.
 # - 지수 데이터(arap_index_data.js)가 없으면: 먼저 받고 앱을 연다.
 # - 있으면: 앱을 먼저 열고, 하루 이상 지난 경우 백그라운드로 새로 받는다.
-param([switch]$FetchOnly, [switch]$CapOnly, [switch]$JibyunOnly)   # -CapOnly: 자본수익률(비주거)만 받아 기존 데이터에 병합 / -JibyunOnly: 지가변동률(토지)만 받아 arap_jibyun_data.js 갱신 (테스트·부분갱신용)
+param([switch]$FetchOnly, [switch]$CapOnly, [switch]$JibyunOnly, [switch]$ResidOnly)   # -CapOnly: 자본수익률(비주거)만 받아 기존 데이터에 병합 / -JibyunOnly: 지가변동률(토지)만 받아 arap_jibyun_data.js 갱신 (테스트·부분갱신용) / -ResidOnly: 주거 매매지수(아파트·연립·오피스텔)만 새로 받고 자본수익률은 기존 파일 것 유지, 지가변동률 생략 — 지역 추가 직후 빨리 반영용(전체 3시간 → 약 25분)
 
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -448,8 +448,18 @@ function Fetch-IndexData {
   }
   if (-not $out.tables.Contains("아파트")) { throw "아파트 지수 수신 실패 — 기존 파일 유지" }
   # 비주거용 자본수익률(분기) — 실패해도 매매지수는 정상 저장
+  if ($ResidOnly) {
+    # 주거 매매지수만: 자본수익률은 기존 파일 것을 그대로 옮겨 담음(다음 정기 갱신 때 새로 받음)
+    try {
+      if (Test-Path $dataFile) {
+        $old = (([IO.File]::ReadAllText($dataFile) -replace '^\s*window\.ARAP_INDEX_DATA\s*=\s*', '').TrimEnd().TrimEnd(';')) | ConvertFrom-Json
+        if ($old.capReturn) { $out.capReturn = $old.capReturn; Write-Host "자본수익률: 기존 파일 것 유지(-ResidOnly)" -ForegroundColor Cyan }
+      }
+    } catch { Write-Host "기존 자본수익률 읽기 실패 — 자본수익률 없이 저장: $_" -ForegroundColor Yellow }
+  } else {
   try { $cap = Fetch-CapReturn; if ($cap) { $out.capReturn = $cap } }
   catch { Write-Host "자본수익률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow }
+  }
   $json = $out | ConvertTo-Json -Depth 8 -Compress
   $js = "window.ARAP_INDEX_DATA=" + $json + ";"
   $tmp = $dataFile + ".tmp"
@@ -482,6 +492,6 @@ else {
     Start-Sleep -Seconds 3
   }
   # 토지 시점수정용 지가변동률 — 실패해도 매매지수 저장에는 영향 없음
-  if ($FetchOnly) { try { Fetch-Jibyun } catch { Write-Host "지가변동률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow } }
+  if ($FetchOnly -and -not $ResidOnly) { try { Fetch-Jibyun } catch { Write-Host "지가변동률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow } }
   if (-not $FetchOnly) { Start-Process $htmlFile }
 }
