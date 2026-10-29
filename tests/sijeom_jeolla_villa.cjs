@@ -32,7 +32,7 @@ const checkText=(t,sido)=>{assert.match(t,/^연립다세대\n/,t);assert.match(t
       await page.waitForSelector('text=지수 자동계산');
       const sel=page.locator('div:has(> b:text("지수 자동계산")) select');
       assert.equal(await sel.nth(0).inputValue(),'연립다세대',mode+' 유형 자동');
-      const want=sido==='전북'?'완산구':'여수시';assert.equal(await sel.nth(1).inputValue(),want,mode+' 지역 자동');
+      const want=sido==='전북'?'완산구':'여수시';assert.equal(await page.locator('[data-region]').getAttribute('data-region'),want,mode+' 지역 자동');   // 집건 지역 = 표 목록
       checkText(await modalText(page),sido);
       assert.deepEqual(errors,[]);await ctx.close();console.log('집건',mode,sido,'OK');
     }
