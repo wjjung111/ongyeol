@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Ongyeol — 시점수정 계산기 (단독 화면): 집합건물(주거용·비주거용) / 토지(지가변동률)
+  시점수정 계산기 (단독 화면): 집합건물(주거용·비주거용) / 토지(지가변동률)
   집합건물.html의 [지수 자동계산]·[자본수익률 자동계산] 로직을 그대로 옮긴 독립 도구.
   Copyright (c) 2026 정우진 감정평가사 (Woojin Jung, Certified Appraiser / wjjung9334@gmail.com). All Rights Reserved. 모든 권리 보유.
   무단 복제·수정·상업적 이용·재배포 금지. 상세: 저장소 LICENSE 파일 참조.
@@ -9,23 +9,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>시점수정</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<title>시점수정 계산</title>
+<link rel="stylesheet" href="arap_tool.css"><!-- 단독 도구 공통 상단바·서명·글꼴·색 -->
 <style>
   :root{
     color-scheme: light;
-    --bg:#f2f3f5;
-    --surface:#ffffff;
-    --ink:#1b2330;
-    --ink-2:#3d4655;
-    --muted:#626b78;
-    --faint:#9aa2ae;
-    --line:#e4e7ec;
-    --line-strong:#d3d8df;
-    --bar:#182231;
-    --accent:#2c5a8c;
-    --accent-strong:#234c7a;
-    --accent-ink:#22497a;
+    --bg:var(--t-bg);
+    --surface:var(--t-surface);
+    --ink:var(--t-ink);
+    --ink-2:#334155;
+    --muted:#5b6678;
+    --faint:var(--t-faint);
+    --line:var(--t-line);
+    --line-strong:var(--t-line-strong);
+    --accent:var(--t-accent);
+    --accent-strong:var(--t-accent-strong);
+    --accent-ink:var(--t-accent-ink);
     --danger:#b42318;
     --danger-bg:#fdf2f1;
     --danger-line:#f1c9c4;
@@ -35,26 +34,19 @@
   body{
     background:var(--bg);
     color:var(--ink);
-    font-family:'Pretendard Variable','Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',system-ui,sans-serif;
+    font-family:var(--t-font);
     -webkit-font-smoothing:antialiased;
     line-height:1.5;
   }
 
-  /* ── App bar ─────────────────────────────────────────── */
-  .appbar{position:sticky; top:0; z-index:20; background:var(--bar); border-bottom:1px solid #2a3242;}
-  .appbar-inner{max-width:1060px; margin:0 auto; height:50px; display:flex; align-items:center; justify-content:space-between; padding:0 20px;}
-  .appbar-left{display:flex; align-items:center; gap:14px; min-width:0;}
-  .appbar-title{font-size:14px; font-weight:600; color:#e6e9ef; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .appbar-brand{font-size:12px; color:#7c8494; letter-spacing:.02em; flex:none;}
-
   /* ── Page ────────────────────────────────────────────── */
-  .page{max-width:1060px; margin:0 auto; padding:0 20px 48px;}
+  .page{max-width:1060px; margin:0 auto; padding:0 20px 20px;}
   .page-head{margin:26px 0 18px;}
   .page-head h1{font-size:21px; font-weight:700; color:var(--ink); letter-spacing:-.01em; text-wrap:balance;}
   .lede{margin-top:7px; font-size:13.5px; color:var(--muted); line-height:1.6; max-width:62ch;}
 
   /* ── Workspace: input | result ───────────────────────── */
-  .workspace{display:grid; grid-template-columns:minmax(0,500px) 1fr; background:var(--surface); border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .workspace{display:grid; grid-template-columns:minmax(0,500px) 1fr; background:var(--surface); border:1px solid var(--line); border-radius:var(--t-radius); overflow:hidden;}
   .panel{padding:22px 24px;}
   .panel-input{border-right:1px solid var(--line);}
   .panel-head{font-size:11px; font-weight:700; letter-spacing:.09em; color:var(--faint); padding-bottom:11px; border-bottom:1px solid var(--line); margin-bottom:18px;}
@@ -95,10 +87,10 @@
   .rt th{position:sticky; top:0; background:var(--bg); text-align:left; font-weight:600; color:var(--muted); padding:5px 8px; border-bottom:1px solid var(--line-strong);}
   .rt td{padding:4px 8px; border-bottom:1px solid var(--line); color:var(--ink);}
   .rt tbody tr{cursor:pointer;} .rt tbody tr:hover{background:var(--bg);}
-  .rt tbody tr.on{background:#e3edf8; font-weight:700;} .rt td.agg{color:var(--muted);} .rt td.msg{color:var(--faint); cursor:default;} .rt-note{color:var(--muted);}
+  .rt tbody tr.on{background:var(--t-accent-soft); font-weight:700;} .rt td.agg{color:var(--muted);} .rt td.msg{color:var(--faint); cursor:default;} .rt-note{color:var(--muted);}
   select:disabled{cursor:not-allowed; color:#9aa1ab; background:#eceef1; border-color:var(--line);}
   input::placeholder{color:#b3b9c2;}
-  input:focus, select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(44,90,140,.13);}
+  input:focus, select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.14);}
   .field-hint{margin-top:11px; font-size:11.5px; color:var(--faint); line-height:1.5;}
 
   /* action */
@@ -122,7 +114,7 @@
   .formula-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;}
   .formula-label{font-size:12px; font-weight:600; color:var(--muted);}
   .formula-text{width:100%; min-height:170px; padding:12px 13px; font:inherit; font-size:13px; line-height:1.75; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:4px; resize:vertical; font-variant-numeric:tabular-nums; white-space:pre-wrap; word-break:break-word;}
-  .formula-text:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(44,90,140,.13);}
+  .formula-text:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.14);}
 
   .btn-ghost{height:30px; padding:0 13px; font:inherit; font-size:12.5px; font-weight:600; color:var(--ink-2); background:var(--surface); border:1px solid var(--line-strong); border-radius:4px; cursor:pointer; transition:background .12s, border-color .12s, color .12s;}
   .btn-ghost:hover{background:var(--bg); border-color:#c4c9d1;}
@@ -143,9 +135,6 @@
     .panel-input{border-right:0; border-bottom:1px solid var(--line);}
   }
   @media (max-width:560px){
-    .appbar-brand{display:none;}
-  }
-  @media (max-width:560px){
     .field-pair.tri{grid-template-columns:1fr 1fr;}
     .field-pair.tri #fld-r2{grid-column:1 / -1;}
   }
@@ -164,14 +153,9 @@
 <body>
 <script>window.ARAP_NAME_ICON='📈';window.ARAP_NAME_SUB='시점수정 간편계산';</script><script src="arap_name.js"></script>
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 --><!-- 사용자 이름 최초 1회 입력 (이름 없으면 계산 화면으로 못 넘어감) -->
-<header class="appbar">
-  <div class="appbar-inner">
-    <div class="appbar-left">
-      <span class="appbar-title">시점수정</span>
-      <span id="arap-name-badge" style="font-size:12px;color:#9aa2ae;white-space:nowrap;"></span>
-    </div>
-    <span class="appbar-brand">감정평가 자동화</span>
-  </div>
+<header class="ttop">
+  <span class="tb-title"><span class="tb-ico">📈</span>시점수정 계산</span>
+  <span class="tb-right"><span id="arap-name-badge"></span></span>
 </header>
 
 <main class="page">
@@ -269,6 +253,7 @@
     <span class="datarow-meta" id="meta"></span>
   </div>
 </main>
+<footer class="tsign">Woojin Jung<span class="ts-dot">·</span>정우진 감정평가사<span class="ts-dot">·</span>문의 <a href="mailto:woojin.apr@gmail.com">woojin.apr@gmail.com</a></footer>
 
 <script src="arap_index_data.js"></script>
 <script src="arap_jibyun_data.js"></script><!-- 토지 지가변동률(매일 06시 자동갱신, 없으면 프록시로 받음) -->

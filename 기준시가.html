@@ -1,33 +1,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>건물 기준시가</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="arap_tool.css"><!-- 단독 도구 공통 상단바·서명·글꼴·색 -->
 <style>
 :root{
-  --bg:#F5F7F6; --surface:#FFFFFF; --surface2:#EDF1EF; --line:#D5DCD9; --line2:#BFC8C4;
-  --ink:#182028; --ink2:#5B6670; --ink3:#8A949C;
-  --acc:#0E6B67; --acc-soft:#D9ECEA; --acc-ink:#0A4E4B;
+  --bg:var(--t-bg); --surface:var(--t-surface); --surface2:#f1f5f9; --line:var(--t-line); --line2:var(--t-line-strong);
+  --ink:var(--t-ink); --ink2:var(--t-ink-2); --ink3:var(--t-faint);
+  --acc:var(--t-accent); --acc-soft:var(--t-accent-soft); --acc-ink:var(--t-accent-ink);
   --brass:#9A6B1E; --brass-soft:#F1E6D0;
   --warn:#B04A22; --warn-soft:#F6E1D8; --ok:#2E7D4F; --ok-soft:#DCEFE2;
-  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
-  --disp:"Gothic A1","Noto Sans KR",system-ui,sans-serif;
-  --body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#131A1F; --surface:#1B2329; --surface2:#222C33; --line:#33404A; --line2:#44535E;
-    --ink:#E4EAEE; --ink2:#A6B2BB; --ink3:#77848E;
-    --acc:#3FB5AE; --acc-soft:#153B3A; --acc-ink:#8FDDD7;
-    --brass:#D2A24A; --brass-soft:#3A2E17;
-    --warn:#E0784B; --warn-soft:#3E2419; --ok:#5CBF84; --ok-soft:#173526;
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#131A1F; --surface:#1B2329; --surface2:#222C33; --line:#33404A; --line2:#44535E;
-  --ink:#E4EAEE; --ink2:#A6B2BB; --ink3:#77848E;
-  --acc:#3FB5AE; --acc-soft:#153B3A; --acc-ink:#8FDDD7;
-  --brass:#D2A24A; --brass-soft:#3A2E17;
-  --warn:#E0784B; --warn-soft:#3E2419; --ok:#5CBF84; --ok-soft:#173526;
+  --mono:var(--t-font);
+  --disp:var(--t-font);
+  --body:var(--t-font);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.55}
@@ -36,10 +20,10 @@ h1,h2,h3{font-family:var(--disp);margin:0;text-wrap:balance}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);font-weight:700}
 
-header.top{padding:28px 24px 18px;border-bottom:1px solid var(--line);background:var(--surface)}
+header.top{padding:24px 24px 0}
 .top-inner{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px 32px;align-items:flex-end;justify-content:space-between}
-.top h1{font-size:26px;font-weight:800;letter-spacing:-.01em}
-.top p{margin:6px 0 0;color:var(--ink2);max-width:62ch}
+.top h1{font-size:21px;font-weight:700;letter-spacing:-.01em;margin-top:4px}
+.top p{margin:7px 0 0;color:var(--ink2);max-width:62ch;font-size:13.5px;line-height:1.6}
 .mode{display:flex;gap:0;border:1px solid var(--line2);border-radius:6px;overflow:hidden}
 .mode button{background:var(--surface);border:0;padding:9px 16px;cursor:pointer;color:var(--ink2);font-weight:500}
 .mode button+button{border-left:1px solid var(--line2)}
@@ -153,6 +137,10 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
 
 <script>window.ARAP_NAME_ICON='🧮';window.ARAP_NAME_SUB='건물 기준시가 간편계산';</script><script src="arap_name.js"></script><!-- 사용자 이름 최초 1회 입력 (이름 없으면 화면 안 열림) -->
 <script>window.ARAP_VISIT_PAGE='기준시가';</script><script src="arap_visit.js"></script><!-- 접속·조회 기록 → 관리자 「기준시가계산기」 탭 -->
+<header class="ttop">
+  <span class="tb-title"><span class="tb-ico">🧮</span>건물 기준시가</span>
+  <span class="tb-right"><span id="arap-name-badge"></span></span>
+</header>
 <header class="top">
   <div class="top-inner">
     <div>
@@ -292,6 +280,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
   2026년 해설서는 조정내용(목구조 115, 위치지수 18번 108)과 본표 인쇄값(120, 118)이 다릅니다. 이 계산기는 조정내용 값을 따르며, 해당 항목이 걸리는 건은 고시 원문으로 재확인하세요.
   이 계산은 보충적 평가액(기준시가)이며, 시가(매매·감정·수용 등)가 있으면 시가가 우선합니다.
 </footer>
+<footer class="tsign">Woojin Jung<span class="ts-dot">·</span>정우진 감정평가사<span class="ts-dot">·</span>문의 <a href="mailto:woojin.apr@gmail.com">woojin.apr@gmail.com</a></footer>
 
 <script src="arap_gijunsiga.js"></script>
 <script>
