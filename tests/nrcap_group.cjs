@@ -27,7 +27,7 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
     const url=base+'/'+encodeURI('arm_시점수정.html');await p.goto(url);await p.click('#tab-nr');
     const st=()=>p.evaluate(()=>{const g=id=>document.getElementById(id),o=s=>[...s.options].map(x=>x.textContent);
       return {r1:g('r1').value,r2:g('r2').value,l2:g('r2').selectedOptions[0]&&g('r2').selectedOptions[0].textContent,o1:o(g('r1')),o2:o(g('r2')),region:g('region').value,
-        vis:['fld-region','fld-r1','fld-r2','fld-r3'].map(id=>getComputedStyle(g(id)).display!=='none'),lbl:g('lbl-r2').textContent};});
+        vis:['fld-region','fld-r1','fld-r2','land-rtable'].map(id=>getComputedStyle(g(id)).display!=='none'),lbl:g('lbl-r2').textContent};});
     let s=await st();
     assert.deepEqual(s.vis,[false,true,true,false],'비주거용: ①② 두 칸만');assert.equal(s.lbl,'② 상권');
     assert.deepEqual(s.o1.slice(0,4),['서울','경기','인천','전국'],'대그룹 순서');
@@ -43,7 +43,7 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
     await p.selectOption('#r1','대전');await p.selectOption('#r2',{label:'원도심'});s=await st();assert.equal(s.region,'대전 원도심','겹치는 이름은 「시도 이름」 키');
     await p.fill('#tradeDate','2025.03.10');await p.fill('#baseDate','2026.08.01');await p.click('#btn-calc');assert.match(await p.inputValue('#resultText'),/지역 : 대전 원도심\n/);
     // 주거용으로 돌아가면 ①②③ 그대로
-    await p.click('#tab-res');s=await st();assert.deepEqual(s.vis,[false,true,true,true]);assert.equal(s.lbl,'② 권역');
+    await p.click('#tab-res');s=await st();assert.deepEqual(s.vis,[false,false,false,true],'주거용: 지역 표');assert.equal(s.lbl,'② 권역');
     assert.deepEqual(p.errs,[]);await ctx.close();console.log('계산기 OK');}
 
   // ── 2) group 없는 옛 데이터
