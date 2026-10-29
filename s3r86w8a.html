@@ -901,17 +901,20 @@ const idxRegionList=(kind="아파트")=>{const D=idxData();if(!D)return[];const 
 // 사례 소재지에서 "◯◯구" 추출 → 지수 지역 자동선택(지수표에 있는 구만). 유형은 건물명으로 추정
 const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs=D.tables["아파트"].regions;
   // 시도가 적혀 있으면 그 시도의 구만(대구 중구 ≠ 서울 중구 — 동명은 「대구 중구」 키). 시도 자신(대구)은 구로 치지 않음
-  // 시도 표기 통일: 전라북도·전북특별자치도 → 전북 (주소와 지수 경로 첫 구간을 같은 말로 비교)
+  // 시도 표기 통일: 전라북도·전북특별자치도 → 전북 (주소와 지수 경로를 같은 말로 비교)
   const SD=/서울|경기|인천|대구|부산|광주|대전|울산|세종|강원|충청북|충북|충청남|충남|전라북|전북|전라남|전남|경상북|경북|경상남|경남|제주/;
   const SDN={충청북:"충북",충청남:"충남",전라북:"전북",전라남:"전남",경상북:"경북",경상남:"경남"};
   const sdOf=s=>{const m=String(s||"").match(SD);return m?(SDN[m[0]]||m[0]):"";};
   const sido=sdOf(texts.map(t=>String(t||"")).join(" "));
+  const segs=k=>regs[k].full.split(">").map(s=>s.trim());
+  // 시군구 이름 g가 끝 칸인 지수 지역 — 시도가 적혀 있으면 경로 어딘가에 그 시도가 있는 것(2026~ 전남광주>광주>서구 = 광주 서구)
+  const find=g=>{if(!sido)return regs[g]&&segs(g).length>1?g:null;
+    return Object.keys(regs).find(k=>{const p=segs(k);return p.length>1&&p[p.length-1]===g&&p.some(s=>sdOf(s)===sido);})||null;};
   // 구·군을 먼저, 없으면 시(여수시·과천시처럼 구 없는 시)
-  for(const re of [/[가-힣]{1,4}[구군](?![가-힣])/g,/[가-힣]{1,4}시(?![가-힣])/g])for(const t of texts){const ms=String(t||"").match(re)||[];for(const g of ms){
-    if(sido&&regs[sido+" "+g])return sido+" "+g;
-    const p=regs[g]&&regs[g].full.split(">").map(s=>s.trim());if(p&&p.length>1&&(!sido||sdOf(p[0])===sido))return g;}}
-  // 시군구 지수가 없으면 그 시도 전체 지수(전남 무안군 → 전남)
-  if(sido){const k=Object.keys(regs).find(k=>regs[k].full.split(">").length===1&&sdOf(regs[k].full)===sido);if(k)return k;}
+  for(const re of [/[가-힣]{1,4}[구군](?![가-힣])/g,/[가-힣]{1,4}시(?![가-힣])/g])for(const t of texts){const ms=String(t||"").match(re)||[];for(const g of ms){const k=find(g);if(k)return k;}}
+  // 시군구 지수가 없으면 그 시도 전체 지수(전남 해남군 → 전남). 「전남광주」 같은 묶음보다 시도 이름 그대로인 칸 먼저
+  if(sido){const ks=Object.keys(regs),last=k=>{const p=segs(k);return p[p.length-1];};
+    const k=ks.find(k=>last(k)===sido)||ks.find(k=>segs(k).length===1&&sdOf(last(k))===sido&&/도$/.test(last(k)));if(k)return k;}
   return null;};
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
@@ -947,7 +950,8 @@ const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   if(tv==null)return{err:`${rk} ${idxYmDisp(tUse)} 지수가 없습니다 (이 지역 지수는 ${idxYmDisp(firstYm)}부터 공표).`};
   if(bv==null)return{err:`${rk} ${idxYmDisp(bYm)} 지수가 없습니다.`};
   const adj=Math.round(bv/tv*1e5)/1e5; // 시점수정치: 소수 여섯째 자리 반올림 → 다섯째 자리까지 표시 (부동산원 KAS 조회화면과 동일)
-  const regionDisp=(()=>{const p=reg.full.split(">").map(s=>s.trim());return p[0]===p[p.length-1]?p[0]:p[0]+" "+p[p.length-1];})(); // 시도+말단 표기 (경기·인천 대응)
+  const regionDisp=(()=>{let p=reg.full.split(">").map(s=>s.trim());if(p.length>1&&p[0]!==p[1]&&p[0].includes(p[1]))p=p.slice(1); // 2026~ 전남광주>전남>여수시 → 전남 여수시
+    return p[0]===p[p.length-1]?p[0]:p[0]+" "+p[p.length-1];})(); // 시도+말단 표기 (경기·인천 대응)
   const lines=[kind,`지역 : ${regionDisp}`];
   lines.push(`매매가격지수(한국부동산원) : ${idxYmDisp(tUse)} ~ ${idxYmDisp(bYm)}`);
   note.forEach(n=>lines.push(n));
@@ -4922,17 +4926,20 @@ const idxRegionList=(kind="아파트")=>{const D=idxData();if(!D)return[];const 
 // 사례 소재지에서 "◯◯구" 추출 → 지수 지역 자동선택(지수표에 있는 구만). 유형은 건물명으로 추정
 const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs=D.tables["아파트"].regions;
   // 시도가 적혀 있으면 그 시도의 구만(대구 중구 ≠ 서울 중구 — 동명은 「대구 중구」 키). 시도 자신(대구)은 구로 치지 않음
-  // 시도 표기 통일: 전라북도·전북특별자치도 → 전북 (주소와 지수 경로 첫 구간을 같은 말로 비교)
+  // 시도 표기 통일: 전라북도·전북특별자치도 → 전북 (주소와 지수 경로를 같은 말로 비교)
   const SD=/서울|경기|인천|대구|부산|광주|대전|울산|세종|강원|충청북|충북|충청남|충남|전라북|전북|전라남|전남|경상북|경북|경상남|경남|제주/;
   const SDN={충청북:"충북",충청남:"충남",전라북:"전북",전라남:"전남",경상북:"경북",경상남:"경남"};
   const sdOf=s=>{const m=String(s||"").match(SD);return m?(SDN[m[0]]||m[0]):"";};
   const sido=sdOf(texts.map(t=>String(t||"")).join(" "));
+  const segs=k=>regs[k].full.split(">").map(s=>s.trim());
+  // 시군구 이름 g가 끝 칸인 지수 지역 — 시도가 적혀 있으면 경로 어딘가에 그 시도가 있는 것(2026~ 전남광주>광주>서구 = 광주 서구)
+  const find=g=>{if(!sido)return regs[g]&&segs(g).length>1?g:null;
+    return Object.keys(regs).find(k=>{const p=segs(k);return p.length>1&&p[p.length-1]===g&&p.some(s=>sdOf(s)===sido);})||null;};
   // 구·군을 먼저, 없으면 시(여수시·과천시처럼 구 없는 시)
-  for(const re of [/[가-힣]{1,4}[구군](?![가-힣])/g,/[가-힣]{1,4}시(?![가-힣])/g])for(const t of texts){const ms=String(t||"").match(re)||[];for(const g of ms){
-    if(sido&&regs[sido+" "+g])return sido+" "+g;
-    const p=regs[g]&&regs[g].full.split(">").map(s=>s.trim());if(p&&p.length>1&&(!sido||sdOf(p[0])===sido))return g;}}
-  // 시군구 지수가 없으면 그 시도 전체 지수(전남 무안군 → 전남)
-  if(sido){const k=Object.keys(regs).find(k=>regs[k].full.split(">").length===1&&sdOf(regs[k].full)===sido);if(k)return k;}
+  for(const re of [/[가-힣]{1,4}[구군](?![가-힣])/g,/[가-힣]{1,4}시(?![가-힣])/g])for(const t of texts){const ms=String(t||"").match(re)||[];for(const g of ms){const k=find(g);if(k)return k;}}
+  // 시군구 지수가 없으면 그 시도 전체 지수(전남 해남군 → 전남). 「전남광주」 같은 묶음보다 시도 이름 그대로인 칸 먼저
+  if(sido){const ks=Object.keys(regs),last=k=>{const p=segs(k);return p[p.length-1];};
+    const k=ks.find(k=>last(k)===sido)||ks.find(k=>segs(k).length===1&&sdOf(last(k))===sido&&/도$/.test(last(k)));if(k)return k;}
   return null;};
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
@@ -4968,7 +4975,8 @@ const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   if(tv==null)return{err:`${rk} ${idxYmDisp(tUse)} 지수가 없습니다 (이 지역 지수는 ${idxYmDisp(firstYm)}부터 공표).`};
   if(bv==null)return{err:`${rk} ${idxYmDisp(bYm)} 지수가 없습니다.`};
   const adj=Math.round(bv/tv*1e5)/1e5; // 시점수정치: 소수 여섯째 자리 반올림 → 다섯째 자리까지 표시 (부동산원 KAS 조회화면과 동일)
-  const regionDisp=(()=>{const p=reg.full.split(">").map(s=>s.trim());return p[0]===p[p.length-1]?p[0]:p[0]+" "+p[p.length-1];})(); // 시도+말단 표기 (경기·인천 대응)
+  const regionDisp=(()=>{let p=reg.full.split(">").map(s=>s.trim());if(p.length>1&&p[0]!==p[1]&&p[0].includes(p[1]))p=p.slice(1); // 2026~ 전남광주>전남>여수시 → 전남 여수시
+    return p[0]===p[p.length-1]?p[0]:p[0]+" "+p[p.length-1];})(); // 시도+말단 표기 (경기·인천 대응)
   const lines=[kind,`지역 : ${regionDisp}`];
   lines.push(`매매가격지수(한국부동산원) : ${idxYmDisp(tUse)} ~ ${idxYmDisp(bYm)}`);
   note.forEach(n=>lines.push(n));
