@@ -381,10 +381,11 @@ function bldFloorKey(d){var gb=String(d['층구분']||''),nm=String(d['층별']|
   return floorKey((/지하/.test(gb)&&!/지|B/i.test(nm)?'지하':'')+(/옥탑/.test(gb)&&!/옥|PH/i.test(nm)?'옥탑':'')+nm);}
 // 명세표 칸에 쓰는 용도지역 — 쉼표마다 줄, 「제3종일반주거지역」은 「제3종 / 일반주거지역」(사용자 샘플 2026-10-29, 칸이 좁아 잘림 방지)
 function useLines(v){return String(v||'').split(/\s*[,，]\s*/).filter(Boolean).map(function(x){return x.replace(/^(제\d종)\s*/,'$1\n');}).join('\n');}
+// 묶음 필지 줄(용도지역별로 나눈 일단지) — k번째 줄 = k번째 묶음 필지 + k번째 구역
 function zoneStatementRows(gs,loc){
-  var ps=landParcels(),zs=GZONES,n=Math.max(ps.length,zs.length),out=[];
+  var ps=grpIdx().map(function(i){return LANDS[i];}),zs=GZONES,n=Math.max(ps.length,zs.length),out=[];
   var brOf=function(k,len){return len<2||k>=len?null:k===0?'top':k===len-1?'end':'mid';};
-  for(var k=0;k<n;k++){var L=ps[k],g=gs.rows[k],z=k<zs.length;
+  for(var k=0;k<n;k++){var L=ps[k],z=k<zs.length,g=z?(gs.rows.find(function(r){return r.key==='z'+k;})||{}):{};
     var pn=String(L&&L['비고']||'').trim();if(pn==='-')pn='';
     var note=z?[ILDANJI?'일단지':'',useLines(zoneName(k))].filter(Boolean).join('\n'):'';
     if(pn)note=note?note+'\n'+pn:pn;
@@ -410,12 +411,16 @@ function statementRows(){
   // 일단지를 용도지역별로 나눴으면(토지건물.html zoneMode) 필지 줄과 구역 줄을 나란히 — k번째 줄 = k번째 필지(기호~공부면적) +
   // k번째 구역(사정면적·단가·금액·비고 「일단지 / 일반상업지역」). 공부면적·사정면적은 각각 꺾쇠(<, │, >)로 묶는다(사용자 샘플 2026-10-29)
   var zm=!bldOnly()&&typeof zoneMode==='function'&&zoneMode();
-  var rows=bldOnly()?[]:zm?zoneStatementRows(gs,loc):LANDS.map(function(l,i){var g=gs.rows[i]||{},hasSub=!sub(l)&&sub(LANDS[i+1]);
+  // 묶음 밖 필지는 일반 필지 줄 그대로(묶기 중 일부 필지만 일단지인 건 — 2026-10-29), 묶음 줄은 첫 묶음 필지 자리에
+  var zput=false;
+  var rows=bldOnly()?[]:[].concat.apply([],LANDS.map(function(l,i){
+    if(zm&&grpIn(l)){if(zput)return [];zput=true;return zoneStatementRows(gs,loc);}
+    var g=gs.rows.find(function(r){return r.key===i;})||gs.rows[i]||{},hasSub=!sub(l)&&sub(LANDS[i+1]);
     var br=hasSub?'top':sub(l)?(sub(LANDS[i+1])?'mid':'end'):null;
     var note=String(l['비고']||'');if(out(l)&&note.trim()==='-')note='';
     var common={'명세_사정면적':landArea(l),'명세_단가':out(l)?'-':g.apply,'명세_평가액':out(l)?0:g.total,'명세_비고':note,br:br,out:out(l)};
     if(sub(l))return Object.assign(common,{'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':'','명세_지역구조':'','명세_공부면적':null,minRows:2,drain:br==='end'});
-    return Object.assign(common,{'명세_기호':String(typeof landParcelNo==='function'?landParcelNo(i):i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':l['용도지역']||'','명세_공부면적':num(l['면적']),minRows:hasSub?2:undefined});});
+    return Object.assign(common,{'명세_기호':String(typeof landParcelNo==='function'?landParcelNo(i):i+1),'명세_소재지':loc(l),'명세_지번':l['지번']||'','명세_지목용도':l['지목']||'','명세_지역구조':useLines(l['용도지역']),'명세_공부면적':num(l['면적']),minRows:hasSub?2:undefined});}));
   var land=LANDS[0]||{};
   // 건물은 발송 양식대로: 「가」 머리행(소재지 + [도로명주소] / 지번은 필지와 같으면 '상동' / 주용도 / 구조·층수)
   // 아래에 층별 행(용도·층·면적·단가·금액·비고, 3행씩)만 이어 붙인다. 동이 여럿이면 동마다 머리행.

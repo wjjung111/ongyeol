@@ -49,8 +49,15 @@ function evalArea(L,row){
 }
 // 용도지역별 구역의 서류 번호 칸 — 좁은 일련번호 칸이라 줄임말(일반상업·3종일주)
 function zoneDocNo(k){var n=zoneName(k);return typeof shortY==='function'?shortY(n):n;}
+// 평가 줄 찾기 — docRows의 key(필지 번호 또는 구역 'z0'), key가 없던 옛 결과면 같은 자리
+function rowOfKey(rows,k){rows=rows||[];var r=rows.find(function(x){return x.key===k;});return r||(typeof k==='number'?rows[k]:null);}
+// 서류 번호 칸에 쓸 평가 줄 이름 — 구역은 줄임말(일반상업), 묶음 필지는 「일단지」, 그 밖은 필지 번호
+function docNoOf(k){
+  if(typeof isZoneKey==='function'&&isZoneKey(k))return zoneDocNo(+k.slice(1));
+  if(typeof isGrpRow==='function'&&isGrpRow(k))return typeof groupWord==='function'?groupWord():'일단지';
+  return String(typeof landParcelNo==='function'?landParcelNo(k):k+1);}
 function parcelMap(L,i,gs,ga){
-  var g=gs.rows[i],a=(ga.rows||[])[i]||{};
+  var g=rowOfKey(gs.rows,i)||{},a=rowOfKey(ga.rows,i)||{};
   return Object.assign({_daegu:typeof stdDaegu==='function'?stdDaegu(g.stdIdx):''},landMap(L,i),standardMap(STDS[g.stdIdx]||{},g.stdIdx),factors('공시개별',g.factors),factors('거래개별',a.factors||[]),{
     '토지_사정면적':evalArea(L,g),
     '공시개별_의견':typeof landGop==='function'?text(landGop(L)):val('g_opinion'),   // 필지별 비교의견(개별요인 표의 필지마다 의견 행)
@@ -241,7 +248,7 @@ function opinionData(){
         '그밖_표준지_개별':fixed(d.stdIndividual,3),'그밖_표준지현재':money(d.out2),'그밖개별_계':fixed(d.individual,3),
         '그밖_시점설명':(c&&c.timeMeta?timeMetaLabel(c.timeMeta):'')+') : '+fixed(d.time,5),'그밖개별_의견':d.opinion,
         '표준지_공시지가':money(d.price)});
-      var nos=p.rows.map(function(i){return typeof isZoneKey==='function'&&isZoneKey(i)?zoneDocNo(+i.slice(1)):String(landParcelNo(i));}).filter(function(v,k,a){return a.indexOf(v)===k;});
+      var nos=p.rows.map(docNoOf).filter(function(v,k,a){return a.indexOf(v)===k;});
       return {label:caseLabel(p.type,p.idx),code:p.type==='t'?'#'+(p.idx+1):text(c&&c.no),std:p.std,etc:p.etc,d:d,map:mm,nos:nos};});
     if(etcPairs.length){
       Object.assign(m,etcPairs[0].map);
@@ -273,8 +280,11 @@ function opinionData(){
   var group=(typeof isLandGroup==='function')&&isLandGroup()&&LANDS.length>1;
   // 일단지를 용도지역별로 나눴으면(zoneMode) 산출근거 표는 구역마다 한 줄 — gs.rows·ga.rows도 구역 순서다
   var zm=group&&typeof zoneMode==='function'&&zoneMode();
-  var perParcel=zm?LANDS.map(function(L,i){return Object.assign(landMap(L,i),{'토지_사정면적':evalArea(L,null)});})
-    :LANDS.map(function(L,i){var pm=parcelMap(L,i,gs,ga),gr=(ga.rows||[])[i];
+  // 묶음 필지(평가는 묶음·구역 줄이 대신) — 용도지역별로 나눴으면 필지 줄이 결과에 없으므로 필지 특성만
+  var gset={},gi=group&&typeof grpIdx==='function'?grpIdx():(group?LANDS.map(function(_,i){return i;}):[]);gi.forEach(function(i){gset[i]=1;});
+  var perParcel=LANDS.map(function(L,i){
+    if(zm&&gset[i])return Object.assign(landMap(L,i),{'토지_사정면적':evalArea(L,null)});
+    var pm=parcelMap(L,i,gs,ga),gr=rowOfKey(ga.rows,i);
     if(gaTimes&&gr&&gaLabelOf[gr.caseIdx])pm['거래_채택기호']=gaLabelOf[gr.caseIdx];   // 거래사례가 둘 이상이면 개별요인 표 사례 칸은 필지별
     return pm;});
   // 구분평가·평가외로 나눈 필지(토지건물.html isSub/isOut, 사용자 샘플 2026-10-19 구산동 1530-3):
@@ -302,33 +312,43 @@ function opinionData(){
       if(n>1)parcelRuns.push([k,n]);
     });
   }
-  var zoneRuns=null;
-  if(zm){var L0z=LANDS[0]||{},base=landMap(L0z,0);
-    var zparcels=GZONES.map(function(Z,k){var pm=parcelMap(Z,k,gs,ga),gr=(ga.rows||[])[k],no=zoneDocNo(k);
-      ['소재지','지목','이용상황','형상','지세','도로','공시지가'].forEach(function(f){pm['토지_'+f]=base['토지_'+f];});
-      pm['토지_지번']=text(L0z['지번'])+' 외 '+(LANDS.length-1)+'필지';
-      pm['토지_용도지역']=zoneName(k);pm['토지_비고']='-';
-      pm['토지_면적']=area(gs.gongbuSize||gs.size);   // 공부면적은 일단지 전체 — 구역 줄에 걸쳐 한 칸으로 합친다(zoneRuns)
-      pm['토지_번호']=pm['필지_번호']=pm['공시개별_번호']=no;
-      if(gaTimes&&gr&&gaLabelOf[gr.caseIdx])pm['거래_채택기호']=gaLabelOf[gr.caseIdx];
-      return pm;});
-    zoneRuns=[0,GZONES.length];
+  // ── 묶기(일단지) — 묶음 필지는 산출근거 표에서 한 줄(나누지 않음) 또는 구역 줄(용도지역별), 묶음 밖 필지는 필지 줄 그대로.
+  // 줄 순서는 본건 토지 표 순서(묶음 줄은 첫 묶음 필지 자리) ──
+  var zoneRuns=null,groupRun=null,parcels;
+  if(group){
+    var rep=typeof grpRep==='function'?grpRep():0,L0=LANDS[rep]||{},base=landMap(L0,rep);
+    var gRows=gs.rows.filter(function(r){return gset[r.key];}),gaRows=(ga.rows||[]).filter(function(r){return gset[r.key];});
+    var sumOf=function(rows,f){return rows.reduce(function(a,r){return a+(num(r[f])||0);},0);};
+    var gGongbu=0;gi.forEach(function(i){gGongbu+=num(LANDS[i]['면적'])||0;});
+    var jibun=text(L0['지번'])+(gi.length>1?' 외 '+(gi.length-1)+'필지':'');
+    var grpMaps=zm?GZONES.map(function(Z,k){var pm=parcelMap(Z,'z'+k,gs,ga),gr=rowOfKey(ga.rows,'z'+k),no=zoneDocNo(k);
+        ['소재지','지목','이용상황','형상','지세','도로','공시지가'].forEach(function(f){pm['토지_'+f]=base['토지_'+f];});
+        pm['토지_지번']=jibun;pm['토지_용도지역']=zoneName(k);pm['토지_비고']='-';
+        pm['토지_면적']=area(gGongbu);   // 공부면적은 묶음 전체 — 구역 줄에 걸쳐 한 칸으로 합친다(zoneRuns)
+        pm['토지_번호']=pm['필지_번호']=pm['공시개별_번호']=no;
+        if(gaTimes&&gr&&gaLabelOf[gr.caseIdx])pm['거래_채택기호']=gaLabelOf[gr.caseIdx];
+        return pm;})
+      :[(function(){var m=parcelMap(L0,rep,gs,ga);
+        m['토지_지번']=jibun;m['토지_면적']=area(gGongbu);m['토지_사정면적']=area(sumOf(gRows,'size'));
+        m['공시_시산가액']=money(sumOf(gRows,'total'));if(gaRows.length&&sumOf(gaRows,'total'))m['거래_시산가액']=money(sumOf(gaRows,'total'));
+        m['토지_번호']=m['필지_번호']=m['공시개별_번호']=typeof groupWord==='function'?groupWord():'일단지';
+        return m;})()];
+    parcels=[];var put=false;
+    LANDS.forEach(function(L,i){
+      if(!gset[i]){var pm=perParcel[i];pm['토지_번호']=pm['필지_번호']=pm['공시개별_번호']=String(landParcelNo(i));parcels.push(pm);return;}
+      if(put)return;put=true;
+      if(zm)zoneRuns=[parcels.length,grpMaps.length];
+      parcels=parcels.concat(grpMaps);});
+    // 「평가대상 토지」 표 — 묶음 필지 줄의 공통 칸만 세로로 합친다(묶음 필지가 붙어 있을 때)
+    if(gi.length>1&&gi[gi.length-1]-gi[0]+1===gi.length)groupRun=[gi[0],gi.length];
   }
-  var parcels=zm?zparcels:group?[(function(){
-      var L0=LANDS[0]||{},m=parcelMap(L0,0,gs,ga);
-      m['토지_지번']=text(L0['지번'])+' 외 '+(LANDS.length-1)+'필지';
-      m['토지_면적']=area(gs.gongbuSize||gs.size);
-      m['토지_사정면적']=area(gs.size);
-      m['공시_시산가액']=money(gs.total);
-      if(ga&&ga.total)m['거래_시산가액']=money(ga.total);
-      return m;})()]
-    :gub?perParcel.filter(function(m,i){return !isOut(LANDS[i]);}):perParcel;
+  else parcels=gub?perParcel.filter(function(m,i){return !isOut(LANDS[i]);}):perParcel;
   // 「대상물건 개요 - 평가대상 토지」 표만은 일단지라도 **필지별 줄**로 나간다 —
   // 소재지·지번·지목·공부면적은 필지마다, 나머지(일련번호·사정면적·용도지역·도로교통·형상지세·공시지가·비고)는
   // 세로로 합친 한 칸(사정면적은 묶은 면적 전체). 산출근거 표들은 위 parcels대로 한 줄이다(2026-09-22 요청).
   var subject=group?perParcel.map(function(m,i){
       var o=Object.assign({},m);
-      if(!i)o['토지_사정면적']=area(gs.size);   // 합친 칸에 들어갈 값 = 묶은 면적 전체
+      if(gset[i]&&i===gi[0])o['토지_사정면적']=area(sumOf(zm?gs.rows.filter(function(r){return isZoneKey(r.key);}):gRows,'size'));   // 합친 칸에 들어갈 값 = 묶은 면적 전체(지분이면 지분 면적)
       return o;})
     :gub?LANDS.map(function(L,i){
       if(isSub(L))return null;
@@ -344,10 +364,9 @@ function opinionData(){
   // _selected = 본건 필지 중 하나라도 이 표준지를 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)
   var standards=STDS.map(function(S,i){var used=gs.rows.map(function(r,j){
       if(r.stdIdx!==i||r.out)return null;   // 감정평가 외 줄은 표준지를 쓰지 않는다
-      return typeof landParcelNo==='function'?landParcelNo(j):j+1;}).filter(function(v,k,a){return v&&a.indexOf(v)===k;});   // 나눈 줄은 원 필지 번호(중복 제거)
+      return docNoOf(r.key!=null?r.key:j);}).filter(function(v,k,a){return v&&a.indexOf(v)===k;});   // 나눈 줄은 원 필지 번호, 묶음은 「일단지」, 구역은 줄임말(중복 제거)
     return Object.assign(standardMap(S,i),{
-    '필지_번호':(zm&&used.length)?gs.rows.map(function(r,k){return r.stdIdx===i?zoneDocNo(k):null;}).filter(Boolean).join(', ')
-      :(group&&used.length)?(typeof groupWord==='function'?groupWord():'일단지'):used.join(', '),
+    '필지_번호':used.join(', '),
     '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2),
     _selected:used.length>0
   });});
@@ -364,7 +383,7 @@ function opinionData(){
     if(dmap.length>1)daeguBlocks=dmap.map(function(b){return {daegu:b.daegu,label:'표준지 '+b.stds.join(', ')+' (기호 '+b.nos.join(', ')+')'};});
   }
   var etcDaegu=typeof stdDaegu==='function'?stdDaegu(own&&etcPairs.length?etcPairs[0].std:etc.stdIdx):'';
-  return {global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,zoneRuns:zoneRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
+  return {global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,groupRun:groupRun,parcelRuns:parcelRuns,zoneRuns:zoneRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
@@ -805,14 +824,14 @@ function opinionXml(xml,data){
     if(hasToken(tbl,'토지_소재지')){
       // 일단지 — 필지별로 남길 열(소재지·지번·지목·공부면적)을 먼저 가려 두고, 행을 늘린 뒤 나머지 열을 합친다
       var keepCols=null,rowsNow=data.subject||data.parcels;
-      if(data.landGroup&&rowsNow.length>1){
+      if(data.landGroup&&data.groupRun){
         keepCols={};
         children(children(tbl,'tr')[1],'tc').forEach(function(tc){
           keepCols[children(tc,'cellAddr')[0].getAttribute('colAddr')]=/\{\{토지_(소재지|지번|지목|면적)\}\}/.test(tc.textContent);
         });
       }
       resizeRows(tbl,1,1,1,rowsNow,state);
-      if(keepCols)mergeRows(tbl,1,rowsNow.length,keepCols);
+      if(keepCols)mergeRows(tbl,1+data.groupRun[0],data.groupRun[1],keepCols);   // 묶음 필지 줄만
     }
     else if(hasToken(tbl,'표준지_소재지')){
       resizeRows(tbl,2,2,2,data.standards,state);
