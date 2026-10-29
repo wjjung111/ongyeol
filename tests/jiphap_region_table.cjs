@@ -1,5 +1,6 @@
 // 집건 시점수정 창 지역 = 표 목록(2026-10-29) — 지역1~지역4 칸으로 전국이 한 번에, 줄 클릭 선택, 검색칸. 월별 지수표 없음.
 // ③ 거래사례 표의 시점수정치 칸으로 여는 창. 단일·여러 호수 둘 다. 실제 지수 파일.
+// 연립다세대는 연립 표에 있는 지역(권역 단위)만 — 구 이름으로 찾으면 그 구가 속한 권역 줄(2026-10-29)
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..');
@@ -39,6 +40,13 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.locator('div:has(> b:text("지수 자동계산")) button:text-is("계산")').click();
       assert.match((await page.locator('textarea').evaluateAll(t=>t.map(x=>x.value).filter(v=>/지역 :/.test(v))))[0]||'',/지역 : 부산 해운대구\n/);
       await page.getByLabel('시점수정 지역 검색').fill('없는지역xyz');assert.ok(await page.locator('text=찾는 지역이 없습니다').isVisible());
+      // 연립다세대: 연립 표에 있는 지역(권역 단위)만, 지역1~지역3. 골라 둔 해운대구는 소속 권역 줄이 선택으로(계산도 그 권역)
+      await page.locator('select:has(option[value="연립다세대"])').first().selectOption('연립다세대');await page.getByLabel('시점수정 지역 검색').fill('');
+      const vh=await page.locator('th').evaluateAll(t=>t.map(x=>x.textContent).filter(h=>/^지역\d$/.test(h)));assert.deepEqual(vh,['지역1','지역2','지역3']);
+      const vk=await rows.evaluateAll(t=>t.map(x=>x.dataset.key));assert.ok(!vk.includes('해운대구')&&vk.includes('동남권'),'구 줄 없음');
+      assert.match(await page.locator('[data-region]').locator('xpath=..').textContent(),/^선택: 부산 > .*권 \(해운대구 — 연립다세대 지수는 이 단위로 공표\)$/);
+      await page.getByLabel('시점수정 지역 검색').fill('강남구');assert.deepEqual(await rows.evaluateAll(t=>t.map(x=>x.dataset.key)),['동남권']);
+      assert.match(await rows.first().textContent(),/강남구 포함/);
       assert.deepEqual(errors,[]);await ctx.close();console.log(mode,'OK');
     }
     console.log('PASS');
