@@ -47,6 +47,8 @@ function evalArea(L,row){
   var size=num(row&&row.size)||landArea(L);
   return size?area(size):(mark(L['면적'])||area(L['면적']));
 }
+// 용도지역별 구역의 서류 번호 칸 — 좁은 일련번호 칸이라 줄임말(일반상업·3종일주)
+function zoneDocNo(k){var n=zoneName(k);return typeof shortY==='function'?shortY(n):n;}
 function parcelMap(L,i,gs,ga){
   var g=gs.rows[i],a=(ga.rows||[])[i]||{};
   return Object.assign({_daegu:typeof stdDaegu==='function'?stdDaegu(g.stdIdx):''},landMap(L,i),standardMap(STDS[g.stdIdx]||{},g.stdIdx),factors('공시개별',g.factors),factors('거래개별',a.factors||[]),{
@@ -239,7 +241,7 @@ function opinionData(){
         '그밖_표준지_개별':fixed(d.stdIndividual,3),'그밖_표준지현재':money(d.out2),'그밖개별_계':fixed(d.individual,3),
         '그밖_시점설명':(c&&c.timeMeta?timeMetaLabel(c.timeMeta):'')+') : '+fixed(d.time,5),'그밖개별_의견':d.opinion,
         '표준지_공시지가':money(d.price)});
-      var nos=p.rows.map(function(i){return String(landParcelNo(i));}).filter(function(v,k,a){return a.indexOf(v)===k;});
+      var nos=p.rows.map(function(i){return typeof isZoneKey==='function'&&isZoneKey(i)?zoneDocNo(+i.slice(1)):String(landParcelNo(i));}).filter(function(v,k,a){return a.indexOf(v)===k;});
       return {label:caseLabel(p.type,p.idx),code:p.type==='t'?'#'+(p.idx+1):text(c&&c.no),std:p.std,etc:p.etc,d:d,map:mm,nos:nos};});
     if(etcPairs.length){
       Object.assign(m,etcPairs[0].map);
@@ -269,7 +271,10 @@ function opinionData(){
   // 묶기(일단지)면 필지들을 한 줄로 합쳐 내보낸다 — 지번은 「565-18 외 1필지」, 면적은 공부면적 합계/묶은 면적,
   // 단가·시산가액은 일단지 전체 값(화면 시산가액 표와 같은 한 줄). 명세표는 이와 달리 필지별 행을 유지한다.
   var group=(typeof isLandGroup==='function')&&isLandGroup()&&LANDS.length>1;
-  var perParcel=LANDS.map(function(L,i){var pm=parcelMap(L,i,gs,ga),gr=(ga.rows||[])[i];
+  // 일단지를 용도지역별로 나눴으면(zoneMode) 산출근거 표는 구역마다 한 줄 — gs.rows·ga.rows도 구역 순서다
+  var zm=group&&typeof zoneMode==='function'&&zoneMode();
+  var perParcel=zm?LANDS.map(function(L,i){return Object.assign(landMap(L,i),{'토지_사정면적':evalArea(L,null)});})
+    :LANDS.map(function(L,i){var pm=parcelMap(L,i,gs,ga),gr=(ga.rows||[])[i];
     if(gaTimes&&gr&&gaLabelOf[gr.caseIdx])pm['거래_채택기호']=gaLabelOf[gr.caseIdx];   // 거래사례가 둘 이상이면 개별요인 표 사례 칸은 필지별
     return pm;});
   // 구분평가·평가외로 나눈 필지(토지건물.html isSub/isOut, 사용자 샘플 2026-10-19 구산동 1530-3):
@@ -297,7 +302,19 @@ function opinionData(){
       if(n>1)parcelRuns.push([k,n]);
     });
   }
-  var parcels=group?[(function(){
+  var zoneRuns=null;
+  if(zm){var L0z=LANDS[0]||{},base=landMap(L0z,0);
+    var zparcels=GZONES.map(function(Z,k){var pm=parcelMap(Z,k,gs,ga),gr=(ga.rows||[])[k],no=zoneDocNo(k);
+      ['소재지','지목','이용상황','형상','지세','도로','공시지가'].forEach(function(f){pm['토지_'+f]=base['토지_'+f];});
+      pm['토지_지번']=text(L0z['지번'])+' 외 '+(LANDS.length-1)+'필지';
+      pm['토지_용도지역']=zoneName(k);pm['토지_비고']='-';
+      pm['토지_면적']=area(gs.gongbuSize||gs.size);   // 공부면적은 일단지 전체 — 구역 줄에 걸쳐 한 칸으로 합친다(zoneRuns)
+      pm['토지_번호']=pm['필지_번호']=pm['공시개별_번호']=no;
+      if(gaTimes&&gr&&gaLabelOf[gr.caseIdx])pm['거래_채택기호']=gaLabelOf[gr.caseIdx];
+      return pm;});
+    zoneRuns=[0,GZONES.length];
+  }
+  var parcels=zm?zparcels:group?[(function(){
       var L0=LANDS[0]||{},m=parcelMap(L0,0,gs,ga);
       m['토지_지번']=text(L0['지번'])+' 외 '+(LANDS.length-1)+'필지';
       m['토지_면적']=area(gs.gongbuSize||gs.size);
@@ -329,7 +346,8 @@ function opinionData(){
       if(r.stdIdx!==i||r.out)return null;   // 감정평가 외 줄은 표준지를 쓰지 않는다
       return typeof landParcelNo==='function'?landParcelNo(j):j+1;}).filter(function(v,k,a){return v&&a.indexOf(v)===k;});   // 나눈 줄은 원 필지 번호(중복 제거)
     return Object.assign(standardMap(S,i),{
-    '필지_번호':(group&&used.length)?(typeof groupWord==='function'?groupWord():'일단지'):used.join(', '),
+    '필지_번호':(zm&&used.length)?gs.rows.map(function(r,k){return r.stdIdx===i?zoneDocNo(k):null;}).filter(Boolean).join(', ')
+      :(group&&used.length)?(typeof groupWord==='function'?groupWord():'일단지'):used.join(', '),
     '그밖_결정보정치':fixed((gs.rows.find(function(r){return r.stdIdx===i;})||{}).etc,2),
     _selected:used.length>0
   });});
@@ -346,7 +364,7 @@ function opinionData(){
     if(dmap.length>1)daeguBlocks=dmap.map(function(b){return {daegu:b.daegu,label:'표준지 '+b.stds.join(', ')+' (기호 '+b.nos.join(', ')+')'};});
   }
   var etcDaegu=typeof stdDaegu==='function'?stdDaegu(own&&etcPairs.length?etcPairs[0].std:etc.stdIdx):'';
-  return {global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
+  return {global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,parcelRuns:parcelRuns,zoneRuns:zoneRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
@@ -824,6 +842,10 @@ function opinionXml(xml,data){
       var sisan=hasToken(tbl,'토지_면적')&&(hasToken(tbl,'공시_시산가액')||hasToken(tbl,'거래_시산가액'));
       var isGa=hasToken(tbl,'거래_시산가액');
       var gbak=hasToken(tbl,'그밖_사례기호');
+      // 용도지역별 구역 — 공부면적 칸(일단지 전체)을 구역 줄에 걸쳐 합칠 열을 채우기 전에 찾아 둔다
+      var zKeep=null;
+      if(sisan&&!gbak&&data.zoneRuns){zKeep={};children(children(tbl,'tr')[1],'tc').forEach(function(tc){
+        zKeep[children(tc,'cellAddr')[0].getAttribute('colAddr')]=tc.textContent.indexOf('{{토지_면적}}')<0;});}
       resizeRows(tbl,1,1,1,gbak?(data.etcRows||picked):data.parcels,state);   // 필지별 사례로 쌍이 둘 이상이면 결정 표는 쌍마다 한 줄
       // 토지만 — 시산가액 표(공시지가기준법·거래사례비교법)는 여러 필지면 맨 아래 합계 행(공부·사정면적 합계, 단가 '-', 시산가액 합계)
       if(sisan&&data.landOnly&&data.parcels.length>1)appendSumRow(tbl,[
@@ -836,6 +858,7 @@ function opinionXml(xml,data){
         var tc=children(tr,'tc').find(function(c){return children(c,'cellAddr')[0].getAttribute('colAddr')==='5';});
         var t=tc&&descendants(tc,'t')[0];if(t&&t.textContent.trim()==='-'){t.textContent=note;clearLines(tc);}
       });
+      if(zKeep)mergeRows(tbl,1+data.zoneRuns[0],data.zoneRuns[1],zKeep);
       if(!gbak&&data.parcelRuns&&data.parcelRuns.length){
         var keep={};children(children(tbl,'tr')[1],'tc').forEach(function(tc){var col=children(tc,'cellAddr')[0].getAttribute('colAddr');keep[col]=col!=='0';});
         data.parcelRuns.forEach(function(rn){mergeRows(tbl,1+rn[0],rn[1],keep);});

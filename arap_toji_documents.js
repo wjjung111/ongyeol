@@ -379,6 +379,20 @@ function floorKey(t){t=String(t||'').replace(/\s/g,'');var n=(t.match(/\d+/)||['
   if(/옥탑|^옥|^PH/i.test(t))return 'R'+(n||'1');if(/지하|^지|^B/i.test(t))return 'B'+(n||'1');return n?'F'+n:t;}
 function bldFloorKey(d){var gb=String(d['층구분']||''),nm=String(d['층별']||'');
   return floorKey((/지하/.test(gb)&&!/지|B/i.test(nm)?'지하':'')+(/옥탑/.test(gb)&&!/옥|PH/i.test(nm)?'옥탑':'')+nm);}
+function zoneStatementRows(gs,loc){
+  var ps=landParcels(),zs=GZONES,n=Math.max(ps.length,zs.length),out=[];
+  var brOf=function(k,len){return len<2||k>=len?null:k===0?'top':k===len-1?'end':'mid';};
+  for(var k=0;k<n;k++){var L=ps[k],g=gs.rows[k],z=k<zs.length;
+    var pn=String(L&&L['비고']||'').trim();if(pn==='-')pn='';
+    var note=z?[ILDANJI?'일단지':'',zoneName(k)].filter(Boolean).join('\n'):'';
+    if(pn)note=note?note+'\n'+pn:pn;
+    var o={'명세_사정면적':z?zoneArea(k):null,'명세_단가':z?g.apply:null,'명세_평가액':z?g.total:0,'명세_비고':note,
+      gbr:brOf(k,ps.length),hbr:brOf(k,zs.length)};
+    if(L)Object.assign(o,{'명세_기호':String(landParcelNo(LANDS.indexOf(L))),'명세_소재지':loc(L),'명세_지번':L['지번']||'','명세_지목용도':L['지목']||'','명세_지역구조':L['용도지역']||'','명세_공부면적':num(L['면적'])});
+    else Object.assign(o,{'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':'','명세_지역구조':'','명세_공부면적':null,minRows:2});
+    out.push(o);}
+  return out;
+}
 function statementRows(){
   calcGongsi();renderBldCalc();calcFinal();
   var gs=window.GONGSI_RESULT||{},br=window.BLD_RESULT||{rows:[]};
@@ -390,7 +404,10 @@ function statementRows(){
   // 구분평가·평가외로 나눈 필지(토지건물.html isSub/isOut): 원 필지 줄 아래 나눈 줄을 같은 기호로 잇는다 — 기호·소재지~공부 칸은 비우고
   // (소재지는 원 필지 줄에서 흘러내림) 사정면적·단가·금액·비고만. 사정면적은 괄호선 ┌ │ └로 묶는다(br). 평가외는 단가 '-', 금액 「감정평가 외」.
   var sub=function(l){return typeof isSub==='function'&&isSub(l);},out=function(l){return typeof isOut==='function'&&isOut(l);};
-  var rows=bldOnly()?[]:LANDS.map(function(l,i){var g=gs.rows[i]||{},hasSub=!sub(l)&&sub(LANDS[i+1]);
+  // 일단지를 용도지역별로 나눴으면(토지건물.html zoneMode) 필지 줄과 구역 줄을 나란히 — k번째 줄 = k번째 필지(기호~공부면적) +
+  // k번째 구역(사정면적·단가·금액·비고 「일단지 / 일반상업지역」). 공부면적·사정면적은 각각 꺾쇠(<, │, >)로 묶는다(사용자 샘플 2026-10-29)
+  var zm=!bldOnly()&&typeof zoneMode==='function'&&zoneMode();
+  var rows=bldOnly()?[]:zm?zoneStatementRows(gs,loc):LANDS.map(function(l,i){var g=gs.rows[i]||{},hasSub=!sub(l)&&sub(LANDS[i+1]);
     var br=hasSub?'top':sub(l)?(sub(LANDS[i+1])?'mid':'end'):null;
     var note=String(l['비고']||'');if(out(l)&&note.trim()==='-')note='';
     var common={'명세_사정면적':landArea(l),'명세_단가':out(l)?'-':g.apply,'명세_평가액':out(l)?0:g.total,'명세_비고':note,br:br,out:out(l)};
@@ -465,7 +482,9 @@ function chunks(v,n){return String(v||'').split('\n').flatMap(function(line){
 // 나눈 필지(구분평가·평가외)의 사정면적 괄호선 서식 — 사정면적 칸 서식(baseId)을 복제해 숫자 서식만 바꾼다:
 //   top = "┌"를 칸 왼쪽 끝에 붙인 숫자, mid = "│", end = "└", line = 칸 왼쪽의 "│" 글자(값 줄 사이 빈 줄)
 // 숫자는 그대로 숫자라 금액 수식(단가×사정)이 깨지지 않는다. 출력 파일의 서식 목록 끝에만 덧붙이고 기존 서식 번호는 건드리지 않는다.
-function addBracketStyles(entries,baseId,dec,enc){
+// 용도지역별로 나눈 일단지(gbase 있음)는 공부면적 칸에도 꺾쇠: gtop = 숫자 뒤 "<", gmid = "│", gend = ">", gline = 칸 오른쪽 "│"
+// 사정면적 칸은 htop = 칸 왼쪽 "<", hmid = "│", hend = ">" (사용자 샘플 2026-10-29 광희동2가 247-1·247-3: 45.2< <60.1 / 56.1> >41.2)
+function addBracketStyles(entries,baseId,dec,enc,gBaseId){
   var e=entries.find(function(x){return x.name==='xl/styles.xml';});if(!e)return null;
   var d=xml(dec.decode(e.data)),ss=d.documentElement;
   var fmts=nodes(d,'numFmts')[0];
@@ -473,18 +492,28 @@ function addBracketStyles(entries,baseId,dec,enc){
   var used=nodes(fmts,'numFmt').map(function(n){return +n.getAttribute('numFmtId');}),next=Math.max(184,...used)+1;
   var xfs=nodes(d,'cellXfs')[0],list=Array.from(xfs.children).filter(function(n){return n.localName==='xf';});
   var base=list[+baseId]||list[0],out={};
-  var baseFmt=nodes(fmts,'numFmt').find(function(n){return n.getAttribute('numFmtId')===base.getAttribute('numFmtId');});
-  var numCode=baseFmt?baseFmt.getAttribute('formatCode'):'#,##0.00##';
-  var add=function(key,fmtId,left){
-    var x=base.cloneNode(true);x.setAttribute('numFmtId',String(fmtId));x.setAttribute('applyNumberFormat','1');
+  var codeOf=function(b){var f=nodes(fmts,'numFmt').find(function(n){return n.getAttribute('numFmtId')===b.getAttribute('numFmtId');});return f?f.getAttribute('formatCode'):'#,##0.00##';};
+  var numCode=codeOf(base);
+  var add=function(key,fmtId,left,from){
+    var x=(from||base).cloneNode(true);x.setAttribute('numFmtId',String(fmtId));x.setAttribute('applyNumberFormat','1');
     if(left){var al=Array.from(x.children).find(function(n){return n.localName==='alignment';});
-      if(!al){al=d.createElementNS(X,'alignment');x.appendChild(al);}al.setAttribute('horizontal','left');x.setAttribute('applyAlignment','1');}
+      if(!al){al=d.createElementNS(X,'alignment');x.appendChild(al);}al.setAttribute('horizontal',left);x.setAttribute('applyAlignment','1');}
     xfs.appendChild(x);out[key]=String(Array.from(xfs.children).filter(function(n){return n.localName==='xf';}).length-1);
   };
   [['top','┌'],['mid','│'],['end','└']].forEach(function(p){
     var f=d.createElementNS(X,'numFmt');f.setAttribute('numFmtId',String(next));f.setAttribute('formatCode','"'+p[1]+'"* '+numCode);fmts.appendChild(f);
     add(p[0],next,false);next++;});
-  add('line',49,true);
+  add('line',49,'left');
+  if(gBaseId!=null){
+    var gb=list[+gBaseId]||base,gCode=codeOf(gb);
+    [['htop','<'],['hmid','│'],['hend','>']].forEach(function(p){
+      var f=d.createElementNS(X,'numFmt');f.setAttribute('numFmtId',String(next));f.setAttribute('formatCode','"'+p[1]+'"* '+numCode);fmts.appendChild(f);
+      add(p[0],next,false);next++;});
+    [['gtop','<'],['gmid','│'],['gend','>']].forEach(function(p){
+      var f=d.createElementNS(X,'numFmt');f.setAttribute('numFmtId',String(next));f.setAttribute('formatCode',gCode+'"'+p[1]+'"');fmts.appendChild(f);
+      add(p[0],next,false,gb);next++;});
+    add('gline',49,'right',gb);
+  }
   fmts.setAttribute('count',String(nodes(fmts,'numFmt').length));
   xfs.setAttribute('count',String(Array.from(xfs.children).filter(function(n){return n.localName==='xf';}).length));
   e.data=enc.encode(ser(d));
@@ -504,7 +533,8 @@ async function buildStatement(rows){
   if(!sample||!footer)throw Error('명세표 양식에서 플레이스홀더 행 또는 합계행을 찾지 못했습니다.');
   var style={};nodes(sample,'c').forEach(function(c){style[c.getAttribute('r').replace(/\d/g,'')]=c.getAttribute('s');});
   // 구분평가·평가외로 나눈 필지가 있을 때만 — 사정면적 괄호선 서식을 출력 파일의 서식 목록 끝에 덧붙인다(양식 파일·기존 서식은 그대로).
-  var brStyle=rows.some(function(x){return x.br;})?addBracketStyles(entries,style.H,dec,enc):null;
+  var zoned=rows.some(function(x){return x.gbr||x.hbr;});
+  var brStyle=(zoned||rows.some(function(x){return x.br;}))?addBracketStyles(entries,style.H,dec,enc,zoned?style.G:null):null;
   var start=+sample.getAttribute('r'),base=+footer.getAttribute('r');
   var rowAttrs=['ht','customHeight','spans','x14ac:dyDescent'].map(function(a){return [a,sample.getAttribute(a)];}).filter(function(p){return p[1]!=null;});
   // B~K 열 순서. J(금액)는 값이 아니라 단가×사정면적 수식으로 넣는다(양식과 동일).
@@ -516,7 +546,11 @@ async function buildStatement(rows){
   original.filter(function(row){var n=+row.getAttribute('r');return n>=start&&n<base;}).forEach(function(row){row.remove();});
   rows.forEach(function(item,ii){
     // 토지 필지 행(둘째 필지부터)은 위에 빈 줄 한 줄 — 필지 사이 간격(사용자 요청 2026-09-29)
-    if(ii>0&&!item.header&&item['명세_기호']&&!carry.length){var gap=newRow(r);cols.forEach(function(c){gap.append(cell(d,c+r,style[c],null));});sd.insertBefore(gap,footer);r++;}
+    if(ii>0&&!item.header&&item['명세_기호']&&!carry.length){var gap=newRow(r);cols.forEach(function(c){
+        // 용도지역별 일단지 — 꺾쇠가 이어지는 칸은 빈 줄에도 세로선
+        if(brStyle&&c==='G'&&item.gbr&&item.gbr!=='top'){gap.append(cell(d,'G'+r,brStyle.gline,'│'));return;}
+        if(brStyle&&c==='H'&&item.hbr&&item.hbr!=='top'){gap.append(cell(d,'H'+r,brStyle.line,'│'));return;}
+        gap.append(cell(d,c+r,style[c],null));});sd.insertBefore(gap,footer);r++;}
     var split={};cols.forEach(function(c){var k=keys[c];
       if(!k){split[c]=[];return;}
       if(numeric[c]){split[c]=[item['명세_'+k]];return;}
@@ -534,6 +568,14 @@ async function buildStatement(rows){
       (function(rr,first){cols.forEach(function(c){
         if(c==='J'){row.append(first&&item.out?cell(d,'J'+rr,style.J,'감정평가 외'):cell(d,'J'+rr,style.J,null,(first&&hasUnit)?'+I'+rr+'*H'+rr:null));return;}
         // 사정면적 괄호선: 값 줄은 ┌(원 필지)·│(가운데 나눈 줄)·└(마지막 나눈 줄) 서식, 그 사이 빈 줄은 │
+        if(brStyle&&c==='G'&&item.gbr){
+          if(first&&split.G[0]!=null){row.append(cell(d,'G'+rr,brStyle['g'+item.gbr],split.G[0]));return;}
+          if(item.gbr!=='end'){row.append(cell(d,'G'+rr,brStyle.gline,'│'));return;}
+        }
+        if(brStyle&&c==='H'&&item.hbr){
+          if(first&&split.H[0]!=null){row.append(cell(d,'H'+rr,brStyle['h'+item.hbr],split.H[0]));return;}
+          if(item.hbr!=='end'){row.append(cell(d,'H'+rr,brStyle.line,'│'));return;}
+        }
         if(c==='H'&&item.br&&brStyle){
           if(first){row.append(cell(d,'H'+rr,brStyle[item.br],split.H[0]));return;}
           if(item.br!=='end'){row.append(cell(d,'H'+rr,brStyle.line,'│'));return;}
