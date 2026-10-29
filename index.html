@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Ongyeol — 공개 첫 화면. 외부에 공유되는 시점수정 계산기 링크만 둔다.
+  공개 첫 화면. 외부에 공유되는 시점수정 계산기 링크만 둔다.
   Copyright (c) 2026 정우진 감정평가사 (Woojin Jung, Certified Appraiser / wjjung9334@gmail.com). All Rights Reserved. 모든 권리 보유.
   무단 복제·수정·상업적 이용·재배포 금지. 상세: 저장소 LICENSE 파일 참조.
 -->
@@ -8,41 +8,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>온결 — 시점수정 계산</title>
+<title>시점수정 계산</title>
+<link rel="stylesheet" href="arap_tool.css"><!-- 단독 도구 공통 상단바·서명·글꼴·색 -->
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(160deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
-    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: #e2e8f0; padding: 24px;
-  }
-  .wrap { width: 100%; max-width: 520px; text-align: center; }
-  h1 { font-size: 34px; letter-spacing: 6px; color: #f8fafc; margin-bottom: 8px; }
-  .sub { font-size: 14px; color: #94a3b8; margin-bottom: 40px; letter-spacing: 1px; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--t-bg); color: var(--t-ink); font-family: var(--t-font); -webkit-font-smoothing: antialiased; }
+  .page { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+  .wrap { width: 100%; max-width: 520px; }
+  h1 { font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+  .sub { font-size: 13.5px; color: var(--t-ink-2); margin: 7px 0 22px; line-height: 1.6; }
   a.card {
-    display: flex; align-items: center; gap: 16px; text-align: left; text-decoration: none;
-    background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; transition: all .15s;
+    display: flex; align-items: center; gap: 16px; text-decoration: none; color: inherit;
+    background: var(--t-surface); border: 1px solid var(--t-line); border-radius: var(--t-radius); padding: 20px 22px;
+    transition: border-color .15s, box-shadow .15s;
   }
-  a.card:hover { border-color: #2563eb; background: #233046; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
-  .icon { font-size: 30px; width: 48px; flex-shrink: 0; text-align: center; }
-  .name { display: block; font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
-  .desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
-  .foot { margin-top: 40px; font-size: 12px; color: #64748b; }
-  @media (max-width: 480px) { h1 { font-size: 26px; letter-spacing: 3px; } a.card { padding: 16px; } }
+  a.card:hover { border-color: var(--t-accent); box-shadow: 0 4px 14px rgba(37,99,235,.12); }
+  .icon { font-size: 28px; width: 44px; flex-shrink: 0; text-align: center; }
+  .name { display: block; font-size: 16px; font-weight: 700; color: var(--t-ink); margin-bottom: 3px; }
+  .desc { font-size: 13px; color: var(--t-ink-2); line-height: 1.5; }
+  .go { margin-left: auto; color: var(--t-accent); font-weight: 700; font-size: 18px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>온 결</h1>
-  <div class="sub">감정평가 시점수정 계산</div>
-  <a class="card" href="arm_시점수정.html">
-    <span class="icon">📈</span>
-    <span>
-      <span class="name">시점수정 계산</span>
-      <span class="desc">집합건물(매매가격지수·자본수익률) · 토지(지가변동률) 시점수정치 계산</span>
-    </span>
-  </a>
-  <div class="foot">© 2026 정우진 감정평가사. All Rights Reserved.</div>
-</div>
+<header class="ttop">
+  <span class="tb-title"><span class="tb-ico">📈</span>시점수정 계산</span>
+</header>
+<main class="page">
+  <div class="wrap">
+    <h1>감정평가 시점수정 계산</h1>
+    <p class="sub">한국부동산원 지수로 거래시점에서 기준시점까지의 시점수정치를 산정합니다.</p>
+    <a class="card" href="arm_시점수정.html">
+      <span class="icon">📈</span>
+      <span>
+        <span class="name">시점수정 계산</span>
+        <span class="desc">집합건물(매매가격지수·자본수익률) · 토지(지가변동률) 시점수정치 계산</span>
+      </span>
+      <span class="go">›</span>
+    </a>
+  </div>
+</main>
+<footer class="tsign">Woojin Jung<span class="ts-dot">·</span>정우진 감정평가사<span class="ts-dot">·</span>문의 <a href="mailto:woojin.apr@gmail.com">woojin.apr@gmail.com</a><span class="ts-src">© 2026 All Rights Reserved.</span></footer>
 </body>
 </html>
