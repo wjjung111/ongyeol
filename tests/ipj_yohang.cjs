@@ -38,8 +38,11 @@ const runsOf=(xml,cp)=>[...xml.matchAll(new RegExp('<hp:run charPrIDRef="'+cp+'"
     await blanks.nth(0).fill('경기도 성남시 수정구 여수동');await blanks.nth(1).fill('성남시청 북서측');await blanks.nth(2).fill('지하철 8호선 \'모란역\'');
     // 시점수정 창: 본건(방배동, 시군구 '서초구')이면 지역이 서초구로 자동 선택(집합건물과 같은 동작), 구 목록은 가나다순
     await page.click('text=③ 사례 등 입력');await page.locator('td:has-text("1.01500")').first().click();await page.waitForSelector('text=지수 자동계산');
-    const sjSel=page.locator('div:has(> b:text("지수 자동계산")) select');assert.equal(await sjSel.nth(0).inputValue(),'아파트');assert.equal(await sjSel.nth(1).inputValue(),'서초구');
-    const gus=(await sjSel.nth(1).evaluate(s=>[...s.options].map(o=>o.value))).filter(v=>/구$/.test(v));assert.deepEqual(gus,[...gus].sort((a,b)=>a.localeCompare(b,'ko')));
+    // 지역은 단계 선택(시도 → 권역 → 세부 → 구): 서초구면 서울 > 강남지역 > 동남권 > 서초구, 마지막 칸 구 목록은 가나다순
+    const sjSel=page.locator('div:has(> b:text("지수 자동계산")) select');assert.equal(await sjSel.nth(0).inputValue(),'아파트');
+    assert.equal(await page.locator('[data-region]').getAttribute('data-region'),'서초구');
+    const steps=page.locator('select[aria-label^="시점수정 지역"]');assert.deepEqual(await steps.evaluateAll(ss=>ss.map(s=>s.value)),['서울','강남지역','동남권','서초구']);
+    const gus=(await steps.nth(3).evaluate(s=>[...s.options].map(o=>o.value))).filter(v=>/구$/.test(v));assert.deepEqual(gus,[...gus].sort((a,b)=>a.localeCompare(b,'ko')));
     await page.click('button:has-text("취소")');
     await page.click('text=④ 가격산출');
     // ④ 가격산출 — 집합건물과 같은 구성: 사례 선택(체크) → 가치형성요인 비교(호수별 블록) → 적용단가 → 입주권 감정평가액 결정

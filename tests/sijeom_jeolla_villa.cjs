@@ -42,7 +42,12 @@ const checkText=(t,sido)=>{assert.match(t,/^연립다세대\n/,t);assert.match(t
       await page.click('text=③ 사례 등 입력');await page.locator('td:has-text("1.01500")').first().click();await page.waitForSelector('text=지수 자동계산');
       const sel=page.locator('div:has(> b:text("지수 자동계산")) select');
       await sel.nth(0).selectOption('연립다세대');
-      for(const [r,sido] of [['완산구','전북'],['여수시','전남'],['광산구','광주']]){await sel.nth(1).selectOption(r);checkText(await modalText(page),sido);console.log('입주권',r,'→',sido,'OK');}
+      // 입주권 지역은 단계 선택(시도 → … → 구)
+      const steps=page.locator('select[aria-label^="시점수정 지역"]');
+      for(const [path,sido] of [[['전북','전주시','완산구'],'전북'],[['전남광주','전남','여수시'],'전남'],[['전남광주','광주','광산구'],'광주']]){
+        for(let i=0;i<path.length;i++)await steps.nth(i).selectOption(path[i]);
+        assert.equal(await page.locator('[data-region]').getAttribute('data-region'),path[path.length-1]);
+        checkText(await modalText(page),sido);console.log('입주권',path.join('>'),'→',sido,'OK');}
       assert.deepEqual(errors,[]);await ctx.close();}
     console.log('PASS');
   }finally{await browser.close();server.close();}
