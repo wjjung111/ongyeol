@@ -32,9 +32,11 @@
 .ttop #arap-name-badge:hover{color:var(--t-bar-ink);}
 @media (max-width:600px){ .ttop{padding:0 14px;} .ttop .tb-tag{display:none;} }
 
-/* ── 바닥 서명 (눈에 덜 띄게) ── */
-.tsign{flex:none; text-align:center; font-family:var(--t-font); font-size:11.5px; line-height:1.7;
-  color:var(--t-faint); padding:18px 16px 26px; letter-spacing:.01em;}
+/* ── 바닥 서명 (눈에 덜 띄게) — 내용이 짧아도 화면 맨 아래에 붙는다 ──
+   body 최소 높이 = 화면 높이, 서명은 sticky top:100vh → body 맨 아래로 밀림(내용이 길면 그냥 맨 끝) */
+body{min-height:100vh;}
+.tsign{flex:none; position:sticky; top:100vh; text-align:center; font-family:var(--t-font); font-size:11.5px; line-height:1.7;
+  color:#a8b4c5; padding:18px 16px 22px; letter-spacing:.01em;}
 .tsign a{color:inherit; font-size:inherit; text-decoration:none;}
 .tsign a:hover{color:var(--t-ink-2); text-decoration:underline; text-underline-offset:2px;}
 .tsign .ts-dot{margin:0 6px; opacity:.6;}
