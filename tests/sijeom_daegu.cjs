@@ -1,6 +1,6 @@
 // 주거용 시점수정 지역에 대구(2026-10-28) — 지수 파일에 대구가 들어오면 바로 쓰이는지.
 // ① 집건(단일·여러호수)·입주권 detectSjRegion: 대구 주소 → 대구 구(「대구 중구」 ≠ 서울 중구, 달성군), 서울 주소는 종전대로
-// ② 시점수정 계산기(arm_시점수정.html): ① 시도에 대구, ③ 대구 구 목록·계산, 연립은 대구 전체 지수
+// ② 시점수정 계산기(arm_시점수정.html): 지역 표에 대구 구·계산, 연립은 대구 전체 지수
 // 대구가 아직 지수 파일에 없을 수 있어 가짜 대구 지역을 덧붙여 확인한다.
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -44,22 +44,18 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/,r=>r.abort());
   await ctx.addInitScript(()=>{try{localStorage.setItem('arap-user-name','테스트');}catch(e){}});
   const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  await p.goto(base+'/'+encodeURI('arm_시점수정.html'));await p.waitForSelector('#r1');
-  const st=()=>p.evaluate(()=>{const g=id=>document.getElementById(id);const o=s=>[...s.options].map(x=>x.textContent);
-    return {r1:g('r1').value,d2:g('r2').disabled,d3:g('r3').disabled,o1:o(g('r1')),o3:o(g('r3')),region:g('region').value};});
-  let s=await st();
-  assert.deepEqual(s.o1.slice(0,5),['서울','경기','인천','부산','대구'],'시도 순서(아파트엔 수도권 없음): '+s.o1);
-  await p.selectOption('#r1',{label:'대구'});s=await st();
-  assert.equal(s.d2,true,'대구는 권역 없음');assert.equal(s.d3,false);
-  for(const g of ['수성구','달성군'])assert.ok(s.o3.some(x=>x.includes(g)),'③에 '+g+': '+s.o3);
-  assert.ok(s.o3.some(x=>/중구/.test(x)),'③에 대구 중구');
-  await p.selectOption('#r3',{label:s.o3.find(x=>x.includes('수성구'))});s=await st();assert.equal(s.region,'수성구');
+  await p.goto(base+'/'+encodeURI('arm_시점수정.html'));await p.waitForSelector('#landRegBody tr[data-key]');
+  const keys=()=>p.locator('#landRegBody tr[data-key]').evaluateAll(t=>t.map(x=>x.dataset.key));
+  const pick=async k=>{await p.fill('#landRegQ','');await p.click(`#landRegBody tr[data-key="${k}"]`);assert.equal(await p.inputValue('#region'),k);};
+  const ks=await keys();assert.ok(ks.indexOf('대구')>ks.indexOf('부산')&&ks.indexOf('대구')<ks.indexOf('수성구'),'대구 줄 순서');
+  await p.fill('#landRegQ','대구');const dk=await keys();for(const g of ['수성구','달성군','대구 중구'])assert.ok(dk.includes(g),'대구 검색에 '+g+': '+dk);
+  await pick('수성구');
   await p.fill('#tradeDate','2025.03.10');await p.fill('#baseDate','2026.08.01');await p.click('#btn-calc');
   assert.match(await p.inputValue('#resultText'),/지역 : 대구 수성구/);
-  await p.selectOption('#r3',{label:s.o3.find(x=>/중구/.test(x))});s=await st();assert.equal(s.region,'대구 중구');
-  await p.click('#btn-calc');assert.match(await p.inputValue('#resultText'),/지역 : 대구 중구/);
-  // 연립다세대: 대구 전체만 → ②③ 잠금, 대구 지수
-  await p.selectOption('#kind','연립다세대');s=await st();assert.equal(s.r1,'대구');assert.equal(s.d3,true);assert.equal(s.region,'대구');
+  await pick('대구 중구');await p.click('#btn-calc');assert.match(await p.inputValue('#resultText'),/지역 : 대구 중구/);
+  // 연립다세대: 대구 전체만 공표 → 고른 구는 회색 + 대구 지수로 계산
+  await p.selectOption('#kind','연립다세대');assert.equal(await p.inputValue('#region'),'대구 중구');
+  assert.match(await p.locator('#landRegSel').textContent(),/연립다세대 지수는 대구 적용/);
   await p.click('#btn-calc');assert.match(await p.inputValue('#resultText'),/지역 : 대구\n/);
   assert.deepEqual(errs,[]);console.log('arm_시점수정 OK');
   console.log('PASS');

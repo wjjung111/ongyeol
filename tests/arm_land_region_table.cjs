@@ -33,8 +33,9 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     // 새로고침 뒤에도 선택 유지
     await p.reload();await p.click('#tab-land');await p.waitForSelector('#landRegBody tr.on');
     assert.equal(await p.getAttribute('#landRegBody tr.on','data-key'),'전북 > 전주시 > 완산구');
-    // 집합건물 탭으로 돌아가면 표 숨김
-    await p.click('#tab-bld');assert.equal(await p.isVisible('#land-rtable'),false);
+    // 집합건물 탭으로 가면 같은 자리에 매매가격지수 지역 표(지역1~지역4) — tests/sijeom_region3.cjs
+    await p.click('#tab-bld');assert.equal(await p.isVisible('#land-rtable'),true);
+    assert.deepEqual(await p.locator('#landRegHead th').allTextContents(),['지역1','지역2','지역3','지역4']);
     assert.deepEqual(errs,[]);console.log('PASS');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

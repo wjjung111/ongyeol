@@ -78,10 +78,6 @@
   .fields{margin-top:20px;}
   .field-pair{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   .field-pair + .field-pair{margin-top:14px;}
-  /* 주거용: 유형 + 지역 3단을 한 줄에 (유형은 좁게) */
-  .field-pair.quad{grid-template-columns:104px 1fr 1fr 1.35fr; gap:8px;}
-  .field-pair.quad select{padding:0 6px 0 8px; font-size:13.5px;}
-  .field-pair.quad label{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   /* 비주거용: 유형 + ① 시도 + ② 상권 한 줄 */
   .field-pair.tri{grid-template-columns:118px 1fr 1.5fr; gap:8px;}
   .field-pair.tri label{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -99,7 +95,7 @@
   .rt th{position:sticky; top:0; background:var(--bg); text-align:left; font-weight:600; color:var(--muted); padding:5px 8px; border-bottom:1px solid var(--line-strong);}
   .rt td{padding:4px 8px; border-bottom:1px solid var(--line); color:var(--ink);}
   .rt tbody tr{cursor:pointer;} .rt tbody tr:hover{background:var(--bg);}
-  .rt tbody tr.on{background:#e3edf8; font-weight:700;} .rt td.agg{color:var(--muted);} .rt td.msg{color:var(--faint); cursor:default;}
+  .rt tbody tr.on{background:#e3edf8; font-weight:700;} .rt td.agg{color:var(--muted);} .rt td.msg{color:var(--faint); cursor:default;} .rt-note{color:var(--muted);}
   select:disabled{cursor:not-allowed; color:#9aa1ab; background:#eceef1; border-color:var(--line);}
   input::placeholder{color:#b3b9c2;}
   input:focus, select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(44,90,140,.13);}
@@ -150,13 +146,11 @@
     .appbar-brand{display:none;}
   }
   @media (max-width:560px){
-    .field-pair.quad{grid-template-columns:1fr 1fr;}
     .field-pair.tri{grid-template-columns:1fr 1fr;}
     .field-pair.tri #fld-r2{grid-column:1 / -1;}
   }
   @media (max-width:400px){
     .field-pair{grid-template-columns:1fr;}
-    .field-pair.quad{grid-template-columns:1fr 1fr;}
     .segmented{display:flex;}
     .tabs-top .tab{flex:1; text-align:center;}
     .tabs-sub .segmented{flex:1;}
@@ -220,10 +214,6 @@
           <div class="field" id="fld-r2" style="display:none">
             <label for="r2" id="lbl-r2">② 권역</label>
             <select id="r2"></select>
-          </div>
-          <div class="field" id="fld-r3" style="display:none">
-            <label for="r3">③ 세부지역</label>
-            <select id="r3"></select>
           </div>
         </div>
         <div class="rt-wrap" id="land-rtable" style="display:none">
@@ -290,39 +280,24 @@ const normDate=v=>{const s=String(v||"").replace(/[^0-9]/g,"");if(s.length>=8)re
 const idxYm=d=>{const m=normDate(d).match(/^(\d{4})\.(\d{2})/);return m?m[1]+m[2]:null;};
 const idxYmDisp=ym=>ym?`${ym.slice(0,4)}.${ym.slice(4,6)}`:"";
 const idxKindList=()=>{const D=idxData();if(!D)return[];return["아파트","연립다세대","오피스텔"].filter(k=>D.tables[k]);};
-// 유형별 지역 목록: 시도(서울→경기→인천→수도권→부산→대구→…→제주, 행정 표준 순) 순 → 시도 전체가 맨 앞 → 하위지역 가나다순
+// 시도 순서(서울→경기→인천→수도권→부산→대구→…→제주, 행정 표준 순)
 const ROOT_ORDER=["서울","경기","인천","수도권","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
-const idxRegionList=kind=>{const D=idxData();if(!D||!D.tables[kind])return[];const rs=D.tables[kind].regions;
-  return Object.keys(rs).sort((a,b)=>{
-    const pa=rs[a].full.split(">"),pb=rs[b].full.split(">");
-    const ri=x=>ROOT_ORDER.findIndex(k=>String(x).trim().startsWith(k)),ra=ri(pa[0]),rb=ri(pb[0]); // 전북특별자치도도 전북 자리
-    if(ra!==rb)return(ra<0?99:ra)-(rb<0?99:rb);
-    if(pa.length!==pb.length&&(pa.length===1||pb.length===1))return pa.length-pb.length; // 시도 전체 먼저
-    return a.localeCompare(b,"ko");
-  });};
-// 주거용 지역 3단 드롭다운: ① 시도 ② 권역(이름이 '권'·'지역'으로 끝나는 칸) ③ 세부지역(권역 아래 시·구).
-// 표마다 공표 단위가 달라(연립·오피스텔은 인천 전체만 등) 그 표에 있는 지역으로만 만들고, 고를 게 없는 칸은 회색으로 잠근다.
-const idxTree=kind=>{const D=idxData();if(!D||!D.tables[kind])return null;const rs=D.tables[kind].regions;
-  const byFull={};Object.keys(rs).forEach(k=>{byFull[rs[k].full.split(">").map(s=>s.trim()).join(">")]=k;});
-  const nodes=Object.keys(byFull).map(f=>({full:f,key:byFull[f],p:f.split(">")}));
-  const isGwon=n=>n.p.length>1&&/(권|지역)$/.test(n.p[n.p.length-1]);
-  const roots=[...new Set(nodes.map(n=>n.p[0]))].sort((a,b)=>{const ri=x=>ROOT_ORDER.findIndex(k=>x.startsWith(k)),ra=ri(a),rb=ri(b);return(ra<0?99:ra)-(rb<0?99:rb)||a.localeCompare(b,"ko");});
-  const under=(n,anc)=>n.full.startsWith(anc+">");
-  return{byFull,roots,
-    gwons:r=>nodes.filter(n=>n.p[0]===r&&isGwon(n)).sort((a,b)=>a.full.localeCompare(b.full,"ko")),
-    // 권역을 골랐으면 그 아래, 시도 전체면 어느 권역에도 안 속한 시도 바로 아래 지역(예: 인천>중구)
-    details:(r,g)=>nodes.filter(n=>n.p[0]===r&&!isGwon(n)&&n.p.length>1&&(g?under(n,g):!nodes.some(x=>isGwon(x)&&under(n,x.full))))
-      .sort((a,b)=>a.full.localeCompare(b.full,"ko"))};};
+// 주거용 지역 표: 아파트 지역 전부 + 고른 유형의 지역(집건 앱 SjRegionTable과 같은 목록). 연립·오피스텔은 구 단위 공표가 없어
+// 구를 고르면 계산 때 소속 권역·시도 지수로 대체(sjApplied) — 표에서는 그런 줄을 회색으로, 「선택」 옆에 실제 적용 지역을 알림
+const sjRegionKeys=kind=>{const D=idxData();if(!D)return[];return Object.keys({...(D.tables["아파트"]?.regions||{}),...(D.tables[kind]?.regions||{})});};
+// 이 유형 표에 그 지역이 없으면 아파트 경로를 아래→위로 거슬러 같은 시도의 권역·시도 전체 지수 키(없으면 null)
+const sjApplied=(kind,regionKey)=>{const D=idxData(),tbl=D&&D.tables[kind];if(!tbl)return null;if(tbl.regions[regionKey])return regionKey;
+  const aptReg=D.tables["아파트"]&&D.tables["아파트"].regions[regionKey];
+  const path=aptReg?aptReg.full.split(">").map(s=>s.trim()):[];
+  return [...path].reverse().find(k=>tbl.regions[k]&&tbl.regions[k].full.split(">")[0]===path[0])||null;};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터(arap_index_data.js)가 없습니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
   let rk=regionKey;const note=[];
   if(!tbl.regions[rk]){
     // 연립다세대는 권역 단위까지만 공표 → 구 선택 시 소속 권역 지수로 대체
-    const aptReg=D.tables["아파트"].regions[regionKey];
     // 아파트 지역 경로를 아래→위로 거슬러 같은 시도의 권역·시도 전체 지수를 찾음 (인천은 '인천' 전체만 공표)
-    const path=aptReg?aptReg.full.split(">").map(s=>s.trim()):[];
-    const gwon=[...path].reverse().find(k=>tbl.regions[k]&&tbl.regions[k].full.split(">")[0]===path[0]);
+    const gwon=sjApplied(kind,regionKey);
     if(gwon){rk=gwon;note.push(`※ ${kind} 지수는 ${regionKey} 단위로 공표되지 않아 ${(p=>p.length>1&&p[0]!==p[1]&&p[0].includes(p[1])?p.slice(1):p)(tbl.regions[gwon].full.split(">").map(s=>s.trim())).join(" ")} 지수를 적용함`);}
     else return{err:`${kind} 지수에 '${regionKey}' 지역이 없습니다.`};
   }
@@ -647,11 +622,13 @@ const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){console.error('ls g
 const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){console.error('ls set',e);}};
 function fillSelect(sel,opts,saved){sel.innerHTML="";opts.forEach(o=>{const el=document.createElement("option");el.value=el.textContent=o;sel.appendChild(el);});if(saved&&opts.includes(saved))sel.value=saved;}
 function refreshSelectors(){
-  if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillSelect($("region"),idxRegionList($("kind").value),lsGet(LS_REG.res));fillRegion3(lsGet(LS_REG.res));}
+  if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillResRegions(true);}
   else if(mode==="nr"){const ts=capTypeList();fillSelect($("kind"),ts.length?ts:["집합상가"],lsGet(LS_KIND.nr));fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));fillCap2(lsGet(LS_REG.nr));}
   else{fillLandSelectors();}
-  // 주거용 ①②③ / 비주거용 ①② (숨은 #region에 지역 키) / 토지 = 표 목록(역시 숨은 #region에 값)
-  $("fld-region").style.display="none";$("land-rtable").style.display=mode==="land"?"":"none";["fld-r1","fld-r2"].forEach(id=>$(id).style.display=mode==="land"?"none":"");$("fld-r3").style.display=mode==="res"?"":"none";$("pair-kind").classList.toggle("quad",mode==="res");$("pair-kind").classList.toggle("tri",mode==="nr");
+  // 주거용·토지 = 표 목록 / 비주거용 ①② (모두 숨은 #region에 지역 키)
+  const tbl=mode!=="nr";if(tbl&&$("land-rtable").dataset.mode!==mode){$("landRegQ").value="";$("land-rtable").dataset.mode=mode;}
+  $("landRegQ").placeholder=mode==="res"?"검색 (예: 강남, 분당, 완산)":"검색 (예: 완산, 수원)";
+  $("fld-region").style.display="none";$("land-rtable").style.display=tbl?"":"none";["fld-r1","fld-r2"].forEach(id=>$(id).style.display=tbl?"none":"");$("pair-kind").classList.toggle("tri",mode==="nr");
   $("lbl-r2").textContent=mode==="nr"?"② 상권":"② 권역";
   $("lbl-kind").textContent=mode==="land"?"용도지역":"유형";
   $("lbl-region").textContent=mode==="land"?"지역 (시군구)":"지역";
@@ -674,6 +651,37 @@ function fillLandSelectors(){
 // 토지 지역 표 목록: 지가변동률 지역(시도 > 시 > 구)을 지역1~지역3 칸으로 한 번에. 줄 클릭 = 선택, 검색칸은 낱말 모두 포함.
 // 시도 아래 「시지역·군지역」 묶음 줄은 그 시도 바로 다음에. 월별 표는 없음
 const LAND_ROOT_ORDER=["전국","수도권","지방","서울","경기","인천","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
+// 주거용 지역 표 — 저장값(arap-sjidx-region)을 숨은 #region에. 저장값이 이 목록에 없으면 첫 줄
+function fillResRegions(scroll){
+  const ks=sjRegionKeys($("kind").value);fillSelect($("region"),ks,lsGet(LS_REG.res));renderRegionTable(scroll);}
+const SJ_ROOT_ORDER=["전국","서울","경기","인천","수도권","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
+function renderResTable(scroll){
+  const body=$("landRegBody"),head=$("landRegHead"),D=idxData(),kind=$("kind").value;
+  body.innerHTML="";head.innerHTML="";$("landRegSel").innerHTML="";
+  if(!D){head.innerHTML="<th>지역</th>";body.innerHTML='<tr><td class="msg">지수 데이터 없음</td></tr>';return;}
+  const A=D.tables["아파트"]?.regions||{},K=D.tables[kind]?.regions||{};
+  const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
+  const rows=sjRegionKeys(kind).map(k=>({k,p:(K[k]||A[k]).full.split(">").map(x=>x.trim()),own:!!K[k]})).sort((a,b)=>{
+    const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+    for(let i=0;i<Math.min(a.p.length,b.p.length);i++)if(a.p[i]!==b.p[i])return a.p[i].localeCompare(b.p[i],"ko");
+    return a.p.length-b.p.length;});
+  const cols=Math.max(1,...rows.map(r=>r.p.length));
+  for(let i=0;i<cols;i++){const th=document.createElement("th");th.textContent="지역"+(i+1);head.appendChild(th);}
+  const q=$("landRegQ").value.trim().split(/\s+/).filter(Boolean),cur=$("region").value;
+  const shown=q.length?rows.filter(r=>q.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w))):rows;
+  let onRow=null;
+  shown.forEach(r=>{const tr=document.createElement("tr");tr.dataset.key=r.k;if(r.k===cur){tr.className="on";onRow=tr;}
+    if(!r.own)tr.title=`${kind} 지수는 이 단위로 공표되지 않아 상위 지역 지수를 씁니다`;
+    for(let i=0;i<cols;i++){const td=document.createElement("td");td.textContent=r.p[i]||"";if(!r.own)td.className="agg";tr.appendChild(td);}
+    body.appendChild(tr);});
+  if(!shown.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=cols;td.className="msg";td.textContent="찾는 지역이 없습니다";tr.appendChild(td);body.appendChild(tr);}
+  const sel=rows.find(r=>r.k===cur);
+  if(sel){$("landRegSel").append("선택: ");const b=document.createElement("b");b.textContent=sel.p.join(" > ");b.dataset.region=sel.k;$("landRegSel").appendChild(b);
+    if(!sel.own){const ap=sjApplied(kind,sel.k),sp=document.createElement("span");sp.className="rt-note";
+      sp.textContent=ap?` → ${kind} 지수는 ${(K[ap]||A[ap]).full.split(">").map(x=>x.trim()).join(" > ")} 적용`:` → ${kind} 지수 없음`;$("landRegSel").appendChild(sp);}}
+  if(scroll&&onRow){const box=$("landRegBox");box.scrollTop=onRow.offsetTop-box.clientHeight/2;}
+}
+function renderRegionTable(scroll){mode==="res"?renderResTable(scroll):renderLandTable(scroll);}
 function renderLandTable(scroll){
   const body=$("landRegBody"),head=$("landRegHead"),regs=jbState.regs||[];
   body.innerHTML="";head.innerHTML="";
@@ -697,8 +705,8 @@ function renderLandTable(scroll){
 }
 $("landRegBody").addEventListener("click",e=>{const tr=e.target.closest("tr[data-key]");if(!tr)return;
   const k=tr.dataset.key;if(![...$("region").options].some(o=>o.value===k))return;
-  $("region").value=k;lsSet(LS_REG.land,k);renderLandTable();});
-$("landRegQ").addEventListener("input",()=>renderLandTable());
+  $("region").value=k;lsSet(LS_REG[mode],k);renderRegionTable();});
+$("landRegQ").addEventListener("input",()=>renderRegionTable());
 function updateMeta(){
   const D=idxData(),C=capData();
   const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":mode==="nr"?"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)":"산정 기준 · 지가변동률 (한국부동산원, 용도지역별 월간)";
@@ -719,32 +727,11 @@ $("tab-bld").onclick=()=>setMode(lastBld);$("tab-land").onclick=()=>setMode("lan
 $("tab-res").onclick=()=>setMode("res");$("tab-nr").onclick=()=>setMode("nr");
 $("kind").onchange=()=>{lsSet(LS_KIND[mode],$("kind").value);
   if(mode==="land")return;   // 토지는 용도지역이 바뀌어도 지역 목록은 그대로
-  fillSelect($("region"),mode==="nr"?capRegionList($("kind").value):idxRegionList($("kind").value),lsGet(LS_REG[mode]));
-  if(mode==="res")fillRegion3(lsGet(LS_REG.res));else fillCap2(lsGet(LS_REG.nr));updateMeta();};
+  if(mode==="res")fillResRegions(true);else{fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));fillCap2(lsGet(LS_REG.nr));}updateMeta();};
 $("region").onchange=()=>lsSet(LS_REG[mode],$("region").value);
-// 3단 드롭다운 → 숨은 #region(지역 키)에 반영. 저장 키(arap-sjidx-region)·값 형식은 그대로
+// 숨은 #region(지역 키)에 반영. 저장 키·값 형식은 그대로
 function setOpts(sel,items,val){sel.innerHTML="";items.forEach(([v,t])=>{const el=document.createElement("option");el.value=v;el.textContent=t;sel.appendChild(el);});
   if(items.some(([v])=>v===val))sel.value=val;sel.disabled=items.length<2;}
-function fillRegion3(savedKey,level){
-  const T=idxTree($("kind").value);if(!T){[$("r1"),$("r2"),$("r3")].forEach(s=>setOpts(s,[["","지수 데이터 없음"]],""));return;}
-  let r,g,d;
-  if(savedKey!=null){
-    // 이 유형에 없는 지역(예: 연립에서 인천 서구)은 상위 지역으로 거슬러 올라감 — 다른 표의 경로를 빌려 찾음
-    const D=idxData();let full=null;
-    for(const t of [$("kind").value,...Object.keys(D.tables)]){const rg=D.tables[t]&&D.tables[t].regions[savedKey];if(rg){full=rg.full.split(">").map(x=>x.trim()).join(">");break;}}
-    while(full&&!T.byFull[full])full=full.includes(">")?full.slice(0,full.lastIndexOf(">")):null;
-    if(full){const p=full.split(">");r=p[0];const gw=T.gwons(r).filter(n=>full===n.full||full.startsWith(n.full+">"));const gn=gw[gw.length-1];
-      g=gn?gn.full:"";d=gn&&gn.full===full?"":(p.length>1?full:"");}}
-  if(level!=null){r=$("r1").value;g=level>=2?$("r2").value:"";d=level>=3?$("r3").value:"";}
-  if(!r||!T.roots.includes(r))r=T.roots[0];
-  setOpts($("r1"),T.roots.map(x=>[x,x]),r);r=$("r1").value;
-  const GW=T.gwons(r);
-  setOpts($("r2"),[["",GW.length?`${r} 전체`:"해당 없음"],...GW.map(n=>[n.full,n.p[n.p.length-1]])],g||"");g=$("r2").value;
-  const DT=T.details(r,g);const base=g||r;
-  setOpts($("r3"),[["",DT.length?`${g?g.split(">").pop():r} 전체`:"해당 없음"],...DT.map(n=>[n.full,n.full.slice(base.length+1).split(">").join(" ")])],d||"");d=$("r3").value;
-  const key=T.byFull[d||g||r];
-  if(key){if(![...$("region").options].some(o=>o.value===key))fillSelect($("region"),idxRegionList($("kind").value));$("region").value=key;if(level!=null)lsSet(LS_REG.res,key);}
-}
 // 비주거용 2단: ① 시도 → ② 상권. 저장값(arap-nrcap-region)은 지역 키 그대로, 이 유형에 없으면 같은 시도 전체(없으면 첫 시도)
 function fillCap2(savedKey,level){
   const k=$("kind").value,gs=capGroups(k);
@@ -757,9 +744,8 @@ function fillCap2(savedKey,level){
   const subs=capSubs(k,g);setOpts($("r2"),subs.map(x=>[x,capSubLabel(g,x)]),subs.includes(r)?r:subs[0]);
   const key=$("r2").value;if(key){$("region").value=key;if(level!=null)lsSet(LS_REG.nr,key);}
 }
-$("r1").onchange=()=>mode==="nr"?fillCap2(null,1):fillRegion3(null,1);
-$("r2").onchange=()=>mode==="nr"?fillCap2(null,2):fillRegion3(null,2);
-$("r3").onchange=()=>fillRegion3(null,3);
+$("r1").onchange=()=>fillCap2(null,1);
+$("r2").onchange=()=>fillCap2(null,2);
 let calcBusy=false;
 $("btn-calc").onclick=async()=>{
   if(calcBusy)return;

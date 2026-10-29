@@ -2,7 +2,7 @@
 // 부동산원은 2026년부터 전남·광주를 「전남광주」 아래에 묶어 공표(전남광주>전남>여수시, 전남광주>광주>서구).
 // ① 집건(단일·여러호수)·입주권 detectSjRegion: 「전라북도 전주시 완산구」 → 완산구, 구 없는 시(여수시), 지수 없는 군 → 시도 전체,
 //    광주 주소 → 전남광주 아래 광주 구(대구 서구와 안 섞임)
-// ② 시점수정 계산기(arm_시점수정.html): ① 시도에 전북·전남광주, 산식 지역 표기 「전북 완산구」「전남 여수시」(전남광주 안 붙임)
+// ② 시점수정 계산기(arm_시점수정.html): 지역 표 시도 순서에 전북·전남광주, 산식 지역 표기 「전북 완산구」「전남 여수시」(전남광주 안 붙임)
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..');
@@ -50,19 +50,14 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/,r=>r.abort());
   await ctx.addInitScript(()=>{try{localStorage.setItem('arap-user-name','테스트');}catch(e){}});
   const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
-  await p.goto(base+'/'+encodeURI('arm_시점수정.html'));await p.waitForSelector('#r1');
-  const st=()=>p.evaluate(()=>{const g=id=>document.getElementById(id);const o=s=>[...s.options].map(x=>x.textContent);
-    return {r1:g('r1').value,d3:g('r3').disabled,o1:o(g('r1')),o3:o(g('r3')),region:g('region').value};});
-  let s=await st();
-  assert.deepEqual(s.o1,['서울','경기','인천','부산','대구','대전','울산','세종','강원','충북','충남','전북','전남광주','경북','경남','제주'],'시도 순서: '+s.o1);
-  await p.selectOption('#r1',{label:'전북'});s=await st();assert.equal(s.d3,false);
-  for(const g of ['완산구','덕진구','군산시'])assert.ok(s.o3.some(x=>x.includes(g)),'③에 '+g+': '+s.o3);
-  await p.selectOption('#r3',{label:s.o3.find(x=>x.includes('완산구'))});s=await st();assert.equal(s.region,'완산구');
+  await p.goto(base+'/'+encodeURI('arm_시점수정.html'));await p.waitForSelector('#landRegBody tr[data-key]');
+  const roots=await p.locator('#landRegBody tr[data-key]').evaluateAll(t=>[...new Set(t.map(x=>x.cells[0].textContent))]);
+  assert.deepEqual(roots,['서울','경기','인천','부산','대구','대전','울산','세종','강원','충북','충남','전북','전남광주','경북','경남','제주'],'시도 순서: '+roots);
+  await p.fill('#landRegQ','완산');await p.click('#landRegBody tr[data-key="완산구"]');assert.equal(await p.inputValue('#region'),'완산구');
+  assert.equal(await p.locator('#landRegSel b').textContent(),'전북 > 전주시 > 완산구');
   await p.fill('#tradeDate','2025.03.10');await p.fill('#baseDate','2026.08.01');await p.click('#btn-calc');
   assert.match(await p.inputValue('#resultText'),/지역 : 전북 완산구\n/);
-  await p.selectOption('#r1',{label:'전남광주'});s=await st();
-  assert.ok(s.o3.some(x=>x.includes('여수시')),'③에 여수시: '+s.o3);
-  await p.selectOption('#r3',{label:s.o3.find(x=>x.includes('여수시'))});await p.click('#btn-calc');
+  await p.fill('#landRegQ','여수');await p.click('#landRegBody tr[data-key="여수시"]');await p.click('#btn-calc');
   assert.match(await p.inputValue('#resultText'),/지역 : 전남 여수시\n/);
   assert.deepEqual(errs,[]);console.log('arm_시점수정 OK');
   console.log('PASS');
