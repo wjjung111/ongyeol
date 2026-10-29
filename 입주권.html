@@ -1602,6 +1602,8 @@ async function buildTokenHwpx(tplB64,tokenMap,blue2black,opts){
   for(const e of entries){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
+      // 시점수정 표 산출내역: 템플릿에 고정된 「서울 > 강남지역 > 동남권 > {{시점_지역}}」 → 사례별 실제 지수 경로 한 토큰(전북 > 전주시 > 완산구)
+      if(colorOpinion)xml=xml.replace(/서울 &gt; 강남지역 &gt; 동남권 &gt; \{\{시점_지역\}\}(<hp:lineBreak\/>\(\{\{시점_(가|나)_)/g,"{{시점_$2_지역}}$1");
       if(colorOpinion)xml=ipjLabelFactorNotes(xml);
       if(opts&&opts.opinion)xml=ipjApplyOpinionDoc(xml,opts.opinion);       // 의견서 4·5·6 문단·병기·별첨·환급금 표 머리(문구 엔진)
       if(opts&&opts.gwalhoCond)xml=ipjCellAfterLabel(xml,"감정평가조건",opts.gwalhoCond);
@@ -1783,6 +1785,20 @@ const ipjCalc=(ov,cases)=>{
 
 // ────────────────────────── 토큰맵 (5종 템플릿 공통) ──────────────────────────
 const ipjYmKor=s=>{const m=String(s||"").match(/(\d{4})[.\-](\d{1,2})/);return m?m[1]+"년 "+String(parseInt(m[2],10)).padStart(2,"0")+"월":"";};
+// 시점수정 표 산출내역의 지수 지역 경로(「서울 > 강남지역 > 동남권 > 서초구」「전북 > 전주시 > 완산구」).
+// ② 시점수정 지역에 적었으면 그 값(지수 지역이면 경로로 펼침), 아니면 그 사례 시점수정 산식의 「지역 : …」, 그것도 없으면 소재지로 자동인식
+const ipjSjPath=(c,ov)=>{
+  const D=idxData();const trimRoot=p=>p.length>1&&p[0]!==p[1]&&p[0].includes(p[1])?p.slice(1):p;   // 전남광주>전남>여수시 → 전남>여수시
+  const segs=(t,k)=>trimRoot(t.regions[k].full.split(">").map(x=>x.trim()));
+  const pathOf=(t,k)=>segs(t,k).join(" > ");const apt=D&&D.tables["아파트"];
+  const manual=String(ov.sijeomRegion||"").trim();
+  if(manual){if(!apt)return manual;const k=apt.regions[manual]?manual:detectSjRegion(manual);return k?pathOf(apt,k):manual;}
+  const d=parseTimeAdjDetail((c&&c.timeAdjDetail)||"");
+  if(d.지역&&D){const disp=p=>p[0]===p[p.length-1]?p[0]:p[0]+" "+p[p.length-1];
+    for(const t of [D.tables[d.유형],apt].filter(Boolean)){const k=Object.keys(t.regions).find(k=>disp(segs(t,k))===d.지역);if(k)return pathOf(t,k);}
+    return d.지역;}
+  const k=apt&&detectSjRegion(c&&c.location,ov.jibun,ov.projLoc,ov.sigungu);return k?pathOf(apt,k):(ov.sigungu||"");
+};
 const ipjSjFields=(c,ov)=>{
   if(!c)return{거래월:"",거래지수:"",기준월:"",기준지수:"",상승률:"",시점수정치:""};
   const d=parseTimeAdjDetail(c.timeAdjDetail||"",c.tradeDate,ov.baseDate)||{};
@@ -1906,7 +1922,8 @@ function buildIpjMap(ov,cases){
   };
   selFill(gaCaseUse,"선정가사례_"); selFill(naCaseUse,"선정나사례_");
   // 의견서 — 시점수정
-  m["시점_지역"]=ov.sijeomRegion||ov.sigungu||"";
+  m["시점_가_지역"]=ipjSjPath(gaCaseUse,ov); m["시점_나_지역"]=naCaseUse?ipjSjPath(naCaseUse,ov):m["시점_가_지역"];
+  m["시점_지역"]=m["시점_가_지역"];
   const sj=(sj,pre)=>{m[pre+"_거래월"]=sj.거래월;m[pre+"_거래지수"]=sj.거래지수;m[pre+"_기준월"]=sj.기준월;m[pre+"_기준지수"]=sj.기준지수;m[pre+"_상승률"]=sj.상승률;m[pre+"_시점수정치"]=sj.시점수정치;};
   sj(sjGa,"시점_가"); sj(sjNa,"시점_나");
   // 의견서 거래사례 목록표에서 굵게 할 행(선정 사례의 ㉠~㉣ 자리 번호 1~4)
