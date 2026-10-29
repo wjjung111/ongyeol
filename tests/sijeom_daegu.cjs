@@ -28,7 +28,7 @@ for(const f of ['s3r86w8a.html','입주권.html']){
     t('강남구','서울특별시 강남구 압구정동');
     t('분당구','경기도 성남시 분당구 정자동');
     t('수성구','수성구 범어동');               // 시도 없이 구만
-    t(null,'부산광역시 남구 대연동');           // 부산은 지수 없음 → 대구 남구로 잡지 않음
+    t('부산 남구','부산광역시 남구 대연동');          // 2026-10-29 전국 확대로 부산도 지수 있음
   }
   assert.ok(n>=1,f+' detectSjRegion 없음');console.log(f,'detect',n,'벌 OK');
 }
@@ -48,7 +48,7 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   const st=()=>p.evaluate(()=>{const g=id=>document.getElementById(id);const o=s=>[...s.options].map(x=>x.textContent);
     return {r1:g('r1').value,d2:g('r2').disabled,d3:g('r3').disabled,o1:o(g('r1')),o3:o(g('r3')),region:g('region').value};});
   let s=await st();
-  assert.deepEqual(s.o1.slice(0,4),['서울','경기','인천','대구'],'시도 순서(아파트엔 수도권 없음): '+s.o1);
+  assert.deepEqual(s.o1.slice(0,5),['서울','경기','인천','부산','대구'],'시도 순서(아파트엔 수도권 없음): '+s.o1);
   await p.selectOption('#r1',{label:'대구'});s=await st();
   assert.equal(s.d2,true,'대구는 권역 없음');assert.equal(s.d3,false);
   for(const g of ['수성구','달성군'])assert.ok(s.o3.some(x=>x.includes(g)),'③에 '+g+': '+s.o3);
