@@ -23,7 +23,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
       await scope.getByText('3. 사례 등 입력',{exact:true}).click({timeout:60000});
       await scope.getByLabel('거래사례 #1 시점수정 단가').locator('xpath=preceding-sibling::td[1]').click();
-      await page.waitForSelector('text=지수 자동계산');
+      await page.waitForSelector('text=시점수정치 계산');
       const region=()=>page.locator('[data-region]').getAttribute('data-region');
       // 표 머리 지역1~지역4, 월별 지수표(1월~12월) 없음
       const heads=await page.locator('th').evaluateAll(t=>t.map(x=>x.textContent));
@@ -37,7 +37,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       // 검색 → 클릭 → 계산
       await page.getByLabel('시점수정 지역 검색').fill('해운대');assert.equal(await rows.count(),1);
       await rows.first().click();assert.equal(await region(),'해운대구');
-      await page.locator('div:has(> b:text("지수 자동계산")) button:text-is("계산")').click();
+      await page.locator('button:text-is("시점수정치 계산")').click();
       assert.match((await page.locator('textarea').evaluateAll(t=>t.map(x=>x.value).filter(v=>/지역 :/.test(v))))[0]||'',/지역 : 부산 해운대구\n/);
       await page.getByLabel('시점수정 지역 검색').fill('없는지역xyz');assert.ok(await page.locator('text=찾는 지역이 없습니다').isVisible());
       // 연립다세대: 연립 표에 있는 지역(권역 단위)만, 지역1~지역3. 골라 둔 해운대구는 소속 권역 줄이 선택으로(계산도 그 권역)

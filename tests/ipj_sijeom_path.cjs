@@ -31,11 +31,10 @@ function unzip(buf){const files={};let p=0;
     await page.click('text=① 대상물건개요');await page.locator('div:has(> span:text-is("시점수정 지역")) input').first().fill('');
     await page.click('text=④ 가격산출');
     const tds=page.locator('td[title="클릭해서 시점수정치 입력"]:visible');const n=await tds.count();assert.ok(n>0);
-    for(let i=0;i<n;i++){await tds.nth(i).click();await page.waitForSelector('text=지수 자동계산');
-      const steps=page.locator('select[aria-label^="시점수정 지역"]');
-      for(const [j,v] of [[0,'전북'],[1,'전주시'],[2,'완산구']].entries())await steps.nth(v[0]).selectOption(v[1]);
-      await page.locator('div:has(> b:text("지수 자동계산")) button:text-is("계산")').click();
-      await page.locator('button:text-is("적용")').click();await page.waitForSelector('text=지수 자동계산',{state:'detached'});}
+    for(let i=0;i<n;i++){await tds.nth(i).click();await page.waitForSelector('text=시점수정치 계산');
+      await page.getByLabel('시점수정 지역 검색').fill('완산');await page.locator('tr[data-key="완산구"]').click();   // 지역 = 표 목록
+      await page.locator('button:text-is("시점수정치 계산")').click();
+      await page.locator('button:text-is("적용")').click();await page.waitForSelector('text=시점수정치 계산',{state:'detached'});}
     x=await opinion('b.hwpx');
     assert.deepEqual([...new Set(cellsOf(x))],['전북 &gt; 전주시 &gt; 완산구'],'전주 산출내역');
     assert.doesNotMatch(x,/강남지역 &gt; 동남권/);assert.doesNotMatch(x,/\{\{[^}]+\}\}/,'미치환 토큰');

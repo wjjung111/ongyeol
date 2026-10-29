@@ -1063,25 +1063,45 @@ const getTotalDeskPrice=(ov)=>{
   return pNum(ov.deskPrice)||0;
 };
 
-// 시점수정 지역 단계 선택: 시도 → 권역 → 시 → 구 (지수 경로 그대로, 한 단계 고르면 다음 칸이 열림). 「전체」 = 그 윗단계 지수
+// 시점수정 지역 표 목록(집건 앱 SjRegionTable 복사 — 고치면 양쪽): 지역1~지역4 칸, 검색, 줄 클릭. 연립은 권역 단위만
 const SJ_ROOT_ORDER=["서울","경기","인천","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
-function SjRegionPick({value,onChange}){
-  const D=idxData();if(!D)return null;const rs=D.tables["아파트"].regions;
-  const segs=k=>rs[k].full.split(">").map(x=>x.trim());
-  const byFull={};Object.keys(rs).forEach(k=>{byFull[segs(k).join(">")]=k;});const fulls=Object.keys(byFull).map(f=>f.split(">"));
-  const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
-  const kids=pre=>fulls.filter(p=>p.length===pre.length+1&&pre.every((x,i)=>p[i]===x)).map(p=>p[p.length-1])
-    .sort((a,b)=>pre.length?a.localeCompare(b,"ko"):(rank(a)-rank(b)||a.localeCompare(b,"ko")));
-  const cur=rs[value]?segs(value):[];const levels=[];
-  for(let d=0;;d++){const pre=cur.slice(0,d),ks=kids(pre);if(!ks.length)break;levels.push({pre,ks,sel:cur[d]||""});if(d>=cur.length)break;}
-  const pick=(pre,v)=>{const k=byFull[(v?[...pre,v]:pre).join(">")];if(k)onChange(k);};
-  const lab=["시도","권역","세부지역","구"];
-  return(<span data-region={value} style={{display:"inline-flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
-    {levels.map((L,d)=><select key={d} aria-label={"시점수정 지역 "+(d+1)+"단계"} title={lab[d]||"지역"} style={{...S.sel2,width:"auto",minWidth:72}} value={L.sel} onChange={e=>pick(L.pre,e.target.value)}>
-      {d===0?(!L.sel&&<option value="">시도</option>):<option value="">{(L.pre[L.pre.length-1]||"")+" 전체"}</option>}
-      {L.ks.map(o=><option key={o} value={o}>{o}</option>)}
-    </select>)}
-  </span>);
+function SjRegionTable({kind,value,onChange}){
+  const [q,setQ]=React.useState("");const boxRef=React.useRef(null);const selRef=React.useRef(null);
+  const D=idxData();
+  // 연립다세대·오피스텔은 그 유형에 실제 있는 지역(권역 단위)만 — 구 이름(강남구)으로 찾으면 그 구가 속한 권역 줄이 나온다(sjApplied, 2026-10-29)
+  const {rows,applied}=React.useMemo(()=>{if(!D)return{rows:[],applied:k=>k};const A=D.tables["아파트"]?.regions||{},own=kind==="아파트"?A:(D.tables[kind]?.regions||{});
+    const applied=k=>{if(own[k])return k;const p=(A[k]?.full||"").split(">").map(x=>x.trim());return [...p].reverse().find(x=>own[x]&&own[x].full.split(">")[0]===p[0])||null;};
+    const al={};Object.keys(A).forEach(a=>{if(own[a])return;const ap=applied(a);if(ap)(al[ap]=al[ap]||[]).push(a);});
+    const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
+    const rs=Object.keys(own).map(k=>({k,p:own[k].full.split(">").map(x=>x.trim()),al:al[k]||[]}));
+    return {rows:rs.sort((a,b)=>{const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+      for(let i=0;i<Math.min(a.p.length,b.p.length);i++){if(a.p[i]!==b.p[i])return a.p[i].localeCompare(b.p[i],"ko");}
+      return a.p.length-b.p.length;}),applied};},[D,kind]);
+  React.useEffect(()=>{const b=boxRef.current,r=selRef.current;if(b&&r)b.scrollTop=r.offsetTop-b.clientHeight/2;},[kind]);
+  if(!D)return null;
+  const qs=q.trim().split(/\s+/).filter(Boolean);
+  const hitAl=r=>qs.length?r.al.filter(a=>qs.some(w=>a.includes(w))):[];
+  const shown=qs.length?rows.filter(r=>qs.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w)||r.al.some(a=>a.includes(w)))):rows;
+  const vk=applied(value)||value;   // 연립에서 구(강남구)가 골라져 있으면 그 권역 줄을 선택으로 보여 줌 — 계산도 그 권역 지수
+  const cols=Math.max(1,...rows.map(r=>r.p.length));const cur=rows.find(r=>r.k===vk);
+  const th={position:"sticky",top:0,background:"#e2e8f0",padding:"4px 6px",textAlign:"left",fontWeight:600,borderBottom:"1px solid #cbd5e1"};
+  return(<div style={{marginTop:6}}>
+    <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:4}}>
+      <input aria-label="시점수정 지역 검색" value={q} onChange={e=>setQ(e.target.value)} placeholder="지역 검색 (예: 완산, 해운대)" style={{...S.inp,fontSize:12,padding:"3px 6px",width:170}}/>
+      <span style={{color:"#334155"}}>선택: <b data-region={value}>{cur?cur.p.join(" > "):value||"-"}</b>{cur&&vk!==value&&<span style={{color:"#64748b"}}> ({value} — {kind} 지수는 이 단위로 공표)</span>}</span>
+    </div>
+    <div ref={boxRef} style={{maxHeight:240,overflowY:"auto",border:"1px solid #cbd5e1",borderRadius:4,background:"#fff",position:"relative"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr>{Array.from({length:cols},(_,i)=><th key={i} style={th}>{"지역"+(i+1)}</th>)}</tr></thead>
+        <tbody>{shown.map(r=>{const on=r.k===vk,ha=hitAl(r);return(<tr key={r.k} ref={on?selRef:null} data-key={r.k} onClick={()=>onChange(r.k)}
+          style={{cursor:"pointer",background:on?"#dbeafe":"transparent",fontWeight:on?700:400}}
+          onMouseEnter={e=>{if(!on)e.currentTarget.style.background="#f1f5f9";}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}>
+          {Array.from({length:cols},(_,i)=><td key={i} style={{padding:"3px 6px",borderBottom:"1px solid #f1f5f9",color:i<r.p.length?"#0f172a":"#cbd5e1"}}>{r.p[i]||""}{i===r.p.length-1&&ha.length>0&&<span style={{color:"#64748b",fontWeight:400}}> · {ha.join(", ")} 포함</span>}</td>)}
+        </tr>);})}
+        {!shown.length&&<tr><td colSpan={cols} style={{padding:8,color:"#94a3b8"}}>찾는 지역이 없습니다</td></tr>}</tbody>
+      </table>
+    </div>
+  </div>);
 }
 function SijeomModal({c,ov,onApply,onClose,propType}){
   const [tmpTime,setTmpTime]=useState(c.timeAdjDetail||"");
@@ -1094,46 +1114,64 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
   const check=text=>{const ws=[];const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm){const cd=normD(fmtDate(c.tradeDate)),td=normD(tm[1]);if(cd&&td&&cd!==td)ws.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}
     const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm&&ov.baseDate){const ob=normD(ov.baseDate),tb=normD(bm[1]);if(ob&&tb&&ob!==tb)ws.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setWarns(ws);};
   useEffect(()=>{if(c.timeAdjDetail)check(c.timeAdjDetail);},[]);
-  const D=idxData();
+  // 계산기(arm_시점수정.html) 화면처럼 왼쪽 입력(유형·지역 표·거래/기준시점) / 오른쪽 결과(시점수정치 크게·산식). 날짜 칸은 이 창에서만 쓰는 값(사례·개요는 안 바꿈)
+  const [td,setTd]=useState(()=>fmtDate(c.tradeDate)||"");
+  const [bd,setBd]=useState(()=>ov.baseDate||"");
+  const D=idxData(),CD=capData(),nr=propType==="비주거용";
+  const B={p:{background:C.acc,color:"#fff",border:`1px solid ${C.acc}`},s:{background:"#fff",color:"#1e293b",border:"1px solid #cbd5e1"},off:{background:"#cbd5e1",color:"#fff",border:"1px solid #cbd5e1"}};
+  const lab={display:"block",fontSize:12,fontWeight:600,color:"#64748b",margin:"10px 0 4px"};
+  const sec={fontSize:12,fontWeight:700,color:"#64748b",paddingBottom:8,marginBottom:4,borderBottom:"1px solid #e2e8f0"};
+  const ready=nr?!!CD:!!D,v=parseTA(tmpTime);
+  const calc=()=>{const r=nr?buildNrCapText(nrCapKind,nrCapRegion,td,bd):buildSjIdxText(kind,region,td,bd);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}};
   return(<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}>
-    <div style={{background:"#fff",borderRadius:8,padding:20,width:"90%",maxWidth:540}} onClick={e=>e.stopPropagation()}>
+    <div style={{background:"#fff",borderRadius:8,padding:20,width:"94%",maxWidth:1000,maxHeight:"94vh",overflowY:"auto",boxSizing:"border-box"}} onClick={e=>e.stopPropagation()}>
       <div style={S.h3}>시점수정치 — 사례 #{c.symbol}</div>
-      {propType==="비주거용"?(()=>{const CD=capData();const types=capTypeList();const cregs=capRegionList(nrCapKind);
-        return(<div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#eef2ff",border:"1px solid #c7d2fe",borderRadius:6}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12}}>
-            <b style={{color:C.pri}}>자본수익률 자동계산</b>
-            <select style={{...S.sel2,width:120}} value={nrCapKind} onChange={e=>{const k=e.target.value;setNrCapKind(k);try{localStorage.setItem("arap-nrcap-kind",k);}catch(err){console.error('nrcap kind save',err);}const nr=capPickRegion(k,nrCapRegion);if(nr!==nrCapRegion){setNrCapRegion(nr);try{localStorage.setItem("arap-nrcap-region",nr);}catch(err){console.error('nrcap region save',err);}}}}>
+      <div style={{display:"flex",gap:24,flexWrap:"wrap",marginTop:8}}>
+        <div style={{flex:"1 1 440px",minWidth:0}}>
+          <div style={sec}>입력 · {nr?"자본수익률 (상업용부동산 임대동향조사)":"매매가격지수 (한국부동산원)"}</div>
+          {nr?(()=>{const types=capTypeList();return(<>
+            <label style={lab}>유형</label>
+            <select style={{...S.sel2,width:200}} value={nrCapKind} onChange={e=>{const k=e.target.value;setNrCapKind(k);try{localStorage.setItem("arap-nrcap-kind",k);}catch(err){console.error('nrcap kind save',err);}const r2=capPickRegion(k,nrCapRegion);if(r2!==nrCapRegion){setNrCapRegion(r2);try{localStorage.setItem("arap-nrcap-region",r2);}catch(err){console.error('nrcap region save',err);}}}}>
               {(types.length?types:["집합상가"]).map(o=><option key={o} value={o}>{o}</option>)}
             </select>
-            <NrCapRegionSel kind={nrCapKind} value={nrCapRegion} onChange={v=>{setNrCapRegion(v);try{localStorage.setItem("arap-nrcap-region",v);}catch(err){console.error('nrcap region save',err);}}}/>
-            <button style={{...S.btn,background:CD?C.acc:"#cbd5e1",color:"#fff"}} disabled={!CD}
-              onClick={()=>{const r=buildNrCapText(nrCapKind,nrCapRegion,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
+            <label style={lab}>지역</label>
+            <NrCapRegionSel kind={nrCapKind} value={nrCapRegion} onChange={x=>{setNrCapRegion(x);try{localStorage.setItem("arap-nrcap-region",x);}catch(err){console.error('nrcap region save',err);}}}/>
+          </>);})():(<>
+            <label style={lab}>유형</label>
+            <select aria-label="시점수정 유형" style={{...S.sel2,width:200}} value={kind} onChange={e=>{setKind(e.target.value);try{localStorage.setItem("arap-sjidx-kind",e.target.value);}catch(err){console.error('sjidx kind save',err);}}}>
+              {["아파트","연립다세대"].map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+            <label style={{...lab,marginBottom:0}}>지역</label>
+            <SjRegionTable kind={kind} value={region} onChange={x=>{setRegion(x);try{localStorage.setItem("arap-sjidx-region",x);}catch(err){console.error('sjidx region save',err);}}}/>
+          </>)}
+          <div style={{display:"flex",gap:12,marginTop:4}}>
+            <div style={{flex:1}}><label style={lab}>거래시점 (사례)</label><input aria-label="시점수정 거래시점" style={{...S.inp,width:"100%",boxSizing:"border-box"}} value={td} onChange={e=>setTd(autoDateFmt(e.target.value))} placeholder="YYYY.MM.DD"/></div>
+            <div style={{flex:1}}><label style={lab}>기준시점</label><input aria-label="시점수정 기준시점" style={{...S.inp,width:"100%",boxSizing:"border-box"}} value={bd} onChange={e=>setBd(autoDateFmt(e.target.value))} placeholder="YYYY.MM.DD"/></div>
           </div>
-          <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-            {CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>사례 거래시점·개요 기준시점을 미리 채움 · 20260501 처럼 숫자만 쳐도 됩니다</div>
+          {[[td,fmtDate(c.tradeDate),"사례 거래시점"],[bd,ov.baseDate,"개요 기준시점"]].filter(([x,y])=>y&&normD(x)!==normD(y)).map(([x,y,l])=><div key={l} style={{fontSize:12,color:"#b45309",marginTop:3}}>⚠️ {l}({normD(y)})과 다른 날짜로 계산합니다</div>)}
+          <div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
+            <button style={{...S.btn,...(ready?B.p:B.off),padding:"8px 18px"}} disabled={!ready} onClick={calc}>시점수정치 계산</button>
           </div>
-        </div>);})():(
-      <div style={{margin:"6px 0 10px",padding:"8px 10px",background:"#f0f7ff",border:"1px solid #bfdbfe",borderRadius:6}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12}}>
-          <b style={{color:C.pri}}>지수 자동계산</b>
-          <select style={{...S.sel2,width:100}} value={kind} onChange={e=>{setKind(e.target.value);try{localStorage.setItem("arap-sjidx-kind",e.target.value);}catch(err){console.error('sjidx kind save',err);}}}>
-            {["아파트","연립다세대"].map(o=><option key={o} value={o}>{o}</option>)}
-          </select>
-          <SjRegionPick value={region} onChange={v=>{setRegion(v);try{localStorage.setItem("arap-sjidx-region",v);}catch(err){console.error('sjidx region save',err);}}}/>
-          <button style={{...S.btn,background:D?C.acc:"#cbd5e1",color:"#fff"}} disabled={!D}
-            onClick={()=>{const r=buildSjIdxText(kind,region,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
+          <div style={{marginTop:6,fontSize:11,color:"#64748b"}}>
+            {nr?(CD?`자본수익률: ${capLatestDisp(nrCapKind)||"-"} 공표분까지 (${CD.fetchedAt} 수신) · 거래시점→기준시점 자동산식`:"자본수익률 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다")
+              :(D?`부동산원 지수: ${idxYmDisp((D.tables[kind]||D.tables["아파트"]).latest)} 공표분까지 (${D.tables[kind]?.fetchedAt||D.fetchedAt} 수신) · 거래·기준시점 모두 전월 지수 적용`:"지수 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다")}
+          </div>
         </div>
-        <div style={{marginTop:4,fontSize:11,color:"#64748b"}}>
-          {D?`부동산원 지수: ${idxYmDisp(D.tables["아파트"].latest)} 공표분까지 (${D.fetchedAt} 수신)`:"지수 데이터 없음 — 'ARM 실행.bat'으로 앱을 열면 자동 수신됩니다"}
+        <div style={{flex:"1 1 340px",minWidth:0,display:"flex",flexDirection:"column"}}>
+          <div style={sec}>결과</div>
+          <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginTop:10}}>시점수정치</div>
+          <div aria-label="시점수정치 결과" style={{fontSize:34,fontWeight:800,color:v?"#1e3a5f":"#cbd5e1",lineHeight:1.2}}>{v?fmtDec(v,5):"-"}</div>
+          <div style={{fontSize:11,color:"#94a3b8"}}>{v?"여섯째 자리에서 반올림":"계산 버튼을 누르거나 산식을 붙여넣으세요"}</div>
+          <label style={{...lab,marginTop:14}}>산식 (직접 고치거나 붙여넣기 가능)</label>
+          <textarea style={{...S.ta,height:200,flex:"1 1 auto"}} value={tmpTime} onChange={e=>{setTmpTime(e.target.value);check(e.target.value);}}
+            placeholder={"아파트\n지역 :서울특별시 강동구(...)\n...\n시점수정치 : 106.6/100.4≒1.06175"}/>
+          {warns.length>0&&<div style={{marginTop:6}}>{warns.map((w,i)=><div key={i} style={{padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:4,color:"#dc2626",fontSize:12,fontWeight:600,marginBottom:4}}>{w}</div>)}</div>}
         </div>
-      </div>)}
-      <textarea style={{...S.ta,height:140}} value={tmpTime} onChange={e=>{setTmpTime(e.target.value);check(e.target.value);}}
-        placeholder={"아파트\n지역 :서울특별시 강동구(...)\n...\n시점수정치 : 106.6/100.4≒1.06175"}/>
-      {warns.length>0&&<div style={{marginTop:6}}>{warns.map((w,i)=><div key={i} style={{padding:"6px 10px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:4,color:"#dc2626",fontSize:12,fontWeight:600,marginBottom:4}}>{w}</div>)}</div>}
-      <div style={{marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span style={{fontSize:12}}>인식: <b style={{color:C.acc}}>{parseTA(tmpTime)?fmtDec(parseTA(tmpTime),5):"없음"}</b></span>
-        <div style={{display:"flex",gap:6}}><button style={{...S.btn,background:"#e2e8f0",color:"#555"}} onClick={onClose}>취소</button>
-          <button style={{...S.btn,background:C.pri,color:"#fff"}} onClick={()=>onApply(tmpTime)}>적용</button></div>
+      </div>
+      <div style={{marginTop:14,display:"flex",justifyContent:"flex-end",gap:6}}>
+        <button style={{...S.btn,...B.s}} onClick={onClose}>취소</button>
+        <button style={{...S.btn,...B.p}} onClick={()=>onApply(tmpTime)}>적용</button>
       </div></div></div>);
 }
 
