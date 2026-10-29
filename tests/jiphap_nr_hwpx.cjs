@@ -29,8 +29,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const idx=await scope.locator('tr').evaluateAll(trs=>trs.findIndex(tr=>{const c=tr.querySelectorAll(':scope > td')[2];const b=c&&c.querySelector('input[type=checkbox]');return !!(b&&b.checked&&/^#\d/.test((tr.querySelectorAll(':scope > td')[3]||{}).textContent||''));}));
     assert.ok(idx>=0,'선정 사례 행');
     await scope.locator('tr').nth(idx).locator('td[style*="cursor: pointer"]').first().click();
-    const modal=scope.locator('div[style*="max-width: 540px"]').filter({hasText:'시점수정치 — 사례'});await modal.waitFor();
-    await modal.locator('button',{hasText:/^계산$/}).click();
+    const modal=page.locator('div[style*="max-width: 1000px"]').filter({hasText:'시점수정치 — 사례'});await modal.waitFor();   // 계산기 화면처럼(2026-10-29)
+    await modal.locator('button',{hasText:/^시점수정치 계산$/}).click();
     assert.match(await modal.locator('textarea').inputValue(),/^집합상가\n지역 : 서울/,'자본수익률 산식이 칸에');
     await modal.locator('button',{hasText:/^적용$/}).click();
     await scope.getByText('4. 가격산출',{exact:true}).click();
