@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Ongyeol — 건축물대장 조회
+  건축물대장 조회
   지번 입력 → V-World로 PNU 확인 → 국토부 건축HUB(표제부·층별개요·지역지구) 조회
   KAIS 건축물대장(일반) 화면과 같은 구성으로 보여주고, 층별현황은 엑셀로 그대로 복사된다.
   Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
@@ -10,16 +10,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>건축물대장 조회</title>
+<link rel="stylesheet" href="arap_tool.css"><!-- 단독 도구 공통 상단바·서명·글꼴·색 -->
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  body{background:var(--t-bg);font-family:var(--t-font);color:var(--t-ink);font-size:13px;line-height:1.5;}
   input:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
-  #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
-  #mode-bar .mb-title{color:#e2e8f0;font-weight:700;font-size:13px;}
-  #mode-bar a{border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
-  #mode-bar a:hover{border-color:#2563eb;color:#fff;}
   .wrap{max-width:1500px;margin:12px auto;padding:0 12px;}
-  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:12px 14px;margin-bottom:10px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:var(--t-radius);padding:12px 14px;margin-bottom:10px;}
   .card h2{font-size:13px;font-weight:700;color:#1a2744;margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   input[type=text]{font:inherit;font-size:13px;padding:6px 9px;border:1px solid #e2e5ea;border-radius:3px;}
@@ -42,7 +39,6 @@
   .note{background:#f6f8fa;border:1px solid #e2e5ea;border-left:3px solid #94a3b8;border-radius:4px;padding:7px 11px;font-size:11px;color:#475569;margin-top:8px;}
   #result{display:none;}
   .hl{background:#fff9e6;font-weight:700;}
-  .foot{text-align:center;color:#94a3b8;font-size:11px;padding:8px;}
   #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
   #fallbackPanel textarea{width:100%;font:inherit;font-size:11px;padding:7px;border:1px solid #e2e5ea;border-radius:4px;}
@@ -51,10 +47,10 @@
 <body>
 <script>window.ARAP_NAME_ICON='🏢';window.ARAP_NAME_SUB='건축물대장 간편조회';</script><script src="arap_name.js"></script><!-- 접속코드 없이 사용자 이름만 최초 1회 입력 (이름 없으면 화면 안 열림) -->
 <script>window.ARAP_VISIT_PAGE='건축물대장';</script><script src="arap_visit.js"></script><!-- 접속·조회 기록 → 관리자 「건축물대장」 탭 -->
-<div id="mode-bar">
-  <span class="mb-title">🏢 건축물대장 조회</span>
-  <span id="arap-name-badge" style="margin-left:auto;color:#94a3b8;font-size:12px;"></span>
-</div>
+<header class="ttop">
+  <span class="tb-title"><span class="tb-ico">🏢</span>건축물대장 조회</span>
+  <span class="tb-right"><span id="arap-name-badge"></span></span>
+</header>
 
 <div class="wrap">
   <div class="card">
@@ -172,9 +168,8 @@
     <textarea id="fbPaste" rows="4"></textarea>
     <div style="margin-top:6px"><button class="btn sm" id="btnFbApply">적용</button></div>
   </div>
-
-  <div class="foot">© 2026 정우진 감정평가사 · 자료: 국토교통부 건축HUB 건축물대장 / 국토교통부 V-World</div>
 </div>
+<footer class="tsign">Woojin Jung<span class="ts-dot">·</span>정우진 감정평가사<span class="ts-dot">·</span>문의 <a href="mailto:woojin.apr@gmail.com">woojin.apr@gmail.com</a><span class="ts-src">자료: 국토교통부 건축HUB 건축물대장 · 국토교통부 V-World</span></footer>
 
 <script>
 'use strict';
