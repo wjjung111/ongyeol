@@ -35,7 +35,7 @@ for(const f of ['s3r86w8a.html','입주권.html']){
     t('과천시','경기도 과천시 별양동');
     t('광주시','경기도 광주시 오포읍');
     t('강남구','서울특별시 강남구 압구정동');
-    t(null,'부산광역시 남구 대연동');                   // 부산은 지수 없음
+    t('부산 남구','부산광역시 남구 대연동');          // 2026-10-29 전국 확대로 부산도 지수 있음
   }
   assert.ok(n>=1,f+' detectSjRegion 없음');console.log(f,'detect',n,'벌 OK');
 }
@@ -54,7 +54,7 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   const st=()=>p.evaluate(()=>{const g=id=>document.getElementById(id);const o=s=>[...s.options].map(x=>x.textContent);
     return {r1:g('r1').value,d3:g('r3').disabled,o1:o(g('r1')),o3:o(g('r3')),region:g('region').value};});
   let s=await st();
-  assert.deepEqual(s.o1.slice(0,6),['서울','경기','인천','대구','전북','전남광주'],'시도 순서: '+s.o1);
+  assert.deepEqual(s.o1,['서울','경기','인천','부산','대구','대전','울산','세종','강원','충북','충남','전북','전남광주','경북','경남','제주'],'시도 순서: '+s.o1);
   await p.selectOption('#r1',{label:'전북'});s=await st();assert.equal(s.d3,false);
   for(const g of ['완산구','덕진구','군산시'])assert.ok(s.o3.some(x=>x.includes(g)),'③에 '+g+': '+s.o3);
   await p.selectOption('#r3',{label:s.o3.find(x=>x.includes('완산구'))});s=await st();assert.equal(s.region,'완산구');
