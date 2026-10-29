@@ -1061,6 +1061,26 @@ const getTotalDeskPrice=(ov)=>{
   return pNum(ov.deskPrice)||0;
 };
 
+// 시점수정 지역 단계 선택: 시도 → 권역 → 시 → 구 (지수 경로 그대로, 한 단계 고르면 다음 칸이 열림). 「전체」 = 그 윗단계 지수
+const SJ_ROOT_ORDER=["서울","경기","인천","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
+function SjRegionPick({value,onChange}){
+  const D=idxData();if(!D)return null;const rs=D.tables["아파트"].regions;
+  const segs=k=>rs[k].full.split(">").map(x=>x.trim());
+  const byFull={};Object.keys(rs).forEach(k=>{byFull[segs(k).join(">")]=k;});const fulls=Object.keys(byFull).map(f=>f.split(">"));
+  const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
+  const kids=pre=>fulls.filter(p=>p.length===pre.length+1&&pre.every((x,i)=>p[i]===x)).map(p=>p[p.length-1])
+    .sort((a,b)=>pre.length?a.localeCompare(b,"ko"):(rank(a)-rank(b)||a.localeCompare(b,"ko")));
+  const cur=rs[value]?segs(value):[];const levels=[];
+  for(let d=0;;d++){const pre=cur.slice(0,d),ks=kids(pre);if(!ks.length)break;levels.push({pre,ks,sel:cur[d]||""});if(d>=cur.length)break;}
+  const pick=(pre,v)=>{const k=byFull[(v?[...pre,v]:pre).join(">")];if(k)onChange(k);};
+  const lab=["시도","권역","세부지역","구"];
+  return(<span data-region={value} style={{display:"inline-flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+    {levels.map((L,d)=><select key={d} aria-label={"시점수정 지역 "+(d+1)+"단계"} title={lab[d]||"지역"} style={{...S.sel2,width:"auto",minWidth:72}} value={L.sel} onChange={e=>pick(L.pre,e.target.value)}>
+      {d===0?(!L.sel&&<option value="">시도</option>):<option value="">{(L.pre[L.pre.length-1]||"")+" 전체"}</option>}
+      {L.ks.map(o=><option key={o} value={o}>{o}</option>)}
+    </select>)}
+  </span>);
+}
 function SijeomModal({c,ov,onApply,onClose,propType}){
   const [tmpTime,setTmpTime]=useState(c.timeAdjDetail||"");
   const [warns,setWarns]=useState([]);
@@ -1072,7 +1092,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
   const check=text=>{const ws=[];const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm){const cd=normD(fmtDate(c.tradeDate)),td=normD(tm[1]);if(cd&&td&&cd!==td)ws.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}
     const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm&&ov.baseDate){const ob=normD(ov.baseDate),tb=normD(bm[1]);if(ob&&tb&&ob!==tb)ws.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setWarns(ws);};
   useEffect(()=>{if(c.timeAdjDetail)check(c.timeAdjDetail);},[]);
-  const D=idxData();const regs=idxRegionList();
+  const D=idxData();
   return(<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}>
     <div style={{background:"#fff",borderRadius:8,padding:20,width:"90%",maxWidth:540}} onClick={e=>e.stopPropagation()}>
       <div style={S.h3}>시점수정치 — 사례 #{c.symbol}</div>
@@ -1097,9 +1117,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
           <select style={{...S.sel2,width:100}} value={kind} onChange={e=>{setKind(e.target.value);try{localStorage.setItem("arap-sjidx-kind",e.target.value);}catch(err){console.error('sjidx kind save',err);}}}>
             {["아파트","연립다세대"].map(o=><option key={o} value={o}>{o}</option>)}
           </select>
-          <select style={{...S.sel2,width:100}} value={region} onChange={e=>{setRegion(e.target.value);try{localStorage.setItem("arap-sjidx-region",e.target.value);}catch(err){console.error('sjidx region save',err);}}}>
-            {regs.map(o=><option key={o} value={o}>{o}</option>)}
-          </select>
+          <SjRegionPick value={region} onChange={v=>{setRegion(v);try{localStorage.setItem("arap-sjidx-region",v);}catch(err){console.error('sjidx region save',err);}}}/>
           <button style={{...S.btn,background:D?C.acc:"#cbd5e1",color:"#fff"}} disabled={!D}
             onClick={()=>{const r=buildSjIdxText(kind,region,c.tradeDate,ov.baseDate);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}}}>계산</button>
         </div>
