@@ -2012,7 +2012,11 @@ function jbPickRegion(regs,hint){
   hint=String(hint||'').trim();if(!hint)return -1;
   var bi=-1,bs=0;
   // 접미사를 뗀 조각이 한 글자(동구→'동', 중구→'중', 남구→'남')면 동 이름과 우연히 겹치므로 무시 — "상봉동 74-6"이 "대전 동구"로 잡히는 것 방지
-  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p.length>=2&&jbHasName(hint,p))score+=p.length;});if(score>bs){bs=score;bi=i;}});
+  // 단, 「중구」처럼 접미사까지 붙은 낱말이 주소에 그대로 있으면 인정 — 안 그러면 "서울특별시 중구"가 '서울'만 맞아 목록 첫 서울 지역(종로구)이 됐다(2026-10-29 사용자 제보)
+  // 주소에 없는 조각은 조금 감점 — '서울'만 맞으면 「서울 > 종로구」보다 「서울」이, 「화성시 우정읍」은 「경기 > 화성시」가 되게
+  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/^\(구\)/,'');var s=p.replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');
+    if(s.length>=2&&jbHasName(hint,s))score+=s.length;else if(s.length===1&&s!==p&&jbHasName(hint,p))score+=p.length;else score-=0.1;});
+    if(score>=1&&score>bs){bs=score;bi=i;}});
   return bi;
 }
 // 지역 이름 조각이 주소에 「그 이름으로」 들어 있는지 — 주소를 띄어쓰기로 나눈 낱말 하나가 그 이름(+시·군·구·도 등)이어야 한다.
@@ -2158,6 +2162,7 @@ async function computeCaseTime(c,type,st,force){
   var ug=jbUseGroup(c.use),useOk=!m0||!ug||String(m0.use||'').indexOf(ug)>=0;
   var regOk=!jbStaleReg(m0,c.loc);   // 옛 오조회(장안면 → 수원시 장안구)면 다시 계산
   if(staleSgg(c)){delete c.sgg;regOk=false;}   // 옛 시군구 오조회(화산리 → 강원 삼척시)도 다시
+  if(staleRegSgg(c))regOk=false;   // 서울 중구 → 종로구로 잡혔던 옛 값
   if(!force&&m0&&useOk&&regOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
   c.timeBusy=true;delete c.timeErr;refreshTradeTime();
   try{
@@ -2260,6 +2265,16 @@ function caseSgg(loc){
 }
 // 옛 방식(위 ①② 전)으로 찾아 둔 사례 시군구가 본건과 다른 시·도면 오조회로 본다(강원 삼척시 등) → 시군구·시점수정 다시
 function staleSgg(c){return !!(c&&c.sgg&&!c.sggV&&sidoKey(subjectSgg())&&sidoKey(c.sgg)!==sidoKey(subjectSgg()));}
+// 계산해 둔 지역이 사례 시군구와 다른지 — 「서울특별시 중구」인데 '서울 종로구'로 계산된 옛 값(한 글자 구 무시 문제, 2026-10-29)
+// 사례 시군구(c.sgg, 찾지 못했으면 본건 시군구)와 소재지의 시·군·구 낱말이 계산된 지역 어디에도 없으면 다시 계산
+function staleRegSgg(c){
+  var m=c&&c.timeMeta;if(!m||!m.reg)return false;
+  var src=(c.sgg||(c.sgg===''?subjectSgg():''))+' '+(c.loc||'');
+  var toks=src.split(/\s+/).filter(function(t){return /(시|군|구)$/.test(t)&&!/(특별시|광역시|특별자치시)$/.test(t);});
+  if(!toks.length)return false;
+  var reg=m.reg.split(/\s+/).map(function(t){return t.replace(/^\(구\)/,'');});
+  return !toks.some(function(t){return reg.indexOf(t)>=0;});
+}
 // 각주용 문구: "서울특별시 중랑구 (26.01.31~26.04.14) (주거)"
 function timeMetaLabel(m){if(!m)return '';return m.reg+' ('+m.from+'~'+m.to+') ('+m.use+')';}
 function etcTimeMeta(){var c=etcCase();return (c&&c.timeMeta)||ETC.timeMeta||null;}   // ETC.timeMeta는 옛 저장 호환
@@ -4778,7 +4793,7 @@ function refreshAfterLoad(){fillEtcArea();updatePeriod();sumBld();renderTrade();
 // 그 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로. 손으로 고친 값은 안 건드린다.
 function fixStaleTimes(){
   [['t',TRADES],['a',APPRS]].forEach(function(pr){pr[1].forEach(function(c,i){
-    if(c&&c.timeMeta&&(jbStaleReg(c.timeMeta,c.loc)||staleSgg(c)))redoCaseTime(pr[0],i,false);});});
+    if(c&&c.timeMeta&&(jbStaleReg(c.timeMeta,c.loc)||staleSgg(c)||staleRegSgg(c)))redoCaseTime(pr[0],i,false);});});
 }
 // 사례 하나의 시점수정치를 다시 계산(force = 같은 기간이어도 새로 조회) — 거래사례 표 시점수정치 칸을 누르면 이것.
 // 예전 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로, 손으로 고친 값은 그대로.
