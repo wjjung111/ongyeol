@@ -79,13 +79,15 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
     const ents=await ArapCheonggu.parseZip((bytes.buffer||bytes));const dec=new TextDecoder();
     const sh=dec.decode(ents.find(e=>/sheet1\.xml$/.test(e.name)).data),st=dec.decode(ents.find(e=>e.name==='xl/styles.xml').data);
     let b='';const u=new Uint8Array(bytes.buffer||bytes);for(let i=0;i<u.length;i++)b+=String.fromCharCode(u[i]);
-    return {rows:rows.map(r=>[r['명세_기호'],r['명세_지번'],r['명세_공부면적'],r['명세_사정면적'],r['명세_단가'],r['명세_평가액'],r['명세_비고'],r.gbr,r.hbr]),
+    window._use=rows.map(r=>r['명세_지역구조']);
+    return {use:window._use,rows:rows.map(r=>[r['명세_기호'],r['명세_지번'],r['명세_공부면적'],r['명세_사정면적'],r['명세_단가'],r['명세_평가액'],r['명세_비고'],r.gbr,r.hbr]),
       fmts:(st.match(/formatCode="[^"]*&quot;(&lt;|&gt;)&quot;[^"]*"/g)||[]).length,lines:(sh.match(/<t>│<\/t>/g)||[]).length,b64:btoa(b)};
   });
   console.log('④ 명세표',m.rows,'서식',m.fmts,'세로선',m.lines);
   assert.deepEqual(m.rows,[
     ['2'.replace('2','1'),'247-1',45.2,60.1,30000000,30000000*60.1,'일단지\n일반상업지역','top','top'],
-    ['2','247-3',56.1,41.2,18000000,18000000*41.2,'일단지\n제3종일반주거지역','end','end']]);
+    ['2','247-3',56.1,41.2,18000000,18000000*41.2,'일단지\n제3종\n일반주거지역','end','end']]);
+  assert.deepEqual(m.use,['일반상업지역\n제3종\n일반주거지역','일반상업지역\n제3종\n일반주거지역']);
   assert.equal(m.fmts,4);   // 공부 < > · 사정 < >assert.ok(m.lines>=6);
   if(outDir)fs.writeFileSync(path.join(outDir,'광희동_명세표.xlsx'),Buffer.from(m.b64,'base64'));
 

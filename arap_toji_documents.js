@@ -379,16 +379,18 @@ function floorKey(t){t=String(t||'').replace(/\s/g,'');var n=(t.match(/\d+/)||['
   if(/옥탑|^옥|^PH/i.test(t))return 'R'+(n||'1');if(/지하|^지|^B/i.test(t))return 'B'+(n||'1');return n?'F'+n:t;}
 function bldFloorKey(d){var gb=String(d['층구분']||''),nm=String(d['층별']||'');
   return floorKey((/지하/.test(gb)&&!/지|B/i.test(nm)?'지하':'')+(/옥탑/.test(gb)&&!/옥|PH/i.test(nm)?'옥탑':'')+nm);}
+// 명세표 칸에 쓰는 용도지역 — 쉼표마다 줄, 「제3종일반주거지역」은 「제3종 / 일반주거지역」(사용자 샘플 2026-10-29, 칸이 좁아 잘림 방지)
+function useLines(v){return String(v||'').split(/\s*[,，]\s*/).filter(Boolean).map(function(x){return x.replace(/^(제\d종)\s*/,'$1\n');}).join('\n');}
 function zoneStatementRows(gs,loc){
   var ps=landParcels(),zs=GZONES,n=Math.max(ps.length,zs.length),out=[];
   var brOf=function(k,len){return len<2||k>=len?null:k===0?'top':k===len-1?'end':'mid';};
   for(var k=0;k<n;k++){var L=ps[k],g=gs.rows[k],z=k<zs.length;
     var pn=String(L&&L['비고']||'').trim();if(pn==='-')pn='';
-    var note=z?[ILDANJI?'일단지':'',zoneName(k)].filter(Boolean).join('\n'):'';
+    var note=z?[ILDANJI?'일단지':'',useLines(zoneName(k))].filter(Boolean).join('\n'):'';
     if(pn)note=note?note+'\n'+pn:pn;
     var o={'명세_사정면적':z?zoneArea(k):null,'명세_단가':z?g.apply:null,'명세_평가액':z?g.total:0,'명세_비고':note,
       gbr:brOf(k,ps.length),hbr:brOf(k,zs.length)};
-    if(L)Object.assign(o,{'명세_기호':String(landParcelNo(LANDS.indexOf(L))),'명세_소재지':loc(L),'명세_지번':L['지번']||'','명세_지목용도':L['지목']||'','명세_지역구조':L['용도지역']||'','명세_공부면적':num(L['면적'])});
+    if(L)Object.assign(o,{'명세_기호':String(landParcelNo(LANDS.indexOf(L))),'명세_소재지':loc(L),'명세_지번':L['지번']||'','명세_지목용도':L['지목']||'','명세_지역구조':useLines(L['용도지역']),'명세_공부면적':num(L['면적'])});
     else Object.assign(o,{'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':'','명세_지역구조':'','명세_공부면적':null,minRows:2});
     out.push(o);}
   return out;
