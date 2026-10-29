@@ -799,10 +799,18 @@ const idxRegionList=()=>{const D=idxData();if(!D)return[];const rs=D.tables["아
 // 사례 소재지에서 "◯◯구" 추출 → 지수 지역 자동선택(지수표에 있는 구만). 유형은 건물명으로 추정
 const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs=D.tables["아파트"].regions;
   // 시도가 적혀 있으면 그 시도의 구만(대구 중구 ≠ 서울 중구 — 동명은 「대구 중구」 키). 시도 자신(대구)은 구로 치지 않음
-  const sido=(texts.map(t=>String(t||"")).join(" ").match(/서울|경기|인천|대구|부산|광주|대전|울산|세종|강원|충청|충북|충남|전라|전북|전남|경상|경북|경남|제주/)||[])[0]||"";
-  for(const t of texts){const ms=String(t||"").match(/[가-힣]{1,4}[구군](?![가-힣])/g)||[];for(const g of ms){
+  // 시도 표기 통일: 전라북도·전북특별자치도 → 전북 (주소와 지수 경로 첫 구간을 같은 말로 비교)
+  const SD=/서울|경기|인천|대구|부산|광주|대전|울산|세종|강원|충청북|충북|충청남|충남|전라북|전북|전라남|전남|경상북|경북|경상남|경남|제주/;
+  const SDN={충청북:"충북",충청남:"충남",전라북:"전북",전라남:"전남",경상북:"경북",경상남:"경남"};
+  const sdOf=s=>{const m=String(s||"").match(SD);return m?(SDN[m[0]]||m[0]):"";};
+  const sido=sdOf(texts.map(t=>String(t||"")).join(" "));
+  // 구·군을 먼저, 없으면 시(여수시·과천시처럼 구 없는 시)
+  for(const re of [/[가-힣]{1,4}[구군](?![가-힣])/g,/[가-힣]{1,4}시(?![가-힣])/g])for(const t of texts){const ms=String(t||"").match(re)||[];for(const g of ms){
     if(sido&&regs[sido+" "+g])return sido+" "+g;
-    const p=regs[g]&&regs[g].full.split(">").map(s=>s.trim());if(p&&p.length>1&&(!sido||p[0]===sido))return g;}}return null;};
+    const p=regs[g]&&regs[g].full.split(">").map(s=>s.trim());if(p&&p.length>1&&(!sido||sdOf(p[0])===sido))return g;}}
+  // 시군구 지수가 없으면 그 시도 전체 지수(전남 무안군 → 전남)
+  if(sido){const k=Object.keys(regs).find(k=>regs[k].full.split(">").length===1&&sdOf(regs[k].full)===sido);if(k)return k;}
+  return null;};
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{

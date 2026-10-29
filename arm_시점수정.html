@@ -274,12 +274,12 @@ const normDate=v=>{const s=String(v||"").replace(/[^0-9]/g,"");if(s.length>=8)re
 const idxYm=d=>{const m=normDate(d).match(/^(\d{4})\.(\d{2})/);return m?m[1]+m[2]:null;};
 const idxYmDisp=ym=>ym?`${ym.slice(0,4)}.${ym.slice(4,6)}`:"";
 const idxKindList=()=>{const D=idxData();if(!D)return[];return["아파트","연립다세대","오피스텔"].filter(k=>D.tables[k]);};
-// 유형별 지역 목록: 시도(서울→경기→인천→수도권→대구) 순 → 시도 전체가 맨 앞 → 하위지역 가나다순
-const ROOT_ORDER=["서울","경기","인천","수도권","대구"];
+// 유형별 지역 목록: 시도(서울→경기→인천→수도권→대구→전북→전남) 순 → 시도 전체가 맨 앞 → 하위지역 가나다순
+const ROOT_ORDER=["서울","경기","인천","수도권","대구","전북","전남"];
 const idxRegionList=kind=>{const D=idxData();if(!D||!D.tables[kind])return[];const rs=D.tables[kind].regions;
   return Object.keys(rs).sort((a,b)=>{
     const pa=rs[a].full.split(">"),pb=rs[b].full.split(">");
-    const ra=ROOT_ORDER.indexOf(pa[0]),rb=ROOT_ORDER.indexOf(pb[0]);
+    const ri=x=>ROOT_ORDER.findIndex(k=>String(x).trim().startsWith(k)),ra=ri(pa[0]),rb=ri(pb[0]); // 전북특별자치도도 전북 자리
     if(ra!==rb)return(ra<0?99:ra)-(rb<0?99:rb);
     if(pa.length!==pb.length&&(pa.length===1||pb.length===1))return pa.length-pb.length; // 시도 전체 먼저
     return a.localeCompare(b,"ko");
@@ -290,7 +290,7 @@ const idxTree=kind=>{const D=idxData();if(!D||!D.tables[kind])return null;const 
   const byFull={};Object.keys(rs).forEach(k=>{byFull[rs[k].full.split(">").map(s=>s.trim()).join(">")]=k;});
   const nodes=Object.keys(byFull).map(f=>({full:f,key:byFull[f],p:f.split(">")}));
   const isGwon=n=>n.p.length>1&&/(권|지역)$/.test(n.p[n.p.length-1]);
-  const roots=[...new Set(nodes.map(n=>n.p[0]))].sort((a,b)=>{const ra=ROOT_ORDER.indexOf(a),rb=ROOT_ORDER.indexOf(b);return(ra<0?99:ra)-(rb<0?99:rb)||a.localeCompare(b,"ko");});
+  const roots=[...new Set(nodes.map(n=>n.p[0]))].sort((a,b)=>{const ri=x=>ROOT_ORDER.findIndex(k=>x.startsWith(k)),ra=ri(a),rb=ri(b);return(ra<0?99:ra)-(rb<0?99:rb)||a.localeCompare(b,"ko");});
   const under=(n,anc)=>n.full.startsWith(anc+">");
   return{byFull,roots,
     gwons:r=>nodes.filter(n=>n.p[0]===r&&isGwon(n)).sort((a,b)=>a.full.localeCompare(b.full,"ko")),
