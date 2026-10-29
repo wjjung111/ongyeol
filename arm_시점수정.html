@@ -88,6 +88,18 @@
   .field label{display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:6px; letter-spacing:.005em;}
   select, input[type=text]{width:100%; height:40px; padding:0 11px; font:inherit; font-size:14px; color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:4px; transition:border-color .12s, box-shadow .12s;}
   select{cursor:pointer;}
+  /* 토지 지역 표 목록(지역1~지역3, 줄 클릭 선택) */
+  .rt-head{display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;}
+  .rt-wrap{margin:14px 0;}
+  .rt-head label{font-size:12px; font-weight:600; color:var(--muted); margin:0;}
+  .rt-head input[type=text]{height:32px; font-size:13px; max-width:190px;}
+  .rt-sel{font-size:12.5px; color:var(--ink-2);} .rt-sel b{color:var(--accent-ink);}
+  .rt-box{max-height:300px; overflow-y:auto; border:1px solid var(--line-strong); border-radius:4px; background:var(--surface);}
+  table.rt{width:100%; border-collapse:collapse; font-size:12.5px;}
+  .rt th{position:sticky; top:0; background:var(--bg); text-align:left; font-weight:600; color:var(--muted); padding:5px 8px; border-bottom:1px solid var(--line-strong);}
+  .rt td{padding:4px 8px; border-bottom:1px solid var(--line); color:var(--ink);}
+  .rt tbody tr{cursor:pointer;} .rt tbody tr:hover{background:var(--bg);}
+  .rt tbody tr.on{background:#e3edf8; font-weight:700;} .rt td.agg{color:var(--muted);} .rt td.msg{color:var(--faint); cursor:default;}
   select:disabled{cursor:not-allowed; color:#9aa1ab; background:#eceef1; border-color:var(--line);}
   input::placeholder{color:#b3b9c2;}
   input:focus, select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(44,90,140,.13);}
@@ -213,6 +225,10 @@
             <label for="r3">③ 세부지역</label>
             <select id="r3"></select>
           </div>
+        </div>
+        <div class="rt-wrap" id="land-rtable" style="display:none">
+          <div class="rt-head"><label for="landRegQ">지역</label><input type="text" id="landRegQ" placeholder="검색 (예: 완산, 수원)" autocomplete="off"><span class="rt-sel" id="landRegSel"></span></div>
+          <div class="rt-box" id="landRegBox"><table class="rt"><thead><tr id="landRegHead"></tr></thead><tbody id="landRegBody"></tbody></table></div>
         </div>
         <div class="field-pair">
           <div class="field">
@@ -634,8 +650,8 @@ function refreshSelectors(){
   if(mode==="res"){const ks=idxKindList();fillSelect($("kind"),ks.length?ks:["아파트"],lsGet(LS_KIND.res));fillSelect($("region"),idxRegionList($("kind").value),lsGet(LS_REG.res));fillRegion3(lsGet(LS_REG.res));}
   else if(mode==="nr"){const ts=capTypeList();fillSelect($("kind"),ts.length?ts:["집합상가"],lsGet(LS_KIND.nr));fillSelect($("region"),capRegionList($("kind").value),lsGet(LS_REG.nr));fillCap2(lsGet(LS_REG.nr));}
   else{fillLandSelectors();}
-  // 주거용 ①②③ / 비주거용 ①② (숨은 #region에 지역 키) / 토지 한 칸
-  $("fld-region").style.display=mode==="land"?"":"none";["fld-r1","fld-r2"].forEach(id=>$(id).style.display=mode==="land"?"none":"");$("fld-r3").style.display=mode==="res"?"":"none";$("pair-kind").classList.toggle("quad",mode==="res");$("pair-kind").classList.toggle("tri",mode==="nr");
+  // 주거용 ①②③ / 비주거용 ①② (숨은 #region에 지역 키) / 토지 = 표 목록(역시 숨은 #region에 값)
+  $("fld-region").style.display="none";$("land-rtable").style.display=mode==="land"?"":"none";["fld-r1","fld-r2"].forEach(id=>$(id).style.display=mode==="land"?"none":"");$("fld-r3").style.display=mode==="res"?"":"none";$("pair-kind").classList.toggle("quad",mode==="res");$("pair-kind").classList.toggle("tri",mode==="nr");
   $("lbl-r2").textContent=mode==="nr"?"② 상권":"② 권역";
   $("lbl-kind").textContent=mode==="land"?"용도지역":"유형";
   $("lbl-region").textContent=mode==="land"?"지역 (시군구)":"지역";
@@ -649,12 +665,40 @@ function fillLandSelectors(){
     const saved=lsGet(LS_REG.land);$("region").innerHTML="";
     jbState.regs.forEach(r=>{const el=document.createElement("option");el.value=r;el.textContent=jbRegLabel(r);$("region").appendChild(el);});
     if(saved&&jbState.regs.includes(saved))$("region").value=saved;
-    setStatus("");return;
+    renderLandTable(true);setStatus("");return;
   }
-  fillSelect($("kind"),["불러오는 중…"]);fillSelect($("region"),["불러오는 중…"]);
+  fillSelect($("kind"),["불러오는 중…"]);fillSelect($("region"),["불러오는 중…"]);renderLandTable();
   jbPrepare(setStatus).then(()=>{if(mode==="land")fillLandSelectors();updateMeta();})
     .catch(e=>{console.error("지가변동률 준비",e);setStatus("");$("err").textContent="지가변동률 목록을 못 받았습니다: "+e.message;$("err").style.display="block";});
 }
+// 토지 지역 표 목록: 지가변동률 지역(시도 > 시 > 구)을 지역1~지역3 칸으로 한 번에. 줄 클릭 = 선택, 검색칸은 낱말 모두 포함.
+// 시도 아래 「시지역·군지역」 묶음 줄은 그 시도 바로 다음에. 월별 표는 없음
+const LAND_ROOT_ORDER=["전국","수도권","지방","서울","경기","인천","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
+function renderLandTable(scroll){
+  const body=$("landRegBody"),head=$("landRegHead"),regs=jbState.regs||[];
+  body.innerHTML="";head.innerHTML="";
+  if(!regs.length){head.innerHTML="<th>지역</th>";const tr=document.createElement("tr"),td=document.createElement("td");td.className="msg";td.textContent="지역 목록 불러오는 중…";tr.appendChild(td);body.appendChild(tr);$("landRegSel").textContent="";return;}
+  const rank=x=>{const i=LAND_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;},agg=x=>/[시군]지역$/.test(x)?0:1;
+  const rows=regs.map(k=>({k,p:String(k).split(">").map(x=>x.trim()).filter(Boolean)})).sort((a,b)=>{
+    const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+    for(let i=0;i<Math.min(a.p.length,b.p.length);i++)if(a.p[i]!==b.p[i])return agg(a.p[i])-agg(b.p[i])||a.p[i].localeCompare(b.p[i],"ko");
+    return a.p.length-b.p.length;});
+  const cols=Math.max(1,...rows.map(r=>r.p.length));
+  for(let i=0;i<cols;i++){const th=document.createElement("th");th.textContent="지역"+(i+1);head.appendChild(th);}
+  const q=$("landRegQ").value.trim().split(/\s+/).filter(Boolean),cur=$("region").value;
+  const shown=q.length?rows.filter(r=>q.every(w=>r.p.some(x=>x.includes(w)))):rows;
+  let onRow=null;
+  shown.forEach(r=>{const tr=document.createElement("tr");tr.dataset.key=r.k;if(r.k===cur){tr.className="on";onRow=tr;}
+    for(let i=0;i<cols;i++){const td=document.createElement("td");td.textContent=r.p[i]||"";if(r.p[i]&&agg(r.p[i])===0)td.className="agg";tr.appendChild(td);}
+    body.appendChild(tr);});
+  if(!shown.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=cols;td.className="msg";td.textContent="찾는 지역이 없습니다";tr.appendChild(td);body.appendChild(tr);}
+  const sel=rows.find(r=>r.k===cur);$("landRegSel").innerHTML="";if(sel){$("landRegSel").append("선택: ");const b=document.createElement("b");b.textContent=sel.p.join(" > ");b.dataset.region=sel.k;$("landRegSel").appendChild(b);}
+  if(scroll&&onRow){const box=$("landRegBox");box.scrollTop=onRow.offsetTop-box.clientHeight/2;}
+}
+$("landRegBody").addEventListener("click",e=>{const tr=e.target.closest("tr[data-key]");if(!tr)return;
+  const k=tr.dataset.key;if(![...$("region").options].some(o=>o.value===k))return;
+  $("region").value=k;lsSet(LS_REG.land,k);renderLandTable();});
+$("landRegQ").addEventListener("input",()=>renderLandTable());
 function updateMeta(){
   const D=idxData(),C=capData();
   const sn=$("segNote");if(sn)sn.textContent=mode==="res"?"산정 기준 · 매매가격지수 (한국부동산원)":mode==="nr"?"산정 기준 · 자본수익률 (상업용부동산 임대동향조사)":"산정 기준 · 지가변동률 (한국부동산원, 용도지역별 월간)";
