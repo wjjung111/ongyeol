@@ -274,8 +274,8 @@ const normDate=v=>{const s=String(v||"").replace(/[^0-9]/g,"");if(s.length>=8)re
 const idxYm=d=>{const m=normDate(d).match(/^(\d{4})\.(\d{2})/);return m?m[1]+m[2]:null;};
 const idxYmDisp=ym=>ym?`${ym.slice(0,4)}.${ym.slice(4,6)}`:"";
 const idxKindList=()=>{const D=idxData();if(!D)return[];return["아파트","연립다세대","오피스텔"].filter(k=>D.tables[k]);};
-// 유형별 지역 목록: 시도(서울→경기→인천→수도권→대구→전북→전남) 순 → 시도 전체가 맨 앞 → 하위지역 가나다순
-const ROOT_ORDER=["서울","경기","인천","수도권","대구","전북","전남"];
+// 유형별 지역 목록: 시도(서울→경기→인천→수도권→부산→대구→…→제주, 행정 표준 순) 순 → 시도 전체가 맨 앞 → 하위지역 가나다순
+const ROOT_ORDER=["서울","경기","인천","수도권","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
 const idxRegionList=kind=>{const D=idxData();if(!D||!D.tables[kind])return[];const rs=D.tables[kind].regions;
   return Object.keys(rs).sort((a,b)=>{
     const pa=rs[a].full.split(">"),pb=rs[b].full.split(">");
