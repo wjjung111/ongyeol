@@ -113,6 +113,21 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   const g=await page.evaluate(()=>{const m=gwalMap();return [m['괄_토지_공부면적'],m['괄_토지_사정면적'],m['괄_토지_단가'],m['괄_토지_금액']];});
   console.log('⑥ 괄감',g);assert.deepEqual(g,['101.3','101.3','-','2,544,600,000']);
 
+  // ⑥-2 묶음 지분 1/2 — 구역 평가면적 = 구역 면적 × 1/2, 그 밖의 사항 지분 문구, 명세표 사정면적도 지분 면적
+  const sh=await page.evaluate(()=>{
+    const inp=document.querySelector('#landTbl input.grp-sh');inp.value='1/2';inp.dispatchEvent(new Event('input'));
+    const st=ArapTojiDocuments.statementRows().filter(r=>r.hbr);
+    return {sizes:GONGSI_RESULT.rows.map(r=>r.size),total:GONGSI_RESULT.total,size:GONGSI_RESULT.size,ga:GEORAE_RESULT.rows.map(r=>r.size),
+      ev:[...document.querySelectorAll('#landTbl .zone-ev')].map(e=>e.textContent),sum:document.getElementById('landSajSum').textContent,
+      etc:ETC_ITEMS.some(t=>/지분\(1\/2\)만의 평가/.test(t)),st:st.map(r=>r['명세_사정면적']),gwal:gwalMap()['괄_토지_사정면적'],
+      saved:JSON.parse(JSON.stringify(collect())).GROUP_SHARE};
+  });
+  console.log('⑥-2 지분',sh);
+  assert.deepEqual(sh.sizes,[30.05,20.6]);assert.deepEqual(sh.ga,[30.05,20.6]);near(sh.size,50.65);
+  assert.equal(sh.total,c.total/2);assert.deepEqual(sh.ev,['→ 30.05','→ 20.6']);assert.match(sh.sum,/지분 1\/2 → 평가 50\.65/);
+  assert.ok(sh.etc);assert.deepEqual(sh.st,[30.05,20.6]);assert.equal(sh.gwal,'50.65');assert.equal(sh.saved,'1/2');
+  await page.evaluate(()=>{const inp=document.querySelector('#landTbl input.grp-sh');inp.value='';inp.dispatchEvent(new Event('input'));});
+
   // ⑦ 구역 하나 지우기 → 묶음 한 줄로 복귀
   const back=await page.evaluate(()=>{delZone(1);return {n:GZONES.length,rows:GONGSI_RESULT.rows.length,sisan:document.querySelectorAll('#tblSisan tr').length};});
   console.log('⑦',back);assert.equal(back.n,0);assert.equal(back.sisan,2);
