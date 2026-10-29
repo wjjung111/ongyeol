@@ -282,9 +282,9 @@ const idxYmDisp=ym=>ym?`${ym.slice(0,4)}.${ym.slice(4,6)}`:"";
 const idxKindList=()=>{const D=idxData();if(!D)return[];return["아파트","연립다세대","오피스텔"].filter(k=>D.tables[k]);};
 // 시도 순서(서울→경기→인천→수도권→부산→대구→…→제주, 행정 표준 순)
 const ROOT_ORDER=["서울","경기","인천","수도권","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
-// 주거용 지역 표: 아파트 지역 전부 + 고른 유형의 지역(집건 앱 SjRegionTable과 같은 목록). 연립·오피스텔은 구 단위 공표가 없어
-// 구를 고르면 계산 때 소속 권역·시도 지수로 대체(sjApplied) — 표에서는 그런 줄을 회색으로, 「선택」 옆에 실제 적용 지역을 알림
-const sjRegionKeys=kind=>{const D=idxData();if(!D)return[];return Object.keys({...(D.tables["아파트"]?.regions||{}),...(D.tables[kind]?.regions||{})});};
+// 주거용 지역 표: 고른 유형 표에 실제 있는 지역만(집건 앱 SjRegionTable과 같은 목록). 연립·오피스텔은 권역 단위까지만 공표 —
+// 구 이름(강남구)으로 찾으면 그 구가 속한 권역 줄이 나오고, 옛 저장값이 구면 그 권역 줄을 선택으로 보여 준다(sjApplied, 2026-10-29)
+const sjRegionKeys=kind=>{const D=idxData();if(!D||!D.tables[kind])return[];return Object.keys(D.tables[kind].regions);};
 // 이 유형 표에 그 지역이 없으면 아파트 경로를 아래→위로 거슬러 같은 시도의 권역·시도 전체 지수 키(없으면 null)
 const sjApplied=(kind,regionKey)=>{const D=idxData(),tbl=D&&D.tables[kind];if(!tbl)return null;if(tbl.regions[regionKey])return regionKey;
   const aptReg=D.tables["아파트"]&&D.tables["아파트"].regions[regionKey];
@@ -652,33 +652,43 @@ function fillLandSelectors(){
 // 시도 아래 「시지역·군지역」 묶음 줄은 그 시도 바로 다음에. 월별 표는 없음
 const LAND_ROOT_ORDER=["전국","수도권","지방","서울","경기","인천","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
 // 주거용 지역 표 — 저장값(arap-sjidx-region)을 숨은 #region에. 저장값이 이 목록에 없으면 첫 줄
+// 저장값이 이 유형에 없는 구면 소속 권역을 고른 것으로(저장값은 안 덮어씀 — 아파트로 돌아오면 그 구 그대로)
 function fillResRegions(scroll){
-  const ks=sjRegionKeys($("kind").value);fillSelect($("region"),ks,lsGet(LS_REG.res));renderRegionTable(scroll);}
+  const kind=$("kind").value,ks=sjRows(kind).map(r=>r.k),sv=lsGet(LS_REG.res);fillSelect($("region"),ks,sv);   // 저장값 없으면 표 맨 윗줄(서울)
+  if(sv&&!ks.includes(sv)){const ap=sjApplied(kind,sv);if(ap)$("region").value=ap;}
+  renderRegionTable(scroll);}
 const SJ_ROOT_ORDER=["전국","서울","경기","인천","수도권","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
+// 주거용 지역 표의 줄(정렬): 서울 맨 앞·시도 행정 순·윗단계 줄 먼저. al = 그 권역 줄에 속한 아파트 구 이름(검색용)
+function sjRows(kind){
+  const D=idxData();if(!D||!D.tables[kind])return[];
+  const A=D.tables["아파트"]?.regions||{},K=D.tables[kind].regions;
+  const al={};if(kind!=="아파트")Object.keys(A).forEach(a=>{if(K[a])return;const ap=sjApplied(kind,a);if(ap)(al[ap]=al[ap]||[]).push(a);});
+  const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
+  return sjRegionKeys(kind).map(k=>({k,p:K[k].full.split(">").map(x=>x.trim()),al:al[k]||[]})).sort((a,b)=>{
+    const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+    for(let i=0;i<Math.min(a.p.length,b.p.length);i++)if(a.p[i]!==b.p[i])return a.p[i].localeCompare(b.p[i],"ko");
+    return a.p.length-b.p.length;});
+}
 function renderResTable(scroll){
   const body=$("landRegBody"),head=$("landRegHead"),D=idxData(),kind=$("kind").value;
   body.innerHTML="";head.innerHTML="";$("landRegSel").innerHTML="";
   if(!D){head.innerHTML="<th>지역</th>";body.innerHTML='<tr><td class="msg">지수 데이터 없음</td></tr>';return;}
-  const A=D.tables["아파트"]?.regions||{},K=D.tables[kind]?.regions||{};
-  const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
-  const rows=sjRegionKeys(kind).map(k=>({k,p:(K[k]||A[k]).full.split(">").map(x=>x.trim()),own:!!K[k]})).sort((a,b)=>{
-    const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
-    for(let i=0;i<Math.min(a.p.length,b.p.length);i++)if(a.p[i]!==b.p[i])return a.p[i].localeCompare(b.p[i],"ko");
-    return a.p.length-b.p.length;});
+  const rows=sjRows(kind);
   const cols=Math.max(1,...rows.map(r=>r.p.length));
   for(let i=0;i<cols;i++){const th=document.createElement("th");th.textContent="지역"+(i+1);head.appendChild(th);}
   const q=$("landRegQ").value.trim().split(/\s+/).filter(Boolean),cur=$("region").value;
-  const shown=q.length?rows.filter(r=>q.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w))):rows;
+  const shown=q.length?rows.filter(r=>q.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w)||r.al.some(a=>a.includes(w)))):rows;
   let onRow=null;
   shown.forEach(r=>{const tr=document.createElement("tr");tr.dataset.key=r.k;if(r.k===cur){tr.className="on";onRow=tr;}
-    if(!r.own)tr.title=`${kind} 지수는 이 단위로 공표되지 않아 상위 지역 지수를 씁니다`;
-    for(let i=0;i<cols;i++){const td=document.createElement("td");td.textContent=r.p[i]||"";if(!r.own)td.className="agg";tr.appendChild(td);}
+    const ha=q.length?r.al.filter(a=>q.some(w=>a.includes(w))):[];   // 구 이름으로 찾은 줄엔 「· 강남구 포함」
+    for(let i=0;i<cols;i++){const td=document.createElement("td");td.textContent=r.p[i]||"";
+      if(i===r.p.length-1&&ha.length){const sp=document.createElement("span");sp.className="rt-note";sp.textContent=` · ${ha.join(", ")} 포함`;td.appendChild(sp);}
+      tr.appendChild(td);}
     body.appendChild(tr);});
   if(!shown.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=cols;td.className="msg";td.textContent="찾는 지역이 없습니다";tr.appendChild(td);body.appendChild(tr);}
   const sel=rows.find(r=>r.k===cur);
   if(sel){$("landRegSel").append("선택: ");const b=document.createElement("b");b.textContent=sel.p.join(" > ");b.dataset.region=sel.k;$("landRegSel").appendChild(b);
-    if(!sel.own){const ap=sjApplied(kind,sel.k),sp=document.createElement("span");sp.className="rt-note";
-      sp.textContent=ap?` → ${kind} 지수는 ${(K[ap]||A[ap]).full.split(">").map(x=>x.trim()).join(" > ")} 적용`:` → ${kind} 지수 없음`;$("landRegSel").appendChild(sp);}}
+    const sv=lsGet(LS_REG.res);if(sv&&sv!==sel.k&&sjApplied(kind,sv)===sel.k){const sp=document.createElement("span");sp.className="rt-note";sp.textContent=` (${sv} — ${kind} 지수는 이 단위로 공표)`;$("landRegSel").appendChild(sp);}}
   if(scroll&&onRow){const box=$("landRegBox");box.scrollTop=onRow.offsetTop-box.clientHeight/2;}
 }
 function renderRegionTable(scroll){mode==="res"?renderResTable(scroll):renderLandTable(scroll);}

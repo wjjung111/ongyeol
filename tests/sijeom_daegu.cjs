@@ -53,9 +53,9 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   await p.fill('#tradeDate','2025.03.10');await p.fill('#baseDate','2026.08.01');await p.click('#btn-calc');
   assert.match(await p.inputValue('#resultText'),/지역 : 대구 수성구/);
   await pick('대구 중구');await p.click('#btn-calc');assert.match(await p.inputValue('#resultText'),/지역 : 대구 중구/);
-  // 연립다세대: 대구 전체만 공표 → 고른 구는 회색 + 대구 지수로 계산
-  await p.selectOption('#kind','연립다세대');assert.equal(await p.inputValue('#region'),'대구 중구');
-  assert.match(await p.locator('#landRegSel').textContent(),/연립다세대 지수는 대구 적용/);
+  // 연립다세대: 대구 전체만 공표 → 저장된 대구 중구는 「대구」 줄이 선택으로, 대구 지수로 계산
+  await p.selectOption('#kind','연립다세대');assert.equal(await p.inputValue('#region'),'대구');
+  assert.match(await p.locator('#landRegSel').textContent(),/\(대구 중구 — 연립다세대 지수는 이 단위로 공표\)/);
   await p.click('#btn-calc');assert.match(await p.inputValue('#resultText'),/지역 : 대구\n/);
   assert.deepEqual(errs,[]);console.log('arm_시점수정 OK');
   console.log('PASS');

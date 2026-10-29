@@ -30,18 +30,22 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
   assert.match(await calc(),/서울 강북구/);
   // 경기 성남시 분당구
   await pick('분당','분당구');assert.match(await p.locator('#landRegSel b').textContent(),/경기 > .*분당구/);
-  // 연립다세대: 아파트 지역도 보이되 연립에 없는 줄은 회색 · 고른 분당구는 그대로, 계산은 소속 권역 지수
-  await p.selectOption('#kind','연립다세대');assert.equal(await p.inputValue('#region'),'분당구');
-  assert.equal(await p.getAttribute('#landRegBody tr[data-key="분당구"] td','class'),'agg');
-  assert.match(await p.locator('#landRegSel').textContent(),/→ 연립다세대 지수는 경기 > .* 적용/);
-  assert.match(await calc(),/※ 연립다세대 지수는 분당구 단위로 공표되지 않아/);
-  // 연립 권역 줄은 회색 아님
-  await pick('동북','동북권');assert.equal(await p.getAttribute('#landRegBody tr[data-key="동북권"] td','class'),null);
-  assert.equal(await p.locator('#landRegSel .rt-note').count(),0);
-  // 오피스텔: 서울 강남구 → 상위 지수
-  await p.selectOption('#kind','오피스텔');await pick('강남구','강남구');assert.match(await p.locator('#landRegSel').textContent(),/→ 오피스텔 지수(는 서울 .* 적용| 없음)/);
-  // 아파트로 돌아오면 마지막에 고른 강남구 그대로
-  await p.selectOption('#kind','아파트');assert.equal(await p.inputValue('#region'),'강남구');
+  // 연립다세대: 연립 표에 있는 지역(권역 단위)만 — 구 줄·지역4 칸 없음. 저장된 분당구는 소속 권역 줄이 선택으로, 저장값은 그대로
+  await p.selectOption('#kind','연립다세대');await p.fill('#landRegQ','');
+  assert.deepEqual(await p.locator('#landRegHead th').allTextContents(),['지역1','지역2','지역3']);
+  const vk=await keys();assert.ok(!vk.includes('분당구')&&!vk.includes('강남구')&&vk.includes('동남권'),'구 줄 없음');
+  assert.notEqual(await p.inputValue('#region'),'분당구');assert.match(await p.locator('#landRegSel b').textContent(),/^경기 > /);
+  assert.match(await p.locator('#landRegSel').textContent(),/\(분당구 — 연립다세대 지수는 이 단위로 공표\)/);
+  assert.match(await calc(),/지역 : 경기 /);
+  // 구 이름으로 찾으면 그 구가 속한 권역 줄 + 「· 강남구 포함」
+  await p.fill('#landRegQ','강남구');const hit=await keys();assert.deepEqual(hit,['동남권'],'강남구 → 동남권: '+hit);
+  assert.match(await p.locator('#landRegBody tr[data-key="동남권"]').textContent(),/강남구 포함/);
+  await p.click('#landRegBody tr[data-key="동남권"]');assert.equal(await p.inputValue('#region'),'동남권');
+  assert.equal(await p.locator('#landRegSel b').textContent(),'서울 > 강남지역 > 동남권');assert.match(await calc(),/지역 : 서울 동남권/);
+  // 오피스텔도 구 이름으로 찾기
+  await p.selectOption('#kind','오피스텔');await p.fill('#landRegQ','강남구');assert.ok((await keys()).length>=1,'오피스텔 강남구 검색');
+  // 아파트로: 연립에서 고른 동남권 그대로, 강남구 다시 고름
+  await p.selectOption('#kind','아파트');assert.equal(await p.inputValue('#region'),'동남권');await pick('강남구','강남구');
   // 새로고침 → 복원 + 선택 줄 보임
   await p.reload();await p.waitForSelector('#landRegBody tr.on');assert.equal(await p.getAttribute('#landRegBody tr.on','data-key'),'강남구');
   assert.equal(await p.locator('#landRegBody tr.on').isVisible(),true);

@@ -3933,30 +3933,35 @@ const SJ_ROOT_ORDER=["전국","서울","경기","인천","수도권","부산","�
 function SjRegionTable({kind,value,onChange}){
   const [q,setQ]=React.useState("");const boxRef=React.useRef(null);const selRef=React.useRef(null);
   const D=idxData();
-  const rows=React.useMemo(()=>{if(!D)return[];const A=D.tables["아파트"]?.regions||{},K=D.tables[kind]?.regions||{};
+  // 연립다세대·오피스텔은 그 유형에 실제 있는 지역(권역 단위)만 — 구 이름(강남구)으로 찾으면 그 구가 속한 권역 줄이 나온다(sjApplied, 2026-10-29)
+  const {rows,applied}=React.useMemo(()=>{if(!D)return{rows:[],applied:k=>k};const A=D.tables["아파트"]?.regions||{},own=kind==="아파트"?A:(D.tables[kind]?.regions||{});
+    const applied=k=>{if(own[k])return k;const p=(A[k]?.full||"").split(">").map(x=>x.trim());return [...p].reverse().find(x=>own[x]&&own[x].full.split(">")[0]===p[0])||null;};
+    const al={};Object.keys(A).forEach(a=>{if(own[a])return;const ap=applied(a);if(ap)(al[ap]=al[ap]||[]).push(a);});
     const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
-    const rs=idxRegionList(kind).map(k=>({k,p:(K[k]||A[k]).full.split(">").map(x=>x.trim())}));
-    return rs.sort((a,b)=>{const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+    const rs=Object.keys(own).map(k=>({k,p:own[k].full.split(">").map(x=>x.trim()),al:al[k]||[]}));
+    return {rows:rs.sort((a,b)=>{const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
       for(let i=0;i<Math.min(a.p.length,b.p.length);i++){if(a.p[i]!==b.p[i])return a.p[i].localeCompare(b.p[i],"ko");}
-      return a.p.length-b.p.length;});},[D,kind]);
+      return a.p.length-b.p.length;}),applied};},[D,kind]);
   React.useEffect(()=>{const b=boxRef.current,r=selRef.current;if(b&&r)b.scrollTop=r.offsetTop-b.clientHeight/2;},[kind]);
   if(!D)return null;
   const qs=q.trim().split(/\s+/).filter(Boolean);
-  const shown=qs.length?rows.filter(r=>qs.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w))):rows;
-  const cols=Math.max(1,...rows.map(r=>r.p.length));const cur=rows.find(r=>r.k===value);
+  const hitAl=r=>qs.length?r.al.filter(a=>qs.some(w=>a.includes(w))):[];
+  const shown=qs.length?rows.filter(r=>qs.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w)||r.al.some(a=>a.includes(w)))):rows;
+  const vk=applied(value)||value;   // 연립에서 구(강남구)가 골라져 있으면 그 권역 줄을 선택으로 보여 줌 — 계산도 그 권역 지수
+  const cols=Math.max(1,...rows.map(r=>r.p.length));const cur=rows.find(r=>r.k===vk);
   const th={position:"sticky",top:0,background:"#e2e8f0",padding:"4px 6px",textAlign:"left",fontWeight:600,borderBottom:"1px solid #cbd5e1"};
   return(<div style={{marginTop:6}}>
     <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:4}}>
       <input aria-label="시점수정 지역 검색" value={q} onChange={e=>setQ(e.target.value)} placeholder="지역 검색 (예: 완산, 해운대)" style={{...S.inp,fontSize:12,padding:"3px 6px",width:170}}/>
-      <span style={{color:"#334155"}}>선택: <b data-region={value}>{cur?cur.p.join(" > "):value||"-"}</b></span>
+      <span style={{color:"#334155"}}>선택: <b data-region={value}>{cur?cur.p.join(" > "):value||"-"}</b>{cur&&vk!==value&&<span style={{color:"#64748b"}}> ({value} — {kind} 지수는 이 단위로 공표)</span>}</span>
     </div>
     <div ref={boxRef} style={{maxHeight:240,overflowY:"auto",border:"1px solid #cbd5e1",borderRadius:4,background:"#fff",position:"relative"}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
         <thead><tr>{Array.from({length:cols},(_,i)=><th key={i} style={th}>{"지역"+(i+1)}</th>)}</tr></thead>
-        <tbody>{shown.map(r=>{const on=r.k===value;return(<tr key={r.k} ref={on?selRef:null} data-key={r.k} onClick={()=>onChange(r.k)}
+        <tbody>{shown.map(r=>{const on=r.k===vk,ha=hitAl(r);return(<tr key={r.k} ref={on?selRef:null} data-key={r.k} onClick={()=>onChange(r.k)}
           style={{cursor:"pointer",background:on?"#dbeafe":"transparent",fontWeight:on?700:400}}
           onMouseEnter={e=>{if(!on)e.currentTarget.style.background="#f1f5f9";}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}>
-          {Array.from({length:cols},(_,i)=><td key={i} style={{padding:"3px 6px",borderBottom:"1px solid #f1f5f9",color:i<r.p.length?"#0f172a":"#cbd5e1"}}>{r.p[i]||""}</td>)}
+          {Array.from({length:cols},(_,i)=><td key={i} style={{padding:"3px 6px",borderBottom:"1px solid #f1f5f9",color:i<r.p.length?"#0f172a":"#cbd5e1"}}>{r.p[i]||""}{i===r.p.length-1&&ha.length>0&&<span style={{color:"#64748b",fontWeight:400}}> · {ha.join(", ")} 포함</span>}</td>)}
         </tr>);})}
         {!shown.length&&<tr><td colSpan={cols} style={{padding:8,color:"#94a3b8"}}>찾는 지역이 없습니다</td></tr>}</tbody>
       </table>
@@ -7289,30 +7294,35 @@ const SJ_ROOT_ORDER=["전국","서울","경기","인천","수도권","부산","�
 function SjRegionTable({kind,value,onChange}){
   const [q,setQ]=React.useState("");const boxRef=React.useRef(null);const selRef=React.useRef(null);
   const D=idxData();
-  const rows=React.useMemo(()=>{if(!D)return[];const A=D.tables["아파트"]?.regions||{},K=D.tables[kind]?.regions||{};
+  // 연립다세대·오피스텔은 그 유형에 실제 있는 지역(권역 단위)만 — 구 이름(강남구)으로 찾으면 그 구가 속한 권역 줄이 나온다(sjApplied, 2026-10-29)
+  const {rows,applied}=React.useMemo(()=>{if(!D)return{rows:[],applied:k=>k};const A=D.tables["아파트"]?.regions||{},own=kind==="아파트"?A:(D.tables[kind]?.regions||{});
+    const applied=k=>{if(own[k])return k;const p=(A[k]?.full||"").split(">").map(x=>x.trim());return [...p].reverse().find(x=>own[x]&&own[x].full.split(">")[0]===p[0])||null;};
+    const al={};Object.keys(A).forEach(a=>{if(own[a])return;const ap=applied(a);if(ap)(al[ap]=al[ap]||[]).push(a);});
     const rank=x=>{const i=SJ_ROOT_ORDER.findIndex(k=>x.startsWith(k));return i<0?99:i;};
-    const rs=idxRegionList(kind).map(k=>({k,p:(K[k]||A[k]).full.split(">").map(x=>x.trim())}));
-    return rs.sort((a,b)=>{const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+    const rs=Object.keys(own).map(k=>({k,p:own[k].full.split(">").map(x=>x.trim()),al:al[k]||[]}));
+    return {rows:rs.sort((a,b)=>{const r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
       for(let i=0;i<Math.min(a.p.length,b.p.length);i++){if(a.p[i]!==b.p[i])return a.p[i].localeCompare(b.p[i],"ko");}
-      return a.p.length-b.p.length;});},[D,kind]);
+      return a.p.length-b.p.length;}),applied};},[D,kind]);
   React.useEffect(()=>{const b=boxRef.current,r=selRef.current;if(b&&r)b.scrollTop=r.offsetTop-b.clientHeight/2;},[kind]);
   if(!D)return null;
   const qs=q.trim().split(/\s+/).filter(Boolean);
-  const shown=qs.length?rows.filter(r=>qs.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w))):rows;
-  const cols=Math.max(1,...rows.map(r=>r.p.length));const cur=rows.find(r=>r.k===value);
+  const hitAl=r=>qs.length?r.al.filter(a=>qs.some(w=>a.includes(w))):[];
+  const shown=qs.length?rows.filter(r=>qs.every(w=>r.p.some(x=>x.includes(w))||r.k.includes(w)||r.al.some(a=>a.includes(w)))):rows;
+  const vk=applied(value)||value;   // 연립에서 구(강남구)가 골라져 있으면 그 권역 줄을 선택으로 보여 줌 — 계산도 그 권역 지수
+  const cols=Math.max(1,...rows.map(r=>r.p.length));const cur=rows.find(r=>r.k===vk);
   const th={position:"sticky",top:0,background:"#e2e8f0",padding:"4px 6px",textAlign:"left",fontWeight:600,borderBottom:"1px solid #cbd5e1"};
   return(<div style={{marginTop:6}}>
     <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:4}}>
       <input aria-label="시점수정 지역 검색" value={q} onChange={e=>setQ(e.target.value)} placeholder="지역 검색 (예: 완산, 해운대)" style={{...S.inp,fontSize:12,padding:"3px 6px",width:170}}/>
-      <span style={{color:"#334155"}}>선택: <b data-region={value}>{cur?cur.p.join(" > "):value||"-"}</b></span>
+      <span style={{color:"#334155"}}>선택: <b data-region={value}>{cur?cur.p.join(" > "):value||"-"}</b>{cur&&vk!==value&&<span style={{color:"#64748b"}}> ({value} — {kind} 지수는 이 단위로 공표)</span>}</span>
     </div>
     <div ref={boxRef} style={{maxHeight:240,overflowY:"auto",border:"1px solid #cbd5e1",borderRadius:4,background:"#fff",position:"relative"}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
         <thead><tr>{Array.from({length:cols},(_,i)=><th key={i} style={th}>{"지역"+(i+1)}</th>)}</tr></thead>
-        <tbody>{shown.map(r=>{const on=r.k===value;return(<tr key={r.k} ref={on?selRef:null} data-key={r.k} onClick={()=>onChange(r.k)}
+        <tbody>{shown.map(r=>{const on=r.k===vk,ha=hitAl(r);return(<tr key={r.k} ref={on?selRef:null} data-key={r.k} onClick={()=>onChange(r.k)}
           style={{cursor:"pointer",background:on?"#dbeafe":"transparent",fontWeight:on?700:400}}
           onMouseEnter={e=>{if(!on)e.currentTarget.style.background="#f1f5f9";}} onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}>
-          {Array.from({length:cols},(_,i)=><td key={i} style={{padding:"3px 6px",borderBottom:"1px solid #f1f5f9",color:i<r.p.length?"#0f172a":"#cbd5e1"}}>{r.p[i]||""}</td>)}
+          {Array.from({length:cols},(_,i)=><td key={i} style={{padding:"3px 6px",borderBottom:"1px solid #f1f5f9",color:i<r.p.length?"#0f172a":"#cbd5e1"}}>{r.p[i]||""}{i===r.p.length-1&&ha.length>0&&<span style={{color:"#64748b",fontWeight:400}}> · {ha.join(", ")} 포함</span>}</td>)}
         </tr>);})}
         {!shown.length&&<tr><td colSpan={cols} style={{padding:8,color:"#94a3b8"}}>찾는 지역이 없습니다</td></tr>}</tbody>
       </table>
