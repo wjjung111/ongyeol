@@ -83,7 +83,25 @@ function tradeMap(c,n){
   // 토지만 — 거래사례 표의 건물 칸(8줄)은 남기고, 토지만의 거래라 비어 있는 칸은 '-'(토지만 정답 샘플과 같게)
   if(active&&typeof LAND_ONLY!=='undefined'&&LAND_ONLY)['건물면적','승인일','주구조','재조달','내용연수','잔존연수','건물단가','건물금액'].forEach(function(k){
     if(!String(m[prefix+k]||'').trim())m[prefix+k]='-';});
+  m[prefix+'비고']=text(c.note).trim();
   return m;
+}
+// 거래사례 표 맨 아래에 '비 고' 행을 붙인다(화면 비고 칸 → 문서, 2026-10-29 요청). 양식에는 비고 행이 없으므로
+// 바로 위 일반 행(토지금액)을 복제해 글자모양을 빌리고, 표 아래 굵은 테두리는 새 맨 아래 행으로 옮긴다.
+function addTradeNoteRow(tbl){
+  var rows=children(tbl,'tr'),last=rows[rows.length-1],prev=rows[rows.length-2];
+  var row=prev.cloneNode(true),lastCells=children(last,'tc'),prevCells=children(prev,'tc');
+  children(row,'tc').forEach(function(tc,i){
+    var col=Number(children(tc,'cellAddr')[0].getAttribute('colAddr')),ts=descendants(tc,'t');
+    if(ts.length){ts[0].textContent=col?'{{거래'+col+'_비고}}':'비 고';ts.slice(1).forEach(function(t){t.textContent='';});}
+    children(tc,'cellAddr')[0].setAttribute('rowAddr',String(rows.length));
+    if(lastCells[i])tc.setAttribute('borderFillIDRef',lastCells[i].getAttribute('borderFillIDRef'));
+  });
+  lastCells.forEach(function(tc,i){if(prevCells[i])tc.setAttribute('borderFillIDRef',prevCells[i].getAttribute('borderFillIDRef'));});
+  clearLines(row);tbl.appendChild(row);
+  tbl.setAttribute('rowCnt',String(rows.length+1));
+  var h=Math.max.apply(null,children(row,'tc').map(function(c){return Number(children(c,'cellSz')[0].getAttribute('height'));}));
+  var sz=children(tbl,'sz')[0];if(sz)sz.setAttribute('height',String(Number(sz.getAttribute('height'))+h));
 }
 // 거래시점에 이미 내용연수를 넘긴 사례(경과연수 ≥ 내용연수) — 잔존연수를 관찰감가로 직접 정하게 되는 경우.
 // 의견서 거래사례 표에서 그 사례의 건물 감가 관련 칸을 빨간 글씨로 내보내 눈에 띄게 한다.
@@ -899,6 +917,8 @@ function opinionXml(xml,data){
   // 5건 이상은 같은 표를 이어 붙이되 고르게 나눈다(5건 → 3+2, 6건 → 3+3, 7건 → 4+3). 사례 번호는 원래 번호 보존.
   tables.filter(function(t){return hasToken(t,'거래1_소재지');}).forEach(function(tbl){
     var host=tbl;while(host.parentNode&&!(host.namespaceURI===HP&&host.localName==='p'))host=host.parentNode;
+    // 화면 비고 칸에 하나라도 적었으면 표에 '비 고' 행을 붙인다(복제 전에 붙여야 이어지는 표에도 들어감). 모두 비면 종전 양식 그대로.
+    if(data.trades.some(function(t){return text(t.data&&t.data.note).trim();}))addTradeNoteRow(tbl);
     var n=data.trades.length,groups=Math.max(1,Math.ceil(n/TRADE_PER_TABLE)),per=Math.max(1,Math.ceil(n/groups)),last=host;
     for(var g=1;g<groups;g++){
       // 모든 복사본은 값 치환 전 원본을 사용한다(아래에서 일괄 scope).

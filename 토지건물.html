@@ -2412,8 +2412,8 @@ function renderTrade(){
   // 시점수정치: 선정할 때 계산되고, 계산된 값은 사례별로 남아 다른 사례로 옮겨도 계속 보인다
   h+='<tr><th class="rowh" title="선정 시 사례 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준). 한 번 계산되면 저장돼 계속 보임">시점<br>수정치</th>'+TRADES.map(function(c,i){
     return '<td class="tt-c'+(usedCases().t[i]?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'" style="cursor:pointer" title="누르면 이 사례의 시점수정치를 다시 계산합니다(거래일자~기준시점, 사례 소재지 기준)" onclick="redoCaseTime(\'t\','+i+',true)">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
-  // 비고: 사례별 자유 메모 (화면에서만 보이고 문서에는 나가지 않음)
-  h+='<tr><th class="rowh" title="사례에 대한 메모 — 자유롭게 적으세요. 화면에만 남고 문서에는 나가지 않습니다">비고</th>'+TRADES.map(function(c,i){
+  // 비고: 사례별 자유 메모 — 하나라도 적으면 의견서 거래사례 표 맨 아래 '비 고' 행으로 나간다(2026-10-29)
+  h+='<tr><th class="rowh" title="사례에 대한 메모 — 적으면 의견서 거래사례 표 맨 아래 \'비 고\' 행에 그대로 들어갑니다">비고</th>'+TRADES.map(function(c,i){
     return '<td><input value="'+attr(c.note||'')+'" placeholder="자유 입력" oninput="tradeIn('+i+',\'note\',this.value)"></td>';}).join('')+'</tr>';
   document.getElementById('tblTrade').innerHTML=h;
   renderTradePick();
