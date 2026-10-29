@@ -317,17 +317,18 @@
       let r;
       if(id)r=await fetch("https://api.github.com/gists/"+id,{method:"PATCH",headers:hdrs(t),body:JSON.stringify({files:{[FILE]:{content:body}}})});
       else r=await fetch("https://api.github.com/gists",{method:"POST",headers:hdrs(t),body:JSON.stringify({description:"EXACT 저장건 동기화 (자동 생성 — 지우지 마세요)",public:false,files:{[FILE]:{content:body}}})});
-      if(!r.ok)throw new Error("업로드 실패 "+r.status+(r.status===401?" — 토큰 확인":r.status===403?" — 토큰에 gist 권한 필요":""));
+      if(!r.ok){const tx=await r.text();throw new Error(window.ArapSyncWhy?window.ArapSyncWhy(r.status,tx):"업로드 실패 "+r.status);}   // GitHub가 보낸 실제 이유(403 = 권한 또는 횟수 제한)
       const g=await r.json();if(g&&g.id)lsSet(GIST_KEY,g.id);
       return{ok:true};
     }
-    let timer=null,status=token()?"☁️ 연결 확인 중...":"",listeners=[];
+    let lastPush=0,timer=null,status=token()?"☁️ 연결 확인 중...":"",listeners=[];
     const setStatus=s=>{status=s;listeners.forEach(f=>{try{f(s);}catch(e){console.error('sync status listener',e);}});};
     function onLocalSave(key){
       if(!/^((v2:)?case:|(v2:)?appraisal-case-list$)/.test(key))return;
       if(!token())return;
       clearTimeout(timer);setStatus("⏳ 업로드 대기...");
-      timer=setTimeout(async()=>{try{setStatus("⏫ 업로드 중...");await push();setStatus("☁️ 동기화됨 "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}));}catch(e){console.error('sync push',e);setStatus("⚠️ "+e.message);}},4000);
+      // GitHub는 Gist 고치기를 시간당 횟수로 막는다(초과 시 403) — 1분에 한 번까지만 올린다
+      timer=setTimeout(async()=>{try{setStatus("⏫ 업로드 중...");lastPush=Date.now();await push();setStatus("☁️ 동기화됨 "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}));}catch(e){console.error('sync push',e);setStatus("⚠️ "+e.message);if(/횟수 제한/.test(e.message))timer=setTimeout(()=>onLocalSave("case:"),300000);}},Math.max(4000,lastPush+60000-Date.now()));
     }
     async function syncNow(){
       setStatus("⏬ 받는 중...");const p=await pull();

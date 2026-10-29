@@ -22,6 +22,18 @@
   window.ArapCred=ArapCred;
 
   function hdrs(t){return {'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json'};}
+  // 업로드 실패 이유 — GitHub가 보낸 설명을 우리말로. 예전엔 403이면 무조건 「gist 권한 필요」라고 했는데,
+  // 시간당 횟수 초과(secondary rate limit)도 403이라 권한이 멀쩡한데 권한 문제로 보였다(2026-10-29 사용자 제보)
+  function ArapSyncWhy(st,body){
+    var m='';try{m=String((JSON.parse(body||'{}')||{}).message||'');}catch(e){m=String(body||'').slice(0,120);}
+    var why=st===401?'토큰이 틀렸거나 만료됨 — 새 토큰을 넣어 주세요'
+      :/rate limit/i.test(m)?'GitHub 횟수 제한(잠시 뒤 자동으로 다시 올림 — 이 브라우저 저장은 정상)'
+      :/not accessible|scope|permission/i.test(m)?'토큰에 Gist 권한이 없음 — gist 체크한 토큰으로 다시 연결'
+      :st===404?'백업 Gist를 못 찾음 — 「저장된 토큰으로 연결」을 다시 눌러 주세요'
+      :st===422?'백업 파일이 너무 큼':'';
+    return '업로드 실패 '+st+(why?' — '+why:'')+(m&&!why?' ('+m+')':'');
+  }
+  window.ArapSyncWhy=ArapSyncWhy;
   // 앱들이 함께 쓰는 Gist 찾기 — 저장된 id가 없으면 온결 파일이 든 Gist를 찾는다
   function findGist(t){
     var id=lsGet(GIST_KEY);
@@ -43,7 +55,7 @@
 
   /* cfg: {file, listKey, caseKey:id=>key, memoKey:id=>key, trashKey, onPulled(changed)} */
   function create(cfg){
-    var timer=null,status='',listeners=[];
+    var timer=null,status='',listeners=[],lastPush=0;
     function token(){return lsGet(TOKEN_KEY)||'';}
     function setStatus(s){status=s;listeners.forEach(function(f){try{f(s);}catch(e){console.error('sync status',e);}});}
     function readList(){try{return JSON.parse(lsGet(cfg.listKey)||'[]')||[];}catch(e){return [];}}
@@ -94,7 +106,7 @@
         return gid?fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers:hdrs(t),body:JSON.stringify({files:files})})
                   :fetch('https://api.github.com/gists',{method:'POST',headers:hdrs(t),body:JSON.stringify({description:'EXACT 저장건 동기화 (자동 생성 — 지우지 마세요)',public:false,files:files})});
       }).then(function(r){
-        if(!r.ok)throw new Error('업로드 실패 '+r.status+(r.status===401?' — 토큰 확인':r.status===403?' — 토큰에 gist 권한 필요':''));
+        if(!r.ok)return r.text().then(function(t){throw new Error(ArapSyncWhy(r.status,t));});
         return r.json();
       }).then(function(g){if(g&&g.id)lsSet(GIST_KEY,g.id);return {ok:true};});
     }
@@ -103,8 +115,11 @@
     function touch(){
       if(!token())return;
       clearTimeout(timer);setStatus('⏳ 백업 대기...');
-      timer=setTimeout(function(){setStatus('⏫ 백업 중...');
-        push().then(function(){setStatus('☁️ 백업됨 '+now());},function(e){console.error('sync push',e);setStatus('⚠️ '+e.message);});},3000);
+      // GitHub는 Gist 고치기를 시간당 횟수로 막는다(초과 시 403) — 칸을 고칠 때마다 올리지 않고 1분에 한 번까지만
+      var wait=Math.max(3000,lastPush+60000-Date.now());
+      timer=setTimeout(function(){setStatus('⏫ 백업 중...');lastPush=Date.now();
+        push().then(function(){setStatus('☁️ 백업됨 '+now());},function(e){console.error('sync push',e);setStatus('⚠️ '+e.message);
+          if(/횟수 제한/.test(e.message))timer=setTimeout(touch,300000);});},wait);   // 횟수 제한이면 5분 뒤 다시
     }
     function syncNow(){
       setStatus('⏬ 받는 중...');
