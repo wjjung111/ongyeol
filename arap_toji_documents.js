@@ -388,7 +388,8 @@ function zoneStatementRows(gs,loc){
     var pn=String(L&&L['비고']||'').trim();if(pn==='-')pn='';
     var note=z?[ILDANJI?'일단지':'',useLines(zoneName(k))].filter(Boolean).join('\n'):'';
     if(pn)note=note?note+'\n'+pn:pn;
-    var o={'명세_사정면적':z?zoneArea(k):null,'명세_단가':z?g.apply:null,'명세_평가액':z?g.total:0,'명세_비고':note,
+    // 사정면적 = 구역 평가면적(지분이면 구역 면적 × 지분)
+    var o={'명세_사정면적':z?zoneEvalArea(k):null,'명세_단가':z?g.apply:null,'명세_평가액':z?g.total:0,'명세_비고':note,
       gbr:brOf(k,ps.length),hbr:brOf(k,zs.length)};
     if(L)Object.assign(o,{'명세_기호':String(landParcelNo(LANDS.indexOf(L))),'명세_소재지':loc(L),'명세_지번':L['지번']||'','명세_지목용도':L['지목']||'','명세_지역구조':useLines(L['용도지역']),'명세_공부면적':num(L['면적'])});
     else Object.assign(o,{'명세_기호':'','명세_소재지':undefined,'명세_지번':'','명세_지목용도':'','명세_지역구조':'','명세_공부면적':null,minRows:2});

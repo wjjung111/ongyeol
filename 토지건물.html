@@ -1244,6 +1244,14 @@ function evalKeys(){return zoneMode()?GZONES.map(function(_,k){return 'z'+k;}):L
 function zoneAreaAuto(k){if(k!==GZONES.length-1)return 0;var s=0;GZONES.forEach(function(Z,q){if(q!==k)s+=num(Z.area)||0;});
   var r=roundArea(groupTotal()-s);return r>0?r:0;}
 function zoneArea(k){var v=num((GZONES[k]||{}).area);return v?v:zoneAreaAuto(k);}
+// ── 묶음 지분 (2026-10-29) ── 일단지를 묶고(용도지역별로 나눠도) 그 지분만 평가 — 평가면적 = 묶은(구역) 면적 × 지분.
+// 「그 밖의 사항」 지분 문구는 지분입력과 같은 문장(etcShareLabel → etcSyncShare)
+var GROUP_SHARE='';
+function groupShare(){var p=parseShare(GROUP_SHARE);return p>0?p/100:1;}
+function groupShareLabel(){return shareLabel({'지분':GROUP_SHARE});}
+function zoneEvalArea(k){return roundArea(zoneArea(k)*groupShare());}
+function grpSumText(){return fmtArea(groupTotal())+(groupShare()!==1?' (지분 '+groupShareLabel()+' → 평가 '+fmtArea(groupEvalTotal())+')':'');}
+function groupEvalTotal(){return roundArea(groupTotal()*groupShare());}
 // 필지들의 용도지역 칸에서 이름 후보(「일반상업지역, 제3종일반주거지역」 → 둘)
 function zoneUseList(){var out=[];landParcels().forEach(function(L){String(L['용도지역']||'').split(/[,，·\/]|\s{2,}/).forEach(function(s){s=s.trim();if(s&&out.indexOf(s)<0)out.push(s);});});return out;}
 function newZone(name){var L0=LANDS[0]||{};
@@ -1270,6 +1278,10 @@ function zoneChanged(){calcGongsi();saveForm();sd();zoneHints();}
 function zoneHints(){
   var last=GZONES.length-1,el=document.querySelector('#landTbl input.zone-ar[data-k="'+last+'"]');
   if(el)el.placeholder=zoneAreaAuto(last)?fmtArea(zoneAreaAuto(last))+' (자동)':'면적';
+  var sh=groupShare()!==1;   // 지분이면 구역마다 「→ 지분 면적」
+  document.querySelectorAll('#landTbl .zone-ev').forEach(function(e){var k=+e.dataset.k;e.textContent=sh?'→ '+fmtArea(zoneEvalArea(k)):'';});
+  var ss=document.getElementById('landSajSum');if(ss)ss.textContent=grpSumText();
+  var gs=document.getElementById('grpShareHint');if(gs)gs.textContent=groupShare()!==1?'평가 '+fmtArea(groupEvalTotal())+'㎡':'';
   var h=document.getElementById('zoneSumHint');if(!h)return;
   var s=0;GZONES.forEach(function(_,k){s+=zoneArea(k);});s=roundArea(s);var t=groupTotal(),ok=Math.abs(s-t)<0.00005;
   h.style.color=ok?'#64748b':'#b91c1c';h.textContent=ok?'합계 '+fmtArea(s)+'㎡ = 묶은 면적':'⚠ 합계 '+fmtArea(s)+'㎡ ≠ 묶은 면적 '+fmtArea(t)+'㎡';
@@ -1283,7 +1295,7 @@ function zoneCell(rows){
     return '<div class="zone-r"><input class="zone-nm" value="'+esc(Z.name)+'" placeholder="용도지역" list="zoneUseDl" aria-label="구역 '+(k+1)+' 용도지역"'
       +' oninput="GZONES['+k+'].name=this.value;zoneChanged();">'
       +'<input class="zone-ar" data-k="'+k+'" value="'+esc(Z.area)+'" placeholder="'+(zoneAreaAuto(k)?fmtArea(zoneAreaAuto(k))+' (자동)':'면적')+'" aria-label="구역 '+(k+1)+' 면적"'
-      +' oninput="GZONES['+k+'].area=this.value;zoneChanged();"><span class="hint">㎡</span>'
+      +' oninput="GZONES['+k+'].area=this.value;zoneChanged();"><span class="hint">㎡</span><span class="hint zone-ev" data-k="'+k+'" style="color:#1d4ed8;white-space:nowrap"></span>'
       +'<span class="del" title="이 줄 삭제" onclick="delZone('+k+')">✕</span></div>';}).join('')
     +'<div class="zone-r"><button class="btn gh sm" style="padding:0 6px;font-size:11px" onclick="addZones()">＋ 줄</button><span id="zoneSumHint" class="hint" style="font-size:11px"></span></div></td>';
 }
@@ -1352,7 +1364,7 @@ function recalcGroupArea(){var s=landGongbuSum();GROUP_AREA=s?String(s):'';}
 function groupTotal(){var v=num(GROUP_AREA);return v?v:landGongbuSum();}
 // 묶은 면적을 필지별로 안분 — 마지막 필지가 잔여를 흡수해 합계가 묶은 면적과 정확히 같다
 function groupSplit(){
-  var tot=groupTotal(),gs=LANDS.map(function(L){return num(L['면적'])||0;});
+  var tot=groupEvalTotal(),gs=LANDS.map(function(L){return num(L['면적'])||0;});
   var sum=gs.reduce(function(a,b){return a+b;},0);
   if(!tot)return gs.map(function(){return 0;});
   if(!sum)return gs.map(function(_,i){return i===0?tot:0;});
@@ -1517,7 +1529,10 @@ function renderLands(){
           return gongbuCell+(i?'':'<td class="jud-c grp-c" rowspan="'+LANDS.length+'" title="'+GROUP_TITLE+'">'
             +'<span class="grp-br"></span><div class="grp-lab">'+groupWord()+' 묶음</div>'
             +'<input class="grp-in" value="'+esc(GROUP_AREA)+'" placeholder="'+fmtArea(landGongbuSum())+'"'
-            +' oninput="GROUP_AREA=this.value;landChanged();">㎡</td>'+zoneCell(LANDS.length));
+            +' oninput="GROUP_AREA=this.value;landChanged();">㎡'
+            +'<div style="margin-top:4px;white-space:nowrap" title="지분만 평가할 때 — 1/2 또는 50. 평가면적 = 묶은 면적(용도지역별 면적) × 지분, 「그 밖의 사항」에 지분 문구가 자동으로 들어갑니다. 비우면 전체"><span class="hint">지분</span> '
+            +'<input class="grp-sh" value="'+esc(GROUP_SHARE)+'" placeholder="전체" style="width:52px;text-align:center" oninput="GROUP_SHARE=this.value;zoneChanged();etcSyncShare();">'
+            +'<div class="hint" id="grpShareHint" style="color:#1d4ed8"></div></div></td>'+zoneCell(LANDS.length));
         var hasSub=landSubIdx(i).length>0;
         return gongbuCell
           +'<td class="jud-c"><input value="'+esc(L['사정면적'])+'" placeholder="'+(share?'자동':'공부면적')+'" title="'+(hasSub?'나눈 줄이 있어 공부면적 − 나눈 줄 면적으로 자동 채움(직접 고칠 수 있음)':SAJ_TITLE)+'"'
@@ -1552,7 +1567,7 @@ function renderLands(){
   var w=document.getElementById('landSajWrap');
   if(w){
     if(group){w.style.display='';w.firstChild.textContent=groupWord()+' 묶은 면적: ';
-      document.getElementById('landSajSum').textContent=fmtArea(groupTotal());}
+      document.getElementById('landSajSum').textContent=grpSumText();}
     else{w.style.display=anySaj?'':'none';w.firstChild.textContent='사정면적 합계: ';
       document.getElementById('landSajSum').textContent=fmtArea(roundArea(j))+(o?' (평가외 '+fmtArea(roundArea(o))+')':'');}}
 }
@@ -3208,7 +3223,7 @@ function calcGongsi(){
   var zm=zoneMode();
   // 묶음을 용도지역별로 나눴으면 구역마다 한 줄(표준지·개별요인·그 밖의 요인·결정단가 각각). 공부면적은 필지 합계로 한 번만
   if(zm)GZONES.forEach(function(Z,k){
-    var key='z'+k,j=landStdOf(Z),Sj=STDS[j]||{},size=zoneArea(k);
+    var key='z'+k,j=landStdOf(Z),Sj=STDS[j]||{},size=zoneEvalArea(k);   // 지분이면 구역 면적 × 지분
     var er=etcRefOf(Z),own=etcOwn(Z);
     var price=num(Sj['공시지가']),gfp=facProduct(landFactors(Z),stdDaegu(j)),etc=own?etcPairResult(er,j).decide:etcOf(j);
     var calc=price*stf*1*gfp*etc;if(!firstSet)firstCalcG=calc;
@@ -3358,7 +3373,7 @@ function calcGeorae(){
   var firstSet=false,gv0=null;
   if(zm)GZONES.forEach(function(Z,k){
     var gv=caseVals(gaCaseIdx(Z));if(!gv0)gv0=gv;
-    var size=zoneArea(k),gfp=facProduct(landGaFactors(Z),landDaegu(Z));
+    var size=zoneEvalArea(k),gfp=facProduct(landGaFactors(Z),landDaegu(Z));
     var calc=gv.unit*gv.sj*gv.st*gv.ar*gfp;
     var autoApply=applyAuto(calc,'ga'),apply=hasV(Z.gaApply)?num(Z.gaApply):autoApply;
     var tot=apply*size;
@@ -4313,6 +4328,7 @@ function etcShareText(label){
 }
 // 본건 필지들의 지분 표기(분수 우선) — 필지마다 다르면 '1/2, 1/3'
 function etcShareLabel(){
+  if(isLandGroup())return groupShare()!==1?groupShareLabel():'';   // 묶음 지분
   if(SAJ_MODE.land!=='share')return '';
   var labels=[];LANDS.forEach(function(L){var s=shareLabel(L);if(s&&labels.indexOf(s)<0)labels.push(s);});
   return labels.join(', ');
@@ -4431,7 +4447,7 @@ function collect(){
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   o.landOnly=LAND_ONLY;   // 평가대상: 토지만(true) / 토지+건물(false·없음)
   o.bldOnly=BLD_ONLY;     // 평가대상: 건물만(true)
-  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;o.GZONES=GZONES;
+  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;o.GZONES=GZONES;o.GROUP_SHARE=GROUP_SHARE;
   return o;
 }
 var saveTimer=null;
@@ -4591,6 +4607,7 @@ function applyForm(o){
   GROUP_AREA=(o.GROUP_AREA!=null)?String(o.GROUP_AREA):'';
   ILDANJI=!!o.ILDANJI;
   GZONES=Array.isArray(o.GZONES)?o.GZONES:[];
+  GROUP_SHARE=o.GROUP_SHARE!=null?String(o.GROUP_SHARE):'';
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
   STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
   renderStds();renderLands();
@@ -4715,7 +4732,7 @@ function clearForm(){
   OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
   BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
-  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;GZONES=[];
+  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;GZONES=[];GROUP_SHARE='';
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
