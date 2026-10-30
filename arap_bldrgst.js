@@ -57,7 +57,7 @@ function bldUrl(pnu,op,extra){
 // 여러 페이지를 끝까지 받아 합친다(건축물대장.html과 동일)
 async function fetchAll(pnu,op,extra){
   var out=[],page=1,rows=200,total=null,proxyOld=false;
-  for(;page<=25;page++){
+  for(;page<=100;page++){
     var d=await callApi(bldUrl(pnu,op,Object.assign({pageNo:page,numOfRows:rows},extra||{})));
     var b=d&&d.response&&d.response.body||{};
     var it=items(d),gotPage=Number(b.pageNo);
