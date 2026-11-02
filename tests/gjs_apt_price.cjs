@@ -64,7 +64,9 @@ const page=(arr,pg)=>({apartHousingPrices:{field:arr.slice((pg-1)*1000,pg*1000),
     const clip=(await pg.evaluate(()=>navigator.clipboard.readText())).split('\n');
     assert.equal(clip[0],['동','층','호','전유면적(㎡)','2025년 공동주택가격'].join('\t'));
     assert.equal(clip[1],['101동','2','201호','84.97',String(250000000+201000+1)].join('\t'));
-    assert.equal(clip.length,7);
+    assert.equal(clip.length,8);
+    assert.equal(clip[7],['합계','','6호','509.82','1505406009'].join('\t'));
+    assert.deepEqual(await pg.$$eval('#aAllTbl tfoot td',a=>a.map(x=>x.textContent)),['합계','','6호','509.82',(1505406009).toLocaleString('ko-KR')+'원']);
     // 「그 호는 집합건물 탭에서 계산」 → 집합건물 탭, 주소·평가기준일·일괄고시 없는 비주거 채움 + 주소 조회 누름
     await pg.click('#aAll [data-to-condo]');
     await pg.waitForSelector('#paneCondo iframe');
