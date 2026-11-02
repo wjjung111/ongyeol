@@ -33,8 +33,12 @@ const PUB=[ // 101호: 전유 58.28 + 공용 11.02 (계단·복도) — 동 칸�
     await pg.goto(base+'/집합건물_기준시가.html',{waitUntil:'domcontentloaded'});
     await pg.fill('#date','2026-11-02');
     await pg.selectOption('#mode','manual');
+    // 「호별 고시 여부」 칸이 평가기준일 칸과 같은 높이에서 시작(정렬)
+    const [dt,md]=await Promise.all(['#date','#mode'].map(id=>pg.$eval(id,e=>Math.round(e.getBoundingClientRect().top))));
+    assert.equal(dt,md);
+    // Enter로 주소 조회
     await pg.fill('#address','서울특별시 강동구 성내동 420-5');
-    await pg.click('#search');
+    await pg.press('#address','Enter');
     await pg.waitForFunction(()=>document.querySelectorAll('#ho option').length>1);
     // 동 칸: 공백이 아니라 「동 구분 없음」
     assert.equal(await pg.$eval('#dong',e=>e.selectedOptions[0].textContent),'동 구분 없음');
@@ -46,6 +50,9 @@ const PUB=[ // 101호: 전유 58.28 + 공용 11.02 (계단·복도) — 동 칸�
     // 동 없으면 공백 dongNm을 서버에 보내지 않음
     const q=seen.find(x=>x.op==='getBrExposPubuseAreaInfo');assert.equal(q.hoNm,'101');assert.ok(!('dongNm' in q));
     assert.equal(await pg.$eval('#built',e=>e.value),'2003');
+    // 검색 기록: 기준시가·건축물대장과 같은 저장칸, 입력칸 목록에 뜸
+    assert.equal(await pg.evaluate(()=>JSON.parse(localStorage.getItem('arap-bld-history-parcel'))[0]),'서울특별시 강동구 성내동 420-5');
+    assert.equal(await pg.$eval('#address',e=>e.list&&e.list.options[0].value),'서울특별시 강동구 성내동 420-5');
     assert.deepEqual(errors,[]);
     console.log('OK condo_blank_dong');
   }finally{await browser.close();server.close();}
