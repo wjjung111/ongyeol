@@ -154,6 +154,9 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
 .abig .why{font-size:12px;color:var(--ink2);margin-top:4px}
 .abig .why.warn{color:var(--warn)}
 .qres tr.apply td{background:var(--acc-soft);font-weight:700}
+/* 집합건물(근생·오피스텔) 탭 = 집합건물_기준시가.html?embed=1 을 iframe으로 (높이는 내용에 맞춤, 안쪽 스크롤 없음) */
+#paneCondo{max-width:1280px;margin:0 auto}
+#paneCondo iframe{display:block;width:100%;height:900px;border:0;overflow:hidden}
 @media (max-width:600px){.ptabs{padding:12px 16px 0}.fbwrap{padding:0 16px}}
 @media print{.ptabs{display:none!important}}
 </style>
@@ -167,6 +170,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
 <nav class="ptabs" role="tablist" aria-label="화면 선택">
   <button type="button" data-pane="bld" class="on" role="tab" aria-selected="true">🏢 건물 기준시가</button>
   <button type="button" data-pane="apt" role="tab" aria-selected="false">🏠 공동주택가격 <small>(아파트·연립·다세대)</small></button>
+  <button type="button" data-pane="condo" role="tab" aria-selected="false">🏬 집합건물 <small>(근생·오피스텔)</small></button>
 </nav>
 <div class="fbwrap">
   <div class="paste" id="fallbackPanel" hidden>
@@ -199,6 +203,8 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
   </div>
 </section>
 </div>
+
+<div id="paneCondo" hidden></div><!-- 처음 열 때 iframe 생성 (showPane → condoFrame) -->
 
 <div id="paneBld">
 <header class="top">
@@ -721,18 +727,36 @@ $("qGo").addEventListener("click",async()=>{
 });
 $("qAddr").addEventListener("keydown",e=>{ if(e.key==="Enter") $("qGo").click(); });
 
-// ═══════════ 화면 탭: 건물 기준시가 / 공동주택가격 (주소 끝 #apt 또는 마지막으로 연 탭) ═══════════
+// ═══════════ 화면 탭: 건물 기준시가 / 공동주택가격 / 집합건물 (주소 끝 #apt·#condo 또는 마지막으로 연 탭) ═══════════
 const PANE_KEY="arap-gjs-pane";
+const PANE_TITLE={bld:"건물 기준시가",apt:"공동주택가격",condo:"집합건물 기준시가"};
+// 집합건물 탭: 집합건물_기준시가.html?embed=1 을 처음 열 때 한 번만 iframe으로 붙임(계산 로직은 그 화면 그대로).
+// 공동주택가격 탭 소재지가 있으면 &addr= 로 넘겨 지번주소 칸에 미리 넣음. 높이는 안쪽 내용에 맞춰 계속 맞춤.
+function condoFrame(){
+  const box=$("paneCondo"); if(box.firstChild) return;
+  const addr=(($("aAddr")&&$("aAddr").value)||"").trim();
+  const f=document.createElement("iframe");
+  f.id="condoFrame"; f.title="집합건물 기준시가"; f.setAttribute("scrolling","no");
+  f.src="집합건물_기준시가.html?embed=1"+(addr?"&addr="+encodeURIComponent(addr):"");
+  const fit=()=>{ try{ const b=f.contentDocument&&f.contentDocument.body; if(!b) return;
+    const h=Math.ceil(b.getBoundingClientRect().height); if(h>0) f.style.height=h+"px"; }catch(e){} };
+  f.addEventListener("load",()=>{ fit();
+    try{ const d=f.contentDocument; d.documentElement.style.overflow="hidden";
+      if(window.ResizeObserver) new ResizeObserver(fit).observe(d.body);
+      else setInterval(fit,500); }catch(e){} });
+  box.appendChild(f);
+}
 function showPane(p){
-  p=p==="apt"?"apt":"bld";
-  $("paneBld").hidden=p!=="bld"; $("paneApt").hidden=p!=="apt";
+  p=PANE_TITLE[p]?p:"bld";
+  $("paneBld").hidden=p!=="bld"; $("paneApt").hidden=p!=="apt"; $("paneCondo").hidden=p!=="condo";
   document.querySelectorAll(".ptabs button").forEach(b=>{ const on=b.dataset.pane===p; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
-  $("tbTitle").textContent=p==="apt"?"공동주택가격":"건물 기준시가";
+  $("tbTitle").textContent=PANE_TITLE[p];
   try{ localStorage.setItem(PANE_KEY,p); }catch(e){}
   if(p==="apt"&&!$("aDate").value) $("aDate").value=$("qDate").value||new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+  if(p==="condo") condoFrame();
 }
-document.querySelectorAll(".ptabs button").forEach(b=>b.addEventListener("click",()=>{ showPane(b.dataset.pane); history.replaceState(null,"",b.dataset.pane==="apt"?"#apt":location.pathname+location.search); }));
-showPane(location.hash==="#apt"?"apt":(()=>{ try{ return localStorage.getItem(PANE_KEY); }catch(e){ return ""; } })());
+document.querySelectorAll(".ptabs button").forEach(b=>b.addEventListener("click",()=>{ const p=b.dataset.pane; showPane(p); history.replaceState(null,"",p==="bld"?location.pathname+location.search:"#"+p); }));
+showPane(location.hash==="#apt"?"apt":location.hash==="#condo"?"condo":(()=>{ try{ return localStorage.getItem(PANE_KEY); }catch(e){ return ""; } })());
 
 // ═══════════ 공동주택가격 조회 (V-World getApartHousingPriceAttr) ═══════════
 // 지번 → PNU → 그 지번의 공동주택가격 전체(적용 연도) → 동·호 드롭다운 → 고른 호의 연도별 가격.
