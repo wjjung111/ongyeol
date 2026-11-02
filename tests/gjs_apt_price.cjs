@@ -57,6 +57,14 @@ const page=(arr,pg)=>({apartHousingPrices:{field:arr.slice((pg-1)*1000,pg*1000),
     assert.equal(allRows.length,6);
     assert.deepEqual(allRows[0],['101동','2','201호','84.97',(250000000+201000+1).toLocaleString('ko-KR')+'원']);
     assert.deepEqual(allRows[3].slice(0,3),['102동','2','201호']);
+    // 📋 전체 호 복사 → 엑셀용 탭 구분, 숫자는 쉼표·원 없이
+    await ctx.grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+    await pg.click('#aAllCopy');
+    await pg.waitForFunction(()=>/6호 복사 완료/.test(document.getElementById('aAllSt').textContent));
+    const clip=(await pg.evaluate(()=>navigator.clipboard.readText())).split('\n');
+    assert.equal(clip[0],['동','층','호','전유면적(㎡)','2025년 공동주택가격'].join('\t'));
+    assert.equal(clip[1],['101동','2','201호','84.97',String(250000000+201000+1)].join('\t'));
+    assert.equal(clip.length,7);
     // 「그 호는 집합건물 탭에서 계산」 → 집합건물 탭, 주소·평가기준일·일괄고시 없는 비주거 채움 + 주소 조회 누름
     await pg.click('#aAll [data-to-condo]');
     await pg.waitForSelector('#paneCondo iframe');
@@ -78,6 +86,11 @@ const page=(arr,pg)=>({apartHousingPrices:{field:arr.slice((pg-1)*1000,pg*1000),
     assert.match(await pg.textContent('#aResult'),/직전 연도 2025년/);
     assert.deepEqual(await pg.$$eval('#aResult tbody tr td:first-child',a=>a.map(x=>x.textContent)),['2026','2025','2024']);
     assert.equal(await pg.$eval('#aResult tr.apply td',e=>e.textContent),'2025');
+    await pg.click('#aYearCopy');
+    await pg.waitForFunction(()=>/3개 연도 복사 완료/.test(document.getElementById('aYearSt').textContent));
+    const yc=(await pg.evaluate(()=>navigator.clipboard.readText())).split('\n');
+    assert.equal(yc[1],'공시연도\t기준월\t공동주택가격\t전용면적\t전용㎡당');
+    assert.equal(yc[3],['2025','01',String(250000000+1001000+1),'84.97',String(Math.round((250000000+1001000+1)/84.97))].join('\t'));
     const hreq=reqs[reqs.length-1];assert.equal(hreq.dongNm,'101동');assert.equal(hreq.hoNm,'1001');assert.ok(!hreq.stdrYear);
 
     // 2) 평가기준일을 공시일 뒤로 → 2026년
