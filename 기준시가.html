@@ -154,6 +154,10 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
 .abig .why{font-size:12px;color:var(--ink2);margin-top:4px}
 .abig .why.warn{color:var(--warn)}
 .qres tr.apply td{background:var(--acc-soft);font-weight:700}
+.btn.copy{background:var(--surface);color:var(--acc);border:1px solid var(--acc);font-weight:600;padding:4px 11px;font-size:12px}
+.btn.copy:hover{background:var(--acc-soft)}
+.copybar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.copybar .sumline{margin:0}
 /* 집합건물(근생·오피스텔) 탭 = 집합건물_기준시가.html?embed=1 을 iframe으로 (높이는 내용에 맞춤, 안쪽 스크롤 없음) */
 #paneCondo{max-width:1280px;margin:0 auto}
 #paneCondo iframe{display:block;width:100%;height:900px;border:0;overflow:hidden}
@@ -843,6 +847,13 @@ async function aptSearch(q,keep){
   }catch(e){ if(stale()) return; console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); }
   finally{ if(!stale()) $("aGo").disabled=false; $("aLog").hidden=!APT.raw.length; $("aRaw").textContent=JSON.stringify(APT.raw,null,1).slice(0,20000); }
 }
+// 클립보드 복사(건축물대장.html clipboardCopy와 같은 방식 — 막히면 textarea 우회)
+function aptClip(text,st,okMsg){
+  const ok=()=>{ st.className="status ok"; st.textContent=okMsg; };
+  const fail=e=>{ console.error("클립보드 복사 실패",e); const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); ok(); }catch(e2){ st.className="status err"; st.textContent="복사가 안 됩니다. 표를 마우스로 긁어서 복사하세요."; } document.body.removeChild(ta); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok).catch(fail); else fail(new Error("clipboard API 없음"));
+}
 // 작은 다세대·연립(호수 10개 이하): 조회하자마자 전체 호를 한 표로 — 층·호·전유면적·공동주택가격
 const APT_ALL_MAX=10;
 function aptRenderAll(){
@@ -857,14 +868,15 @@ function aptRenderAll(){
   const head=[...(showDong?["동"]:[]),"층","호","전유면적(㎡)",oneYear?oneYear+"년 공동주택가격":"공동주택가격",...(oneYear?[]:["공시연도"])];
   const cells=it=>{ const p=aptPrice(it); return [...(showDong?[aptDongLabel(aptStr(it.dongNm))]:[]),aptStr(it.floorNm),aptHoLabel(aptStr(it.hoNm)),aptStr(it.prvuseAr),p?fmt(p)+"원":"—",...(oneYear?[]:[aptStr(it.stdrYear)])]; };
   const warn=ay&&oneYear&&+oneYear!==ay?`<p class="hint" style="color:var(--warn)">평가기준일 적용 연도는 ${ay}년인데 ${oneYear}년 가격입니다(${ay}년 미공시) — 확인하세요.</p>`:"";
-  box.innerHTML=`<div class="qres" style="margin:4px 0 14px"><p class="sumline"><b>전체 ${units.length}호</b> · 줄을 누르면 그 호의 연도별 가격이 아래에 나옵니다 <button type="button" class="btn" id="aAllCopy" style="margin-left:8px;padding:3px 10px;font-size:12px">표 복사</button></p>${warn}
+  box.innerHTML=`<div class="qres" style="margin:4px 0 14px"><div class="copybar"><p class="sumline"><b>전체 ${units.length}호</b> · 줄을 누르면 그 호의 연도별 가격이 아래에 나옵니다</p><button type="button" class="btn copy" id="aAllCopy">📋 전체 호 복사</button></div><div class="status" id="aAllSt"></div>${warn}
     <div style="overflow-x:auto"><table id="aAllTbl" style="min-width:480px"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>
     ${units.map((it,i)=>`<tr data-i="${i}" style="cursor:pointer">${cells(it).map((c,j)=>`<td${j===head.length-(oneYear?1:2)?' style="text-align:right;font-weight:700"':""}>${c}</td>`).join("")}</tr>`).join("")}
     </tbody></table></div><p class="hint">공동주택가격 목록에 없는 호(1층 근린생활시설·상가 등)는 공동주택가격 대상이 아니라 표에 나오지 않습니다. <button type="button" class="btn" data-to-condo style="margin-left:6px;padding:3px 10px;font-size:12px">🏬 그 호는 집합건물 탭에서 계산 →</button></p></div>`;
   box.querySelectorAll("tbody tr").forEach(tr=>tr.addEventListener("click",()=>{ const it=units[+tr.dataset.i];
     $("aDong").value=aptStr(it.dongNm); aptFillHo(); $("aHo").value=aptStr(it.hoNm); aptShowUnit(); }));
-  $("aAllCopy").onclick=async()=>{ const t=[APT.addr+" "+$("aComplex").textContent,head.join("\t"),...units.map(it=>cells(it).join("\t"))].join("\n");
-    try{ await navigator.clipboard.writeText(t); $("aAllCopy").textContent="복사됨"; setTimeout(()=>{ const b=$("aAllCopy"); if(b) b.textContent="표 복사"; },1500); }catch(e){ alert(t); } };
+  // 엑셀용: 탭 구분, 머리글 + 호마다 한 줄, 숫자는 쉼표·「원」 없이(엑셀이 숫자로 받게)
+  $("aAllCopy").onclick=()=>{ const raw=it=>[...(showDong?[aptDongLabel(aptStr(it.dongNm))]:[]),aptStr(it.floorNm),aptHoLabel(aptStr(it.hoNm)),aptStr(it.prvuseAr),aptPrice(it)||"",...(oneYear?[]:[aptStr(it.stdrYear)])];
+    aptClip([head.join("\t"),...units.map(it=>raw(it).join("\t"))].join("\n"),$("aAllSt"),`✅ ${units.length}호 복사 완료 — 엑셀에서 Ctrl+V 하세요 (${head.join("·")})`); };
 }
 async function aptShowUnit(){
   const d=$("aDong").value, h=$("aHo").value, box=$("aResult"); if(!h){ box.innerHTML=""; return; }
@@ -889,11 +901,14 @@ async function aptShowUnit(){
       <div class="why${cur?"":" warn"}">${cur?why:`${ay}년 공동주택가격이 조회되지 않습니다(아직 미공시이거나 그 해 공시 대상 아님) — 아래 표와 부동산공시가격 알리미에서 확인하세요`}</div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="aCopy"${cur?"":" disabled"}>금액·내역 복사</button></div>
     </div>
-    <div class="qres" style="margin-top:12px;overflow-x:auto"><table style="min-width:520px"><thead><tr><th>공시연도</th><th>기준월</th><th>공동주택가격</th><th>전용면적</th><th>전용 ㎡당</th><th></th></tr></thead><tbody>
+    <div class="qres" style="margin-top:12px"><div class="copybar"><p class="sumline"><b>연도별 공동주택가격</b> · ${rowsA.length}개 연도</p><button type="button" class="btn copy" id="aYearCopy">📋 연도별 가격 복사</button></div><div class="status" id="aYearSt"></div><div style="overflow-x:auto"><table style="min-width:520px"><thead><tr><th>공시연도</th><th>기준월</th><th>공동주택가격</th><th>전용면적</th><th>전용 ㎡당</th><th></th></tr></thead><tbody>
     ${rowsA.map(it=>{ const p=aptPrice(it), a=Number(it.prvuseAr)||0, on=cur===it;
       return `<tr${on?' class="apply"':""}><td>${aptStr(it.stdrYear)}</td><td>${aptStr(it.stdrMt)}</td><td>${p?fmt(p)+"원":"—"}</td><td>${a?a+"㎡":""}</td><td>${p&&a?fmt(p/a)+"원":""}</td><td>${on?"적용":""}</td></tr>`; }).join("")}
-    </tbody></table></div>`;
+    </tbody></table></div></div>`;
   st.className="status ok"; st.textContent=`✅ ${label} · ${rowsA.length}개 연도`;
+  $("aYearCopy").onclick=()=>{ const H=["공시연도","기준월","공동주택가격","전용면적","전용㎡당"];
+    const L=rowsA.map(it=>{ const p=aptPrice(it), a=Number(it.prvuseAr)||0; return [aptStr(it.stdrYear),aptStr(it.stdrMt),p||"",a||"",p&&a?Math.round(p/a):""].join("\t"); });
+    aptClip([label,H.join("\t"),...L].join("\n"),$("aYearSt"),`✅ ${rowsA.length}개 연도 복사 완료 — 엑셀에서 Ctrl+V 하세요`); };
   if(cur) $("aCopy").onclick=async()=>{
     const t=`[공동주택가격] ${label}${top.prvuseAr?` (전용 ${top.prvuseAr}㎡)`:""}\n${ay}년 공동주택가격 ${fmt(aptPrice(cur))}원\n${why}`;
     try{ await navigator.clipboard.writeText(t); $("aCopy").textContent="복사됨"; setTimeout(()=>{ const b=$("aCopy"); if(b) b.textContent="금액·내역 복사"; },1500); }catch(e){ alert(t); } };
