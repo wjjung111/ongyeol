@@ -57,6 +57,17 @@ const page=(arr,pg)=>({apartHousingPrices:{field:arr.slice((pg-1)*1000,pg*1000),
     assert.equal(allRows.length,6);
     assert.deepEqual(allRows[0],['101동','2','201호','84.97',(250000000+201000+1).toLocaleString('ko-KR')+'원']);
     assert.deepEqual(allRows[3].slice(0,3),['102동','2','201호']);
+    // 「그 호는 집합건물 탭에서 계산」 → 집합건물 탭, 주소·평가기준일·일괄고시 없는 비주거 채움 + 주소 조회 누름
+    await pg.click('#aAll [data-to-condo]');
+    await pg.waitForSelector('#paneCondo iframe');
+    assert.equal(await pg.isVisible('#paneApt'),false);
+    const fr=pg.frameLocator('#condoFrame');
+    await fr.locator('#address').waitFor({state:'visible'});
+    assert.equal(await fr.locator('#address').inputValue(),'서울특별시 강남구 압구정동 456');
+    assert.equal(await fr.locator('#mode').inputValue(),'manual');
+    assert.equal(await fr.locator('#date').inputValue(),'2026-03-10');
+    assert.equal(new URL(pg.url()).hash,'#condo');
+    await pg.click('.ptabs button[data-pane="apt"]');
     // 줄 클릭 → 그 호 선택·연도별 표
     await pg.click('#aAllTbl tbody tr:nth-child(5)');
     await pg.waitForFunction(()=>document.getElementById('aHo').value==='1001'&&document.getElementById('aDong').value==='102동'&&document.getElementById('aVal'));

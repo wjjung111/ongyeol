@@ -199,7 +199,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
     </div>
     <div id="aResult"></div>
     <details class="ref" id="aLog" hidden><summary>불러온 원본 데이터</summary><pre class="raw" id="aRaw"></pre></details>
-    <p class="hint">아파트·연립·다세대는 국토교통부가 호별로 공시하는 <b>공동주택가격</b>(토지+건물 일괄)이 그대로 세법상 기준시가입니다(소득세법 §99①1호 라목, 상증세법 §61①4호). 평가기준일 현재 공시된 가격을 쓰므로, 평가기준일이 그해 공시일 전이면 직전 연도 가격이 적용됩니다. 공시일은 해마다 조금씩 다르니 <a href="https://www.realtyprice.kr/" target="_blank" rel="noopener">부동산공시가격 알리미</a>에서 확인해 고치세요. 여러 필지에 걸친 단지는 대표 지번(건축물대장 대지위치)으로 넣어야 나옵니다. 단독·다가구는 「건물 기준시가」 탭의 개별주택가격을 쓰세요.</p>
+    <p class="hint">아파트·연립·다세대는 국토교통부가 호별로 공시하는 <b>공동주택가격</b>(토지+건물 일괄)이 그대로 세법상 기준시가입니다(소득세법 §99①1호 라목, 상증세법 §61①4호). 평가기준일 현재 공시된 가격을 쓰므로, 평가기준일이 그해 공시일 전이면 직전 연도 가격이 적용됩니다. 공시일은 해마다 조금씩 다르니 <a href="https://www.realtyprice.kr/" target="_blank" rel="noopener">부동산공시가격 알리미</a>에서 확인해 고치세요. 여러 필지에 걸친 단지는 대표 지번(건축물대장 대지위치)으로 넣어야 나옵니다. 단독·다가구는 「건물 기준시가」 탭의 개별주택가격을 쓰세요. 근린생활시설·상가·오피스텔 호는 공동주택가격이 없으니 <button type="button" class="btn" data-to-condo style="padding:2px 9px;font-size:12px">🏬 집합건물 탭</button>에서 계산하세요.</p>
   </div>
 </section>
 </div>
@@ -746,6 +746,16 @@ function condoFrame(){
       else setInterval(fit,500); }catch(e){} });
   box.appendChild(f);
 }
+// 공동주택가격 탭 → 「근생 등은 집합건물 탭에서 계산」: 탭을 바꾸고 주소·평가기준일·「일괄고시 없는 비주거」를 채운 뒤 주소 조회까지 눌러 줌
+function condoFromApt(){
+  showPane("condo"); history.replaceState(null,"","#condo");
+  const f=$("condoFrame"); if(!f) return;
+  const addr=APT.addr||$("aAddr").value.trim(), date=$("aDate").value;
+  const go=()=>{ try{ const d=f.contentDocument, set=(id,v,ev)=>{ const el=d.getElementById(id); if(!el||v==null||v==="") return; el.value=v; el.dispatchEvent(new Event(ev||"input",{bubbles:true})); el.dispatchEvent(new Event("change",{bubbles:true})); };
+    set("mode","manual"); set("date",date); set("address",addr);
+    const b=d.getElementById("search"); if(b&&addr) b.click(); }catch(e){ console.error(e); } };
+  if(f.contentDocument&&f.contentDocument.readyState==="complete"&&f.contentDocument.getElementById("address")) go(); else f.addEventListener("load",go,{once:true});
+}
 function showPane(p){
   p=PANE_TITLE[p]?p:"bld";
   $("paneBld").hidden=p!=="bld"; $("paneApt").hidden=p!=="apt"; $("paneCondo").hidden=p!=="condo";
@@ -850,7 +860,7 @@ function aptRenderAll(){
   box.innerHTML=`<div class="qres" style="margin:4px 0 14px"><p class="sumline"><b>전체 ${units.length}호</b> · 줄을 누르면 그 호의 연도별 가격이 아래에 나옵니다 <button type="button" class="btn" id="aAllCopy" style="margin-left:8px;padding:3px 10px;font-size:12px">표 복사</button></p>${warn}
     <div style="overflow-x:auto"><table id="aAllTbl" style="min-width:480px"><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>
     ${units.map((it,i)=>`<tr data-i="${i}" style="cursor:pointer">${cells(it).map((c,j)=>`<td${j===head.length-(oneYear?1:2)?' style="text-align:right;font-weight:700"':""}>${c}</td>`).join("")}</tr>`).join("")}
-    </tbody></table></div><p class="hint">공동주택가격 목록에 없는 호(1층 근린생활시설·상가 등)는 공동주택가격 대상이 아니라 표에 나오지 않습니다.</p></div>`;
+    </tbody></table></div><p class="hint">공동주택가격 목록에 없는 호(1층 근린생활시설·상가 등)는 공동주택가격 대상이 아니라 표에 나오지 않습니다. <button type="button" class="btn" data-to-condo style="margin-left:6px;padding:3px 10px;font-size:12px">🏬 그 호는 집합건물 탭에서 계산 →</button></p></div>`;
   box.querySelectorAll("tbody tr").forEach(tr=>tr.addEventListener("click",()=>{ const it=units[+tr.dataset.i];
     $("aDong").value=aptStr(it.dongNm); aptFillHo(); $("aHo").value=aptStr(it.hoNm); aptShowUnit(); }));
   $("aAllCopy").onclick=async()=>{ const t=[APT.addr+" "+$("aComplex").textContent,head.join("\t"),...units.map(it=>cells(it).join("\t"))].join("\n");
@@ -891,6 +901,7 @@ async function aptShowUnit(){
 $("aGo").addEventListener("click",()=>{ const q=$("aAddr").value.trim(); if(!q){ alert("소재지(지번 주소)를 넣어 주세요"); return; } aptSearch(q); });
 $("aAddr").addEventListener("keydown",e=>{ if(e.key==="Enter") $("aGo").click(); });
 $("aDong").addEventListener("change",aptFillHo);
+document.addEventListener("click",e=>{ if(e.target.closest&&e.target.closest("[data-to-condo]")) condoFromApt(); });
 $("aHo").addEventListener("change",aptShowUnit);
 ["aDate","aPubDay"].forEach(id=>$(id).addEventListener("change",()=>{
   // 전체 호 표가 떠 있고 적용 연도가 바뀌었으면 그 연도로 다시 조회(작은 단지라 빠름)
