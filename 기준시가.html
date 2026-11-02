@@ -76,6 +76,18 @@ table.rows tr.res td{background:var(--surface2)}
 .qrow .f.addr{flex:1;min-width:240px}
 .qrow .f.date{width:190px}
 #qDongRow[hidden]{display:none}
+#toggleBld[hidden]{display:none}
+/* 건축물대장 펼치기 (간편 계산 아래) */
+.bldwrap{overflow:hidden;max-height:0;opacity:0;transition:max-height .4s ease,opacity .3s ease}
+.bldwrap.open{max-height:4000px;opacity:1}
+.bldpanel{border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:14px 16px;margin-top:4px;display:grid;gap:12px}
+.bldpanel h3{font-size:14px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bldpanel h3 a{font-size:12px;font-weight:500;color:var(--acc);margin-left:auto}
+.bldpanel table{border-collapse:collapse;width:100%;font-size:12.5px}
+.bldpanel th{background:var(--acc-soft);color:var(--acc-ink);font-weight:700;padding:6px 8px;border:1px solid var(--line);white-space:nowrap;text-align:center}
+.bldpanel td{padding:6px 8px;border:1px solid var(--line)}
+.bldpanel td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.bldpanel .tw{overflow-x:auto}
 .qres .sumline{font-size:12px;color:var(--ink2);margin:0 0 8px}
 .qres table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
 .qres th{background:var(--surface2);color:var(--ink2);font-weight:700;font-size:12px;padding:7px 8px;border:1px solid var(--line);white-space:nowrap}
@@ -237,7 +249,8 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
     <div class="status" id="qStatus"></div>
     <div class="qrow" id="qDongRow" hidden><label class="f" style="min-width:260px"><span>동 <small>(여러 동 건물)</small></span><select id="qDong"></select></label><span class="hint" id="qDongInfo" style="margin:0 0 8px"></span></div>
     <div class="qres" id="qResult"></div>
-    <div id="qToggleRow"><button type="button" class="btn" id="toggleDetail">상세 입력·수정 열기 ▾</button> <span class="hint" style="margin-left:6px">자동으로 잡힌 용도·층 특성이 틀리면 여기서 고치면 위 표가 같이 바뀝니다</span></div>
+    <div id="qToggleRow"><button type="button" class="btn" id="toggleBld" hidden>📄 건축물대장 보기 ▾</button> <button type="button" class="btn" id="toggleDetail">상세 입력·수정 열기 ▾</button> <span class="hint" style="margin-left:6px">자동으로 잡힌 용도·층 특성이 틀리면 여기서 고치면 위 표가 같이 바뀝니다</span></div>
+    <div class="bldwrap" id="qBldWrap" aria-hidden="true"><div class="bldpanel" id="qBld"></div></div>
   </div>
 </section>
 
@@ -686,9 +699,37 @@ async function importByAddress(q){
     IMP.notes=notes.slice();   // 토지·주택 근거(동과 무관)
     fillDongSel(); applyBldDong(0);
     histAdd(s.addr||q);
-  }catch(e){ console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); IMP=null; $("qDongRow").hidden=true; }
+  }catch(e){ console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); IMP=null; $("qDongRow").hidden=true; $("toggleBld").hidden=true; setBldOpen(false); }
   finally{ btn.disabled=false; $("apiLog").hidden=false; IMP_RAW=raw; if(!IMP) $("apiRaw").textContent=notes.join("\n")+"\n\n"+JSON.stringify(raw,null,1).slice(0,20000); }
 }
+// ── 건축물대장 펼쳐 보기: 이미 받은 표제부·층별개요(IMP)로 그림 — 추가 조회 없음. 여러 동이면 고른 동 ──
+function renderBldPanel(idx){
+  const box=$("qBld"); if(!IMP){ box.innerHTML=""; return; }
+  const t=IMP.titles[idx]||{}, multi=IMP.titles.length>1, e=v=>String(v==null?"":v).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const d8=v=>{ v=tx(v); return /^\d{8}$/.test(v)?v.slice(0,4)+"-"+v.slice(4,6)+"-"+v.slice(6):v; };
+  const n=(v,u)=>tx(v)===""?"":(+v).toLocaleString("ko-KR",{maximumFractionDigits:2})+(u||"");
+  const both=(a,b)=>[tx(a),tx(b)].filter((x,i,arr)=>x&&arr.indexOf(x)===i).join(" (")+([tx(a),tx(b)].filter((x,i,arr)=>x&&arr.indexOf(x)===i).length>1?")":"");
+  const jibun=(tx(t.bun)||tx(t.ji))?String(+t.bun||0)+(+t.ji?"-"+(+t.ji):""):"";
+  const park=[["옥내자주",t.indrAutoUtcnt],["옥외자주",t.oudrAutoUtcnt],["옥내기계",t.indrMechUtcnt],["옥외기계",t.oudrMechUtcnt]].filter(x=>+x[1]>0).map(x=>x[0]+" "+(+x[1])+"대").join(" · ")||"없음";
+  const P=[["대지위치",tx(t.platPlc)||IMP.addr,"지번",jibun],["도로명주소",tx(t.newPlatPlc),"대장종류",[tx(t.regstrKindCdNm),tx(t.regstrGbCdNm)].filter(Boolean).join(" · ")],
+    ["건물명·동",[tx(t.bldNm),tx(t.dongNm)].filter(Boolean).join(" "),"주/부속",tx(t.mainAtchGbCdNm)],
+    ["대지면적",n(t.platArea,"㎡"),"연면적",n(t.totArea,"㎡")],["건축면적",n(t.archArea,"㎡"),"용적률산정용 연면적",n(t.vlRatEstmTotArea,"㎡")],
+    ["건폐율",n(t.bcRat,"%"),"용적률",n(t.vlRat,"%")],["주용도",both(t.mainPurpsCdNm,t.etcPurps),"주구조",both(t.strctCdNm,t.etcStrct)],
+    ["지붕",both(t.roofCdNm,t.etcRoof),"높이",n(t.heit,"m")],["허가일",d8(t.pmsDay),"착공일",d8(t.stcnsDay)],
+    ["사용승인일",d8(t.useAprDay),"층수",`지상 ${+t.grndFlrCnt||0}층 / 지하 ${+t.ugrndFlrCnt||0}층`],
+    ["세대/가구/호",`${+t.hhldCnt||0}세대 / ${+t.fmlyCnt||0}가구 / ${+t.hoCnt||0}호`,"승강기",`승용 ${+t.rideUseElvtCnt||0}대 · 비상용 ${+t.emgenUseElvtCnt||0}대`],
+    ["주차",park,"",""]];
+  const fl=IMP.floors.filter(it=>!multi||tx(it.dongNm)===tx(t.dongNm));
+  const grp=x=>{ const g=String(x.flrGbCd||""); const nm=(x.flrGbCdNm||"")+(x.flrNoNm||""); return (g==="10"||/지하/.test(nm))?0 : (g==="30"||/옥탑/.test(nm))?2 : 1; };
+  const fls=fl.slice().sort((a,b)=>{ const ga=grp(a), gb=grp(b); if(ga!==gb) return gb-ga; const na=Number(a.flrNo||0), nb=Number(b.flrNo||0); return ga===0? na-nb : nb-na; });   // 대장처럼 위층부터
+  const flSum=fl.reduce((a,x)=>a+(+x.area||0),0);
+  box.innerHTML=`<h3>📄 건축물대장 ${multi?`· ${e(dongName(t))}`:""}<span class="chip">${e(tx(t.regstrKindCdNm)||"표제부")}</span><a href="건축물대장.html" target="_blank" rel="noopener">건축물대장 화면에서 크게 보기 ↗</a></h3>
+    ${multi?`<div class="tw"><table><thead><tr><th>동</th><th>주/부</th><th>주용도</th><th>구조</th><th>연면적(㎡)</th><th>사용승인일</th></tr></thead><tbody>${IMP.titles.map((x,i)=>`<tr${i===idx?' style="background:var(--acc-soft);font-weight:700"':""}><td>${e(dongName(x))}</td><td>${e(tx(x.mainAtchGbCdNm))}</td><td>${e(both(x.mainPurpsCdNm,x.etcPurps))}</td><td>${e(both(x.strctCdNm,x.etcStrct))}</td><td class="n">${n(x.totArea)}</td><td>${e(d8(x.useAprDay))}</td></tr>`).join("")}</tbody></table></div>`:""}
+    <div class="tw"><table><tbody>${P.map(r=>`<tr><th>${r[0]}</th><td${r[2]?"":' colspan="3"'}>${e(r[1])||"-"}</td>${r[2]?`<th>${r[2]}</th><td>${e(r[3])||"-"}</td>`:""}</tr>`).join("")}</tbody></table></div>
+    <div class="tw"><table><thead><tr><th>층</th><th>구조</th><th>용도</th><th>주/부</th><th>면적(㎡)</th></tr></thead><tbody>${fls.length?fls.map(x=>`<tr><td>${e(tx(x.flrNoNm)||((x.flrGbCdNm||"")+" "+(x.flrNo||"")))}</td><td>${e(both(x.strctCdNm,x.etcStrct))}</td><td>${e(both(x.mainPurpsCdNm,x.etcPurps))}</td><td>${e(tx(x.mainAtchGbCdNm))}</td><td class="n">${n(x.area)}</td></tr>`).join("")+`<tr><td colspan="4" style="text-align:right;font-weight:700">합계</td><td class="n" style="font-weight:700">${n(Math.round(flSum*100)/100)}</td></tr>`:`<tr><td colspan="5" style="text-align:center;color:var(--warn)">층별개요가 공공 API에 없습니다(신축이면 반영이 늦을 수 있음)</td></tr>`}</tbody></table></div>`;
+}
+function setBldOpen(on){ const w=$("qBldWrap"); w.classList.toggle("open",on); w.setAttribute("aria-hidden",!on); $("toggleBld").textContent=on?"📄 건축물대장 접기 ▴":"📄 건축물대장 보기 ▾"; }
+$("toggleBld").addEventListener("click",()=>setBldOpen(!$("qBldWrap").classList.contains("open")));
 // ── 여러 동 건물(공장·창고 단지 등): 동마다 표제부가 따로 있고 층별개요에 dongNm이 붙어 옴 → 건물 기준시가는 동별로 계산 ──
 let IMP=null, IMP_RAW={};
 const tx=v=>String(v==null?"":v).trim();
@@ -738,6 +779,7 @@ function applyBldDong(idx){
     notes.push("층별개요 없음"+(IMP.flrErr?": "+IMP.flrErr:"")+` → 표제부 연면적 ${t.totArea}㎡로 1행 (용도 ${row.use}번, ${row.why})`);
   } else { rows=[newRow()]; notes.push("층별개요 없음"+(IMP.flrErr?": "+IMP.flrErr:"")); }
   renderRows(); renderRef(); calc();
+  renderBldPanel(idx); $("toggleBld").hidden=!t;
   const st=$("apiStatus");
   if(fallback){ st.className="status err"; st.textContent=`⚠ ${IMP.addr}${multi?" "+dongName(t):""} · 층별개요가 공공 API에 아직 없습니다(신축이면 반영이 늦을 수 있음) — 표제부 연면적 ${fmt(+t.totArea)}㎡로 1행 넣었습니다. 층마다 용도가 다르면 「상세 입력·수정」에서 나눠 주세요`; }
   else if(!fl.length){ st.className="status err"; st.textContent=`⚠ ${IMP.addr} · 표제부·층별개요가 없습니다 — 「상세 입력·수정」에서 층을 직접 넣어 주세요`; }

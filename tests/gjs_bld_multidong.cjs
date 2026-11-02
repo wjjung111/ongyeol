@@ -47,12 +47,22 @@ let FLOORS=[];
     assert.equal(await pg.$eval('#roof',e=>e.value),'0.8');
     assert.equal(await pg.evaluate(()=>rows[0].ftype),'none');
     assert.match(await pg.$eval('#siteName',e=>e.value),/가동$/);
+    // 📄 건축물대장 보기 → 아래로 펼침, 고른 동 표제부·동 목록·층별개요 없음 안내
+    assert.equal(await pg.isVisible('#toggleBld'),true);
+    assert.equal(await pg.$eval('#qBldWrap',e=>e.classList.contains('open')),false);
+    await pg.click('#toggleBld');
+    assert.equal(await pg.$eval('#qBldWrap',e=>e.classList.contains('open')),true);
+    assert.match(await pg.textContent('#toggleBld'),/접기/);
+    let bt=await pg.textContent('#qBld');
+    assert.match(bt,/건축물대장 · 가동/);assert.match(bt,/2026-09-03/);assert.match(bt,/기타지붕 \(불연판넬지붕\)/);assert.match(bt,/층별개요가 공공 API에 없습니다/);
+    assert.equal(await pg.$$eval('#qBld > .tw:first-of-type tbody tr',a=>a.length),3);   // 동 목록 3동
     // 다동으로 바꾸면 621.14㎡·지상 2층
     await pg.selectOption('#qDong','2');
     R=await pg.evaluate(()=>rows.map(r=>+r.area));
     assert.deepEqual(R,[621.14]);
     assert.equal(await pg.$eval('#topFloor',e=>e.value),'2');
     assert.match(await pg.textContent('#qStatus'),/다동/);
+    assert.match(await pg.textContent('#qBld'),/건축물대장 · 다동/);   // 펼친 대장도 그 동으로
     // ── 2) 층별개요가 있으면 고른 동 것만 ──
     FLOORS=[F('가동',1,800),F('나동',1,740),F('다동',1,400),F('다동',2,221.14)];
     await pg.click('#qGo');
@@ -63,6 +73,9 @@ let FLOORS=[];
     R=await pg.evaluate(()=>rows.map(r=>+r.area));
     assert.deepEqual(R,[400,221.14]);
     assert.match(await pg.textContent('#qStatus'),/✅ 불러옴: .*다동 · 층 2개/);
+    // 층별현황: 위층부터, 합계
+    assert.deepEqual(await pg.$$eval('#qBld > .tw:last-of-type tbody tr td:first-child',a=>a.map(x=>x.textContent)),['2층','1층','합계']);
+    assert.match(await pg.$eval('#qBld > .tw:last-of-type tbody tr:last-child',e=>e.textContent),/621\.14/);
     // ── 3) 한 동짜리면 드롭다운 없음 ──
     TITLES.splice(1);FLOORS=[F('다동',1,400),F('다동',2,221.14)];
     await pg.click('#qGo');
