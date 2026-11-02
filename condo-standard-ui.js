@@ -54,6 +54,13 @@
   function setStatus(text){$('status').textContent=text;}
   function resetUnit(){unitRevision++;rows=[];$('built').value='';$('top').value='';$('remodel').value='';$('rowsConfirmed').checked=false;$('sjConfirmed').checked=false;$('ho').innerHTML='<option value="">동을 선택하세요</option>';$('source').textContent='';renderRows();}
   function resetProperty(){resetUnit();pnu='';titles=[];lands=[blankLand()];$('priceConfirmed').checked=false;$('dong').innerHTML='<option value="">주소를 먼저 조회하세요</option>';$('officialTotal').value='';$('officialConfirmed').checked=false;renderLands();}
+  // 검색 기록 — 기준시가·건축물대장과 같은 저장칸(arap-bld-history-parcel, 최근 30개). 입력칸을 누르면 이전 주소가 목록으로 뜸
+  const HIST_KEY='arap-bld-history-parcel';
+  const histRead=()=>{try{const a=JSON.parse(localStorage.getItem(HIST_KEY)||'[]');return Array.isArray(a)?a:[];}catch{return [];}};
+  function histRender(){let dl=$('condoHist');if(!dl){dl=document.createElement('datalist');dl.id='condoHist';document.body.append(dl);$('address').setAttribute('list','condoHist');$('address').setAttribute('autocomplete','off');}dl.innerHTML=histRead().map(v=>`<option value="${esc(v)}">`).join('');}
+  function histAdd(v){v=T(v);if(!v)return;const a=histRead().filter(x=>x!==v);a.unshift(v);try{localStorage.setItem(HIST_KEY,JSON.stringify(a.slice(0,30)));}catch{}histRender();}
+  histRender();
+  $('address').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();$('search').click();}});
   $('address').addEventListener('input',()=>{revision++;resetProperty();$('candidatesPanel').hidden=true;setStatus('새 주소를 조회하세요. 이전 대상의 입력값을 비웠습니다.');});
   $('search').onclick=async()=>{
     const q=$('address').value.trim();if(!q){setStatus('지번주소를 입력하세요.');return;}
@@ -67,6 +74,7 @@
       titles=t.filter(x=>/집합/.test((x.regstrGbCdNm||'')+(x.regstrKindCdNm||'')));if(!titles.length)throw new Error('집합건물 표제부를 찾지 못했습니다.');
       $('dong').innerHTML='<option value="">동을 선택하세요</option>'+titles.map((x,i)=>`<option value="${i}">${esc(T(x.dongNm)||T(x.bldNm)||'동 구분 없음')}</option>`).join('');
       const fields=ld?.landCharacteristicss?.field||[],arr=Array.isArray(fields)?fields:[fields],year=C.yearOf($('date').value),lf=arr.filter(x=>+x.stdrYear===year).sort((a,b)=>String(b.stdrMt||'').localeCompare(String(a.stdrMt||'')))[0];
+      histAdd($('candidates').selectedOptions[0]?.textContent||$('address').value);
       lands=[blankLand()];if(lf){lands[0].price=String(lf.pblntfPclnd||'');lands[0].parcelArea=String(lf.lndpclAr||'');}renderLands();setStatus('동을 선택하세요. '+(lf?year+'년 공시지가 조회값을 불러왔습니다. 적용 공시 시점은 직접 확인하세요.':'평가기준일 연도의 공시지가가 없어 비워 두었습니다. 직접 입력하세요.'));
       if(titles.length===1){$('dong').value='0';await chooseDong(rev);}
     }catch(e){if(rev===revision)setStatus(e.message+' 수동 입력을 이용하세요.');}

@@ -230,7 +230,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
     <h2>간편 계산 <span class="chip">평가기준일 + 소재지만 넣고 계산</span></h2>
     <div class="qrow" id="qInputs">
       <label class="f date"><span>상속·증여일 <small>(평가기준일)</small></span><input type="date" id="qDate"></label>
-      <label class="f addr"><span>소재지 <small>(지번 주소)</small></span><input type="text" id="qAddr" autocomplete="off" placeholder="서울특별시 서초구 신원동 390-2"></label>
+      <label class="f addr"><span>소재지 <small>(지번 주소)</small></span><input type="text" id="qAddr" autocomplete="off" list="qHist" placeholder="서울특별시 서초구 신원동 390-2"></label>
       <button type="button" class="btn primary" id="qGo" style="min-height:36px">기준시가 계산</button>
     </div>
     <div class="status" id="qStatus"></div>
@@ -768,6 +768,7 @@ function showPane(p){
   try{ localStorage.setItem(PANE_KEY,p); }catch(e){}
   if(p==="apt"&&!$("aDate").value) $("aDate").value=$("qDate").value||new Date(Date.now()+9*3600000).toISOString().slice(0,10);
   if(p==="condo") condoFrame();
+  histRender();   // 다른 탭(집합건물 iframe 포함)에서 쌓인 검색 기록 반영
 }
 document.querySelectorAll(".ptabs button").forEach(b=>b.addEventListener("click",()=>{ const p=b.dataset.pane; showPane(p); history.replaceState(null,"",p==="bld"?location.pathname+location.search:"#"+p); }));
 showPane(location.hash==="#apt"?"apt":location.hash==="#condo"?"condo":(()=>{ try{ return localStorage.getItem(PANE_KEY); }catch(e){ return ""; } })());
