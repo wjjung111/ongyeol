@@ -133,14 +133,71 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
   section.card,.sum{break-inside:avoid;border-color:#999}
 }
 @media (prefers-reduced-motion:no-preference){.btn,.mode button{transition:background .15s,border-color .15s}}
+
+/* 화면 탭: 건물 기준시가 / 공동주택가격 */
+.ptabs{max-width:1280px;margin:0 auto;padding:16px 24px 0;display:flex;gap:6px;flex-wrap:wrap}
+.ptabs button{background:var(--surface);border:1px solid var(--line2);border-radius:6px;padding:8px 16px;cursor:pointer;color:var(--ink2);font-weight:600}
+.ptabs button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.ptabs button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.fbwrap{max-width:1280px;margin:0 auto;padding:0 24px}
+.fbwrap .paste{background:var(--surface)}
+#paneApt .quick{padding-bottom:40px}
+.apick{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.apick[hidden]{display:none}
+.apick .f{min-width:160px}
+.apick .f.ho{min-width:220px}
+.abig{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:var(--surface)}
+.abig .t{font-size:13px;color:var(--ink2)}
+.abig .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:700;color:var(--acc);line-height:1.25;margin-top:2px}
+.abig .why{font-size:12px;color:var(--ink2);margin-top:4px}
+.abig .why.warn{color:var(--warn)}
+.qres tr.apply td{background:var(--acc-soft);font-weight:700}
+@media (max-width:600px){.ptabs{padding:12px 16px 0}.fbwrap{padding:0 16px}}
+@media print{.ptabs{display:none!important}}
 </style>
 
 <script>window.ARAP_NAME_ICON='🧮';window.ARAP_NAME_SUB='건물 기준시가 간편계산';</script><script src="arap_name.js"></script><!-- 사용자 이름 최초 1회 입력 (이름 없으면 화면 안 열림) -->
 <script>window.ARAP_VISIT_PAGE='기준시가';</script><script src="arap_visit.js"></script><!-- 접속·조회 기록 → 관리자 「기준시가계산기」 탭 -->
 <header class="ttop">
-  <span class="tb-title"><span class="tb-ico">🧮</span>건물 기준시가</span>
+  <span class="tb-title"><span class="tb-ico">🧮</span><span id="tbTitle">건물 기준시가</span></span>
   <span class="tb-right"><span id="arap-name-badge"></span></span>
 </header>
+<nav class="ptabs" role="tablist" aria-label="화면 선택">
+  <button type="button" data-pane="bld" class="on" role="tab" aria-selected="true">🏢 건물 기준시가</button>
+  <button type="button" data-pane="apt" role="tab" aria-selected="false">🏠 공동주택가격 <small>(아파트·연립·다세대)</small></button>
+</nav>
+<div class="fbwrap">
+  <div class="paste" id="fallbackPanel" hidden>
+    공공데이터포털 응답이 지연되고 있습니다. <b>자동 재시도</b>를 누르거나, <a id="fbLink" href="#" target="_blank" rel="noopener">이 링크</a>를 새 탭에서 열어 내용 전체(Ctrl+A, Ctrl+C)를 아래에 붙여넣고 적용을 누르세요.
+    <textarea id="fbPaste"></textarea>
+    <div style="margin-top:6px;display:flex;gap:8px"><button type="button" class="btn primary" id="btnFbRetry">자동 재시도</button><button type="button" class="btn" id="btnFbApply">붙여넣은 내용 적용</button></div>
+  </div>
+</div>
+
+<div id="paneApt" hidden>
+<section class="quick">
+  <div class="card">
+    <h2>공동주택가격 조회 <span class="chip">아파트·연립·다세대 · 국토부 공시 = 세법상 기준시가</span></h2>
+    <div class="qrow">
+      <label class="f date"><span>평가기준일 <small>(상속·증여·양도일)</small></span><input type="date" id="aDate"></label>
+      <label class="f addr"><span>소재지 <small>(단지 대표 지번)</small></span><input type="text" id="aAddr" autocomplete="off" list="qHist" placeholder="서울특별시 강남구 압구정동 456"></label>
+      <label class="f" style="width:110px"><span>그해 공시일 <small>(월.일)</small></span><input type="text" id="aPubDay" value="04.30" inputmode="numeric"></label>
+      <button type="button" class="btn primary" id="aGo" style="min-height:36px">조회</button>
+    </div>
+    <div class="status" id="aStatus"></div>
+    <div class="apick" id="aPick" hidden>
+      <label class="f"><span>동</span><select id="aDong"></select></label>
+      <label class="f ho"><span>호</span><select id="aHo"></select></label>
+      <span class="hint" id="aComplex" style="margin:0 0 8px"></span>
+    </div>
+    <div id="aResult"></div>
+    <details class="ref" id="aLog" hidden><summary>불러온 원본 데이터</summary><pre class="raw" id="aRaw"></pre></details>
+    <p class="hint">아파트·연립·다세대는 국토교통부가 호별로 공시하는 <b>공동주택가격</b>(토지+건물 일괄)이 그대로 세법상 기준시가입니다(소득세법 §99①1호 라목, 상증세법 §61①4호). 평가기준일 현재 공시된 가격을 쓰므로, 평가기준일이 그해 공시일 전이면 직전 연도 가격이 적용됩니다. 공시일은 해마다 조금씩 다르니 <a href="https://www.realtyprice.kr/" target="_blank" rel="noopener">부동산공시가격 알리미</a>에서 확인해 고치세요. 여러 필지에 걸친 단지는 대표 지번(건축물대장 대지위치)으로 넣어야 나옵니다. 단독·다가구는 「건물 기준시가」 탭의 개별주택가격을 쓰세요.</p>
+  </div>
+</section>
+</div>
+
+<div id="paneBld">
 <header class="top">
   <div class="top-inner">
     <div>
@@ -164,11 +221,6 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
       <button type="button" class="btn primary" id="qGo" style="min-height:36px">기준시가 계산</button>
     </div>
     <div class="status" id="qStatus"></div>
-    <div class="paste" id="fallbackPanel" hidden>
-      공공데이터포털 응답이 지연되고 있습니다. <b>자동 재시도</b>를 누르거나, <a id="fbLink" href="#" target="_blank" rel="noopener">이 링크</a>를 새 탭에서 열어 내용 전체(Ctrl+A, Ctrl+C)를 아래에 붙여넣고 적용을 누르세요.
-      <textarea id="fbPaste"></textarea>
-      <div style="margin-top:6px;display:flex;gap:8px"><button type="button" class="btn primary" id="btnFbRetry">자동 재시도</button><button type="button" class="btn" id="btnFbApply">붙여넣은 내용 적용</button></div>
-    </div>
     <div class="qres" id="qResult"></div>
     <div id="qToggleRow"><button type="button" class="btn" id="toggleDetail">상세 입력·수정 열기 ▾</button> <span class="hint" style="margin-left:6px">자동으로 잡힌 용도·층 특성이 틀리면 여기서 고치면 위 표가 같이 바뀝니다</span></div>
   </div>
@@ -280,6 +332,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
   2026년 해설서는 조정내용(목구조 115, 위치지수 18번 108)과 본표 인쇄값(120, 118)이 다릅니다. 이 계산기는 조정내용 값을 따르며, 해당 항목이 걸리는 건은 고시 원문으로 재확인하세요.
   이 계산은 보충적 평가액(기준시가)이며, 시가(매매·감정·수용 등)가 있으면 시가가 우선합니다.
 </footer>
+</div><!-- /paneBld -->
 <footer class="tsign">Woojin Jung<span class="ts-dot">·</span>정우진 감정평가사<span class="ts-dot">·</span>문의 <a href="mailto:woojin.apr@gmail.com">woojin.apr@gmail.com</a></footer>
 
 <script src="arap_gijunsiga.js"></script>
@@ -664,5 +717,127 @@ $("qGo").addEventListener("click",async()=>{
   finally{ $("qGo").disabled=false; }
 });
 $("qAddr").addEventListener("keydown",e=>{ if(e.key==="Enter") $("qGo").click(); });
+
+// ═══════════ 화면 탭: 건물 기준시가 / 공동주택가격 (주소 끝 #apt 또는 마지막으로 연 탭) ═══════════
+const PANE_KEY="arap-gjs-pane";
+function showPane(p){
+  p=p==="apt"?"apt":"bld";
+  $("paneBld").hidden=p!=="bld"; $("paneApt").hidden=p!=="apt";
+  document.querySelectorAll(".ptabs button").forEach(b=>{ const on=b.dataset.pane===p; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
+  $("tbTitle").textContent=p==="apt"?"공동주택가격":"건물 기준시가";
+  try{ localStorage.setItem(PANE_KEY,p); }catch(e){}
+  if(p==="apt"&&!$("aDate").value) $("aDate").value=$("qDate").value||new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+}
+document.querySelectorAll(".ptabs button").forEach(b=>b.addEventListener("click",()=>{ showPane(b.dataset.pane); history.replaceState(null,"",b.dataset.pane==="apt"?"#apt":location.pathname+location.search); }));
+showPane(location.hash==="#apt"?"apt":(()=>{ try{ return localStorage.getItem(PANE_KEY); }catch(e){ return ""; } })());
+
+// ═══════════ 공동주택가격 조회 (V-World getApartHousingPriceAttr) ═══════════
+// 지번 → PNU → 그 지번의 공동주택가격 전체(적용 연도) → 동·호 드롭다운 → 고른 호의 연도별 가격.
+// 동·호 목록은 공시가격 자료 자체에서 만든다(건축물대장 동·호 표기와 달라도 어긋나지 않게).
+const APT={pnu:"",addr:"",year:0,list:[],raw:[]};
+const aptStr=v=>v==null?"":String(v).trim();
+const natCmp=(a,b)=>String(a).localeCompare(String(b),"ko",{numeric:true});
+const aptUrl=(pnu,o)=>API_BASE+"/ned/data/getApartHousingPriceAttr?key="+getKey()+"&pnu="+pnu+"&format=json&numOfRows=1000&pageNo="+(o.page||1)
+  +(o.year?"&stdrYear="+o.year:"")+(o.dong!=null&&o.dong!==""?"&dongNm="+encodeURIComponent(o.dong):"")+(o.ho!=null&&o.ho!==""?"&hoNm="+encodeURIComponent(o.ho):"");
+function aptParse(d){
+  const root=d&&(d.apartHousingPrices||d.apartHousingPricess||Object.values(d).find(v=>v&&typeof v==="object"&&"field" in v));
+  let f=root&&root.field; f=f?(Array.isArray(f)?f:[f]):[];
+  return {list:f, total:+(root&&root.totalCount)||f.length};
+}
+const aptPrice=it=>{ if(Number(it.pblntfPc)>0) return Number(it.pblntfPc);
+  const k=Object.keys(it).find(k=>/pc$|price|prc/i.test(k)&&Number(it[k])>=1e6); return k?Number(it[k]):0; };
+async function aptFetchAll(pnu,o,st){
+  const first=await callApi(aptUrl(pnu,{...o,page:1})); APT.raw.push(first);
+  const p=aptParse(first); let all=p.list.slice();
+  const size=Math.max(1,p.list.length);   // 1000을 요청해도 서버가 덜 주면(예: 100) 그 크기로 나눔
+  const pages=Math.min(100,Math.ceil(p.total/size));
+  for(let pg=2;pg<=pages;pg+=4){
+    if(st) st.textContent=`공동주택가격 받는 중… ${all.length.toLocaleString()} / ${p.total.toLocaleString()}건`;
+    const batch=[]; for(let k=pg;k<pg+4&&k<=pages;k++) batch.push(callApi(aptUrl(pnu,{...o,page:k})).then(d=>aptParse(d).list).catch(()=>[]));
+    (await Promise.all(batch)).forEach(l=>all=all.concat(l));
+  }
+  return all;
+}
+function aptApplyYear(){
+  const d=$("aDate").value; if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return 0;
+  const y=+d.slice(0,4), md=d.slice(5,7)+d.slice(8,10);
+  const m=/^(\d{1,2})\D+(\d{1,2})$/.exec($("aPubDay").value.trim())||/^(\d{2})(\d{2})$/.exec($("aPubDay").value.trim());
+  const pub=m?m[1].padStart(2,"0")+m[2].padStart(2,"0"):"0430";
+  return md>=pub?y:y-1;
+}
+const aptDongLabel=d=>d===""?"(동 없음)":/^\d+$/.test(d)?d+"동":d;
+const aptHoLabel=h=>/^\d+$/.test(h)?h+"호":h;
+function aptFillDong(){
+  const dongs=[...new Set(APT.list.map(it=>aptStr(it.dongNm)))].sort(natCmp);
+  $("aDong").innerHTML=dongs.map(d=>`<option value="${d.replace(/"/g,"&quot;")}">${aptDongLabel(d)}</option>`).join("");
+  aptFillHo();
+}
+function aptFillHo(){
+  const d=$("aDong").value;
+  const hos=[...new Map(APT.list.filter(it=>aptStr(it.dongNm)===d).map(it=>[aptStr(it.hoNm),it])).values()]
+    .sort((a,b)=>natCmp(aptStr(a.floorNm),aptStr(b.floorNm))||natCmp(aptStr(a.hoNm),aptStr(b.hoNm)));
+  $("aHo").innerHTML=`<option value="">호를 고르세요 (${hos.length}개)</option>`+hos.map(it=>{ const h=aptStr(it.hoNm);
+    return `<option value="${h.replace(/"/g,"&quot;")}">${aptHoLabel(h)}${it.prvuseAr?` · 전용 ${it.prvuseAr}㎡`:""}</option>`; }).join("");
+  $("aResult").innerHTML="";
+}
+async function aptSearch(q){
+  if(window.arapVisitLog) window.arapVisitLog("공동주택가격",q);
+  const st=$("aStatus"); st.className="status"; st.textContent="주소 검색 중… "+q; $("aGo").disabled=true;
+  $("aPick").hidden=true; $("aResult").innerHTML=""; APT.raw=[]; APT.list=[];
+  try{
+    const s=await searchPnu(q,getKey()); APT.pnu=s.pnu; APT.addr=s.addr;
+    const y=aptApplyYear()||new Date().getFullYear(); let note="";
+    st.textContent=`공동주택가격 조회 중… (PNU ${s.pnu}, ${y}년)`;
+    let list=await aptFetchAll(s.pnu,{year:y},st), used=y;
+    if(!list.length){ list=await aptFetchAll(s.pnu,{year:y-1},st); used=y-1; note=` · ${y}년 자료가 없어 ${y-1}년 목록으로 동·호를 보여 줍니다`; }
+    if(!list.length){ list=await aptFetchAll(s.pnu,{},st); used=0; note=" · 최근 2년 자료가 없어 전체 연도 목록을 씁니다"; }
+    if(!list.length) throw new Error(`이 지번(${s.addr})으로 공시된 공동주택가격이 없습니다. 단독·다가구면 「건물 기준시가」 탭(개별주택가격), 여러 필지 단지면 대표 지번으로 다시 넣어 보세요.`);
+    APT.list=list; APT.year=used;
+    const nm=[...new Set(list.map(it=>aptStr(it.aphusNm)).filter(Boolean))].join(", "), se=[...new Set(list.map(it=>aptStr(it.aphusSeCodeNm)).filter(Boolean))].join("·");
+    $("aComplex").textContent=[nm,se].filter(Boolean).join(" · ");
+    aptFillDong(); $("aPick").hidden=false;
+    const units=new Set(list.map(it=>aptStr(it.dongNm)+"|"+aptStr(it.hoNm))).size;
+    st.className="status ok"; st.textContent=`✅ ${s.addr} · ${units.toLocaleString()}세대${note} — 동·호를 고르세요`;
+    histAdd(s.addr||q);
+  }catch(e){ console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); }
+  finally{ $("aGo").disabled=false; $("aLog").hidden=!APT.raw.length; $("aRaw").textContent=JSON.stringify(APT.raw,null,1).slice(0,20000); }
+}
+async function aptShowUnit(){
+  const d=$("aDong").value, h=$("aHo").value, box=$("aResult"); if(!h){ box.innerHTML=""; return; }
+  const st=$("aStatus"); st.className="status"; st.textContent="연도별 가격 불러오는 중…";
+  const same=it=>aptStr(it.dongNm)===d&&aptStr(it.hoNm)===h;
+  let hist=APT.list.filter(same);
+  // 동·호로 거른 전체 연도 — 첫 페이지만(필터를 안 받는 경우에도 대단지 전체를 다시 받지 않게)
+  try{ const d0=await callApi(aptUrl(APT.pnu,{dong:d,ho:h})); APT.raw.push(d0); hist=hist.concat(aptParse(d0).list.filter(same)); }catch(e){ console.error(e); }
+  $("aRaw").textContent=JSON.stringify(APT.raw,null,1).slice(0,20000);
+  if($("aHo").value!==h||$("aDong").value!==d) return;   // 그사이 다른 호를 골랐으면 버림
+  const byYear=new Map(); hist.forEach(it=>{ const k=aptStr(it.stdrYear)+"-"+aptStr(it.stdrMt);
+    const o=byYear.get(k); if(!o||aptStr(it.lastUpdtDt)>aptStr(o.lastUpdtDt)) byYear.set(k,it); });
+  const rowsA=[...byYear.values()].sort((a,b)=>natCmp(aptStr(b.stdrYear)+aptStr(b.stdrMt),aptStr(a.stdrYear)+aptStr(a.stdrMt)));
+  const ay=aptApplyYear(), cur=rowsA.find(it=>+it.stdrYear===ay&&aptPrice(it)>0), top=rowsA[0]||{};
+  const label=[APT.addr,aptStr(top.aphusNm),d?aptDongLabel(d):"",aptHoLabel(h)].filter(Boolean).join(" ");
+  const dt=$("aDate").value.replace(/-/g,".");
+  const why=!ay?"평가기준일을 넣으면 적용 연도를 골라 드립니다"
+    :`평가기준일 ${dt} · 그해 공시일 ${$("aPubDay").value} ${+dt.slice(0,4)===ay?"이후 → 당해":"전 → 직전 연도"} ${ay}년 가격 적용`;
+  box.innerHTML=`<div class="abig">
+      <div class="t">${label}${top.prvuseAr?` · 전용 ${top.prvuseAr}㎡`:""}${top.aphusSeCodeNm?` · ${top.aphusSeCodeNm}`:""}</div>
+      <div class="v" id="aVal">${cur?fmt(aptPrice(cur))+"원":"—"}</div>
+      <div class="why${cur?"":" warn"}">${cur?why:`${ay}년 공동주택가격이 조회되지 않습니다(아직 미공시이거나 그 해 공시 대상 아님) — 아래 표와 부동산공시가격 알리미에서 확인하세요`}</div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="aCopy"${cur?"":" disabled"}>금액·내역 복사</button></div>
+    </div>
+    <div class="qres" style="margin-top:12px;overflow-x:auto"><table style="min-width:520px"><thead><tr><th>공시연도</th><th>기준월</th><th>공동주택가격</th><th>전용면적</th><th>전용 ㎡당</th><th></th></tr></thead><tbody>
+    ${rowsA.map(it=>{ const p=aptPrice(it), a=Number(it.prvuseAr)||0, on=cur===it;
+      return `<tr${on?' class="apply"':""}><td>${aptStr(it.stdrYear)}</td><td>${aptStr(it.stdrMt)}</td><td>${p?fmt(p)+"원":"—"}</td><td>${a?a+"㎡":""}</td><td>${p&&a?fmt(p/a)+"원":""}</td><td>${on?"적용":""}</td></tr>`; }).join("")}
+    </tbody></table></div>`;
+  st.className="status ok"; st.textContent=`✅ ${label} · ${rowsA.length}개 연도`;
+  if(cur) $("aCopy").onclick=async()=>{
+    const t=`[공동주택가격] ${label}${top.prvuseAr?` (전용 ${top.prvuseAr}㎡)`:""}\n${ay}년 공동주택가격 ${fmt(aptPrice(cur))}원\n${why}`;
+    try{ await navigator.clipboard.writeText(t); $("aCopy").textContent="복사됨"; setTimeout(()=>{ const b=$("aCopy"); if(b) b.textContent="금액·내역 복사"; },1500); }catch(e){ alert(t); } };
+}
+$("aGo").addEventListener("click",()=>{ const q=$("aAddr").value.trim(); if(!q){ alert("소재지(지번 주소)를 넣어 주세요"); return; } aptSearch(q); });
+$("aAddr").addEventListener("keydown",e=>{ if(e.key==="Enter") $("aGo").click(); });
+$("aDong").addEventListener("change",aptFillHo);
+$("aHo").addEventListener("change",aptShowUnit);
+["aDate","aPubDay"].forEach(id=>$(id).addEventListener("change",()=>{ if($("aHo").value) aptShowUnit(); }));
 
 </script>
