@@ -51,6 +51,16 @@ const page=(arr,pg)=>({apartHousingPrices:{field:arr.slice((pg-1)*1000,pg*1000),
     assert.deepEqual(await pg.$$eval('#aDong option',a=>a.map(o=>o.value)),['101동','102동']);
     assert.deepEqual(await pg.$$eval('#aHo option',a=>a.slice(1).map(o=>o.value)),['201','1001','1501']);   // 층 순
     assert.match(await pg.textContent('#aStatus'),/6세대/);
+    // 호수 10개 이하 → 조회하자마자 전체 호 표(동·층·호 순, 2025년 가격)
+    assert.deepEqual(await pg.$$eval('#aAllTbl thead th',a=>a.map(x=>x.textContent)),['동','층','호','전유면적(㎡)','2025년 공동주택가격']);
+    const allRows=await pg.$$eval('#aAllTbl tbody tr',a=>a.map(tr=>[...tr.children].map(td=>td.textContent)));
+    assert.equal(allRows.length,6);
+    assert.deepEqual(allRows[0],['101동','2','201호','84.97',(250000000+201000+1).toLocaleString('ko-KR')+'원']);
+    assert.deepEqual(allRows[3].slice(0,3),['102동','2','201호']);
+    // 줄 클릭 → 그 호 선택·연도별 표
+    await pg.click('#aAllTbl tbody tr:nth-child(5)');
+    await pg.waitForFunction(()=>document.getElementById('aHo').value==='1001'&&document.getElementById('aDong').value==='102동'&&document.getElementById('aVal'));
+    await pg.selectOption('#aDong','101동');
     await pg.selectOption('#aHo','1001');
     await pg.waitForSelector('#aVal');
     assert.equal(await pg.textContent('#aVal'),(250000000+1001000+1).toLocaleString('ko-KR')+'원');
@@ -76,7 +86,7 @@ const page=(arr,pg)=>({apartHousingPrices:{field:arr.slice((pg-1)*1000,pg*1000),
     await pg.fill('#aDate','2027-06-01');await pg.fill('#aPubDay','04.30');
     await pg.click('#aGo');
     await pg.waitForFunction(()=>/2026년 목록/.test(document.getElementById('aStatus').textContent));
-    assert.deepEqual(reqs.map(r=>r.stdrYear),['2027','2026']);
+    assert.deepEqual(reqs.filter(r=>r.stdrYear).slice(-2).map(r=>r.stdrYear),['2027','2026']);
     await pg.selectOption('#aHo','201');
     await pg.waitForSelector('#aResult .why.warn');
     assert.match(await pg.textContent('#aResult'),/2027년 공동주택가격이 조회되지 않습니다/);
@@ -89,6 +99,7 @@ const page=(arr,pg)=>({apartHousingPrices:{field:arr.slice((pg-1)*1000,pg*1000),
     await pg.waitForFunction(()=>/2,500세대/.test(document.getElementById('aStatus').textContent));
     assert.deepEqual(reqs.filter(r=>r.pnu==='1168011000100050000').map(r=>r.pageNo).sort(),['1','2','3']);
     assert.equal(await pg.$$eval('#aDong option',a=>a.length),25);
+    assert.equal(await pg.$('#aAllTbl'),null);   // 2,500세대는 전체 표 없음
 
     // 5) 자료 없는 지번 → 안내
     await pg.fill('#aAddr','압구정동 1');
