@@ -35,7 +35,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>BLD_ONLY),true,'?mode=bld → 건물만');
     assert.equal(await page.evaluate(()=>LAND_ONLY),false);
     assert.equal(await page.evaluate(()=>evalKind()),'bld');
-    assert(await page.locator('#tabbtn-land').isHidden(),'토지평가 탭 숨김');
+    for(const id of ['gongsi','georae','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isHidden(),'토지평가 탭 숨김 '+id);
     assert(await page.locator('#tabbtn-bld').isVisible(),'건물평가 탭 보임');
     assert.equal(await page.locator('#tabbtn-bld').textContent(),'2. 건물평가');
     assert.equal(await page.locator('#tabbtn-final').textContent(),'3. 건물 평가액 결정');
@@ -137,7 +137,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>BLD_ONLY),true,'저장 건은 건물만으로 복원');
     assert.equal(await page.evaluate(()=>LAND_FINAL),0);
     await page.click('#ek_tb');
-    assert.equal(await page.evaluate(()=>BLD_ONLY),false);assert(await page.locator('#tabbtn-land').isVisible(),'토건 전환 → 토지평가 탭');
+    assert.equal(await page.evaluate(()=>BLD_ONLY),false);for(const id of ['gongsi','georae','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isVisible(),'토건 전환 → 토지평가 탭 '+id);
     assert.equal(await page.locator('#tabbtn-final').textContent(),'4. 토지건물 평가액 결정');
     assert(await page.evaluate(()=>LAND_FINAL>0),'토건 전환 → 남아 있던 토지 입력으로 토지가액 계산');
     assert.equal(await page.evaluate(()=>ETC_ITEMS[1]),await page.evaluate(()=>ETC_ITEMS_DEFAULT[1]),'물적 동일성 기본 문구 복귀');

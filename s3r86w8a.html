@@ -918,7 +918,9 @@ const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs
     const k=ks.find(k=>last(k)===sido)||ks.find(k=>segs(k).length===1&&sdOf(last(k))===sido&&/도$/.test(last(k)));if(k)return k;}
   return null;};
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
-  if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
+  if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
+// 시점수정 유형은 본건 종류 칸(건축물대장 값: 아파트·다세대주택·오피스텔)을 먼저 본다. 건물명(한보미도맨션 = 아파트)은 종류 칸이 비었을 때만, 맨션·빌라는 맨 마지막(2026-11-03)
+const detectSjKindLoose=(...texts)=>/빌라|맨션/.test(texts.map(t=>String(t||"")).join(" "))?"연립다세대":null;
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
@@ -2088,7 +2090,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           <td style={S.tdR}>{fmt(c.price)}</td><td style={{...S.tdR,padding:"2px 4px"}} title={c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?`복붙 원래값 ${fmt(c.unitPriceOrig)}`:"단가 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 단가`} value={c.unitPrice??""} onChange={v=>setCaseUnit(c.id,v)} style={{border:"none",background:"transparent",fontSize:12,minWidth:70,color:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?C.acc:undefined,fontWeight:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?700:undefined}}/>{c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?<span role="button" title={`복붙 원래값(${fmt(c.unitPriceOrig)})으로 되돌리기`} onClick={()=>resetCaseUnit(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={S.td}>{fmtDate(c.tradeDate)}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:4,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td><td style={S.td}><input style={{...S.inp,width:75,border:"none",background:"transparent",fontSize:11,textAlign:"center"}} value={c.approvalDate||""} onChange={e=>updC(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/></td>
           <td style={{...S.td,cursor:"pointer",color:c.timeAdj?C.acc:"#aaa",fontWeight:c.timeAdj?700:400}}
-            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
+            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
           {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
             return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
@@ -3210,7 +3212,7 @@ function buildV2TokenMap(d,ov,cases,comp,fT,precs){
   v["세대_사정"]=shareLabel(ov)?"1세대 × "+shareLabel(ov):"1세대";  // 감정평가표 '사정' 칸 — 지분평가일 때만 '1세대 × 1/2' (buildEvalHwpxV2가 두 번째 {{세대}}를 이 토큰으로 바꿈)
   v["감정평가사"]=ov.appraiserName||"";
   v["심사자"]=ov.reviewerName||ov.appraiserName||"";
-  v["유형"]=d["시점수정_용도"]||ov.kind||ov.mainUseJeonyu||"아파트";
+  v["유형"]=ov.kind||d["시점수정_용도"]||ov.mainUseJeonyu||"아파트";  // 의견서 「본건 집합건물(유형)」은 본건 종류 칸이 먼저 — 사례 시점수정 지수 유형이 끼어들지 않게(2026-11-03)
   v["소재지_시군구"]=toks.slice(0,di).join(" ");
   v["소재지_지번"]=toks.slice(di).join(" ");
   v["건물명"]=window.ArapBldrgst?ArapBldrgst.buildingNameOnly(ov.buildingName):ov.buildingName||"";
@@ -3316,7 +3318,7 @@ async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis,a
   if(!map){alert("수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(핑크 박스 상단 ① 수수료 계산 사이트 → 계산서1 복사 → ② 붙여넣기)");return;}
   try{
     const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);
-    triggerDownload(bytes,`8. 청구서_${ov.client||"의뢰인"}.hwpx`);
+    triggerDownload(bytes,`7. 청구서_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('청구서 hwpx 생성 실패',e);alert("청구서 생성 실패: "+e.message);}
 }
 
@@ -3932,7 +3934,7 @@ function SjRegionTable({kind,value,onChange}){
 function SijeomModal({c,ov,onApply,onClose,propType}){
   const [tmpTime,setTmpTime]=useState(c.timeAdjDetail||"");
   const [warns,setWarns]=useState([]);
-  const [kind,setKind]=useState(()=>detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu)||localStorage.getItem("arap-sjidx-kind")||"아파트");
+  const [kind,setKind]=useState(()=>detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName)||localStorage.getItem("arap-sjidx-kind")||"아파트");
   const [region,setRegion]=useState(()=>detectSjRegion(c.location,c.address,ov.jibun)||localStorage.getItem("arap-sjidx-region")||(idxRegionList()[0]||""));
   const [nrCapKind,setNrCapKind]=useState(()=>{try{return localStorage.getItem("arap-nrcap-kind")||(capTypeList()[0]||"집합상가");}catch(e){console.error('nrcap kind load',e);return capTypeList()[0]||"집합상가";}});
   const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return localStorage.getItem("arap-nrcap-region")||capPickRegion(localStorage.getItem("arap-nrcap-kind")||capTypeList()[0]||"","서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
@@ -4958,7 +4960,9 @@ const detectSjRegion=(...texts)=>{const D=idxData();if(!D)return null;const regs
     const k=ks.find(k=>last(k)===sido)||ks.find(k=>segs(k).length===1&&sdOf(last(k))===sido&&/도$/.test(last(k)));if(k)return k;}
   return null;};
 const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
-  if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대|빌라|맨션/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
+  if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
+// 시점수정 유형은 본건 종류 칸(건축물대장 값: 아파트·다세대주택·오피스텔)을 먼저 본다. 건물명(한보미도맨션 = 아파트)은 종류 칸이 비었을 때만, 맨션·빌라는 맨 마지막(2026-11-03)
+const detectSjKindLoose=(...texts)=>/빌라|맨션/.test(texts.map(t=>String(t||"")).join(" "))?"연립다세대":null;
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
@@ -6217,7 +6221,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
           <td style={S.tdR}>{fmt(c.price)}</td><td style={{...S.tdR,padding:"2px 4px"}} title={c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?`복붙 원래값 ${fmt(c.unitPriceOrig)}`:"단가 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 단가`} value={c.unitPrice??""} onChange={v=>setCaseUnit(c.id,v)} style={{border:"none",background:"transparent",fontSize:12,minWidth:70,color:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?C.acc:undefined,fontWeight:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?700:undefined}}/>{c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?<span role="button" title={`복붙 원래값(${fmt(c.unitPriceOrig)})으로 되돌리기`} onClick={()=>resetCaseUnit(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={S.td}>{fmtDate(c.tradeDate)}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:4,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</td><td style={S.td}><input style={{...S.inp,width:75,border:"none",background:"transparent",fontSize:11,textAlign:"center"}} value={c.approvalDate||""} onChange={e=>updC(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/></td>
           <td style={{...S.td,cursor:"pointer",color:c.timeAdj?C.acc:"#aaa",fontWeight:c.timeAdj?700:400}}
-            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
+            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);if(k)setSjIdxKind(k);}}>{c.timeAdj?fmtDec(c.timeAdj,5):"클릭"}</td>
           {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
             return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
@@ -7271,7 +7275,7 @@ function SjRegionTable({kind,value,onChange}){
 function SijeomModal({c,ov,onApply,onClose,propType}){
   const [tmpTime,setTmpTime]=useState(c.timeAdjDetail||"");
   const [warns,setWarns]=useState([]);
-  const [kind,setKind]=useState(()=>detectSjKind(c.aptName,c.buildingName)||detectSjKind(ov.kind,ov.mainUseJeonyu)||localStorage.getItem("arap-sjidx-kind")||"아파트");
+  const [kind,setKind]=useState(()=>detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName)||localStorage.getItem("arap-sjidx-kind")||"아파트");
   const [region,setRegion]=useState(()=>detectSjRegion(c.location,c.address,ov.jibun)||localStorage.getItem("arap-sjidx-region")||(idxRegionList()[0]||""));
   const [nrCapKind,setNrCapKind]=useState(()=>{try{return localStorage.getItem("arap-nrcap-kind")||(capTypeList()[0]||"집합상가");}catch(e){console.error('nrcap kind load',e);return capTypeList()[0]||"집합상가";}});
   const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return localStorage.getItem("arap-nrcap-region")||capPickRegion(localStorage.getItem("arap-nrcap-kind")||capTypeList()[0]||"","서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
@@ -7458,7 +7462,7 @@ async function downloadCheongguHwpx(ov,feeText,downPayment,specialFee,feeBasis,a
   if(!map){alert("수수료 계산서를 먼저 붙여넣어 인식시키세요.\n(핑크 박스 상단 ① 수수료 계산 사이트 → 계산서1 복사 → ② 붙여넣기)");return;}
   try{
     const bytes=await buildTokenHwpx(V2CHEONGGU_TPL_B64,map,V2CHEONGGU_BLUE2BLACK);
-    triggerDownload(bytes,`8. 청구서_${ov.client||"의뢰인"}.hwpx`);
+    triggerDownload(bytes,`7. 청구서_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('청구서 hwpx 생성 실패',e);alert("청구서 생성 실패: "+e.message);}
 }
 function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,setUD,uM,setUM,tD,setTD,tM,setTM,manU,setManU,tplLoaded,tplB64,handleTplUpload,deleteTpl,tplError,tplFromUser,saved}){
