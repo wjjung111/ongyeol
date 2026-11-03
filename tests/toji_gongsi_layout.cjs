@@ -1,13 +1,13 @@
 // 토지평가 세 단계(2-1·2-2·2-3)가 맨 윗줄 탭에 늘 보임 + 2-1 공시지가기준법 한 화면 배치(2026-11-03) — 7개 카드가 내부 탭 없이 모두 보이고
-// 1행 비교표준지|시점수정|개별요인비교 · 2행 거래사례|평가사례 · 3행 그 밖의 요인|시산가액, 좁은 화면은 1열
+// 2차(같은 날): 왼쪽 열 = 비교표준지→시점수정→개별요인비교→그 밖의 요인→시산가액, 오른쪽 열 = 거래사례→평가사례, 좁은 화면은 1열
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/toji_gongsi_layout.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..');
 const server=http.createServer((req,res)=>{const f=path.join(root,decodeURIComponent(req.url.split('?')[0]));if(!f.startsWith(root)||!fs.existsSync(f)){res.statusCode=404;return res.end();}
   res.setHeader('Content-Type',f.endsWith('.html')?'text/html; charset=utf-8':'text/javascript; charset=utf-8');fs.createReadStream(f).pipe(res);});
-const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFacCard','개별요인비교'],
-             ['gsTradeCard','거래사례'],['gsApprCard','평가사례'],['gsEtcCard','그 밖의 요인'],['pinLand','시산가액']];
+const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFacCard','개별요인비교'],['gsEtcCard','그 밖의 요인'],['pinLand','시산가액'],
+             ['gsTradeCard','거래사례'],['gsApprCard','평가사례']];
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});
@@ -40,12 +40,13 @@ const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFac
     for(const id of ['stdTbl','jb_rate','g_daegu','tblTrade','tblAppr','etcPick','eDecide','tblSisan'])
       assert(await page.locator('#'+id).isVisible(),'#'+id+' 보임');
     const y=id=>Math.round(boxes[id].y),x=id=>Math.round(boxes[id].x);
-    const sameRow=(ids,label)=>{ids.forEach(id=>assert.ok(Math.abs(y(id)-y(ids[0]))<=1,label+' 같은 줄: '+ids.map(i=>i+'@'+y(i)).join(', ')));
-      for(let k=1;k<ids.length;k++)assert.ok(x(ids[k])>x(ids[k-1]),label+' 왼→오 순서');};
-    sameRow(['gsStdCard','gsJbCard','gsFacCard'],'1행');
-    sameRow(['gsTradeCard','gsApprCard'],'2행');
-    sameRow(['gsEtcCard','pinLand'],'3행');
-    assert.ok(y('gsTradeCard')>y('gsStdCard')&&y('gsEtcCard')>y('gsTradeCard'),'행 순서 1→2→3');
+    const sameCol=(ids,label)=>{ids.forEach(id=>assert.ok(Math.abs(x(id)-x(ids[0]))<=1,label+' 같은 열: '+ids.map(i=>i+'@'+x(i)).join(', ')));
+      for(let k=1;k<ids.length;k++)assert.ok(y(ids[k])>y(ids[k-1]),label+' 위→아래 순서 '+ids[k]);};
+    sameCol(['gsStdCard','gsJbCard','gsFacCard','gsEtcCard','pinLand'],'왼쪽(계산 흐름)');
+    sameCol(['gsTradeCard','gsApprCard'],'오른쪽(사례)');
+    assert.ok(x('gsTradeCard')>x('gsStdCard')+200,'사례는 오른쪽 열');
+    assert.ok(Math.abs(y('gsTradeCard')-y('gsStdCard'))<=1,'두 열 위쪽 맞춤');
+    assert.ok(Math.abs(boxes.gsFacCard.width-boxes.gsJbCard.width)<=1,'개별요인 = 시점수정 같은 너비');
     console.log('1400px', CARDS.map(([id])=>id+'('+x(id)+','+y(id)+')').join(' '));
 
     // 거래사례 추가·그 밖의 요인 적용사례 선택이 바로 화면에서 됨(탭 전환 없이)
