@@ -47,6 +47,15 @@ const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFac
     assert.ok(x('gsTradeCard')>x('gsStdCard')+200,'사례는 오른쪽 열');
     assert.ok(Math.abs(y('gsTradeCard')-y('gsStdCard'))<=1,'두 열 위쪽 맞춤');
     assert.ok(Math.abs(boxes.gsFacCard.width-boxes.gsJbCard.width)<=1,'개별요인 = 시점수정 같은 너비');
+    // 좌우 너비 조절 손잡이(⋮) — 끌면 왼쪽 열 너비가 바뀌고 저장(옛 2단 저장키 tab-gongsi:lr 그대로)
+    {const h=page.locator('#gongsi_layout>.split-h');assert(await h.isVisible(),'⋮ 손잡이 보임');
+      const w0=(await page.locator('#gsMain').boundingBox()).width,hb=await h.boundingBox();
+      await page.mouse.move(hb.x+hb.width/2,hb.y+20);await page.mouse.down();await page.mouse.move(hb.x-200,hb.y+20,{steps:5});await page.mouse.up();
+      const w1=(await page.locator('#gsMain').boundingBox()).width;
+      assert.ok(w1<w0-150,'끌어서 왼쪽 열 좁힘 '+w0+'→'+w1);
+      assert.ok(await page.evaluate(()=>!!localStorage.getItem('tojigeonmul-split:tab-gongsi:lr')),'너비 저장');
+      await h.dblclick();assert.ok(Math.abs((await page.locator('#gsMain').boundingBox()).width-w0)<=2,'더블클릭 → 기본 너비');
+      for(const [id] of CARDS)boxes[id]=await page.locator('#'+id).boundingBox();}
     console.log('1400px', CARDS.map(([id])=>id+'('+x(id)+','+y(id)+')').join(' '));
 
     // 거래사례 추가·그 밖의 요인 적용사례 선택이 바로 화면에서 됨(탭 전환 없이)
