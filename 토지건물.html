@@ -462,9 +462,8 @@
     <div class="tabs">
       <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">1. 대상물건 개요</button>
       <!-- 토지평가 세 단계는 처음부터 늘 보이는 탭(2026-11-03 사용자 요청 — 예전엔 「2. 토지평가」를 눌러야 둘째 줄에 나옴). 건물만이면 land-calc로 숨김 -->
-      <button id="tabbtn-gongsi" class="land-calc" onclick="showTab('gongsi')">2-1. 공시지가기준법</button>
-      <button id="tabbtn-georae" class="land-calc" onclick="showTab('georae')">2-2. 거래사례비교법</button>
-      <button id="tabbtn-gyeoljeong" class="land-calc" onclick="showTab('gyeoljeong')">2-3. 토지평가액 결정</button>
+      <button id="tabbtn-gongsi" class="land-calc" onclick="showTab('gongsi')">2-1. 공시지가·거래사례비교법</button>
+      <button id="tabbtn-gyeoljeong" class="land-calc" onclick="showTab('gyeoljeong')">2-2. 토지평가액 결정</button>
       <button id="tabbtn-bld" class="bld-only" onclick="showTab('bld')">3. 건물평가</button>
       <button id="tabbtn-final" onclick="showTab('final')">4. 토지건물 평가액 결정</button>
       <button id="tabbtn-jido" onclick="showTab('jido')">5. 위치도</button>
@@ -739,10 +738,8 @@
         </div>
       </div>
 
-    </div>
-
-    <!-- ═══════════ 2-2. 거래사례비교법 ═══════════ -->
-    <div id="tab-georae" class="tab">
+      <!-- 거래사례비교법 — 따로 탭이던 것(2-2)을 공시지가기준법 화면 맨 아래로 합침(2026-11-03 사용자 요청). id·함수 그대로 -->
+      <div id="georae_sec" style="margin-top:14px">
       <div class="res"><span>거래사례비교법 시산가액</span><span class="n" id="resGeorae">-</span></div>
       <div class="cols5050" id="georae_layout">
         <div class="card">
@@ -806,9 +803,10 @@
         <div id="mapStatus" class="status" style="margin-top:7px">위치도 탭을 열면 주소를 조회합니다.</div>
         <div id="mapMiss"></div>
       </div>
+      </div>
     </div>
 
-    <!-- ═══════════ 2-3. 토지평가액 결정 ═══════════ -->
+    <!-- ═══════════ 2-2. 토지평가액 결정 ═══════════ -->
     <div id="tab-gyeoljeong" class="tab">
       <div class="res"><span>토지감정평가액</span><span class="n" id="resGyeoljeong">-</span></div>
       <div class="card" id="gjCard" style="max-width:560px">   <!-- 두 칸짜리 표라 화면 폭만큼 늘이지 않는다(2026-11-03) -->
@@ -3383,7 +3381,7 @@ function calcGeorae(){
   // 쓰는 사례가 하나도 없으면 안내 — 필지별로 따로 고른 사례만 있어도 계산한다
   var anyCase=evalKeys().some(function(k){var L=rowObj(k);return !isOut(L)&&TRADES[gaCaseIdx(L)];});
   if(!anyCase){
-    setFacTables('tblGaFactors',[{cap:'',html:'<tr><th>안내</th></tr><tr><td>공시지가기준법 탭에서 거래사례를 먼저 입력·채택하세요.</td></tr>'}]);
+    setFacTables('tblGaFactors',[{cap:'',html:'<tr><th>안내</th></tr><tr><td>위 거래사례 표에 사례를 넣고 왼쪽에서 채택하세요.</td></tr>'}]);
     document.getElementById('tblGaSisan').innerHTML='';
     document.getElementById('resGeorae').textContent='-';window.GEORAE_RESULT={total:0};calcGyeoljeong();return;}
   gaTimeNote();
@@ -3775,11 +3773,12 @@ function sd(){
 }
 
 // ================= 탭 =================
-var TAB_NAMES=['daesang','gongsi','georae','jido','gyeoljeong','bld','final','yohang','doc','cheonggu'];
-var LAND_TABS=['gongsi','georae','gyeoljeong'];   // 「2. 토지평가」 안의 세 단계
+var TAB_NAMES=['daesang','gongsi','jido','gyeoljeong','bld','final','yohang','doc','cheonggu'];
+var LAND_TABS=['gongsi','gyeoljeong'];   // 토지평가 단계(거래사례비교법은 2026-11-03부터 공시지가기준법 화면 맨 아래 #georae_sec)
 var LAND_LAST='gongsi';                            // 「2. 토지평가」를 누르면 마지막으로 보던 단계로
 function showTab(name){
   if(name==='land')name=LAND_LAST;                 // 묶음 버튼 → 세 단계 중 마지막으로 본 화면
+  var toGeorae=name==='georae';if(toGeorae)name='gongsi';   // 옛 2-2 탭 → 공시지가기준법 화면 아래 거래사례비교법 칸으로
   var inLand=LAND_TABS.indexOf(name)>=0;
   if(inLand)LAND_LAST=name;
   TAB_NAMES.forEach(function(n){
@@ -3789,15 +3788,16 @@ function showTab(name){
   var lb=document.getElementById('tabbtn-land');if(lb)lb.classList.toggle('active',inLand);   // 옛 묶음 버튼(지금은 없음)
   var lt=document.getElementById('landTabs');if(lt)lt.hidden=!inLand;
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
-  if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
+  if(name==='gongsi')autoGaTime(false,true);   // (거래사례비교법) 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();
   if(name==='yohang'){fillYohangFromData();renderToice();}
   if(name==='jido')mapOpen();
   CUR_TAB=name;updateStepNav();
   window.scrollTo(0,0);
+  if(toGeorae){var g=document.getElementById('georae_sec');if(g&&g.scrollIntoView)g.scrollIntoView();}
 }
 // 하단 ← 이전 / 다음 → — 화면 탭 순서대로(토지평가 세 단계 포함)
-var STEP_ORDER=['daesang','gongsi','georae','gyeoljeong','bld','final','jido','yohang','doc','cheonggu'];
+var STEP_ORDER=['daesang','gongsi','gyeoljeong','bld','final','jido','yohang','doc','cheonggu'];
 var CUR_TAB='daesang';
 function updateStepNav(){
   var o=stepOrder(),i=o.indexOf(CUR_TAB),p=document.getElementById('btnPrevTab'),n=document.getElementById('btnNextTab');
