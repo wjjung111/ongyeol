@@ -1,6 +1,7 @@
+<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ongyeol 등기발급</title>
+<title>등기 간편열람</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <style>
 :root{
@@ -32,261 +33,251 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.55}
 button,input,select{font:inherit;color:inherit}
-h1,h2,h3{font-family:var(--disp);margin:0;text-wrap:balance}
-.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);font-weight:700}
-
-header.top{padding:28px 24px 18px;border-bottom:1px solid var(--line);background:var(--surface)}
-.top-inner{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px 32px;align-items:flex-end;justify-content:space-between}
-.top h1{font-size:26px;font-weight:800;letter-spacing:-.01em}
-.top p{margin:6px 0 0;color:var(--ink2);max-width:62ch}
-.mode{display:flex;gap:0;border:1px solid var(--line2);border-radius:6px;overflow:hidden}
-.mode button{background:var(--surface);border:0;padding:9px 16px;cursor:pointer;color:var(--ink2);font-weight:500}
-.mode button+button{border-left:1px solid var(--line2)}
-.mode button.on{font-weight:700;color:#fff}
-.mode button.on[data-mode="sj"]{background:var(--acc)}
-.mode button.on[data-mode="yd"]{background:var(--brass)}
-.mode button:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
-
-main{max-width:1280px;margin:0 auto;padding:20px 24px 60px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:22px;align-items:start}
-@media (max-width:1000px){main{grid-template-columns:1fr}.side{position:static!important}}
-.side{position:sticky;top:16px;display:grid;gap:14px}
-section.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 20px;min-width:0}
-.side>*{min-width:0}
-section.card h2{font-size:15px;font-weight:800;display:flex;align-items:center;gap:10px;margin-bottom:14px}
-section.card h2 .step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:4px;background:var(--surface2);color:var(--ink2);font-size:12px;font-family:var(--mono)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 14px}
+h1,h2{font-family:var(--disp);margin:0}
+header.top{padding:24px 16px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.wrap{max-width:960px;margin:0 auto}
+.top h1{font-size:24px;font-weight:800}
+.top p{margin:6px 0 0;color:var(--ink2);max-width:64ch}
+main{max-width:960px;margin:0 auto;padding:18px 16px 60px;display:grid;gap:16px}
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;min-width:0}
+section.card h2{font-size:15px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px}
+.grid .wide{grid-column:span 2}
+@media (max-width:520px){.grid .wide{grid-column:auto}}
 label.f{display:grid;gap:4px}
 label.f>span{font-size:12px;color:var(--ink2);font-weight:500}
-label.f small{color:var(--ink3);font-size:11px}
-input[type=text],input[type=number],input[type=date],select{
-  width:100%;background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:7px 9px;min-height:36px}
-input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+input[type=text],input[type=password],select{width:100%;background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:7px 9px;min-height:38px}
 input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:0;border-color:var(--acc)}
 .hint{font-size:12px;color:var(--ink2);margin:8px 0 0}
-.chip{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;background:var(--surface2);color:var(--ink2);font-family:var(--mono)}
-.chip.acc{background:var(--acc-soft);color:var(--acc-ink)}
-.chip.brass{background:var(--brass-soft);color:var(--brass)}
-.chip.warn{background:var(--warn-soft);color:var(--warn)}
-.chip.ok{background:var(--ok-soft);color:var(--ok)}
-
-.tablewrap{overflow-x:auto;margin:0 -20px;padding:0 20px}
-table.rows{border-collapse:collapse;width:100%;min-width:880px}
-table.rows th{font-size:11px;letter-spacing:.06em;color:var(--ink3);text-align:left;padding:6px 6px;border-bottom:1px solid var(--line2);font-weight:700;white-space:nowrap}
-table.rows td{padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
-table.rows td.r,table.rows th.r{text-align:right}
-table.rows input,table.rows select{min-height:32px;padding:5px 7px}
-table.rows tr.res td{background:var(--surface2)}
-.rowbtn{background:none;border:1px solid var(--line2);border-radius:4px;padding:3px 7px;cursor:pointer;color:var(--ink2);font-size:12px}
-.rowbtn:hover{border-color:var(--ink2);color:var(--ink)}
-.addrow{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
-.btn{background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:7px 12px;cursor:pointer;font-weight:500}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.btn{background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:8px 14px;cursor:pointer;font-weight:500}
 .btn:hover{border-color:var(--ink2)}
 .btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.btn.del{color:var(--warn)}
+.btn:disabled{opacity:.55;cursor:default}
 .btn:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
-
-/* 간편 계산 (평가기준일 + 소재지 → 층별 결과) */
-.quick{max-width:1280px;margin:0 auto;padding:20px 24px 0}
-.quick .card{display:grid;gap:12px}
-.qrow{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
-.qrow .f.addr{flex:1;min-width:240px}
-.qrow .f.date{width:190px}
-.qres .sumline{font-size:12px;color:var(--ink2);margin:0 0 8px}
-.qres table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
-.qres th{background:var(--surface2);color:var(--ink2);font-weight:700;font-size:12px;padding:7px 8px;border:1px solid var(--line);white-space:nowrap}
-.qres td{padding:7px 8px;border:1px solid var(--line);text-align:center;font-family:var(--mono);font-variant-numeric:tabular-nums}
-.qres td.lab{text-align:left;font-family:var(--body)}
-.qres tr.tot td{font-weight:700;background:var(--surface2)}
-.qres tr.tot td.big{color:var(--acc);font-size:14px}
-.qbasis{font-size:12px;color:var(--ink2);background:var(--surface2);border-radius:6px;padding:10px 12px;line-height:1.75;margin-top:10px}
-.qbasis b{color:var(--ink)}
-.qbasis ul{margin:4px 0 0;padding-left:18px}
-main[hidden]{display:none!important}
-@media (max-width:600px){.quick{padding:16px 16px 0}.qrow .f.date{width:100%}}
-
-.sum{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.sum .head{padding:14px 18px 12px;border-bottom:1px solid var(--line)}
-.sum .head h2{font-size:14px;font-weight:800}
-.sum .big{padding:14px 18px;border-bottom:1px solid var(--line)}
-.sum .big .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1.15}
-.sum .big .l{font-size:12px;color:var(--ink2);margin-top:2px}
-.kv{display:grid;grid-template-columns:1fr auto;gap:5px 12px;padding:12px 18px;font-size:13px}
-.kv .k{color:var(--ink2)}
-.kv .v{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
-.kv .v.sub{color:var(--ink3)}
-.kv .sep{grid-column:1/-1;border-top:1px dashed var(--line2);margin:4px 0}
-.kv .tot{font-weight:700}
-.sum.mode-sj .big .v{color:var(--acc)}
-.sum.mode-yd .big .v{color:var(--brass)}
-.verify{padding:0 18px 14px;display:grid;gap:10px}
-.verdict{border-radius:6px;padding:9px 11px;font-size:13px;line-height:1.5}
-.verdict.ok{background:var(--ok-soft);color:var(--ok)}
-.verdict.warn{background:var(--warn-soft);color:var(--warn)}
-.verdict.mute{background:var(--surface2);color:var(--ink2)}
-.notes{font-size:12px;color:var(--ink2);padding:0 18px 14px;display:grid;gap:6px}
-.notes b{color:var(--ink)}
-.formula{font-family:var(--mono);font-size:12px;background:var(--surface2);border-radius:5px;padding:8px 10px;color:var(--ink2);white-space:pre-wrap;word-break:keep-all;line-height:1.7}
-details.ref{border-top:1px solid var(--line);padding-top:10px;margin-top:8px}
-details.ref summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--ink2)}
-details.ref table{border-collapse:collapse;font-size:12px;width:100%;margin-top:8px}
-details.ref td,details.ref th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}
-details.ref td.r{text-align:right;font-family:var(--mono)}
-.apirow{display:flex;gap:8px;flex-wrap:wrap}
-.apirow input[type=text]{flex:1;min-width:240px}
-.status{font-size:12px;color:var(--ink2);margin-top:8px}
-.status.err{color:var(--warn)}
-.status.ok{color:var(--ok)}
-.paste{margin-top:10px;border:1px dashed var(--line2);border-radius:6px;padding:10px;font-size:12px}
-.paste textarea{width:100%;min-height:90px;border:1px solid var(--line2);border-radius:5px;padding:6px;font-family:var(--mono);font-size:11px;background:var(--surface);color:var(--ink)}
-.paste a{color:var(--acc);word-break:break-all}
-pre.raw{font-size:11px;max-height:240px;overflow:auto;background:var(--surface2);padding:8px;border-radius:5px;color:var(--ink2);white-space:pre-wrap}
-.tag{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:var(--warn-soft);color:var(--warn);margin-left:4px;font-weight:700}
-footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font-size:12px;line-height:1.7}
-@media print{
-  header.top,.addrow,.rowbtn,.mode,.tools{display:none!important}
-  main{grid-template-columns:1fr;padding:0}
-  .side{position:static}
-  section.card,.sum{break-inside:avoid;border-color:#999}
-}
-@media (prefers-reduced-motion:no-preference){.btn,.mode button{transition:background .15s,border-color .15s}}
-</style>
-
-<style>
-.job{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--surface)}
-.job .t{font-weight:700}
-.chipst{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;margin-left:8px}
+.status{font-size:12px;color:var(--ink2)}
+.status.err{color:var(--warn)} .status.ok{color:var(--ok)}
+/* 에이전트 상태 */
+.agent{display:flex;gap:12px;align-items:flex-start;border-radius:8px;padding:12px 14px;background:var(--surface2)}
+.agent .dot{width:12px;height:12px;border-radius:50%;margin-top:5px;flex:none;background:var(--ink3)}
+.agent.ok{background:var(--ok-soft)} .agent.ok .dot{background:var(--ok)}
+.agent.need{background:var(--warn-soft)} .agent.need .dot{background:var(--warn)}
+.agent.off .dot{background:var(--ink3)}
+.agent b{display:block}
+.agent .sub{font-size:12.5px;color:var(--ink2)}
+/* 작업 */
+.job{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:10px}
+.job .t{font-weight:700;word-break:keep-all}
+.chipst{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12px;margin-left:6px;font-weight:700;vertical-align:1px}
 .st-wait{background:var(--surface2);color:var(--ink2)}
 .st-run{background:var(--brass-soft);color:var(--brass)}
 .st-done{background:var(--ok-soft);color:var(--ok)}
-.st-fail{background:var(--warn-soft);color:var(--warn)}
-.st-need{background:var(--warn-soft);color:var(--warn)}
-.job .meta{font-size:12.5px;color:var(--ink2);margin-top:4px;line-height:1.6}
-.job .fields{font-family:var(--mono);font-size:12.5px;margin-top:6px;white-space:pre-wrap}
+.st-fail,.st-need{background:var(--warn-soft);color:var(--warn)}
+.job .meta{font-size:12.5px;color:var(--ink2);margin-top:4px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;margin-top:8px;font-size:13px}
+.kv .k{color:var(--ink2)}
+.kv .v{font-family:var(--mono);font-variant-numeric:tabular-nums;word-break:break-all}
+.note{margin-top:6px;font-size:12.5px;color:var(--warn)}
+.file{margin-top:6px;font-size:12px;color:var(--ink2);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.file code{font-family:var(--mono);background:var(--surface2);padding:2px 6px;border-radius:4px;word-break:break-all}
+.mini{background:none;border:1px solid var(--line2);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:12px;color:var(--ink2)}
+details.set summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--ink2)}
+footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-size:12px;line-height:1.7}
 </style>
 
 <body>
-
-<script>window.ARAP_NAME_ICON='📜';window.ARAP_NAME_SUB='등기 간편발급';</script><script src="arap_name.js"></script>
+<script>window.ARAP_NAME_ICON='📜';window.ARAP_NAME_SUB='등기 간편열람';</script><script src="arap_name.js"></script>
 <script>window.ARAP_VISIT_PAGE='등기발급';</script><script src="arap_visit.js"></script>
-<header class="top">
-  <div class="top-inner">
-    <div>
-      <div class="eyebrow"><a href="index.html" style="color:inherit;text-decoration:none">Ongyeol</a> · 인터넷등기소 연동 · 개인 전용</div>
-      <h1>등기 간편발급</h1>
-      <p>주소를 넣고 발급 요청을 등록하면, 내 PC에서 돌아가는 에이전트가 인터넷등기소에서 선불결제로 열람·발급하고 PDF와 대지권 등 핵심값을 뽑아 여기에 표시합니다. 이 페이지는 요청 접수와 결과 확인만 하고, 실제 발급은 PC 에이전트가 켜져 있을 때만 처리됩니다.</p>
-    </div>
-  </div>
-</header>
 
-<main style="display:block">
-<div style="display:grid;gap:16px;min-width:0">
+<header class="top"><div class="wrap">
+  <h1>등기 간편열람</h1>
+  <p>주소를 넣으면 내 PC의 에이전트가 인터넷등기소에서 선불(전자민원캐시)로 <b>열람</b>하고, PDF 저장과 함께 고유번호·전유면적·대지권을 뽑아 여기에 보여 줍니다.</p>
+</div></header>
 
+<main>
   <section class="card">
-    <h2><span class="step">1</span>발급 요청 등록</h2>
-    <div class="grid">
-      <label class="f"><span>주소 <small>(지번 또는 도로명)</small></span><input type="text" id="addr" placeholder="고양시 덕양구 향동동 394" autocomplete="off"></label>
-      <label class="f"><span>동 <small>(집합건물, 선택)</small></span><input type="text" id="dong" placeholder="11"></label>
-      <label class="f"><span>호 <small>(집합건물, 선택)</small></span><input type="text" id="ho" placeholder="1143"></label>
-      <label class="f"><span>부동산 구분</span>
-        <select id="rtype"><option>집합건물</option><option>토지</option><option>건물</option></select></label>
-      <label class="f"><span>문서 종류</span>
-        <select id="docType"><option>열람</option><option>발급</option></select></label>
-      <label class="f"><span>등기기록 유형</span>
-        <select id="recType"><option>전부(말소사항 포함)</option><option>전부(현재 유효사항)</option><option>일부(특정인 지분)</option></select></label>
-      <label class="f"><span>메모 <small>(선택)</small></span><input type="text" id="memo" placeholder="예: 향동 상속 건"></label>
-    </div>
-    <p class="hint">주민등록번호는 미공개가 기본입니다. 결제수단은 선불(선불전자지급수단) 고정입니다. 잘못된 주소로 결제하면 수수료가 차감되니 등록 전에 한 번 더 확인하세요.</p>
-    <div class="tools" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button type="button" class="btn primary" id="addBtn">발급 요청 등록</button>
-      <button type="button" class="btn" id="refreshBtn">상태 새로고침</button>
-    </div>
-    <div class="status" id="formStatus"></div>
+    <h2>PC 에이전트</h2>
+    <div class="agent off" id="agent"><span class="dot"></span><div><b id="agentTitle">확인 중…</b><span class="sub" id="agentSub"></span></div></div>
   </section>
 
   <section class="card">
-    <h2><span class="step">2</span>요청 목록 · 결과</h2>
-    <p class="hint" id="agentStatus">에이전트 상태: 확인 중…</p>
+    <h2>열람 요청</h2>
+    <div class="grid">
+      <label class="f wide"><span>주소 (지번 또는 도로명)</span><input type="text" id="addr" placeholder="서울특별시 강남구 대치동 511" autocomplete="off"></label>
+      <label class="f"><span>동 (집합건물)</span><input type="text" id="dong" placeholder="107" autocomplete="off"></label>
+      <label class="f"><span>호 (집합건물)</span><input type="text" id="ho" placeholder="107" autocomplete="off"></label>
+      <label class="f"><span>부동산 구분</span>
+        <select id="rtype"><option value="">자동 (호 있으면 집합건물)</option><option>집합건물</option><option>토지</option><option>건물</option><option>전체</option></select></label>
+      <label class="f"><span>등기기록</span>
+        <select id="recType"><option>전부(말소사항 포함)</option><option>전부(현재 유효사항)</option></select></label>
+      <label class="f wide"><span>메모 (선택)</span><input type="text" id="memo" placeholder="예: 대치동 상속 건" autocomplete="off"></label>
+    </div>
+    <p class="hint">열람 수수료가 선불 잔액에서 바로 차감됩니다. 검색 결과가 정확히 1건 맞을 때만 자동 결제하고, 애매하면 PC에서 멈춰 확인합니다.</p>
+    <div class="row">
+      <button type="button" class="btn primary" id="addBtn">열람 요청</button>
+      <button type="button" class="btn" id="refreshBtn">새로고침</button>
+      <span class="status" id="formStatus"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>요청 목록 <span class="status" id="listInfo"></span></h2>
     <div id="jobList"></div>
   </section>
 
-</div>
+  <section class="card">
+    <details class="set" id="setBox">
+      <summary>큐 연결 설정</summary>
+      <div class="grid" style="margin-top:10px">
+        <label class="f wide"><span>작업 큐 주소 (Apps Script 웹앱 URL)</span><input type="text" id="setUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+        <label class="f"><span>페이지 키 (PAGE_KEY)</span><input type="password" id="setKey" autocomplete="off"></label>
+      </div>
+      <p class="hint">주소와 키는 이 브라우저에만 저장됩니다(공개 저장소 파일에는 넣지 않음). 다른 기기에서는 한 번 다시 넣어 주세요.</p>
+      <div class="row"><button type="button" class="btn primary" id="saveSet">저장</button><button type="button" class="btn del" id="clearSet">지우기</button><span class="status" id="setStatus"></span></div>
+    </details>
+  </section>
 </main>
 
-<footer>
-  개인 전용 도구입니다. 실제 발급은 본인 PC의 로컬 에이전트(registry_tool)가 인터넷등기소 본인 계정·선불 잔액으로 수행합니다. 이 페이지는 GitHub Pages 정적 페이지라 발급 자체를 실행할 수 없고, 작업 큐(Apps Script)를 통해 에이전트와 연결됩니다.
-</footer>
+<footer>개인 전용 도구. 실제 열람은 본인 PC의 에이전트가 본인 등기소 계정·선불 잔액으로 합니다. 등기소 로그인(보안문자)은 PC에서 사람이 하고, 에이전트가 켜져 있는 동안 세션을 유지합니다. PDF는 PC의 output 폴더에 저장됩니다.</footer>
 
 <script>
-// ── 작업 큐 엔드포인트: Apps Script 웹앱 배포 후 URL과 키를 넣으세요 ──
-const JOBS_URL = "";        // 예: https://script.google.com/macros/s/XXXX/exec
-const JOBS_KEY = "";        // Apps Script의 KEY와 동일하게
-const $ = id => document.getElementById(id);
-const esc = s => String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const ST = {"대기":["st-wait","대기"], "처리중":["st-run","처리중"], "완료":["st-done","완료"], "실패":["st-fail","실패"], "확인필요":["st-need","확인필요"]};
-let localJobs = [];
-try { localJobs = JSON.parse(localStorage.getItem("ongyeol-deunggi-localjobs")||"[]"); } catch(e) { localJobs = []; }
-
-async function api(params, body){
-  const url = JOBS_URL + (JOBS_URL.includes("?")?"&":"?") + new URLSearchParams({key:JOBS_KEY, ...params}).toString();
-  const opt = body ? {method:"POST", headers:{"Content-Type":"text/plain"}, body:JSON.stringify(body)} : {};
-  const r = await fetch(url, opt);
-  return r.json();
-}
-function renderJobs(jobs){
-  const box = $("jobList");
-  if(!jobs.length){ box.innerHTML = '<p class="hint">등록된 요청이 없습니다.</p>'; return; }
-  box.innerHTML = jobs.map(j=>{
-    const [cls, lab] = ST[j.status] || ST["대기"];
-    let f = "";
-    if(j.fields && Object.keys(j.fields).length){
-      f = '<div class="fields">' + Object.entries(j.fields).map(([k,v])=>esc(k)+": "+esc(v)).join("\n") + "</div>";
+// ── 순수 함수 (tests/deunggi_page.cjs 에서 검증) ─────────────────────────
+const DG = {
+  ST: {"대기":["st-wait","대기"], "처리중":["st-run","처리중"], "완료":["st-done","완료"], "실패":["st-fail","실패"], "확인필요":["st-need","확인필요"]},
+  num(v){ const n = Number(v); return Number.isFinite(n) ? n.toLocaleString("ko-KR", {maximumFractionDigits: 4}) : String(v ?? ""); },
+  // 추출값 → [라벨, 값] 목록 (표시용)
+  summarize(f){
+    const out = [];
+    if (!f || typeof f !== "object") return out;
+    if (f["고유번호"]) out.push(["고유번호", f["고유번호"]]);
+    if (f["소재지"]) out.push(["소재지", f["소재지"]]);
+    if (f["전유면적"] != null) out.push(["전유면적", DG.num(f["전유면적"]) + "㎡"]);
+    const list = Array.isArray(f["대지권_목록"]) && f["대지권_목록"].length ? f["대지권_목록"]
+               : (f["대지권_분모"] != null ? [{"분모": f["대지권_분모"], "분자": f["대지권_분자"]}] : []);
+    list.forEach((d, i) => out.push([list.length > 1 ? `대지권 ${i + 1}` : "대지권",
+      `${DG.num(d["분모"])}분의 ${d["분자"] == null ? "?" : DG.num(d["분자"])}`]));
+    if (f["토지면적"] != null) out.push(["토지면적", `${f["지목"] || ""} ${DG.num(f["토지면적"])}㎡`.trim()]);
+    if (f["열람일시"]) out.push(["열람일시", f["열람일시"]]);
+    return out;
+  },
+  // 에이전트 상태 표시: lastSeen 'YYYY-MM-DD HH:mm:ss'(KST), state {session, login_minutes}
+  agentView(lastSeen, state, now){
+    const t = lastSeen ? Date.parse(lastSeen.replace(" ", "T") + "+09:00") : NaN;
+    const ago = Number.isFinite(t) ? Math.max(0, Math.round((now - t) / 1000)) : null;
+    if (ago == null) return {cls: "off", title: "PC 에이전트 기록 없음", sub: "PC에서 3_에이전트.bat 을 실행하세요."};
+    if (ago > 180) return {cls: "off", title: "PC 에이전트 꺼짐", sub: `마지막 동작 ${lastSeen}. PC에서 3_에이전트.bat 을 실행하세요.`};
+    const s = (state && state.session) || "";
+    if (s === "로그인 필요") return {cls: "need", title: "등기소 로그인 필요", sub: "PC 크롬 창에서 보안문자를 입력해 로그인하세요. 그 전까지 요청은 대기합니다."};
+    if (s === "로그인됨") {
+      const m = Number(state.login_minutes) || 0;
+      return {cls: "ok", title: "준비됨 — 등기소 로그인 유지 중", sub: m > 0 ? `로그인 후 ${m >= 60 ? Math.floor(m / 60) + "시간 " : ""}${m % 60}분째` : "요청하면 바로 처리합니다."};
     }
-    const pdf = j.pdf_url ? `<div class="meta">PDF: <a href="${esc(j.pdf_url)}" target="_blank" rel="noopener">열기</a></div>` : (j.file ? `<div class="meta">저장 파일(PC): ${esc(j.file)}</div>` : "");
-    const err = j.error ? `<div class="meta" style="color:var(--warn)">오류: ${esc(j.error)}</div>` : "";
-    return `<div class="job"><span class="t">${esc(j.address)} ${esc(j.dong||"")} ${esc(j.ho||"")}</span><span class="chipst ${cls}">${lab}</span>
-      <div class="meta">${esc(j.rtype||"")} · ${esc(j.doc_type||"")} · ${esc(j.record_type||"")} · 등록 ${esc(j.created||"")}${j.memo?" · "+esc(j.memo):""}</div>${f}${pdf}${err}</div>`;
-  }).join("");
-}
-async function refresh(){
-  if(!JOBS_URL){
-    $("agentStatus").textContent = "에이전트 상태: 작업 큐(Apps Script)가 아직 연결되지 않았습니다. 아래 목록은 이 브라우저에 임시 저장된 요청입니다.";
-    renderJobs(localJobs);
-    return;
-  }
-  try{
-    const d = await api({action:"list"});
-    $("agentStatus").textContent = "에이전트 상태: " + (d.agent_last_seen ? ("마지막 동작 " + d.agent_last_seen) : "아직 동작 기록 없음 (PC에서 agent.py를 실행하세요)");
-    renderJobs(d.jobs||[]);
-  }catch(e){
-    $("agentStatus").textContent = "에이전트 상태: 큐 연결 실패 - " + e.message;
-  }
-}
-$("addBtn").addEventListener("click", async ()=>{
-  const addr = $("addr").value.trim();
-  if(!addr){ alert("주소를 입력하세요"); return; }
-  const job = {address:addr, dong:$("dong").value.trim(), ho:$("ho").value.trim(),
-    rtype:$("rtype").value, doc_type:$("docType").value, record_type:$("recType").value,
-    memo:$("memo").value.trim(), created:new Date().toLocaleString("ko-KR"), status:"대기"};
-  if(window.arapVisitLog) window.arapVisitLog('발급요청', addr);
-  if(!JOBS_URL){
-    localJobs.unshift(job);
-    try{ localStorage.setItem("ongyeol-deunggi-localjobs", JSON.stringify(localJobs.slice(0,50))); }catch(e){}
-    $("formStatus").className = "status"; $("formStatus").textContent = "큐 미연결 상태라 이 브라우저에만 임시 저장했습니다. Apps Script 배포 후 JOBS_URL을 넣으면 에이전트와 연결됩니다.";
-    renderJobs(localJobs);
-    return;
-  }
-  try{
-    $("addBtn").disabled = true;
-    const d = await api({action:"add"}, job);
-    $("formStatus").className = "status ok"; $("formStatus").textContent = "등록됨: " + (d.id||"");
-    refresh();
-  }catch(e){
-    $("formStatus").className = "status err"; $("formStatus").textContent = "등록 실패: " + e.message;
-  }finally{ $("addBtn").disabled = false; }
-});
-$("refreshBtn").addEventListener("click", refresh);
-refresh();
-setInterval(refresh, 30000);
-</script>
+    return {cls: "ok", title: "PC 에이전트 동작 중", sub: `마지막 확인 ${ago}초 전`};
+  },
+};
+if (typeof module !== "undefined") module.exports = DG;
 
+// ── 화면 ────────────────────────────────────────────────────
+(function(){
+  if (typeof document === "undefined") return;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const K_URL = "ongyeol-deunggi-url", K_KEY = "ongyeol-deunggi-pagekey", K_LOCAL = "ongyeol-deunggi-localjobs";
+  const get = k => { try { return localStorage.getItem(k) || ""; } catch(e) { return ""; } };
+  const set = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch(e) {} };
+  let localJobs = []; try { localJobs = JSON.parse(get(K_LOCAL) || "[]"); } catch(e) {}
+
+  const conf = () => ({url: get(K_URL), key: get(K_KEY)});
+  async function api(params, body){
+    const {url, key} = conf();
+    const u = url + (url.includes("?") ? "&" : "?") + new URLSearchParams({key, ...params}).toString();
+    const r = await fetch(u, body ? {method: "POST", headers: {"Content-Type": "text/plain"}, body: JSON.stringify(body)} : {});
+    const d = await r.json();
+    if (d && d.ok === false) throw new Error(d.error === "unauthorized" ? "키가 맞지 않습니다 (큐 연결 설정 확인)" : d.error);
+    return d;
+  }
+
+  function renderAgent(v){
+    $("agent").className = "agent " + v.cls;
+    $("agentTitle").textContent = v.title;
+    $("agentSub").textContent = v.sub;
+  }
+  function renderJobs(jobs){
+    const box = $("jobList");
+    if (!jobs.length) { box.innerHTML = '<p class="hint">요청이 없습니다.</p>'; return; }
+    box.innerHTML = jobs.map((j, i) => {
+      const [cls, lab] = DG.ST[j.status] || DG.ST["대기"];
+      const kv = DG.summarize(j.fields);
+      const notes = (j.fields && j.fields["확인필요"]) || [];
+      return `<div class="job"><span class="t">${esc(j.address)} ${esc(j.dong ? j.dong + "동" : "")} ${esc(j.ho ? j.ho + "호" : "")}</span><span class="chipst ${cls}">${lab}</span>
+        <div class="meta">${esc(j.rtype || "")} · ${esc(j.record_type || "")} · ${esc(j.created || "")}${j.memo ? " · " + esc(j.memo) : ""}</div>
+        ${kv.length ? '<div class="kv">' + kv.map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span>`).join("") + "</div>" : ""}
+        ${notes.map(n => `<div class="note">⚠ ${esc(n)}</div>`).join("")}
+        ${j.file ? `<div class="file">PC 파일 <code>${esc(j.file)}</code><button class="mini" data-copy="${i}">경로 복사</button></div>` : ""}
+        ${j.error ? `<div class="note">${esc(j.error)}</div>` : ""}</div>`;
+    }).join("");
+    box.querySelectorAll("[data-copy]").forEach(b => b.onclick = () => {
+      navigator.clipboard && navigator.clipboard.writeText(jobs[+b.dataset.copy].file).then(() => { b.textContent = "복사됨"; });
+    });
+  }
+
+  async function refresh(){
+    if (!conf().url || !conf().key) {
+      renderAgent({cls: "off", title: "작업 큐 미연결", sub: "아래 「큐 연결 설정」에 주소와 키를 넣으면 PC 에이전트와 연결됩니다. 지금 요청은 이 브라우저에만 임시 저장됩니다."});
+      renderJobs(localJobs); $("listInfo").textContent = "(임시 저장)";
+      return;
+    }
+    try {
+      const d = await api({action: "list"});
+      renderAgent(DG.agentView(d.agent_last_seen, d.agent_state, Date.now()));
+      renderJobs(d.jobs || []);
+      $("listInfo").textContent = `(${(d.jobs || []).length}건, ${new Date().toLocaleTimeString("ko-KR")} 기준)`;
+    } catch(e) {
+      renderAgent({cls: "need", title: "큐 연결 실패", sub: e.message});
+    }
+  }
+
+  $("addBtn").onclick = async () => {
+    const address = $("addr").value.trim();
+    if (!address) { $("addr").focus(); $("formStatus").className = "status err"; $("formStatus").textContent = "주소를 입력하세요"; return; }
+    const ho = $("ho").value.trim();
+    const job = {address, dong: $("dong").value.trim(), ho,
+      rtype: $("rtype").value || (ho ? "집합건물" : "전체"), doc_type: "열람", record_type: $("recType").value,
+      memo: $("memo").value.trim(), created: new Date().toLocaleString("ko-KR"), status: "대기"};
+    if (window.arapVisitLog) window.arapVisitLog("열람요청", address);
+    if (!conf().url || !conf().key) {
+      localJobs.unshift(job); set(K_LOCAL, JSON.stringify(localJobs.slice(0, 50)));
+      $("formStatus").className = "status"; $("formStatus").textContent = "큐 미연결 — 이 브라우저에만 임시 저장했습니다.";
+      renderJobs(localJobs); return;
+    }
+    $("addBtn").disabled = true;
+    try {
+      const d = await api({action: "add"}, job);
+      $("formStatus").className = "status ok"; $("formStatus").textContent = "요청됨 " + (d.id || "");
+      ["addr", "dong", "ho", "memo"].forEach(id => $(id).value = "");
+      refresh();
+    } catch(e) {
+      $("formStatus").className = "status err"; $("formStatus").textContent = "요청 실패: " + e.message;
+    } finally { $("addBtn").disabled = false; }
+  };
+  $("refreshBtn").onclick = refresh;
+  $("addr").addEventListener("keydown", e => { if (e.key === "Enter") $("addBtn").click(); });
+
+  $("setUrl").value = conf().url;
+  $("setKey").value = conf().key;
+  if (!conf().url) $("setBox").open = true;
+  $("saveSet").onclick = () => {
+    set(K_URL, $("setUrl").value.trim()); set(K_KEY, $("setKey").value.trim());
+    $("setStatus").className = "status ok"; $("setStatus").textContent = "저장됨"; refresh();
+  };
+  $("clearSet").onclick = () => {
+    set(K_URL, ""); set(K_KEY, ""); $("setUrl").value = ""; $("setKey").value = "";
+    $("setStatus").className = "status"; $("setStatus").textContent = "지웠습니다"; refresh();
+  };
+
+  refresh();
+  setInterval(refresh, 20000);
+})();
+</script>
 </body>
