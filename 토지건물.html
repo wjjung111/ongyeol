@@ -465,11 +465,10 @@
       <button id="tabbtn-gongsi" class="land-calc" onclick="showTab('gongsi')">2-1. 공시지가·거래사례비교법</button>
       <button id="tabbtn-gyeoljeong" class="land-calc" onclick="showTab('gyeoljeong')">2-2. 토지평가액 결정</button>
       <button id="tabbtn-bld" class="bld-only" onclick="showTab('bld')">3. 건물평가</button>
-      <button id="tabbtn-final" onclick="showTab('final')">4. 토지건물 평가액 결정</button>
+      <button id="tabbtn-final" onclick="showTab('final')">4. 평가액 결정·청구서</button>
       <button id="tabbtn-jido" onclick="showTab('jido')">5. 위치도</button>
       <button id="tabbtn-yohang" onclick="showTab('yohang')">6. 요항표</button>
       <button id="tabbtn-doc" onclick="showTab('doc')">7. 감정평가서 다운로드</button>
-      <button id="tabbtn-cheonggu" onclick="showTab('cheonggu')">8. 청구서 다운로드</button>
     </div>
 
     <!-- ═══════════ 1. 대상물건 개요 ═══════════ -->
@@ -769,6 +768,7 @@
         <div class="tw"><table id="tblGaSisan"></table></div>
         <div class="fnote" id="gaTimeNote" style="margin-top:6px">시점수정 : <b id="gaTimeText">-</b> <button class="btn gh sm" style="margin-left:8px" onclick="autoGaTime(true)" title="채택한 거래사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 새로 조회">↻ 시점수정 자동</button></div>
       </div>
+      </div>
     </div>
 
     <!-- ═══════════ 5. 위치도 (본건·표준지·사례를 지도에 표시) ═══════════ -->
@@ -803,20 +803,19 @@
         <div id="mapStatus" class="status" style="margin-top:7px">위치도 탭을 열면 주소를 조회합니다.</div>
         <div id="mapMiss"></div>
       </div>
-      </div>
     </div>
 
     <!-- ═══════════ 2-2. 토지평가액 결정 ═══════════ -->
     <div id="tab-gyeoljeong" class="tab">
       <div class="res"><span>토지감정평가액</span><span class="n" id="resGyeoljeong">-</span></div>
-      <div class="card" id="gjCard" style="max-width:560px">   <!-- 두 칸짜리 표라 화면 폭만큼 늘이지 않는다(2026-11-03) -->
+      <div class="card" id="gjCard" style="max-width:720px">   <!-- 두 칸짜리 표라 화면 폭만큼 늘이지 않는다(2026-11-03) -->
         <h2>합리성 검토 및 결정</h2>
         <div class="tw"><table>
-          <tr><th>평가방법</th><th>시산가액(원)</th></tr>
-          <tr><td>공시지가기준법</td><td id="gj_a">-</td></tr>
-          <tr><td>거래사례비교법</td><td id="gj_b">-</td></tr>
-          <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_diff">-</td></tr>
-          <tr><td style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
+          <tr><th>평가방법</th><th>적용단가(원/㎡)</th><th>시산가액(원)</th></tr>
+          <tr><td>공시지가기준법</td><td id="gj_au">-</td><td id="gj_a">-</td></tr>
+          <tr><td>거래사례비교법</td><td id="gj_bu">-</td><td id="gj_b">-</td></tr>
+          <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_udiff">-</td><td class="calc-c" id="gj_diff">-</td></tr>
+          <tr><td style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_fu">-</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
         </table></div>
       </div>
     </div>
@@ -853,18 +852,19 @@
           <span id="bld_rHint" style="font-size:11px;color:#626b78"></span></div>
         <div class="tw"><table id="tblBldCalc"></table></div>
       </div>
-      </div>
-      </div>
+      <!-- 국세청 기준시가 — 재조달원가 박스와 같은 오른쪽 열·같은 너비(2026-11-03 사용자 요청) -->
       <div class="card" id="gjsCard">
         <h2>국세청 건물 기준시가</h2>
         <div id="gjsBox"><div class="hint">계산 중…</div></div>
+      </div>
+      </div>
       </div>
     </div>
 
     <!-- ═══════════ 4. 토지건물 평가액 결정 ═══════════ -->
     <div id="tab-final" class="tab">
       <div class="res"><span>감정평가액</span><span class="n" id="resFinal">-</span></div>
-      <div class="cols5050">
+      <div class="cols5050" style="align-items:start">
         <div class="card">
           <h2>감정평가액의 결정</h2>
           <div class="tw"><table>
@@ -875,9 +875,55 @@
           </table></div>
           <div class="fld" style="margin-top:8px"><label>결정의견</label><input class="box" id="fn_opinion" value="본건은 수요성·환가성·공시지가와 인근지역의 현지조사 가격수준, 토지 및 건물의 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음."></div>
         </div>
+        <!-- 청구서 — 따로 탭(8)이던 것을 평가액 결정 화면 오른쪽으로(2026-11-03 사용자 요청). id·함수 그대로 -->
+        <div id="cheonggu_sec">
+        <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
         <div class="card">
-          <h2>검산 패널</h2>
-          <div class="tw"><table id="tblCheck"></table></div>
+          <h2>표지 · 청구서 · 회보서</h2>
+          <div class="note">평가수수료는 <b>감정평가액(<span id="cg_amt">-</span>)</b>으로 자동 계산합니다 — 「감정평가법인등의 보수에 관한 기준」(2026.2.9.) 별표. 사이트에 들어갈 필요 없어요.</div>
+          <div class="cg-auto" id="cg_autoBox"></div>
+          <details id="cg_pasteBox" style="margin-top:6px"><summary style="font-size:12px;color:#64748b;cursor:pointer">수수료 계산 사이트 계산서를 직접 붙여넣기(선택 — 붙여넣으면 그 값을 씁니다)</summary>
+            <div class="note" style="margin-top:4px"><a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a> → 계산서1 복사 → 아래에 붙여넣기. 비우면 다시 자동 계산.</div>
+            <textarea id="cg_feeText" rows="4" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"></textarea>
+          </details>
+          <div class="row" style="margin-top:6px"><button type="button" class="btn gh sm" onclick="cgVerifySaved()" title="이 브라우저에 저장된 건(집합건물·입주권·토지건물)에 붙여넣어 둔 사이트 계산서를 자동 계산과 하나씩 맞춰 봅니다">🔎 기평가건으로 수수료 자동계산 검증</button></div>
+          <div id="cg_verify" class="tw" hidden style="margin-top:6px"></div>
+          <div class="row" style="margin-top:8px">
+            <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
+            <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
+              <option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select>
+            <span class="mul-x">×</span>
+            <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" title="수수료 배수(할증) — 예: 1.5. (가)평가수수료 = 요율 수수료 × 배수(천원 미만 절사). 이 값을 고치면 특별용역비 배수도 같은 값으로 따라갑니다." oninput="cgFeeMulIn(this.value)">
+            <span class="hint" id="cg_mulNote" style="margin-left:2px"></span>
+            <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
+            <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한·상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
+              <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option><option value="상한-기준">상한-기준</option></select>
+            <span class="hint" id="cg_feeState">계산서 붙여넣으면 평가수수료 자동입력</span>
+          </div>
+          <div class="tw" style="margin-top:8px"><table id="cg_table">
+            <tr><th colspan="2">과　목</th><th style="width:190px">금　액</th></tr>
+            <tr><td class="cg-g">(가)</td><td class="cg-n">평가수수료</td><td class="cg-v" id="cgv_fee">-</td></tr>
+            <tr><td class="cg-g" rowspan="6">(나)<br>실비</td>
+              <td class="cg-n">여　비<span class="cg-undo" id="cgUndoTravel" title="소재지 기준 여비 자동값으로 복원" onclick="cgResetTravel()">↺</span></td>
+              <td class="cg-in"><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></td></tr>
+            <tr><td class="cg-n">물건조사비</td><td class="cg-in"><input type="text" id="cg_survey" placeholder="15,000"></td></tr>
+            <tr><td class="cg-n">공부발급비</td><td class="cg-in"><input type="text" id="cg_doc" placeholder="15,000"></td></tr>
+            <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
+            <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
+              <td class="cg-in"><div class="mul-row">
+                <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한·상한-기준이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
+                <span class="mul-x" id="cg_specialMulX">×</span>
+                <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다. 직접입력 방식에서는 쓰이지 않습니다." oninput="CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();">
+              </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(자동값은 천원 단위 반올림 — 예: 755,897 → 756,000. 원 단위로 되돌리려면 755,897처럼 직접 입력). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
+            <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
+            <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
+            <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
+            <tr><td colspan="2" class="cg-s">총　계</td><td class="cg-v big" id="cgv_total">-</td></tr>
+            <tr><td colspan="2" class="cg-s">기납부착수금</td><td class="cg-in"><input type="text" id="cg_downPayment" placeholder="1,000,000"></td></tr>
+            <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
+          </table></div>
+          <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
+        </div>
         </div>
       </div>
     </div>
@@ -966,56 +1012,6 @@
       </div>
     </div>
 
-    <!-- ═══════════ 8. 청구서 다운로드 (한글 hwpx) — 집합건물 청구서와 동일 양식·계산 ═══════════ -->
-    <div id="tab-cheonggu" class="tab">
-      <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
-      <div class="card">
-        <h2>표지 · 청구서 · 회보서</h2>
-        <div class="note">평가수수료는 <b>감정평가액(<span id="cg_amt">-</span>)</b>으로 자동 계산합니다 — 「감정평가법인등의 보수에 관한 기준」(2026.2.9.) 별표. 사이트에 들어갈 필요 없어요.</div>
-        <div class="cg-auto" id="cg_autoBox"></div>
-        <details id="cg_pasteBox" style="margin-top:6px"><summary style="font-size:12px;color:#64748b;cursor:pointer">수수료 계산 사이트 계산서를 직접 붙여넣기(선택 — 붙여넣으면 그 값을 씁니다)</summary>
-          <div class="note" style="margin-top:4px"><a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a> → 계산서1 복사 → 아래에 붙여넣기. 비우면 다시 자동 계산.</div>
-          <textarea id="cg_feeText" rows="4" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"></textarea>
-        </details>
-        <div class="row" style="margin-top:6px"><button type="button" class="btn gh sm" onclick="cgVerifySaved()" title="이 브라우저에 저장된 건(집합건물·입주권·토지건물)에 붙여넣어 둔 사이트 계산서를 자동 계산과 하나씩 맞춰 봅니다">🔎 기평가건으로 수수료 자동계산 검증</button></div>
-        <div id="cg_verify" class="tw" hidden style="margin-top:6px"></div>
-        <div class="row" style="margin-top:8px">
-          <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
-          <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
-            <option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select>
-          <span class="mul-x">×</span>
-          <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" title="수수료 배수(할증) — 예: 1.5. (가)평가수수료 = 요율 수수료 × 배수(천원 미만 절사). 이 값을 고치면 특별용역비 배수도 같은 값으로 따라갑니다." oninput="cgFeeMulIn(this.value)">
-          <span class="hint" id="cg_mulNote" style="margin-left:2px"></span>
-          <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
-          <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한·상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
-            <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option><option value="상한-기준">상한-기준</option></select>
-          <span class="hint" id="cg_feeState">계산서 붙여넣으면 평가수수료 자동입력</span>
-        </div>
-        <div class="tw" style="margin-top:8px"><table id="cg_table">
-          <tr><th colspan="2">과　목</th><th style="width:190px">금　액</th></tr>
-          <tr><td class="cg-g">(가)</td><td class="cg-n">평가수수료</td><td class="cg-v" id="cgv_fee">-</td></tr>
-          <tr><td class="cg-g" rowspan="6">(나)<br>실비</td>
-            <td class="cg-n">여　비<span class="cg-undo" id="cgUndoTravel" title="소재지 기준 여비 자동값으로 복원" onclick="cgResetTravel()">↺</span></td>
-            <td class="cg-in"><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></td></tr>
-          <tr><td class="cg-n">물건조사비</td><td class="cg-in"><input type="text" id="cg_survey" placeholder="15,000"></td></tr>
-          <tr><td class="cg-n">공부발급비</td><td class="cg-in"><input type="text" id="cg_doc" placeholder="15,000"></td></tr>
-          <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
-          <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
-            <td class="cg-in"><div class="mul-row">
-              <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한·상한-기준이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
-              <span class="mul-x" id="cg_specialMulX">×</span>
-              <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다. 직접입력 방식에서는 쓰이지 않습니다." oninput="CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();">
-            </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(자동값은 천원 단위 반올림 — 예: 755,897 → 756,000. 원 단위로 되돌리려면 755,897처럼 직접 입력). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
-          <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
-          <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
-          <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
-          <tr><td colspan="2" class="cg-s">총　계</td><td class="cg-v big" id="cgv_total">-</td></tr>
-          <tr><td colspan="2" class="cg-s">기납부착수금</td><td class="cg-in"><input type="text" id="cg_downPayment" placeholder="1,000,000"></td></tr>
-          <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
-        </table></div>
-        <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
-      </div>
-    </div>
     <!-- 하단 ← 이전 / 다음 → (집합건물과 동일) — 토지평가 세 단계도 차례로 지난다 -->
     <div class="stepnav"><button type="button" class="prev" id="btnPrevTab" onclick="stepTab(-1)" hidden>← 이전</button><button type="button" class="next" id="btnNextTab" onclick="stepTab(1)">다음 →</button></div>
   </div>
@@ -3490,6 +3486,13 @@ function gaVsGongsiNote(gaTotal){
 }
 
 // ================= 2-3. 토지평가액 결정 =================
+// 시산 결과(rows)의 적용단가 — 평가한 줄(apply>0)만, 같은 단가는 한 번
+function gjUnits(R){var rows=(R&&R.rows)||[],list=[];
+  rows.forEach(function(r){var u=num(r&&r.apply);if(u>0&&!(r&&r.out)&&list.indexOf(u)<0)list.push(u);});
+  return {first:list[0]||0,list:list};}
+function gjUnitCell(id,u){var el=document.getElementById(id);if(!el)return;
+  el.textContent=u.first?won(u.first)+(u.list.length>1?' 외':''):'-';
+  el.title=u.list.length>1?u.list.map(won).join(' / '):'';}
 function calcGyeoljeong(){
   var a=(window.GONGSI_RESULT&&window.GONGSI_RESULT.total)||0;
   var b=(window.GEORAE_RESULT&&window.GEORAE_RESULT.total)||0;
@@ -3497,6 +3500,11 @@ function calcGyeoljeong(){
   document.getElementById('gj_b').textContent=b?won(b):'-';
   var diff=(a&&b)?(Math.abs(a-b)/Math.max(a,b)*100):0;
   document.getElementById('gj_diff').textContent=(a&&b)?diff.toFixed(1)+'%':'-';
+  // 적용단가 — 필지마다 단가가 다르면 「첫 단가 외」, 제목에 필지별 단가(2026-11-03 사용자 요청)
+  var ua=gjUnits(window.GONGSI_RESULT),ub=gjUnits(window.GEORAE_RESULT);
+  gjUnitCell('gj_au',ua);gjUnitCell('gj_bu',ub);gjUnitCell('gj_fu',ua);
+  var ud=(ua.first&&ub.first&&ua.list.length===1&&ub.list.length===1)?(Math.abs(ua.first-ub.first)/Math.max(ua.first,ub.first)*100):0;
+  document.getElementById('gj_udiff').textContent=(ua.first&&ub.first&&ua.list.length===1&&ub.list.length===1)?ud.toFixed(1)+'%':'-';
   var chosen=a;   // 토지감정평가액은 항상 공시지가기준법(주방식). 거래사례비교법은 합리성 검토용 (결정기록 2026-09-09)
   document.getElementById('gj_final').textContent=chosen?won(chosen)+' 원':'-';
   document.getElementById('resGyeoljeong').textContent=chosen?won(chosen)+' 원':'-';
@@ -3656,9 +3664,9 @@ var FN_OPINION_LAND='본건은 일반거래(시가참고) 목적으로서 수요
 // 건물만 결정의견 기본 문구 — 건물 전용 의견서 양식의 Ⅳ 문장과 같은 말
 var FN_OPINION_BLD='본건은 일반거래(시가참고) 목적으로서 건물의 구조·용도·사용승인일 및 관리상태 등 건물의 특성을 종합적으로 고려하여 원가법에 의한 시산가액을 감정평가액으로 결정하였음.';
 var FN_OPINIONS={tb:FN_OPINION_TB,land:FN_OPINION_LAND,bld:FN_OPINION_BLD};
-var TAB_LABELS={tb:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'4. 토지건물 평가액 결정',jido:'5. 위치도',yohang:'6. 요항표',doc:'7. 감정평가서 다운로드',cheonggu:'8. 청구서 다운로드'},
-  land:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'3. 토지 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'},
-  bld:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'2. 건물평가',final:'3. 건물 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'}};
+var TAB_LABELS={tb:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'4. 평가액 결정·청구서',jido:'5. 위치도',yohang:'6. 요항표',doc:'7. 감정평가서 다운로드'},
+  land:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'3. 평가액 결정·청구서',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드'},
+  bld:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'2. 건물평가',final:'3. 평가액 결정·청구서',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드'}};
 var EVAL_TITLES={tb:'토지건물',land:'토지',bld:'건물'};
 function evalKind(){return LAND_ONLY?'land':BLD_ONLY?'bld':'tb';}
 function setLandOnly(v,quiet){setEvalKind(v?'land':'tb',quiet);}   // 종전 호출(토지만 체크) 호환
@@ -3726,7 +3734,7 @@ function calcFinal(){
   if(BLD_ONLY){checks=checks.slice(4);checks[1][1]='건물';}
   var h='<tr><th>검증 항목</th><th>계산 방법</th><th>값</th></tr>';
   checks.forEach(function(c){h+='<tr><td>'+c[0]+'</td><td>'+c[1]+'</td><td class="calc-c">'+(c[2]==='decided'?(window.LAND_FINAL?won(window.LAND_FINAL)+' 원':'-'):c[2])+'</td></tr>';});
-  document.getElementById('tblCheck').innerHTML=h;
+  var tc=document.getElementById('tblCheck');if(tc)tc.innerHTML=h;   // 검산 패널은 2026-11-03 화면에서 뺌(사용자 요청)
 
   sd();
 }
@@ -3773,12 +3781,13 @@ function sd(){
 }
 
 // ================= 탭 =================
-var TAB_NAMES=['daesang','gongsi','jido','gyeoljeong','bld','final','yohang','doc','cheonggu'];
+var TAB_NAMES=['daesang','gongsi','jido','gyeoljeong','bld','final','yohang','doc'];   // 청구서는 final 화면 안(#cheonggu_sec)
 var LAND_TABS=['gongsi','gyeoljeong'];   // 토지평가 단계(거래사례비교법은 2026-11-03부터 공시지가기준법 화면 맨 아래 #georae_sec)
 var LAND_LAST='gongsi';                            // 「2. 토지평가」를 누르면 마지막으로 보던 단계로
 function showTab(name){
   if(name==='land')name=LAND_LAST;                 // 묶음 버튼 → 세 단계 중 마지막으로 본 화면
-  var toGeorae=name==='georae';if(toGeorae)name='gongsi';   // 옛 2-2 탭 → 공시지가기준법 화면 아래 거래사례비교법 칸으로
+  var toGeorae=name==='georae';if(toGeorae)name='gongsi';
+  var toCg=name==='cheonggu';if(toCg)name='final';         // 옛 8번 청구서 탭 → 평가액 결정 화면의 청구서 칸으로   // 옛 2-2 탭 → 공시지가기준법 화면 아래 거래사례비교법 칸으로
   var inLand=LAND_TABS.indexOf(name)>=0;
   if(inLand)LAND_LAST=name;
   TAB_NAMES.forEach(function(n){
@@ -3789,15 +3798,16 @@ function showTab(name){
   var lt=document.getElementById('landTabs');if(lt)lt.hidden=!inLand;
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='gongsi'&&hasV(cgVal('base_gijun')))autoGaTime(false,true);   // 기준시점 없으면 건너뜀(2-1을 열 때마다 오류 기록이 쌓이지 않게)   // (거래사례비교법) 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
-  if(name==='cheonggu')renderCheonggu();
+  if(name==='final')renderCheonggu();
   if(name==='yohang'){fillYohangFromData();renderToice();}
   if(name==='jido')mapOpen();
   CUR_TAB=name;updateStepNav();
   window.scrollTo(0,0);
   if(toGeorae){var g=document.getElementById('georae_sec');if(g&&g.scrollIntoView)g.scrollIntoView();}
+  if(toCg){var q=document.getElementById('cheonggu_sec');if(q&&q.scrollIntoView)q.scrollIntoView();}
 }
 // 하단 ← 이전 / 다음 → — 화면 탭 순서대로(토지평가 세 단계 포함)
-var STEP_ORDER=['daesang','gongsi','gyeoljeong','bld','final','jido','yohang','doc','cheonggu'];
+var STEP_ORDER=['daesang','gongsi','gyeoljeong','bld','final','jido','yohang','doc'];
 var CUR_TAB='daesang';
 function updateStepNav(){
   var o=stepOrder(),i=o.indexOf(CUR_TAB),p=document.getElementById('btnPrevTab'),n=document.getElementById('btnNextTab');
