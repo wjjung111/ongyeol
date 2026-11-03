@@ -38,8 +38,8 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     for(const id of ['gongsi','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isHidden(),'토지평가 탭 숨김 '+id);
     assert(await page.locator('#tabbtn-bld').isVisible(),'건물평가 탭 보임');
     assert.equal(await page.locator('#tabbtn-bld').textContent(),'2. 건물평가');
-    assert.equal(await page.locator('#tabbtn-final').textContent(),'3. 건물 평가액 결정');
-    assert.equal(await page.locator('#tabbtn-cheonggu').textContent(),'7. 청구서 다운로드');
+    assert.equal(await page.locator('#tabbtn-final').textContent(),'3. 평가액 결정·청구서');
+    assert.equal(await page.locator('#tabbtn-cheonggu').count(),0,'청구서는 평가액 결정 화면 안');
     assert(await page.locator('#sd_landAmt').isHidden()&&await page.locator('#sd_landUnit').isHidden(),'사이드바 토지 숨김');
     assert(await page.locator('#sd_bldAmt').isVisible());
     assert(await page.locator('#btnFetchBld').isVisible(),'본건 건물 카드 보임');
@@ -138,7 +138,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>LAND_FINAL),0);
     await page.click('#ek_tb');
     assert.equal(await page.evaluate(()=>BLD_ONLY),false);for(const id of ['gongsi','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isVisible(),'토건 전환 → 토지평가 탭 '+id);
-    assert.equal(await page.locator('#tabbtn-final').textContent(),'4. 토지건물 평가액 결정');
+    assert.equal(await page.locator('#tabbtn-final').textContent(),'4. 평가액 결정·청구서');
     assert(await page.evaluate(()=>LAND_FINAL>0),'토건 전환 → 남아 있던 토지 입력으로 토지가액 계산');
     assert.equal(await page.evaluate(()=>ETC_ITEMS[1]),await page.evaluate(()=>ETC_ITEMS_DEFAULT[1]),'물적 동일성 기본 문구 복귀');
     assert.equal(await page.locator('#fn_opinion').inputValue(),await page.evaluate(()=>FN_OPINION_TB));

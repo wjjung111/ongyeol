@@ -13,7 +13,7 @@ const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFac
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});
   try{
     const ctx=await browser.newContext({viewport:{width:1400,height:900}}),page=await ctx.newPage(),errors=[];
-    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push('console: '+m.text());});
+    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push('console: '+m.text());});   // 지도 등 바깥 주소는 테스트에서 막아 둠
     page.on('dialog',d=>d.accept());page.setDefaultTimeout(60000);
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await ctx.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');});
@@ -69,6 +69,22 @@ const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFac
       const s=document.getElementById('etcPick');return [...s.options].map(o=>o.value);});
     assert.ok(pick.includes('t0'),'적용사례 목록에 거래 #1: '+pick.join(','));
 
+    // 2-2 토지평가액 결정: 방법별 적용단가 칸 · 3. 건물평가: 국세청 기준시가 박스 = 재조달원가 박스와 같은 열·너비
+    {const u=await page.evaluate(()=>{GONGSI_RESULT={total:6073318000,rows:[{apply:15300000}]};GEORAE_RESULT={total:6304224000,rows:[{apply:15880000}]};calcGyeoljeong();
+        return ['gj_au','gj_bu','gj_udiff','gj_fu'].map(id=>document.getElementById(id).textContent);});
+      assert.deepEqual(u,['15,300,000','15,880,000','3.7%','15,300,000'],'적용단가 칸 '+u);
+      await page.evaluate(()=>showTab('bld'));
+      const a=await page.locator('#tblBldCalc').locator('xpath=ancestor::div[contains(@class,"card")][1]').boundingBox(),g=await page.locator('#gjsCard').boundingBox();
+      assert.ok(Math.abs(a.x-g.x)<=1&&Math.abs(a.width-g.width)<=1&&g.y>a.y,'기준시가 박스 = 재조달원가 박스 너비 '+JSON.stringify([a,g]));
+      await page.evaluate(()=>showTab('gongsi'));}
+    // 모든 화면(.tab)은 서로 형제 — 한 화면이 다른 화면 안으로 들어가 숨는 사고 방지(2026-11-03 위치도가 2-1 안에 들어가 안 보였음)
+    {const par=await page.$$eval('.tab',ts=>[...new Set(ts.map(t=>t.parentElement.id||t.parentElement.className))]);assert.equal(par.length,1,'탭 부모 하나: '+par);
+      await page.evaluate(()=>showTab('jido'));assert(await page.locator('#mapBox').isVisible(),'위치도 지도 칸 보임');
+      // 4. 평가액 결정·청구서: 검산 패널 없음, 청구서 칸이 같은 화면에, 옛 showTab('cheonggu') → final
+      await page.evaluate(()=>showTab('cheonggu'));assert(await page.locator('#tab-final').isVisible(),'옛 청구서 탭 → 4번');
+      for(const id of ['cheonggu_sec','cg_table','btnCheonggu','fn_total'])assert(await page.locator('#'+id).isVisible(),'#'+id+' 보임(4번)');
+      assert.equal(await page.locator('#tblCheck').count(),0,'검산 패널 없음');
+      await page.evaluate(()=>showTab('gongsi'));}
     // 좁은 화면 → 1열(카드가 모두 같은 x, 위→아래)
     await page.setViewportSize({width:900,height:900});await page.waitForTimeout(200);
     const nb=[];for(const [id] of CARDS)nb.push(await page.locator('#'+id).boundingBox());
