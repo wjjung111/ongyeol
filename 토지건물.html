@@ -232,11 +232,13 @@
   .subtabs button.active{color:#1a2744;border-bottom-color:#2563eb;}
   .sub{display:none;} .sub.active{display:block;}
   /* 2-1 공시지가기준법 한 화면 배치 — 1행 3칸(비교표준지|시점수정|개별요인) · 2행 2칸(거래사례|평가사례) · 3행 2칸(그 밖의 요인|시산가액). 좁으면 1열 */
-  .gs-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;}
+  .gs-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:53.5%;}
   .gs-col{display:flex;flex-direction:column;gap:10px;min-width:0;}
   .gs-col>.card{margin-bottom:0;min-width:0;}
   @media(min-width:1280px){
     .gs-grid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);}
+    .gs-grid.split{grid-template-columns:minmax(0,var(--sl)) 0 minmax(0,1fr);column-gap:5px;}   /* 가운데 ⋮ 손잡이로 좌우 너비 조절 */
+    .gs-grid.split>.split-h{display:block;}
   }
   .paste{border:2px dashed #cbd5e1;border-radius:6px;background:#fafbfc;padding:8px;margin-bottom:8px;}
   .paste textarea{width:100%;border:1px solid #e2e5ea;border-radius:3px;padding:5px 7px;font-size:11px;font-family:inherit;resize:vertical;}
@@ -5052,11 +5054,11 @@ function dragX(handle,onMove,onEnd){
   });
 }
 function initSplits(){
-  var els=document.querySelectorAll('.lr,.cols2,.cols5050');
+  var els=document.querySelectorAll('.lr,.cols2,.cols5050,.gs-grid');   // gs-grid(2-1 공시지가기준법)는 옛 2단(.lr) 저장값을 이어 쓴다
   Array.prototype.forEach.call(els,function(el){
     var kids=Array.prototype.filter.call(el.children,function(c){return c.nodeType===1;});
     if(kids.length!==2)return;
-    var tab=el.closest('.tab'),cls=/\blr\b/.test(el.className)?'lr':(/\bcols2\b/.test(el.className)?'cols2':'cols5050');
+    var tab=el.closest('.tab'),cls=/\b(lr|gs-grid)\b/.test(el.className)?'lr':(/\bcols2\b/.test(el.className)?'cols2':'cols5050');
     var key=SPLIT_PREFIX+(tab?tab.id:'root')+':'+cls;
     var h=document.createElement('div');h.className='split-h';h.title='드래그: 좌우 너비 조절 / 더블클릭: 기본 너비';
     el.insertBefore(h,kids[1]);el.classList.add('split');
