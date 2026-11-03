@@ -3788,7 +3788,7 @@ function showTab(name){
   var lb=document.getElementById('tabbtn-land');if(lb)lb.classList.toggle('active',inLand);   // 옛 묶음 버튼(지금은 없음)
   var lt=document.getElementById('landTabs');if(lt)lt.hidden=!inLand;
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
-  if(name==='gongsi')autoGaTime(false,true);   // (거래사례비교법) 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
+  if(name==='gongsi'&&hasV(cgVal('base_gijun')))autoGaTime(false,true);   // 기준시점 없으면 건너뜀(2-1을 열 때마다 오류 기록이 쌓이지 않게)   // (거래사례비교법) 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();
   if(name==='yohang'){fillYohangFromData();renderToice();}
   if(name==='jido')mapOpen();
