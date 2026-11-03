@@ -5,7 +5,7 @@ const path = require("path");
 const assert = require("node:assert/strict");
 
 const html = fs.readFileSync(path.join(__dirname, "..", "등기발급.html"), "utf8");
-const m = html.match(/const DG = (\{[\s\S]*?\n\});\nif \(typeof module/);
+const m = html.match(/const DG = (\{[\s\S]*?\r?\n\});\r?\nif \(typeof module/);   // 윈도우 체크아웃(CRLF)에서도 찾도록
 assert.ok(m, "등기발급.html 에서 DG 객체를 찾지 못함");
 const DG = new Function(`const DG = ${m[1]}; return DG;`)();
 
