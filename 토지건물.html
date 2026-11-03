@@ -36,12 +36,6 @@
   .tabs{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap;}
   .tabs button{background:#e2e8f0;color:#888;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:inherit;}
   .tabs button.active{background:#1a2744;color:#fff;}
-  /* 「2. 토지평가」 안의 세 단계 — 토지평가에 들어와 있을 때만 둘째 줄로 보인다 */
-  .tabs2{display:flex;gap:3px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px;padding-left:12px;}
-  .tabs2[hidden]{display:none;}
-  .tabs2 .arm{font-size:11px;font-weight:700;color:#94a3b8;margin-right:3px;}
-  .tabs2 button{background:#eef2f7;color:#64748b;border:1px solid #dbe2ea;padding:4px 11px;border-radius:14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
-  .tabs2 button.active{background:#2563eb;border-color:#2563eb;color:#fff;}
   .tab{display:none;} .tab.active{display:block;}
 
   /* 요항표 입지조건: 문장 안에서 빈칸을 채우는 의견서 형태 */
@@ -237,6 +231,14 @@
   .subtabs button{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:#94a3b8;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
   .subtabs button.active{color:#1a2744;border-bottom-color:#2563eb;}
   .sub{display:none;} .sub.active{display:block;}
+  /* 2-1 공시지가기준법 한 화면 배치 — 1행 3칸(비교표준지|시점수정|개별요인) · 2행 2칸(거래사례|평가사례) · 3행 2칸(그 밖의 요인|시산가액). 좁으면 1열 */
+  .gs-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;}
+  .gs-grid>.card{margin-bottom:0;min-width:0;}
+  @media(min-width:1280px){
+    .gs-grid{grid-template-columns:repeat(6,minmax(0,1fr));}
+    .gs-grid>.gs-r1{grid-column:span 2;}
+    .gs-grid>.gs-r2,.gs-grid>.gs-r3{grid-column:span 3;}
+  }
   .paste{border:2px dashed #cbd5e1;border-radius:6px;background:#fafbfc;padding:8px;margin-bottom:8px;}
   .paste textarea{width:100%;border:1px solid #e2e5ea;border-radius:3px;padding:5px 7px;font-size:11px;font-family:inherit;resize:vertical;}
   .pst{font-size:11px;margin-top:4px;min-height:14px;}
@@ -458,20 +460,16 @@
 
     <div class="tabs">
       <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">1. 대상물건 개요</button>
-      <button id="tabbtn-land" class="land-calc" onclick="showTab('land')">2. 토지평가</button>
+      <!-- 토지평가 세 단계는 처음부터 늘 보이는 탭(2026-11-03 사용자 요청 — 예전엔 「2. 토지평가」를 눌러야 둘째 줄에 나옴). 건물만이면 land-calc로 숨김 -->
+      <button id="tabbtn-gongsi" class="land-calc" onclick="showTab('gongsi')">2-1. 공시지가기준법</button>
+      <button id="tabbtn-georae" class="land-calc" onclick="showTab('georae')">2-2. 거래사례비교법</button>
+      <button id="tabbtn-gyeoljeong" class="land-calc" onclick="showTab('gyeoljeong')">2-3. 토지평가액 결정</button>
       <button id="tabbtn-bld" class="bld-only" onclick="showTab('bld')">3. 건물평가</button>
       <button id="tabbtn-final" onclick="showTab('final')">4. 토지건물 평가액 결정</button>
       <button id="tabbtn-jido" onclick="showTab('jido')">5. 위치도</button>
       <button id="tabbtn-yohang" onclick="showTab('yohang')">6. 요항표</button>
       <button id="tabbtn-doc" onclick="showTab('doc')">7. 감정평가서 다운로드</button>
       <button id="tabbtn-cheonggu" onclick="showTab('cheonggu')">8. 청구서 다운로드</button>
-    </div>
-    <!-- 「2. 토지평가」를 고르면 나오는 둘째 줄 -->
-    <div class="tabs2" id="landTabs" hidden>
-      <span class="arm">2. 토지평가 ▸</span>
-      <button id="tabbtn-gongsi" onclick="showTab('gongsi')">2-1. 공시지가기준법</button>
-      <button id="tabbtn-georae" onclick="showTab('georae')">2-2. 거래사례비교법</button>
-      <button id="tabbtn-gyeoljeong" onclick="showTab('gyeoljeong')">2-3. 토지평가액 결정</button>
     </div>
 
     <!-- ═══════════ 1. 대상물건 개요 ═══════════ -->
@@ -608,157 +606,136 @@
     <!-- ═══════════ 2-1. 공시지가기준법 ═══════════ -->
     <div id="tab-gongsi" class="tab">
       <div class="res"><span>공시지가기준법 시산가액</span><span class="n" id="resGongsi">-</span></div>
-      <div class="lr">
-
-        <!-- 좌: 계산 본류 -->
-        <div>
-          <div class="card">
-            <h2>비교표준지</h2>
-            <div class="row">
-              <input type="text" id="stdQuery" size="34" placeholder="예: 안양시 동안구 관양동 1445-1">
-              <button class="btn" id="btnStd">조회</button>
-            </div>
-            <div class="status" id="stdStatus"></div>
-            <div class="tw" style="margin-top:8px"><table id="stdTbl"></table></div>
-            <div class="row" style="margin-top:8px">
-              <button class="btn gh sm" onclick="addStd()">+ 표준지 추가</button>
-            </div>
+      <!-- 한 화면 배치(2026-11-03): 1행 비교표준지|시점수정|개별요인비교 · 2행 거래사례|평가사례 · 3행 그 밖의 요인|시산가액. 좁은 화면은 1열 -->
+      <div class="gs-grid" id="gongsi_layout">
+        <div class="card gs-r1" id="gsStdCard">
+          <h2>비교표준지</h2>
+          <div class="row">
+            <input type="text" id="stdQuery" size="34" placeholder="예: 안양시 동안구 관양동 1445-1">
+            <button class="btn" id="btnStd">조회</button>
           </div>
-
-          <div class="card">
-            <h2>시점수정 (지가변동률)</h2>
-            <div class="row">
-              <button class="btn" id="btnJb">📈 지가변동률 자동조회</button>
-              <select id="jb_selRegion" title="대상지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:180px;max-width:280px"></select>
-              <select id="jb_selUse" title="용도지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:100px"></select>
-            </div>
-            <div class="status" id="jbStatus"></div>
-            <div class="tw" style="margin-top:8px">
-              <table>
-                <thead><tr><th>기간</th><th>대상지역</th><th>용도지역</th><th>지가변동률(%)</th><th>시점수정치</th></tr></thead>
-                <tbody><tr>
-                  <td style="min-width:170px"><input type="text" id="jb_period" readonly style="width:100%;min-width:162px"></td>
-                  <td><input type="text" id="jb_region" placeholder="경기도 안양동안구"></td>
-                  <td><input type="text" id="jb_use" placeholder="주거지역"></td>
-                  <td><input type="text" id="jb_rate" placeholder="1.944" oninput="calcSijeom()"></td>
-                  <td><input type="text" id="jb_factor" placeholder="1.01944" oninput="calcGongsi()"></td>
-                </tr></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>개별요인비교 (본건/표준지)</h2>
-            <div class="row" style="margin-bottom:6px"><span class="hint">지대:</span>
-              <select class="box" id="g_daegu" style="max-width:120px" onchange="renderDaeguStd();calcGongsi();saveForm();"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select><span id="daeguStd" style="display:none;align-items:center;gap:6px"></span></div>
-            <div class="fac-cap" id="tblGaebyeolCap" style="display:none"></div>
-            <div class="tw"><table id="tblGaebyeol"></table></div>
-            <div id="tblGaebyeolMore"></div>
-            <!-- 비교의견은 필지 행마다 아래 줄에 따로 쓴다(LANDS[i].gop). 이 숨은 칸은 그 기능 전 저장건의 공통 의견 — 필지 의견이 없으면 이 값을 보여 준다 -->
-            <input type="hidden" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함.">
-          </div>
-
-          <!-- 시산가액: 왼쪽 계산 흐름의 마지막 칸(거래사례비교법 탭과 같은 자리) -->
-          <div class="card" id="pinLand">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">시산가액</h2>
-              <span style="font-size:12px;color:#626b78">결정단가</span>
-              <select class="box" id="sisan_unit" style="flex:0 0 auto;width:auto" onchange="calcGongsi();saveForm();" title="자동 = 집합건물과 같은 규칙: 백만원대 단가는 천원, 천만원대는 만원 단위"><option value="auto">자동(단가 자릿수)</option><option value="1000">천원 단위</option><option value="10000">만원 단위</option><option value="100000">십만원 단위</option><option value="1000000">백만원 단위</option></select>
-              <select class="box" id="sisan_mode" style="flex:0 0 auto;width:auto" onchange="calcGongsi();saveForm();"><option value="round">반올림</option><option value="floor">절사</option><option value="none">그대로</option></select>
-              <span id="sisan_hint" style="font-size:11px;color:#626b78"></span>
-            </div>
-            <div class="tw"><table id="tblSisan"></table></div>
+          <div class="status" id="stdStatus"></div>
+          <div class="tw" style="margin-top:8px"><table id="stdTbl"></table></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn gh sm" onclick="addStd()">+ 표준지 추가</button>
           </div>
         </div>
 
-        <!-- 우: 사례 · 그밖의요인 -->
-        <div>
-          <div class="card" style="padding-top:9px">
-            <div class="subtabs">
-              <button class="active" onclick="sub(0,this)">거래사례</button>
-              <button onclick="sub(1,this)">평가사례</button>
-              <button onclick="sub(2,this)">그 밖의 요인</button>
-            </div>
-
-            <!-- 거래사례 (세로 표) -->
-            <div class="sub active">
-              <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 거래사례</b>
-                <button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
-              <div class="pst" id="pTradeMsg"></div>
-              <div class="tw"><table id="tblTrade"></table></div>
-              <!-- 표 아래 한 줄 메모 — 적은 그대로 한글 의견서의 거래사례 표 바로 아래에 나간다(비우면 아무것도 안 나감) -->
-              <div class="fld" style="margin-top:6px"><textarea class="box" id="g_tradeNote" rows="2" title="여기에 적은 문구가 한글 의견서의 거래사례 표 바로 아래에 그대로 나옵니다 — 엔터로 줄을 바꾸면 한글에서도 문단이 나뉩니다" placeholder="관찰감가, 토지만의 거래 등 내용 기입 (엔터로 줄바꿈)"></textarea></div>
-            </div>
-
-            <!-- 평가사례 -->
-            <div class="sub">
-              <div class="paste">
-                <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 평가사례</b>
-                  <button class="btn gh sm" style="margin-left:auto" onclick="addAppr()">+ 사례 추가</button></div>
-                <div class="pst" id="pApprMsg"></div>
-              </div>
-              <div class="tw"><table id="tblAppr"></table></div>
-            </div>
-
-            <!-- 그 밖의 요인 -->
-            <div class="sub">
-              <!-- 본건 필지가 표준지 둘 이상(공장용지 A·임야 B)을 쓰면 아래 한 벌 패널 대신 표준지(사례×표준지)마다 산정 블록을 나란히(renderEtcBlocks) -->
-              <div id="etcBlocks" style="display:none"></div>
-              <div id="etcSingle">
-              <div class="row" style="margin-bottom:7px">
-                <b style="font-size:12px">적용사례</b>
-                <select class="box" id="etcPick" style="max-width:240px"></select>
-                <span class="hint" id="etcStdLab" style="display:none">/ 비교표준지</span>
-                <select class="box" id="etcStd" style="max-width:120px;display:none" title="이 사례와 비교할 표준지 — 표준지가 둘 이상이면 고르세요(사례마다 기억)" onchange="setEtcStd(+this.value)"></select>
-                <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime(true)" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
-              </div>
-              <!-- 필지별 사례를 고르면 쓰이는 「사례 × 표준지」 목록 — ✎로 위 표에 띄워 입력(renderEtcPairs) -->
-              <div id="etcPairs" class="hint" style="display:none;margin:0 0 7px;padding:6px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px"></div>
-              <div class="tw"><table>
-                <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
-                <tr><th class="rowh">사례기준<br>표준지평가</th>
-                    <td class="calc-c" id="eSrc"><input class="eo" data-k="src" onblur="calcGongsi()" oninput="etcOv('src',this.value)"></td>
-                    <td class="jud-c"><input id="eSaj1" value="" placeholder="-" oninput="calcGongsi()"></td>
-                    <td class="jud-c"><input id="eTime" value="" placeholder="1.00699" oninput="calcGongsi()"></td>
-                    <td class="jud-c"><input id="eArea" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
-                    <td class="calc-c" id="eIndSum"><input class="eo" data-k="ind" onblur="calcGongsi()" oninput="etcOv('ind',this.value)"></td>
-                    <td class="calc-c" id="eOut1"><input class="eo" data-k="out1" onblur="calcGongsi()" oninput="etcOv('out1',this.value)"></td>
-                    <td class="calc-c" id="eRatio" rowspan="2"><input class="eo" data-k="ratio" style="font-size:14px" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td></tr>
-                <tr><th class="rowh">표준지공시지가<br>시점수정</th>
-                    <td class="calc-c" id="eStd"><input class="eo" data-k="std" onblur="calcGongsi()" oninput="etcOv('std',this.value)"></td>
-                    <td class="jud-c"><input id="eSaj2" value="" placeholder="-" oninput="calcGongsi()"></td>
-                    <td class="calc-c" id="eStdTime"><input class="eo" data-k="stdTime" onblur="calcGongsi()" oninput="etcOv('stdTime',this.value)"></td>
-                    <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
-                    <td class="jud-c"><input class="fac" id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
-                    <td class="calc-c" id="eOut2"><input class="eo" data-k="out2" onblur="calcGongsi()" oninput="etcOv('out2',this.value)"></td></tr>
-              </table></div>
-              <div class="etc-warn" id="etcWarn" style="display:none">
-                <span id="etcWarnMsg">⚠ 직접 수정된 칸이 있습니다(빨간 글씨) — 자동계산값과 다릅니다.</span>
-                <button class="btn gh sm" style="margin-left:auto" onclick="etcRestore()">↺ 원래대로 복원</button>
-              </div>
-
-              <div class="fnote">1) 시점수정(사례시점~기준시점) : <b id="fnTime">-</b></div>
-              <div class="fnote">2) 지역요인비교치 : <b id="fnArea">1.00</b></div>
-              <div class="fnote">3) 개별요인비교치</div>
-              <div class="tw"><table>
-                <tr><th id="efh1">가로<br>조건</th><th id="efh2">접근<br>조건</th><th id="efh3">환경<br>조건</th><th id="efh4">획지<br>조건</th><th id="efh5">행정적<br>조건</th><th id="efh6">기타<br>조건</th><th>계</th></tr>
-                <tr>
-                  <td class="jud-c"><input class="ef fac" id="e_f1" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f2" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f3" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f4" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f5" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f6" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="calc-c fixed fac" id="efSum" title="자동 계산(여섯 조건의 곱) — 이 칸은 고칠 수 없고, 위 조건 칸을 고치면 따라 바뀝니다">1.000</td></tr>
-                <tr><th class="rowh">의견</th><td colspan="6" id="e_opTd" style="text-align:left"><input id="e_opinion" value="" placeholder="표준지는 평가사례와 비교하여 …" style="text-align:left"></td></tr>
-              </table></div>
-
-              <div class="tw" style="margin-top:8px"><table>
-                <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
-                <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="calc-c"><input id="eDecide" placeholder="-" oninput="calcGongsi();saveForm();"></td><td>1</td></tr>
-              </table></div>
-              </div>
-            </div>
+        <div class="card gs-r1" id="gsJbCard">
+          <h2>시점수정 (지가변동률)</h2>
+          <div class="row">
+            <button class="btn" id="btnJb">📈 지가변동률 자동조회</button>
+            <select id="jb_selRegion" title="대상지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:180px;max-width:280px"></select>
+            <select id="jb_selUse" title="용도지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:100px"></select>
           </div>
+          <div class="status" id="jbStatus"></div>
+          <div class="tw" style="margin-top:8px">
+            <table>
+              <thead><tr><th>기간</th><th>대상지역</th><th>용도지역</th><th>지가변동률(%)</th><th>시점수정치</th></tr></thead>
+              <tbody><tr>
+                <td style="min-width:170px"><input type="text" id="jb_period" readonly style="width:100%;min-width:162px"></td>
+                <td><input type="text" id="jb_region" placeholder="경기도 안양동안구"></td>
+                <td><input type="text" id="jb_use" placeholder="주거지역"></td>
+                <td><input type="text" id="jb_rate" placeholder="1.944" oninput="calcSijeom()"></td>
+                <td><input type="text" id="jb_factor" placeholder="1.01944" oninput="calcGongsi()"></td>
+              </tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card gs-r1" id="gsFacCard">
+          <h2>개별요인비교 (본건/표준지)</h2>
+          <div class="row" style="margin-bottom:6px"><span class="hint">지대:</span>
+            <select class="box" id="g_daegu" style="max-width:120px" onchange="renderDaeguStd();calcGongsi();saveForm();"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select><span id="daeguStd" style="display:none;align-items:center;gap:6px"></span></div>
+          <div class="fac-cap" id="tblGaebyeolCap" style="display:none"></div>
+          <div class="tw"><table id="tblGaebyeol"></table></div>
+          <div id="tblGaebyeolMore"></div>
+          <!-- 비교의견은 필지 행마다 아래 줄에 따로 쓴다(LANDS[i].gop). 이 숨은 칸은 그 기능 전 저장건의 공통 의견 — 필지 의견이 없으면 이 값을 보여 준다 -->
+          <input type="hidden" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함.">
+        </div>
+
+        <div class="card gs-r2" id="gsTradeCard">
+          <h2>거래사례<button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></h2>
+          <div class="pst" id="pTradeMsg"></div>
+          <div class="tw"><table id="tblTrade"></table></div>
+          <!-- 표 아래 한 줄 메모 — 적은 그대로 한글 의견서의 거래사례 표 바로 아래에 나간다(비우면 아무것도 안 나감) -->
+          <div class="fld" style="margin-top:6px"><textarea class="box" id="g_tradeNote" rows="2" title="여기에 적은 문구가 한글 의견서의 거래사례 표 바로 아래에 그대로 나옵니다 — 엔터로 줄을 바꾸면 한글에서도 문단이 나뉩니다" placeholder="관찰감가, 토지만의 거래 등 내용 기입 (엔터로 줄바꿈)"></textarea></div>
+        </div>
+
+        <div class="card gs-r2" id="gsApprCard">
+          <h2>평가사례<button class="btn gh sm" style="margin-left:auto" onclick="addAppr()">+ 사례 추가</button></h2>
+          <div class="pst" id="pApprMsg"></div>
+          <div class="tw"><table id="tblAppr"></table></div>
+        </div>
+
+        <div class="card gs-r3" id="gsEtcCard">
+          <h2>그 밖의 요인</h2>
+          <!-- 본건 필지가 표준지 둘 이상(공장용지 A·임야 B)을 쓰면 아래 한 벌 패널 대신 표준지(사례×표준지)마다 산정 블록을 나란히(renderEtcBlocks) -->
+          <div id="etcBlocks" style="display:none"></div>
+          <div id="etcSingle">
+          <div class="row" style="margin-bottom:7px">
+            <b style="font-size:12px">적용사례</b>
+            <select class="box" id="etcPick" style="max-width:240px"></select>
+            <span class="hint" id="etcStdLab" style="display:none">/ 비교표준지</span>
+            <select class="box" id="etcStd" style="max-width:120px;display:none" title="이 사례와 비교할 표준지 — 표준지가 둘 이상이면 고르세요(사례마다 기억)" onchange="setEtcStd(+this.value)"></select>
+            <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime(true)" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
+          </div>
+          <!-- 필지별 사례를 고르면 쓰이는 「사례 × 표준지」 목록 — ✎로 위 표에 띄워 입력(renderEtcPairs) -->
+          <div id="etcPairs" class="hint" style="display:none;margin:0 0 7px;padding:6px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px"></div>
+          <div class="tw"><table>
+            <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
+            <tr><th class="rowh">사례기준<br>표준지평가</th>
+                <td class="calc-c" id="eSrc"><input class="eo" data-k="src" onblur="calcGongsi()" oninput="etcOv('src',this.value)"></td>
+                <td class="jud-c"><input id="eSaj1" value="" placeholder="-" oninput="calcGongsi()"></td>
+                <td class="jud-c"><input id="eTime" value="" placeholder="1.00699" oninput="calcGongsi()"></td>
+                <td class="jud-c"><input id="eArea" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
+                <td class="calc-c" id="eIndSum"><input class="eo" data-k="ind" onblur="calcGongsi()" oninput="etcOv('ind',this.value)"></td>
+                <td class="calc-c" id="eOut1"><input class="eo" data-k="out1" onblur="calcGongsi()" oninput="etcOv('out1',this.value)"></td>
+                <td class="calc-c" id="eRatio" rowspan="2"><input class="eo" data-k="ratio" style="font-size:14px" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td></tr>
+            <tr><th class="rowh">표준지공시지가<br>시점수정</th>
+                <td class="calc-c" id="eStd"><input class="eo" data-k="std" onblur="calcGongsi()" oninput="etcOv('std',this.value)"></td>
+                <td class="jud-c"><input id="eSaj2" value="" placeholder="-" oninput="calcGongsi()"></td>
+                <td class="calc-c" id="eStdTime"><input class="eo" data-k="stdTime" onblur="calcGongsi()" oninput="etcOv('stdTime',this.value)"></td>
+                <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
+                <td class="jud-c"><input class="fac" id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
+                <td class="calc-c" id="eOut2"><input class="eo" data-k="out2" onblur="calcGongsi()" oninput="etcOv('out2',this.value)"></td></tr>
+          </table></div>
+          <div class="etc-warn" id="etcWarn" style="display:none">
+            <span id="etcWarnMsg">⚠ 직접 수정된 칸이 있습니다(빨간 글씨) — 자동계산값과 다릅니다.</span>
+            <button class="btn gh sm" style="margin-left:auto" onclick="etcRestore()">↺ 원래대로 복원</button>
+          </div>
+
+          <div class="fnote">1) 시점수정(사례시점~기준시점) : <b id="fnTime">-</b></div>
+          <div class="fnote">2) 지역요인비교치 : <b id="fnArea">1.00</b></div>
+          <div class="fnote">3) 개별요인비교치</div>
+          <div class="tw"><table>
+            <tr><th id="efh1">가로<br>조건</th><th id="efh2">접근<br>조건</th><th id="efh3">환경<br>조건</th><th id="efh4">획지<br>조건</th><th id="efh5">행정적<br>조건</th><th id="efh6">기타<br>조건</th><th>계</th></tr>
+            <tr>
+              <td class="jud-c"><input class="ef fac" id="e_f1" value="1.00" oninput="calcGongsi()"></td>
+              <td class="jud-c"><input class="ef fac" id="e_f2" value="1.00" oninput="calcGongsi()"></td>
+              <td class="jud-c"><input class="ef fac" id="e_f3" value="1.00" oninput="calcGongsi()"></td>
+              <td class="jud-c"><input class="ef fac" id="e_f4" value="1.00" oninput="calcGongsi()"></td>
+              <td class="jud-c"><input class="ef fac" id="e_f5" value="1.00" oninput="calcGongsi()"></td>
+              <td class="jud-c"><input class="ef fac" id="e_f6" value="1.00" oninput="calcGongsi()"></td>
+              <td class="calc-c fixed fac" id="efSum" title="자동 계산(여섯 조건의 곱) — 이 칸은 고칠 수 없고, 위 조건 칸을 고치면 따라 바뀝니다">1.000</td></tr>
+            <tr><th class="rowh">의견</th><td colspan="6" id="e_opTd" style="text-align:left"><input id="e_opinion" value="" placeholder="표준지는 평가사례와 비교하여 …" style="text-align:left"></td></tr>
+          </table></div>
+
+          <div class="tw" style="margin-top:8px"><table>
+            <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
+            <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="calc-c"><input id="eDecide" placeholder="-" oninput="calcGongsi();saveForm();"></td><td>1</td></tr>
+          </table></div>
+          </div>
+        </div>
+
+        <div class="card gs-r3" id="pinLand">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">시산가액</h2>
+            <span style="font-size:12px;color:#626b78">결정단가</span>
+            <select class="box" id="sisan_unit" style="flex:0 0 auto;width:auto" onchange="calcGongsi();saveForm();" title="자동 = 집합건물과 같은 규칙: 백만원대 단가는 천원, 천만원대는 만원 단위"><option value="auto">자동(단가 자릿수)</option><option value="1000">천원 단위</option><option value="10000">만원 단위</option><option value="100000">십만원 단위</option><option value="1000000">백만원 단위</option></select>
+            <select class="box" id="sisan_mode" style="flex:0 0 auto;width:auto" onchange="calcGongsi();saveForm();"><option value="round">반올림</option><option value="floor">절사</option><option value="none">그대로</option></select>
+            <span id="sisan_hint" style="font-size:11px;color:#626b78"></span>
+          </div>
+          <div class="tw"><table id="tblSisan"></table></div>
         </div>
       </div>
 
@@ -3809,8 +3786,8 @@ function showTab(name){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
     var b=document.getElementById('tabbtn-'+n);if(b)b.classList.toggle('active',n===name);
   });
-  document.getElementById('tabbtn-land').classList.toggle('active',inLand);
-  document.getElementById('landTabs').hidden=!inLand;
+  var lb=document.getElementById('tabbtn-land');if(lb)lb.classList.toggle('active',inLand);   // 옛 묶음 버튼(지금은 없음)
+  var lt=document.getElementById('landTabs');if(lt)lt.hidden=!inLand;
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='cheonggu')renderCheonggu();
@@ -3838,9 +3815,10 @@ function toggleSide(force){
   try{localStorage.setItem(SIDE_COLLAPSE_KEY,col?'1':'');}catch(e){console.error('side collapse save',e);}
 }
 try{if(localStorage.getItem(SIDE_COLLAPSE_KEY))toggleSide(true);}catch(e){console.error('side collapse load',e);}
+// 옛 내부 탭(거래사례/평가사례/그 밖의 요인) 전환 — 2026-11-03부터 세 카드가 늘 함께 보여 할 일 없음(옛 호출이 깨지지 않게만 남김)
 function sub(i,btn){
   document.querySelectorAll('.sub').forEach(function(s,n){s.classList.toggle('active',n===i);});
-  document.querySelectorAll('.subtabs button').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');
+  document.querySelectorAll('.subtabs button').forEach(function(b){b.classList.remove('active');});if(btn)btn.classList.add('active');
 }
 
 // ================= 저장/복원 =================
