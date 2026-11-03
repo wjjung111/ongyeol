@@ -27,24 +27,39 @@
   .hint{font-size:12px;color:#64748b;}
   /* 항목 목록 */
   .list{background:#fff;border:1px solid #e2e5ea;border-radius:8px;overflow:hidden;}
-  .item{border-bottom:1px solid #eef0f3;}
+  .item{border-bottom:1px solid #eef0f3;border-left:4px solid transparent;transition:background .12s;}
   .item:last-child{border-bottom:none;}
-  .head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none;}
-  .head:hover{background:#f8fbff;}
-  .head input[type=checkbox]{width:16px;height:16px;cursor:pointer;}
-  .head .nm{font-weight:700;font-size:14px;}
-  .head .sub{font-size:12px;color:#64748b;margin-left:6px;}
-  .head .per{margin-left:auto;font-size:12px;color:#1d4ed8;font-weight:600;white-space:nowrap;}
+  .head{display:flex;align-items:center;gap:10px;padding:12px 16px 12px 12px;cursor:pointer;user-select:none;}
+  .head:hover{background:#f8fafc;}
+  .head input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#2563eb;}
+  .head .nm{font-weight:700;font-size:14px;color:#334155;}
+  .head .sub{font-size:12px;color:#94a3b8;margin-left:6px;}
+  .head .per{margin-left:auto;font-size:12px;color:#94a3b8;font-weight:600;white-space:nowrap;}
   .head .arr{color:#94a3b8;font-size:12px;width:12px;text-align:center;transition:transform .15s;}
-  .item.open .arr{transform:rotate(90deg);}
-  .item.on .head{background:#f0f7ff;}
-  .body{display:none;padding:4px 16px 14px 42px;background:#fafbfc;border-top:1px dashed #e2e5ea;}
+  /* 선택된 항목: 이름·기간만 진하게 (배경은 그대로 — 펼친 항목만 눈에 띄게) */
+  .item.on .nm{color:#1a2744;}
+  .item.on .per{color:#1d4ed8;}
+  /* 펼친 항목: 남색 머리 + 파란 테두리 카드 */
+  .item.open{border-left-color:#2563eb;background:#eff6ff;margin:8px 10px;border:1px solid #93c5fd;border-left:4px solid #2563eb;border-radius:8px;box-shadow:0 4px 14px rgba(37,99,235,.12);overflow:hidden;}
+  .item.open .head{background:#1a2744;}
+  .item.open .head:hover{background:#1e2f55;}
+  .item.open .nm{color:#fff;}
+  .item.open .sub{color:#93c5fd;}
+  .item.open .per{color:#fde68a;}
+  .item.open .arr{color:#fff;transform:rotate(90deg);}
+  .body{display:none;padding:14px 16px 12px;}
   .item.open .body{display:block;}
-  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;}
-  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
-  .chips label{display:flex;align-items:center;gap:5px;font-size:12.5px;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:3px 10px;cursor:pointer;}
-  .src{font-size:11px;color:#94a3b8;margin-top:8px;}
-  .grp{font-size:11px;font-weight:700;color:#94a3b8;padding:10px 16px 2px;background:#fff;letter-spacing:.02em;}
+  .set{display:grid;grid-template-columns:84px 1fr;gap:10px 12px;align-items:center;background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;}
+  .set .k{font-size:12px;font-weight:700;color:#1d4ed8;background:#dbeafe;border-radius:6px;padding:5px 0;text-align:center;}
+  .set .v{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .set .v .tilde{color:#94a3b8;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chips label{display:flex;align-items:center;gap:5px;font-size:12.5px;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:4px 11px;cursor:pointer;}
+  .chips label:has(input:checked){background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600;}
+  .chips input{accent-color:#fff;}
+  .src{font-size:11px;color:#64748b;margin-top:8px;text-align:right;}
+  .grp{font-size:12px;font-weight:700;color:#fff;padding:6px 16px;background:#475569;letter-spacing:.02em;}
+  .grp.ref{background:#cbd5e1;color:#475569;}
   /* 하단 */
   .bottom{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;margin-top:12px;padding:12px 16px;background:#fff;border:1px solid #e2e5ea;border-radius:8px;box-shadow:0 -2px 8px rgba(15,23,42,.05);}
   .bottom .cnt{font-weight:700;}
@@ -63,7 +78,8 @@
     .head{flex-wrap:wrap;row-gap:2px;}
     .head .sub{display:block;margin-left:0;}
     .head .per{order:3;width:100%;margin-left:26px;}
-    .body{padding-left:16px;}
+    .set{grid-template-columns:1fr;}
+    .item.open{margin:6px 4px;}
     .bottom .fn{order:5;width:100%;}
   }
   .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#0f172a;color:#fff;font-size:13px;padding:10px 16px;border-radius:8px;display:none;}
@@ -146,7 +162,7 @@ function period(per){
 
 function render(){
   $("list").innerHTML=ITEMS.map(it=>{
-    if(it.grp)return `<div class="grp">${it.grp}</div>`;
+    if(it.grp)return `<div class="grp${it.grp.startsWith("참고")?" ref":""}">${it.grp}</div>`;
     const [s,e,txt]=period(it.per);
     return `<div class="item${sel[it.id]?" on":""}${open[it.id]?" open":""}" data-id="${it.id}">
       <div class="head" data-act="toggle">
@@ -155,14 +171,13 @@ function render(){
         <span class="per">${it.cyc} · ${txt}</span><span class="arr">▶</span>
       </div>
       <div class="body">
-        <div class="row">
-          <div class="f"><label>시작</label><input value="${s}" style="width:110px"></div>
-          <div class="f"><label>끝</label><input value="${e}" style="width:110px"></div>
-          ${it.ind?`<div class="f"><label>업종</label><select>${IND.map(x=>`<option>${x}</option>`).join("")}</select></div>
-                    <div class="f"><label>규모</label><select><option>소기업</option><option>중소기업</option><option>종합</option></select></div>`:""}
-        </div>
-        <div class="f" style="margin-top:10px"><label>조회할 항목</label>
-          <div class="chips">${it.opts.map(o=>`<label><input type="checkbox" ${it.def.includes(o)?"checked":""}> ${o}</label>`).join("")}</div>
+        <div class="set">
+          <span class="k">기간</span>
+          <span class="v"><input value="${s}" style="width:110px"><span class="tilde">~</span><input value="${e}" style="width:110px"></span>
+          ${it.ind?`<span class="k">업종·규모</span>
+          <span class="v"><select>${IND.map(x=>`<option>${x}</option>`).join("")}</select><select><option>소기업</option><option>중소기업</option><option>종합</option></select></span>`:""}
+          <span class="k">조회 항목</span>
+          <span class="v chips">${it.opts.map(o=>`<label><input type="checkbox" ${it.def.includes(o)?"checked":""}> ${o}</label>`).join("")}</span>
         </div>
         <div class="src">ECOS 통계표 ${it.code}</div>
       </div>
