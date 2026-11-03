@@ -98,6 +98,7 @@
 | 관리자 화면 | `관리자.html` + `test.html` |
 | 프록시 op 추가 | `문서/클라우드플레어_프록시.js` 판 올리고 사용자에게 재배포 안내, 화면엔 구판 감지 안내 |
 | 토건 필지 수 | `landParcelCount()`/`landParcels()` 사용(나눈 줄 제외) — `LANDS.length` 쓰지 말 것. 평가 줄 키 = 필지 번호 또는 구역 `'z0'`(`rowObj`·`rowRef`·`evalKeys`) |
+| 토건 의견서·위치도의 사례 번호 | 화면 번호(`i+1`, `a.no`) 말고 `docTradeNo(i)`/`docApprNo(i)` — 「의견서 표시」 끈 사례(`_hide`, `caseHidden`)를 빼고 다시 매긴 번호 |
 | 토건 개별요인 | 지대별 칸 수가 다름(`FAC_SLOTS`·`facProduct(arr,지대)`) — 저장은 6칸 그대로 |
 
 ## 6. hwpx 템플릿·엔진
