@@ -104,6 +104,8 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   // ⑦ 실제 마우스로 손잡이 끌기 (공시지가기준법 탭 — 평가사례 카드는 늘 보임)
   await fixture();
   await page.evaluate(()=>{showTab('gongsi');});
+  // 스크롤과 끌기를 한 번에 하면 헤드리스 크롬에서 dragstart가 가끔 안 생김 → 먼저 화면에 보이게 해 두고 끈다
+  await page.locator('#tblAppr').scrollIntoViewIfNeeded();await page.waitForTimeout(150);
   await page.locator('#tblAppr td.grip-c').nth(2).dragTo(page.locator('#tblAppr tr').nth(1));
   const mouse=await page.evaluate(()=>APPRS.map(a=>a.no+':'+a.loc));
   console.log('⑦ 실제 드래그',mouse);
