@@ -101,9 +101,9 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   console.log('⑥ 적용사례 단가',unit);
   assert.equal(unit.before,1000000);assert.equal(unit.after,1000000);assert.equal(unit.etc,2);
 
-  // ⑦ 실제 마우스로 손잡이 끌기 (공시지가기준법 탭 → '평가사례' 서브탭을 열고)
+  // ⑦ 실제 마우스로 손잡이 끌기 (공시지가기준법 탭 — 평가사례 카드는 늘 보임)
   await fixture();
-  await page.evaluate(()=>{showTab('gongsi');sub(1,document.querySelectorAll('.subtabs button')[1]);});
+  await page.evaluate(()=>{showTab('gongsi');});
   await page.locator('#tblAppr td.grip-c').nth(2).dragTo(page.locator('#tblAppr tr').nth(1));
   const mouse=await page.evaluate(()=>APPRS.map(a=>a.no+':'+a.loc));
   console.log('⑦ 실제 드래그',mouse);
