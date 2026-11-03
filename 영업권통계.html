@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 영업권 평가 통계 조회 (한국은행 ECOS) — 화면 목업
+  지금은 API 미연결: 아래 SAMPLE 숫자는 2026.11.01 기준(승화고무 건)으로 ECOS에서 미리 뽑아 둔 예시값.
+  연결할 때는 SAMPLE 자리를 ECOS 응답으로 바꾸면 된다(인증키는 이 파일에 넣지 않고 프록시 Secret으로).
+  test.html(개발 허브)에서만 링크.
+  Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>영업권 통계 조회</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  input:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
+  #mode-bar{position:sticky;top:0;z-index:50;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
+  #mode-bar a{border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
+  #mode-bar a:hover{border-color:#2563eb;color:#fff;}
+  #mode-bar .t{color:#e2e8f0;font-weight:700;margin-left:4px;}
+  #mode-bar .tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
+  .wrap{max-width:1240px;margin:14px auto;padding:0 14px;}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:9px 12px;font-size:12px;color:#854d0e;margin-bottom:12px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:14px 16px;margin-bottom:12px;}
+  .card h2{font-size:14px;font-weight:700;padding-bottom:6px;margin-bottom:10px;border-bottom:2px solid #1a2744;display:flex;align-items:baseline;gap:8px;}
+  .card h2 .src{margin-left:auto;font-size:11px;font-weight:400;color:#64748b;}
+  .cols{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:12px;align-items:start;}
+  .side{position:sticky;top:54px;}
+  @media(max-width:1000px){.cols{grid-template-columns:1fr;}.side{position:static;}}
+  /* 조회 조건 */
+  .cond{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;}
+  .f{display:flex;flex-direction:column;gap:3px;}
+  .f label{font-size:11px;font-weight:700;color:#475569;}
+  .f input,.f select{font:inherit;font-size:13px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;}
+  .f input.num{width:74px;text-align:right;}
+  .btn{font:inherit;font-size:13px;font-weight:600;color:#fff;background:#2563eb;border:1px solid #2563eb;border-radius:6px;padding:7px 16px;cursor:pointer;}
+  .btn:hover{background:#1d4ed8;}
+  .btn.gh{background:#fff;color:#334155;border-color:#cbd5e1;}
+  .btn.gh:hover{background:#f1f5f9;}
+  .btn.sm{font-size:12px;padding:4px 10px;}
+  .periods{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:10px;border-top:1px dashed #e2e5ea;}
+  .chip{font-size:12px;background:#f1f5f9;border:1px solid #e2e5ea;border-radius:999px;padding:3px 10px;color:#334155;}
+  .chip b{color:#1d4ed8;}
+  /* 숫자 타일 */
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+  .tile{border:1px solid #e2e5ea;border-radius:8px;padding:9px 12px;}
+  .tile .l{font-size:11px;color:#64748b;}
+  .tile .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .tile .s{font-size:11px;color:#94a3b8;}
+  .tile.pick{border:2px solid #2563eb;background:#eff6ff;}
+  .tile.pick .v{color:#1d4ed8;}
+  /* 표 */
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{background:#f0f2f5;border:1px solid #e2e5ea;padding:6px;font-size:12px;font-weight:700;}
+  td{border:1px solid #e2e5ea;padding:6px;text-align:center;}
+  td.l{text-align:left;} td.r{text-align:right;font-variant-numeric:tabular-nums;}
+  td.code{font-family:Consolas,monospace;font-size:11px;color:#64748b;}
+  tr.hl td{background:#f8fbff;}
+  .use{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;}
+  .use.kd{background:#fce7f3;color:#9d174d;}
+  .use.g{background:#dcfce7;color:#166534;}
+  .p{font-size:10px;color:#b45309;font-weight:700;margin-left:2px;}
+  .muted{font-size:11px;color:#94a3b8;margin-top:6px;}
+  .chart{width:100%;height:120px;display:block;}
+  /* WACC */
+  .wacc .row{display:grid;grid-template-columns:1fr 84px 1fr;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid #f1f5f9;}
+  .wacc .row label{font-size:12px;font-weight:600;}
+  .wacc .row input{font:inherit;font-size:13px;padding:4px 7px;border:1px solid #cbd5e1;border-radius:5px;text-align:right;width:84px;}
+  .wacc .row .auto{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;padding-right:8px;}
+  .wacc .row .h{font-size:11px;color:#64748b;}
+  .wacc .res{display:flex;justify-content:space-between;align-items:baseline;padding:8px 10px;margin-top:8px;border-radius:6px;background:#0f172a;color:#fff;}
+  .wacc .res .v{font-size:22px;font-weight:800;}
+  .wacc .sub{display:flex;justify-content:space-between;padding:6px 10px;font-size:12px;background:#f1f5f9;border-radius:6px;margin-top:6px;}
+  /* Kd 범위 막대 */
+  .range{position:relative;height:34px;margin:14px 6px 4px;}
+  .range .bar{position:absolute;top:14px;left:0;right:0;height:6px;border-radius:3px;background:linear-gradient(90deg,#fbcfe8,#f9a8d4);}
+  .range .mk{position:absolute;top:0;transform:translateX(-50%);font-size:11px;font-weight:700;text-align:center;white-space:nowrap;}
+  .range .mk:after{content:"";display:block;width:2px;height:16px;background:currentColor;margin:1px auto 0;}
+  .manual .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .warnlist{list-style:none;font-size:12px;}
+  .warnlist li{padding:4px 0;border-bottom:1px solid #f1f5f9;}
+  .ok{color:#16a34a;font-weight:700;} .wn{color:#d97706;font-weight:700;}
+  textarea{width:100%;font:inherit;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;padding:8px;resize:vertical;background:#f8fafc;}
+  .ph td{color:#94a3b8;}
+  .foot{text-align:center;color:#94a3b8;font-size:11px;padding:8px;}
+</style>
+</head>
+<body>
+<script src="arap_access.js"></script>
+<div id="mode-bar">
+  <a href="test.html">← 개발 허브</a>
+  <span class="t">📊 영업권 통계 조회 (한국은행 ECOS)</span>
+  <span class="tag">화면 목업 · API 미연결</span>
+</div>
+
+<div class="wrap">
+  <div class="note">
+    <b>화면 목업입니다.</b> 버튼은 아직 작동하지 않고, 숫자는 2026.11.01 기준으로 미리 뽑아 둔 <b>예시값</b>입니다(승화고무 건과 같은 기준).
+    WACC 미리보기와 수동 입력칸만 이 화면 안에서 계산됩니다.
+  </div>
+
+  <!-- ① 조회 조건 -->
+  <div class="card">
+    <h2>① 조회 조건<span class="src">기준시점 하나만 넣으면 지표별 조회 기간을 자동으로 맞춤</span></h2>
+    <div class="cond">
+      <div class="f"><label>기준시점</label><input id="baseDate" data-date value="2026.11.01" style="width:120px"></div>
+      <div class="f"><label>사건명 (파일명에 들어감)</label><input id="caseName" value="승화고무" style="width:150px"></div>
+      <div class="f"><label>업종 (표준산업분류 중분류)</label>
+        <select id="ind"><option>C22 고무 및 플라스틱제품 제조업</option><option>C33 기타 제품 제조업</option><option>M71 전문서비스업(광고 M713)</option><option>P85 교육 서비스업</option><option>G46 도매 및 상품중개업</option><option>I55 숙박업</option></select></div>
+      <div class="f"><label>기업규모</label><select><option>소기업</option><option>중소기업</option><option>종합</option></select></div>
+      <div class="f"><label>Rf 결정 방식</label>
+        <select id="rfMode"><option value="mid">월평균·직전영업일 중간</option><option value="avg">직전 12개월 월평균</option><option value="day">직전 영업일</option></select></div>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <button class="btn" title="API 연결 전 (목업)">🔍 ECOS 조회</button>
+        <button class="btn gh" title="API 연결 전 (목업)">초기화</button>
+      </div>
+    </div>
+    <div class="periods" id="periods"></div>
+  </div>
+
+  <div class="cols">
+    <!-- 왼쪽: ECOS 지표 -->
+    <div>
+      <div class="card">
+        <h2>② 무위험이자율 (Rf) · 국고채 1년<span class="src">1.3.2.2 시장금리(월) 5030000 · 1.3.2.1 시장금리(일별) 010190000</span></h2>
+        <div class="tiles">
+          <div class="tile" id="tAvg"><div class="l">직전 12개월 월평균</div><div class="v" id="rfAvg"></div><div class="s" id="rfAvgS"></div></div>
+          <div class="tile" id="tDay"><div class="l">직전 영업일</div><div class="v" id="rfDay"></div><div class="s" id="rfDayS"></div></div>
+          <div class="tile pick" id="tMid"><div class="l">결정 Rf</div><div class="v" id="rfPick"></div><div class="s" id="rfPickS"></div></div>
+        </div>
+        <svg class="chart" id="rfChart" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
+        <div class="muted">막대 = 월평균(12개월), 점선 = 직전 영업일 값. 기준시점보다 과거 날짜(소급)를 넣어도 같은 규칙으로 조회.</div>
+      </div>
+
+      <div class="card">
+        <h2>③ 시장금리 한눈에<span class="src">단위 연%</span></h2>
+        <table>
+          <thead><tr><th>지표</th><th>항목코드(월/일)</th><th>직전 영업일</th><th>12개월 평균</th><th>12개월 범위</th><th>쓰는 곳</th></tr></thead>
+          <tbody id="rateRows"></tbody>
+        </table>
+        <div class="muted">회사채 BBB-는 E(Rm)·Kd 상단 근거, AA-는 참고. 의견서 금리표에 그대로 붙일 수 있게 「복사」 제공 예정.</div>
+      </div>
+
+      <div class="card">
+        <h2>④ 타인자본비용 (Kd)<span class="src">1.3.3.2.1 예금은행 대출금리(신규취급액) BECBLA0202 중소기업대출</span></h2>
+        <table>
+          <thead><tr><th>월</th><th id="kdH1"></th><th id="kdH2"></th><th id="kdH3"></th><th>최근 3개월 평균</th></tr></thead>
+          <tbody><tr class="hl"><td class="l">중소기업대출</td><td class="r" id="kd1"></td><td class="r" id="kd2"></td><td class="r" id="kd3"></td><td class="r"><b id="kdAvg"></b></td></tr></tbody>
+        </table>
+        <div class="range" id="kdRange"></div>
+        <div class="muted">하단 = 중소기업 대출금리 평균, 상단 = 회사채 BBB-(직전 영업일), 파란 표시 = 결정 Kd(오른쪽 WACC 칸). 대출금리는 1~2개월 늦게 나와 <b>최근 공표 3개월</b>을 씀. ⚠ 「1.2.3.4.3 기업대출(말잔)」은 금액이라 쓰지 않음.</div>
+      </div>
+
+      <div class="card">
+        <h2>⑤ 성장률 근거<span class="src">2.1.1.1 주요지표(연간) 20101 · 4.2.1 소비자물가지수 총지수</span></h2>
+        <table>
+          <thead><tr><th>연도</th><th id="gY1"></th><th id="gY2"></th><th id="gY3"></th><th id="gY4"></th><th>평균</th><th>쓰는 곳</th></tr></thead>
+          <tbody id="growRows"></tbody>
+        </table>
+        <div class="muted">p = 잠정치. 영구성장률을 물가상승률보다 낮게(예: 1%) 잡았다는 근거로 물가 행을 함께 둠.</div>
+      </div>
+
+      <div class="card">
+        <h2>⑥ 업종 재무비율 (기업경영분석)<span class="src">책자 PDF 소기업 페이지 · ECOS 5.1.x는 규모 구분 확인 후 연결</span></h2>
+        <table>
+          <thead><tr><th>지표 (책자 번호)</th><th>2023</th><th>2024</th><th>2025</th><th>쓰는 곳</th></tr></thead>
+          <tbody>
+            <tr class="ph"><td class="l">매출액증가율 (506)</td><td>—</td><td>—</td><td>—</td><td><span class="use g">성장률</span></td></tr>
+            <tr class="ph"><td class="l">매출액영업이익률 (611)</td><td>—</td><td>—</td><td>—</td><td><span class="use">초과수익 검토</span></td></tr>
+            <tr class="ph"><td class="l">부채비율 (707)</td><td>—</td><td>—</td><td>—</td><td><span class="use kd">자본구조</span></td></tr>
+            <tr class="ph"><td class="l">차입금의존도 (710)</td><td>—</td><td>—</td><td>—</td><td><span class="use kd">자본구조</span></td></tr>
+            <tr class="ph"><td class="l">재고자산회전율 (807)</td><td>—</td><td>—</td><td>—</td><td><span class="use">운전자본</span></td></tr>
+          </tbody>
+        </table>
+        <div class="muted">책자 위치: 온결(우진)\2025년 기업경영분석_책자형 통계편. 업종 매출원가율은 일부러 뺌(본건과 비교되면 불필요한 질문을 부름).</div>
+      </div>
+
+      <div class="card">
+        <h2>⑦ 대표자 보수 참고 (선택)<span class="src">8.6.4.1 산업/규모별 임금 및 근로시간</span></h2>
+        <table>
+          <thead><tr><th>구분</th><th>규모</th><th>월 임금총액</th><th>연 환산</th></tr></thead>
+          <tbody>
+            <tr class="ph"><td class="l">선택 업종 · 전체근로자</td><td>5~9인</td><td>—</td><td>—</td></tr>
+            <tr class="ph"><td class="l">선택 업종 · 전체근로자</td><td>10~29인</td><td>—</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <div class="muted">개인사업자 대표자 인건비를 차감할 때 근거(폴리어수학학원 건에서 사용). 직종별 임금(고용노동부, KOSIS)은 ECOS 밖이라 링크만.</div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 계산·수동입력·내보내기 -->
+    <div class="side">
+      <div class="card wacc">
+        <h2>WACC 미리보기<span class="src">숫자는 바꿔 볼 수 있음</span></h2>
+        <div class="row"><label>Rf 무위험이자율</label><span class="auto" id="wRf"></span><span class="h">② 자동</span></div>
+        <div class="row"><label>E(Rm) 시장기대수익률</label><input id="wRm" value="12.5"><span class="h" id="wRmH"></span></div>
+        <div class="row"><label>β 베타</label><input id="wB" value="1.10"><span class="h" id="wBH"></span></div>
+        <div class="row"><label>Rs 규모위험 프리미엄</label><input id="wRs" value="6.0"><span class="h">판단값</span></div>
+        <div class="sub"><span>Ke = Rf + β×(E(Rm)−Rf) + Rs</span><b id="wKe"></b></div>
+        <div class="row" style="margin-top:6px"><label>Kd 타인자본비용</label><input id="wKd" value="6.0"><span class="h" id="wKdH"></span></div>
+        <div class="row"><label>법인세율 t</label><input id="wT" value="20.9"><span class="h">지방세 포함</span></div>
+        <div class="row"><label>타인자본 비율 Wd</label><input id="wWd" value="20"><span class="h">%, 업종 부채비율 참고</span></div>
+        <div class="res"><span>WACC</span><span class="v" id="wacc"></span></div>
+      </div>
+
+      <div class="card manual">
+        <h2>ECOS 밖 자료 (직접 입력)</h2>
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">KRX 코리아 밸류업 지수 <span style="font-weight:400;color:#64748b">MDC0201</span></div>
+        <div class="grid2">
+          <div class="f"><label>PER</label><input id="kPer" value="7.84"></div>
+          <div class="f"><label>PBR</label><input value="1.36"></div>
+          <div class="f"><label>배당수익률 %</label><input value="1.73"></div>
+          <div class="f"><label>조회일 (필수)</label><input data-date value="2026.10.30"></div>
+        </div>
+        <div class="muted">이익수익률 1/PER = <b id="kEy"></b> → E(Rm) 근거. KRX 파일에는 조회일이 안 남아서 여기서 꼭 적음.</div>
+        <div style="font-size:12px;font-weight:700;margin:12px 0 4px">β 관측 (네이버 기업정보 52주베타)</div>
+        <div class="grid2">
+          <div class="f"><label>표본 수</label><input value="6"></div>
+          <div class="f"><label>관측 범위</label><input id="bRange" value="0.08 ~ 0.60"></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <a class="btn gh sm" href="https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201" target="_blank" rel="noopener">KRX 열기</a>
+          <a class="btn gh sm" href="https://ecos.bok.or.kr" target="_blank" rel="noopener">ECOS 열기</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>자동 점검</h2>
+        <ul class="warnlist" id="checks"></ul>
+      </div>
+
+      <div class="card">
+        <h2>내보내기</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn" title="API 연결 전 (목업)">📥 원자료 엑셀</button>
+          <button class="btn gh" title="API 연결 전 (목업)">탁상 WACC 칸 복사</button>
+          <button class="btn gh" title="API 연결 전 (목업)">의견서 출처 문구 복사</button>
+        </div>
+        <div class="muted" style="margin:0 0 6px">파일명: <b id="fname"></b></div>
+        <textarea id="srcText" rows="6"></textarea>
+      </div>
+    </div>
+  </div>
+  <div class="foot">© 2026 정우진 감정평가사 · 출처: 한국은행 경제통계시스템(ECOS), 한국거래소</div>
+</div>
+
+<script src="arap_date.js"></script>
+<script>
+// ===== 예시값 (기준시점 2026.11.01) — API 연결 시 이 자리를 ECOS 응답으로 =====
+const MONTHS=["2025.11","2025.12","2026.01","2026.02","2026.03","2026.04","2026.05","2026.06","2026.07","2026.08","2026.09","2026.10"];
+const DAY="2026.10.30";
+const SAMPLE={
+  rates:[
+    {name:"국고채(1년)",code:"5030000 / 010190000",use:["Rf",""],m:[2.493,2.549,2.581,2.68,2.864,2.959,3.103,3.266,3.36,3.395,3.585,3.687],d:3.588},
+    {name:"국고채(3년)",code:"5020000 / 010200000",use:["참고",""],m:[2.88,3.01,3.044,3.167,3.378,3.413,3.682,3.794,3.828,3.788,3.991,3.861],d:3.715},
+    {name:"국고채(5년)",code:"5040000 / 010200001",use:["참고",""],m:[3.057,3.251,3.317,3.437,3.616,3.598,3.896,4.007,4.069,4.026,4.216,4.019],d:3.865},
+    {name:"회사채(3년, AA-)",code:"7020000 / 010300000",use:["참고",""],m:[3.299,3.502,3.545,3.718,3.969,4.07,4.316,4.429,4.525,4.486,4.663,4.549],d:4.407},
+    {name:"회사채(3년, BBB-)",code:"7030000 / 010320000",use:["E(Rm)·Kd 상단","kd"],m:[9.151,9.343,9.39,9.542,9.771,9.871,10.115,10.246,10.331,10.292,10.466,10.358],d:10.232}
+  ],
+  kd:{months:["2026.07","2026.08","2026.09"],v:[4.22,4.38,4.63],p:[false,false,true]},
+  gdp:{years:["2022","2023","2024","2025"],v:[2.9,1.5,2.2,1.1],p:[false,false,false,true]},
+  cpi:{years:["2021","2022","2023","2024","2025"],idx:[102.5,107.72,111.59,114.18,116.61]}
+};
+// ==============================================================
+const $=id=>document.getElementById(id);
+const f2=x=>x.toFixed(2), f3=x=>x.toFixed(3);
+const avg=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const num=id=>parseFloat($(id).value)||0;
+
+// 조회 기간 칩
+function periods(){
+  const c=$("caseName").value||"사건";
+  $("periods").innerHTML=[
+    ["일별 금리",`직전 영업일 <b>${DAY}(금)</b>`],
+    ["월별 금리",`<b>${MONTHS[0]} ~ ${MONTHS[11]}</b> (12개월)`],
+    ["대출금리",`최근 공표 <b>${SAMPLE.kd.months[0]} ~ ${SAMPLE.kd.months[2]}</b>`],
+    ["GDP·물가",`<b>${SAMPLE.gdp.years[0]} ~ ${SAMPLE.gdp.years[3]}</b>`],
+    ["조회일","<b>2026.11.03</b>"]
+  ].map(([k,v])=>`<span class="chip">${k} · ${v}</span>`).join("");
+  $("fname").textContent=`ECOS_${c}_기준${$("baseDate").value.replace(/\./g,"")}_조회20261103.xlsx`;
+}
+
+// Rf
+const RF=SAMPLE.rates[0], rfAvg=avg(RF.m);
+function rfPick(){const m=$("rfMode").value;return m==="avg"?rfAvg:m==="day"?RF.d:(rfAvg+RF.d)/2;}
+function drawRf(){
+  $("rfAvg").textContent=f2(rfAvg)+"%";$("rfAvgS").textContent=`${MONTHS[0]}~${MONTHS[11]}`;
+  $("rfDay").textContent=f3(RF.d)+"%";$("rfDayS").textContent=DAY;
+  const m=$("rfMode").value;
+  $("rfPick").textContent=f2(rfPick())+"%";
+  $("rfPickS").textContent=m==="mid"?`(${f2(rfAvg)} + ${f3(RF.d)}) ÷ 2`:m==="avg"?"월평균 그대로":"직전 영업일 그대로";
+  const W=600,H=120,pad=22,max=4,bw=(W-pad*2)/12;
+  let s="";
+  RF.m.forEach((v,i)=>{const h=(v/max)*(H-34);const x=pad+i*bw+4;
+    s+=`<rect x="${x}" y="${H-18-h}" width="${bw-8}" height="${h}" rx="3" fill="#bfdbfe"/>`;
+    s+=`<text x="${x+(bw-8)/2}" y="${H-18-h-3}" font-size="9" text-anchor="middle" fill="#334155">${v.toFixed(2)}</text>`;
+    s+=`<text x="${x+(bw-8)/2}" y="${H-5}" font-size="9" text-anchor="middle" fill="#94a3b8">${MONTHS[i].slice(2)}</text>`;});
+  const yd=H-18-(RF.d/max)*(H-34);
+  s+=`<line x1="${pad}" x2="${W-pad}" y1="${yd}" y2="${yd}" stroke="#2563eb" stroke-dasharray="5 4" stroke-width="1.5"/>`;
+  s+=`<text x="${W-pad}" y="${yd-4}" font-size="10" text-anchor="end" fill="#2563eb" font-weight="700" stroke="#fff" stroke-width="3" paint-order="stroke">직전 영업일 ${f3(RF.d)}</text>`;
+  $("rfChart").innerHTML=s;
+}
+
+// 시장금리 표
+function drawRates(){
+  $("rateRows").innerHTML=SAMPLE.rates.map((r,i)=>{
+    const lo=Math.min(...r.m),hi=Math.max(...r.m);
+    return `<tr${i===0?' class="hl"':''}><td class="l">${r.name}</td><td class="code">${r.code}</td>
+      <td class="r">${f3(r.d)}</td><td class="r">${f3(avg(r.m))}</td><td class="r">${f2(lo)} ~ ${f2(hi)}</td>
+      <td><span class="use ${r.use[1]}">${r.use[0]}</span></td></tr>`;}).join("");
+}
+
+// Kd
+const kdAvg=avg(SAMPLE.kd.v), bbb=SAMPLE.rates[4].d;
+function drawKd(){
+  SAMPLE.kd.months.forEach((m,i)=>{$("kdH"+(i+1)).textContent=m;
+    $("kd"+(i+1)).innerHTML=f2(SAMPLE.kd.v[i])+(SAMPLE.kd.p[i]?'<span class="p">p</span>':"");});
+  $("kdAvg").textContent=f2(kdAvg)+"%";
+  const kd=num("wKd"),lo=kdAvg,hi=bbb,pos=v=>Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100));
+  $("kdRange").innerHTML=`<div class="bar"></div>
+    <div class="mk" style="left:0%;color:#9d174d">${f2(lo)}</div>
+    <div class="mk" style="left:100%;color:#9d174d">${f2(hi)}</div>
+    <div class="mk" style="left:${pos(kd)}%;color:#2563eb">결정 ${kd.toFixed(1)}</div>`;
+  $("wKdH").textContent=`범위 ${f2(lo)} ~ ${f2(hi)}`;
+}
+
+// 성장률
+function drawGrowth(){
+  const g=SAMPLE.gdp;g.years.forEach((y,i)=>$("gY"+(i+1)).textContent=y);
+  const cpi=SAMPLE.cpi.idx.slice(1).map((v,i)=>(v/SAMPLE.cpi.idx[i]-1)*100);
+  const cell=(v,p)=>`<td class="r">${v.toFixed(1)}${p?'<span class="p">p</span>':""}</td>`;
+  $("growRows").innerHTML=
+    `<tr class="hl"><td class="l">실질 GDP 성장률</td>${g.v.map((v,i)=>cell(v,g.p[i])).join("")}<td class="r"><b>${avg(g.v).toFixed(2)}</b></td><td><span class="use g">성장률</span></td></tr>`+
+    `<tr><td class="l">소비자물가 상승률</td>${cpi.map(v=>cell(v,false)).join("")}<td class="r"><b>${avg(cpi).toFixed(2)}</b></td><td><span class="use g">영구성장률 상한</span></td></tr>`;
+}
+
+// WACC
+function calc(){
+  const rf=rfPick(),rm=num("wRm"),b=num("wB"),rs=num("wRs"),kd=num("wKd"),t=num("wT")/100,wd=num("wWd")/100;
+  const ke=rf+b*(rm-rf)+rs, w=ke*(1-wd)+kd*(1-t)*wd;
+  $("wRf").textContent=f2(rf)+"%";$("wKe").textContent=f2(ke)+"%";$("wacc").textContent=f2(w)+"%";
+  const per=num("kPer"),ey=per?100/per:0;$("kEy").textContent=ey.toFixed(1)+"%";
+  $("wRmH").textContent=`1/PER ${ey.toFixed(1)}% · BBB- ${f2(bbb)}%`;
+  $("wBH").textContent=`관측 ${$("bRange").value}`;
+  drawKd();drawRf();periods();checks();source(rf,ke,w);
+}
+
+function checks(){
+  const kd=num("wKd");
+  const L=[
+    [true,"대출금리는 <b>신규취급액 기준</b>(금액 통계 아님)"],
+    [true,`일별 금리 = 기준시점 직전 영업일(${DAY})`],
+    [!SAMPLE.kd.p.some(Boolean),`대출금리 ${SAMPLE.kd.months[2]}은 <b>잠정치(p)</b> 포함`],
+    [kd>=kdAvg&&kd<=bbb,`결정 Kd ${kd.toFixed(1)}%가 대출금리~BBB- 범위 ${kd>=kdAvg&&kd<=bbb?"안":"<b>밖</b>"}`],
+    [num("wRm")>rfPick(),"E(Rm) > Rf"],
+    [true,"KRX 조회일 입력됨"]
+  ];
+  $("checks").innerHTML=L.map(([ok,t])=>`<li><span class="${ok?"ok":"wn"}">${ok?"✓":"⚠"}</span> ${t}</li>`).join("");
+}
+
+function source(rf,ke,w){
+  $("srcText").value=
+`무위험이자율은 국고채(1년) 수익률의 직전 12개월(${MONTHS[0]}~${MONTHS[11]}) 월평균 ${f2(rfAvg)}%와 기준시점 직전 영업일(${DAY}) ${f3(RF.d)}%를 고려하여 ${f2(rf)}%로 결정하였다.
+타인자본비용은 예금은행 중소기업대출 금리(신규취급액, ${SAMPLE.kd.months[0]}~${SAMPLE.kd.months[2]}) 평균 ${f2(kdAvg)}%와 회사채(3년, BBB-) ${f2(bbb)}% 사이에서 ${num("wKd").toFixed(1)}%로 결정하였다.
+(출처: 한국은행 경제통계시스템 ECOS, 조회일 2026.11.03)`;
+}
+
+["rfMode","wRm","wB","wRs","wKd","wT","wWd","kPer","bRange","caseName","baseDate"].forEach(id=>$(id).addEventListener("input",calc));
+drawRates();drawGrowth();calc();
+</script>
+</body>
+</html>
