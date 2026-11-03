@@ -20,12 +20,13 @@ const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFac
     await page.goto(base+'/'+encodeURI('토지건물.html'),{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.showTab&&window.calcGongsi);
     // 첫 화면(1. 대상물건 개요)에서 2-1·2-2·2-3 탭 버튼이 바로 보임 — 「2. 토지평가」 묶음 버튼 없이
-    for(const id of ['gongsi','georae','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isVisible(),'첫 화면 탭 버튼 보임 '+id);
+    for(const id of ['gongsi','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isVisible(),'첫 화면 탭 버튼 보임 '+id);
     assert.equal(await page.locator('#tabbtn-land').count(),0,'묶음 버튼 없음');
     const order=await page.$$eval('.tabs button',bs=>bs.map(b=>b.id.replace('tabbtn-','')));
-    assert.deepEqual(order.slice(0,5),['daesang','gongsi','georae','gyeoljeong','bld'],'탭 순서: '+order.join(','));
-    await page.click('#tabbtn-georae');assert(await page.locator('#tab-georae').isVisible(),'2-2 탭 열림');
-    for(const id of ['gongsi','georae','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isVisible(),'다른 탭에서도 보임 '+id);
+    assert.deepEqual(order.slice(0,4),['daesang','gongsi','gyeoljeong','bld'],'탭 순서: '+order.join(','));
+    assert.equal(await page.locator('#tabbtn-georae').count(),0,'거래사례비교법 탭 따로 없음');
+    await page.click('#tabbtn-gyeoljeong');assert(await page.locator('#tab-gyeoljeong').isVisible(),'2-2 토지평가액 결정 탭 열림');
+    for(const id of ['gongsi','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isVisible(),'다른 탭에서도 보임 '+id);
     await page.click('#tabbtn-gongsi');
     assert.equal(await page.locator('#tabbtn-gongsi.active').count(),1,'2-1 버튼 활성');
     assert.equal(await page.locator('#tab-gongsi .subtabs').count(),0,'내부 탭 단추 없음');
@@ -56,6 +57,11 @@ const CARDS=[['gsStdCard','비교표준지'],['gsJbCard','시점수정'],['gsFac
       assert.ok(await page.evaluate(()=>!!localStorage.getItem('tojigeonmul-split:tab-gongsi:lr')),'너비 저장');
       await h.dblclick();assert.ok(Math.abs((await page.locator('#gsMain').boundingBox()).width-w0)<=2,'더블클릭 → 기본 너비');
       for(const [id] of CARDS)boxes[id]=await page.locator('#'+id).boundingBox();}
+    // 거래사례비교법(옛 2-2)은 같은 화면 맨 아래 — 채택·개별요인·시산가액 모두 보이고 사례 열들보다 아래
+    for(const id of ['georae_sec','resGeorae','tblTradePick','ga_unit','ga_mode'])assert(await page.locator('#'+id).isVisible(),'#'+id+' 보임(2-1 화면)');
+    {const g=await page.locator('#georae_sec').boundingBox();assert.ok(g.y>boxes.pinLand.y&&g.y>boxes.gsApprCard.y,'거래사례비교법은 맨 아래');}
+    // 옛 showTab('georae') 호출 → 2-1 화면으로
+    await page.evaluate(()=>showTab('georae'));assert(await page.locator('#tab-gongsi').isVisible()&&await page.locator('#georae_sec').isVisible(),'옛 georae → 2-1');
     console.log('1400px', CARDS.map(([id])=>id+'('+x(id)+','+y(id)+')').join(' '));
 
     // 거래사례 추가·그 밖의 요인 적용사례 선택이 바로 화면에서 됨(탭 전환 없이)
