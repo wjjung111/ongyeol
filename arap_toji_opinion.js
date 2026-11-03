@@ -221,12 +221,18 @@ function newCostMaps(){
     ['분류','용도','구조','급수','단가','내용연수','범위'].forEach(function(k,i){m['신축1_'+k]=text(a[i]).trim();});return m;
   });
 }
+// 의견서 표시(토지건물.html 사례 표 「의견서 표시」 체크, 2026-11-03) — 끈 사례는 빼고, 번호는 남은 사례끼리 차례로.
+// 화면 함수가 없으면(옛 화면·단독 테스트) 종전과 같이 모두 넣고 화면 번호 그대로.
+function opHid(kind,i){return typeof caseHidden==='function'&&caseHidden(kind,i);}
+function tNo(i){return typeof docTradeNo==='function'?docTradeNo(i):i+1;}
+function aNo(i){return typeof docApprNo==='function'?docApprNo(i):text((APPRS[i]||{}).no);}
+function docCaseLabel(type,i){return type==='t'?'거래사례 #'+tNo(i):'평가사례 '+aNo(i);}
 function opinionData(){
   var gs=window.GONGSI_RESULT,ga=window.GEORAE_RESULT||{};
   var br=(typeof bldResult==='function'?bldResult():null)||window.BLD_RESULT||{rows:[],total:0,size:0};
   if(bldOnly())return bldOnlyData(br);
   if(!gs||!gs.rows||!gs.rows.length||!gs.total)throw new Error('본건 토지와 공시지가기준법 계산을 먼저 입력해 주세요.');
-  var etc=gs.etc,choice=etcCase(),choiceName=!choice?'':ETC.type==='t'?'거래사례 #'+(ETC.idx+1):'평가사례 '+text(choice&&choice.no);
+  var etc=gs.etc,choice=etcCase(),choiceName=!choice?'':docCaseLabel(ETC.type,ETC.idx);
   var tm=etcTimeMeta(),selected=TRADES[GA.idx]||{},gt=(ga.rows||[])[0]||{};
   var date=docDot(val('base_gongsi'));
   var m={
@@ -236,7 +242,7 @@ function opinionData(){
     '공시시점_설명':[val('jb_region'),'('+date+'~'+docDot(val('base_gijun'))+')',val('jb_use')].filter(Boolean).join(' '),
     '공시시점_치':fixed(gs.rows[0].time,5),'공시시점_률':fixed((gs.rows[0].time-1)*100,3)+'%',
     '공시개별_의견':val('g_opinion'),'거래개별_의견':val('ga_opinion'),'그밖개별_의견':val('e_opinion'),
-    '그밖_채택사례':choiceName,'그밖_사례기호':!choice?'':ETC.type==='t'?'#'+(ETC.idx+1):text(choice&&choice.no),
+    '그밖_채택사례':choiceName,'그밖_사례기호':!choice?'':ETC.type==='t'?'#'+tNo(ETC.idx):aNo(ETC.idx),
     '그밖_사례단가':money(etc.source),'그밖_사정':fixed(etc.sajeong,3),'그밖_시점':fixed(etc.time,5),
     '그밖_지역':fixed(etc.area,3),'그밖_개별':fixed(etc.individual,3),'그밖_산출단가':money(etc.out1),
     '그밖_비교치':fixed(etc.ratio,2),'그밖_표준지_시점':fixed(etc.stdTime,5),'그밖_표준지_개별':fixed(etc.stdIndividual,3),
@@ -244,7 +250,7 @@ function opinionData(){
     '그밖_시점설명':(tm?timeMetaLabel(tm):'')+') : '+fixed(etc.time,5),
     // 「2) 거래사례의 선정 및 그 이유」 문장 — '#2'만 적으면 무엇의 2번인지 안 보여서
     // 아래 표 머리(거래사례#1·#2·#3)와 같은 말로 '거래사례#2'로 내보낸다(2026-09-22 요청).
-    '거래_채택기호':TRADES[GA.idx]?'거래사례#'+(GA.idx+1):'','거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
+    '거래_채택기호':TRADES[GA.idx]?'거래사례#'+tNo(GA.idx):'','거래_시점설명':timeMetaLabel(selected.timeMeta)||'('+docDot(selected.date)+'~'+docDot(val('base_gijun'))+')',
     '거래_시점률':gt.time==null?'':fixed((gt.time-1)*100,3)+'%','거래_시점':fixed(gt.time,5),
     '공시_시산가액':money(gs.total),'거래_시산가액':money(ga.total),'토지감정평가액':money(window.LAND_FINAL),
     // 합계 자리 — 공부면적/사정면적 각각. 공부면적은 산출근거 표에 나오는 필지만(전체 감정평가 외 필지는 뺀 evalGongbu — 없으면 종전 값)
@@ -267,7 +273,7 @@ function opinionData(){
         '그밖_시점설명':(c&&c.timeMeta?timeMetaLabel(c.timeMeta):'')+') : '+fixed(d.time,5),'그밖개별_의견':d.opinion,
         '표준지_공시지가':money(d.price)});
       var nos=p.rows.map(docNoOf).filter(function(v,k,a){return a.indexOf(v)===k;});
-      return {label:caseLabel(p.type,p.idx),code:p.type==='t'?'#'+(p.idx+1):text(c&&c.no),std:p.std,etc:p.etc,d:d,map:mm,nos:nos};});
+      return {label:docCaseLabel(p.type,p.idx),code:p.type==='t'?'#'+tNo(p.idx):aNo(p.idx),std:p.std,etc:p.etc,d:d,map:mm,nos:nos};});
     if(etcPairs.length){
       Object.assign(m,etcPairs[0].map);
       m['그밖_채택사례']=etcPairs.map(function(x){return x.label;}).filter(function(v,k,a){return a.indexOf(v)===k;}).join(', ');
@@ -280,7 +286,7 @@ function opinionData(){
     }
     // 거래사례비교법 — 필지마다 쓴 거래사례. 둘 이상이면 시점수정 표를 사례마다 한 줄, 개별요인 표 사례 칸은 필지별
     var gaUsed=[];(ga.rows||[]).forEach(function(r){if(!r.out&&r.caseIdx>=0&&gaUsed.indexOf(r.caseIdx)<0)gaUsed.push(r.caseIdx);});
-    gaUsed.forEach(function(k){gaLabelOf[k]='거래사례#'+(k+1);});
+    gaUsed.forEach(function(k){gaLabelOf[k]='거래사례#'+tNo(k);});
     if(gaUsed.length){
       var g0=TRADES[gaUsed[0]]||{},r0=(ga.rows||[]).find(function(r){return r.caseIdx===gaUsed[0]&&!r.out;})||{};
       m['거래_채택기호']=gaUsed.map(function(k){return gaLabelOf[k];}).join(', ');
@@ -402,8 +408,9 @@ function opinionData(){
   }
   var etcDaegu=typeof stdDaegu==='function'?stdDaegu(own&&etcPairs.length?etcPairs[0].std:etc.stdIdx):'';
   return {global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,groupRun:groupRun,parcelRuns:parcelRuns,zoneRuns:zoneRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
-    appraisals:APPRS.filter(apprHasData).map(appraisalMap),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
-    trades:TRADES.map(function(c,i){return {data:c,index:i};}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
+    appraisals:APPRS.map(function(a,i){return {a:a,i:i};}).filter(function(x){return apprHasData(x.a)&&!opHid('a',x.i);})
+      .map(function(x){return appraisalMap(Object.assign({},x.a,{no:aNo(x.i)}));}),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
+    trades:TRADES.map(function(c,i){return {data:c,index:i,no:tNo(i)};}).filter(function(x){return !opHid('t',x.index);}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
     // 거래사례 표 아래 한 줄 메모(관찰감가법 적용 설명 등) — 비어 있으면 아무것도 넣지 않는다
     tradeNote:text(val('g_tradeNote')).trim(),
     // 건물 관찰감가 체크 — 켜면 산출개요에 관찰감가 문장 + 잔가율 표에 실제·유효경과연수 두 열
@@ -936,7 +943,7 @@ function opinionXml(xml,data){
         Object.assign(map,tradeMap(item&&item.data,c+1));
         // 내용연수를 넘긴 사례는 값을 채우기 전(토큰이 남아 있을 때) 그 열의 감가 관련 칸을 빨강으로 표시
         if(item&&overAged(item.data))markAgedCol(table,c+1);
-        var t=descendants(children(children(table,'tr')[0],'tc')[c+1],'t')[0];t.textContent=item?'거래사례#'+(item.index+1):'';
+        var t=descendants(children(children(table,'tr')[0],'tc')[c+1],'t')[0];t.textContent=item?'거래사례#'+(item.no!=null?item.no:item.index+1):'';
       }
       scope(table,map,state);
       if(items.length)dropCols(table,items.length+1);   // 사례가 없는 뒤쪽 열은 빈칸으로 두지 않고 지운다

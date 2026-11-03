@@ -164,6 +164,11 @@
   input.grp-in{width:78%;text-align:center;font-weight:700;font-size:13px;}
   /* 거래사례 열별 붙여넣기 칸 (kais붙여넣기) — 작게, 한 줄 */
   td.kp-c{padding:2px 3px;background:#fafbfc;}
+  /* 의견서 표시 — 끈 사례(의견서·위치도에서 빠짐)는 열·행을 흐리게 */
+  td.op-c{text-align:center;white-space:nowrap;font-size:11px;color:#334155;}
+  td.op-c label{cursor:pointer;display:inline-flex;align-items:center;gap:3px;}
+  td.op-c.off{color:#b91c1c;}
+  #tblTrade .op-off,#tblAppr tr.op-off td:not(.op-c){opacity:.4;}
   .kp{display:block;width:100%;height:22px;border:1px dashed #94a3b8;border-radius:3px;font-size:11px;font-family:inherit;padding:2px 4px;resize:none;overflow:hidden;white-space:nowrap;text-align:center;line-height:16px;color:#2563eb;background:#fff;}
   .kp::placeholder{color:#2563eb;opacity:.9;}
   /* 거래사례 표 아래 한 줄 메모 — 안내 문구는 연한 회색으로만 보이고, 적은 내용만 한글로 나간다 */
@@ -2405,6 +2410,10 @@ function renderTrade(){
       +(i<TRADES.length-1?'<span class="mv" title="오른쪽(#'+(i+2)+') 자리로 옮기기" onclick="moveTrade('+i+','+(i+1)+')">▶</span>':'')
       +' <span class="del" title="이 사례 비우기/삭제" onclick="delTrade('+i+')">✕</span>'
       +(i===ui?' <span class="undo" title="방금 '+(u.spliced?'삭제':'비움')+'한 거래사례 #'+(u.i+1)+'('+attr(u.data.loc||'내용 없음')+') 복구" onclick="undoTrade()">↩</span>':'')+'</th>';}).join('')+'</tr>';
+  // 의견서 표시 — 끄면 의견서 거래사례 표·위치도에서 빠진다(집건 「표시」 체크와 같은 뜻, 2026-11-03)
+  var usedT=opUsedSafe().t;opClearUsed('t',usedT);var hidT=opHiddenList('t');
+  h+='<tr><th class="rowh" title="끄면 이 사례는 의견서 거래사례 표와 위치도에 나가지 않습니다. 의견서 번호(거래사례#)는 남은 사례끼리 차례로 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다.">의견서<br>표시</th>'+TRADES.map(function(c,i){
+    return opCheckCell('t',i,hidT,usedT);}).join('')+'</tr>';
   [['토지','토지 행(토지면적)'],['건물','건물 행(건물면적·사용승인일)']].forEach(function(k){
     h+='<tr><th class="rowh" style="font-weight:600;color:#475569;font-size:11px">'+k[0]+' kais</th>'+TRADES.map(function(c,i){
       return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" data-kind="'+k[0]+'" data-i="'+i+'" title="실거래가 엑셀의 '+k[1]+'을 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워집니다" onpaste="kaisPaste(event,'+i+',\''+k[0]+'\')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
@@ -2427,7 +2436,10 @@ function renderTrade(){
   // 비고: 사례별 자유 메모 — 하나라도 적으면 의견서 거래사례 표 맨 아래 '비 고' 행으로 나간다(2026-10-29)
   h+='<tr><th class="rowh" title="사례에 대한 메모 — 적으면 의견서 거래사례 표 맨 아래 \'비 고\' 행에 그대로 들어갑니다">비고</th>'+TRADES.map(function(c,i){
     return '<td><input value="'+attr(c.note||'')+'" placeholder="자유 입력" oninput="tradeIn('+i+',\'note\',this.value)"></td>';}).join('')+'</tr>';
-  document.getElementById('tblTrade').innerHTML=h;
+  var tblT=document.getElementById('tblTrade');tblT.innerHTML=h;
+  // 끈 사례 열은 흐리게(의견서 표시 칸만 또렷이)
+  hidT.forEach(function(off,i){if(!off)return;
+    Array.prototype.forEach.call(tblT.rows,function(tr){var cell=tr.cells[i+1];if(cell&&!cell.classList.contains('op-c'))cell.classList.add('op-off');});});
   renderTradePick();
   fixStaleTimeMeta();
 }
@@ -2531,12 +2543,14 @@ var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지�
 function apprHasData(a){return a&&['loc','use','jimok','cond','road','unit','base','purp'].some(function(k){return String(a[k]||'').trim()!=='';});}
 function renderAppr(){
   while(APPRS.length<3)APPRS.push({});   // 기본 화면은 항상 빈 3행(거래사례와 같은 규격)
-  var h='<tr><th style="width:22px"></th><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
+  var usedA=opUsedSafe().a;opClearUsed('a',usedA);var hidA=opHiddenList('a');
+  var h='<tr><th style="width:22px"></th><th>선정</th><th title="끄면 이 사례는 의견서 평가사례 표와 위치도에 나가지 않습니다. 기호가 기본 순서(a·b·c…)면 의견서에서는 남은 사례끼리 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다." style="font-size:11px;line-height:1.15">의견서<br>표시</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
-    h+='<tr ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
+    h+='<tr'+(hidA[i]?' class="op-off"':'')+' ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
       +'<td class="grip-c" draggable="true" title="끌어서 위아래로 옮기기 — 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다"'
       +' ondragstart="apprDragStart(event,'+i+')" ondragend="apprDragEnd()"><span class="grip">⠿</span></td>';
     h+='<td class="jud-c">'+(STDS.length>1?stdCaseSelect('etc','a',i):'<input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onclick="togEtc(\'a\','+i+')">')+'</td>';
+    h+=opCheckCell('a',i,hidA,usedA);
     h+='<td class="kp-c kp-narrow"><textarea class="kp" rows="1" cols="3" placeholder="" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
     APPR_COLS.forEach(function(c){
       var inp='<input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;'+(c[1]==='loc'?'relBtnSync(\'a\','+i+');':'')+'syncPick();calcGongsi();saveForm();">';
@@ -2554,6 +2568,38 @@ function stripOe(loc){return String(loc||'').replace(OE_RE,'').trim();}
 function hasOe(loc){return OE_RE.test(String(loc||''))&&stripOe(loc)!=='';}
 function relOf(o){return (o&&Array.isArray(o.rel))?o.rel.filter(function(p){return p&&hasV(p.jibun);}):[];}
 function caseArr(kind){return kind==='t'?TRADES:APPRS;}
+
+// ── 의견서 표시 (2026-11-03) ── 집건 사례 표 「표시」 체크처럼 사례마다 의견서에 넣을지 고른다.
+// 끈 사례는 의견서(거래사례 표·평가사례 표)와 위치도에서 빠지고, 의견서 번호는 남은 사례끼리 차례로 다시 매긴다
+// (거래사례#1·#2… / 평가사례 기호는 기본 순서 a·b·c…일 때만 — 직접 고친 기호는 그대로).
+// 저장 = 사례 객체의 _hide(밑줄 키라 '입력된 사례'로 치지 않는다). ✕로 비우면 같이 지워진다.
+// 산정에 선정된 사례(그 밖의 요인·거래사례비교법, 필지·표준지별 포함 — usedCases)는 끌 수 없다: 끈 표시가 남아 있어도 의견서에 나간다.
+function opUsedSafe(){try{return usedCases();}catch(e){return {t:{},a:{}};}}
+function opClearUsed(kind,used){caseArr(kind).forEach(function(o,i){if(o&&o._hide&&used[i])delete o._hide;});}
+function opHiddenList(kind,used){used=used||opUsedSafe()[kind];return caseArr(kind).map(function(o,i){return !!(o&&o._hide)&&!used[i];});}
+function caseHidden(kind,i){return !!opHiddenList(kind)[i];}
+// 의견서 번호 — 앞에서 끈 사례가 없으면 화면 번호 그대로(종전과 같음)
+function docTradeNo(i){var h=opHiddenList('t'),n=i+1;for(var j=0;j<i;j++)if(h[j])n--;return n;}
+function docApprNo(i){
+  var a=APPRS[i]||{},h=opHiddenList('a'),before=h.slice(0,i).filter(Boolean).length;
+  if(!before||!apprSymsAuto())return String(a.no==null?'':a.no);
+  return apprSym(i-before);
+}
+function opCheckCell(kind,i,hid,used){
+  var o=caseArr(kind)[i]||{},off=!!hid[i],lock=!!used[i];
+  var tip=lock?'산정에 선정된 사례라 의견서에서 뺄 수 없습니다(선정을 풀면 끌 수 있음)':off?'의견서·위치도에서 빠짐 — 체크하면 다시 넣습니다':'체크를 풀면 의견서·위치도에서 뺍니다';
+  var no=kind==='t'?'#'+docTradeNo(i):docApprNo(i),same=kind==='t'?docTradeNo(i)===i+1:docApprNo(i)===String(o.no==null?'':o.no);
+  var lab=kind==='t'?(off?'제외':'의견서 '+no):(off||same?'':no);
+  return '<td class="op-c'+(off?' off':'')+'" title="'+attr(tip)+'"><label><input type="checkbox" class="op-ck" '+(off?'':'checked ')+(lock?'disabled ':'')
+    +'onchange="togOpShow(\''+kind+'\','+i+',this.checked)">'+(lab?'<span>'+lab+'</span>':'')+'</label></td>';
+}
+function togOpShow(kind,i,on){
+  var o=caseArr(kind)[i];if(!o)return;
+  if(on)delete o._hide;
+  else{if(opUsedSafe()[kind][i]){alert('산정에 선정된 사례는 의견서에서 뺄 수 없습니다. 선정을 먼저 풀어 주세요.');}else o._hide=true;}
+  renderTrade();renderAppr();saveForm();
+  if(MAPV)mapOpen();   // 위치도를 이미 열었으면 바로 다시 그린다
+}
 // 지번 → 전체 주소: 「134-2」면 대표 소재지의 지번 자리만 바꾸고, 「구장리 12」처럼 마을 이름부터 적으면 그 앞(시군구·읍면)만 빌린다
 function relLoc(base,j){
   var b=stripOe(base),t=String(j||'').trim().replace(/\s+/g,' ');if(!t)return '';
@@ -5280,8 +5326,9 @@ function renderMapLab(){
   var el=document.getElementById('mapLabPanel');if(!el)return;
   var h='<div class="mlrow"><b>💬 말풍선</b><button class="btn gh sm" onclick="mapAllBubbles(true)">모두 켜기</button><button class="btn gh sm" onclick="mapAllBubbles(false)">모두 끄기</button>';
   var off=[];
-  [['비교표준지',STDS,function(i){return '표준지 '+(STD_TAG[i]||(i+1));}],['거래사례',TRADES,function(i){return '거래 #'+(i+1);}],['평가사례',APPRS,function(i,a){return '평가 '+(a.no||(i+1));}]].forEach(function(t){
-    t[1].forEach(function(o,i){if(o&&o.labOff)off.push('<span class="mloff" title="눌러서 이 말풍선 켜기" onclick="mapBubbleOn(\''+t[0]+'\','+i+')">💬 '+esc(t[2](i,o))+'</span>');});
+  var hid={'거래사례':opHiddenList('t'),'평가사례':opHiddenList('a')};
+  [['비교표준지',STDS,function(i){return '표준지 '+(STD_TAG[i]||(i+1));}],['거래사례',TRADES,function(i){return '거래 #'+docTradeNo(i);}],['평가사례',APPRS,function(i,a){return '평가 '+(docApprNo(i)||(i+1));}]].forEach(function(t){
+    t[1].forEach(function(o,i){if(hid[t[0]]&&hid[t[0]][i])return;if(o&&o.labOff)off.push('<span class="mloff" title="눌러서 이 말풍선 켜기" onclick="mapBubbleOn(\''+t[0]+'\','+i+')">💬 '+esc(t[2](i,o))+'</span>');});
   });
   if(off.length)h+='<span style="color:#64748b;font-weight:400">끈 말풍선(눌러서 켜기):</span>'+off.join('');
   h+='</div>';
@@ -5332,18 +5379,22 @@ function mapItems(){
       out.push(Object.assign({},base,{o:p,label:label,loc:relLoc(o.loc,p.jibun),labelGroup:g,boundaryLeader:true,info:mapInfo([base.info,'함께 '+(base.kind==='거래사례'?'거래':'평가')+' '+p.jibun])}));
     });
   }
+  // 의견서 표시를 끈 사례는 위치도에도 안 찍는다. 이름표 번호는 의견서 번호(남은 사례끼리 차례로)와 같게.
+  var hidT=opHiddenList('t',used.t),hidA=opHiddenList('a',used.a);
   TRADES.forEach(function(c,i){
+    if(hidT[i])return;
     var cal=tradeCalc(c);
     if(hasV(c.loc))pushCase(c,'trade'+i,Object.assign({kind:'거래사례',color:'#16a34a',region:region,poly:true,
       pick:!!used.t[i],
       info:mapInfo([mapUnit(cal.landUnit,'토지단가'),mapDate(c.date,'거래시점')])},
-      mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,road:c.road,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})),'거래 #'+(i+1));
+      mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,road:c.road,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})),'거래 #'+docTradeNo(i));
   });
   APPRS.forEach(function(a,i){
+    if(hidA[i])return;
     if(hasV(a.loc))pushCase(a,'appr'+i,Object.assign({kind:'평가사례',color:'#ea580c',region:region,poly:true,
       pick:!!used.a[i],
       info:mapInfo([mapUnit(leadNum(a.unit),'사례단가'),mapDate(a.base,'기준시점')])},
-      mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,road:a.road,base:a.base,unit:leadNum(a.unit)})),'평가 '+(a.no||(i+1)));
+      mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,road:a.road,base:a.base,unit:leadNum(a.unit)})),'평가 '+(docApprNo(i)||(i+1)));
   });
   return out;
 }
