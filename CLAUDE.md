@@ -52,6 +52,7 @@
 | `arap_gijunsiga.js` | 국세청 건물 기준시가 엔진(기준시가.html + 토지건물 ③ 건물평가 카드) |
 | `arap_jiphap_parcels.js` | 집건 필지 목록(토지이용계획·위치도 공용) |
 | `arap_multi_hwpx.js` / `arap_multi_myeongse.js` | 집건 여러 호수 한글 평가서 / 명세표(xlsx) |
+| `arap_toji_upload.js` | 토건 공부서류(등기 PDF)·접수 캡처 업로드 → 자동 인식(집건과 같은 API 키) |
 | `arap_toji_opinion.js` / `arap_toji_documents.js` | 토지건물 의견서 엔진 / 요항표·명세표 등 서류 |
 | `arap_building_cost.js` + `_data.js` | 건물 재조달원가 표준단가(2025 자료집) — 토지건물 |
 | `arap_index_data.js` / `arap_jibyun_data.js` | 매매가격지수·자본수익률 / 지가변동률 — **자동생성, 직접 수정 금지** |

@@ -381,6 +381,9 @@
   .evalkind-bar .ek-label{font-weight:700;font-size:13px;color:#1e293b;margin-right:4px;}
   .evalkind-bar .btn{font-size:13px;padding:7px 18px;}
   .evalkind-bar .ek-hint{font-size:11px;color:#94a3b8;margin-left:6px;}
+  /* 자동 인식으로 채운 칸 — 확인 전까지 연노랑(손으로 고치면 사라짐) */
+  input.up-auto,textarea.up-auto,select.up-auto{background:#fef9c3 !important;}
+  #upCard.drag{background:#dbeafe !important;border:1px dashed #2563eb !important;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
   /* 위치도 말풍선 설정 줄 */
   .maplab{border:1px solid #e2e5ea;border-radius:6px;background:#f8fafc;padding:6px 9px;margin-bottom:8px;font-size:12px;}
@@ -480,6 +483,24 @@
        <button type="button" class="btn" id="ek_tb" onclick="setEvalKind('tb')" title="토지와 건물을 함께 평가합니다">🏞️ 토지건물</button>
        <button type="button" class="btn gh" id="ek_land" onclick="setEvalKind('land')" title="건물평가를 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)">🌾 토지만</button>
        <span class="ek-hint">바꿔도 입력한 값은 그대로 남아요</span>
+     </div>
+     <!-- 공부서류·접수 캡처 업로드 → 자동 인식(arap_toji_upload.js). 집합건물 ② 공부서류 업로드와 같은 Anthropic API 키(이 브라우저 공용) -->
+     <div class="card" id="upCard" style="background:#f0f7ff;border-color:#bfdbfe">
+       <h2>📄 공부서류·접수 캡처 업로드 <span class="hint" style="font-weight:400">토지·건물 등기 PDF, 접수내용 캡처 이미지 → 접수번호·의뢰인·기준시점·소유자·본건 토지·건물등기 건물내역 자동 입력</span></h2>
+       <div class="row" style="background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:6px 10px;margin-bottom:8px">
+         <span style="font-size:12px;font-weight:600;color:#555;white-space:nowrap">🔑 API 키</span>
+         <input type="password" id="up_apiKey" style="flex:1;min-width:160px;font-size:12px" placeholder="sk-ant-... (집합건물에 넣은 키가 있으면 자동으로 들어옵니다)">
+         <button type="button" class="btn gh sm" id="up_keyShow">보기</button>
+         <span id="up_keyState" style="font-size:11px"></span>
+       </div>
+       <div class="row">
+         <label class="btn gh" style="cursor:pointer">+ 파일 추가<input type="file" id="up_files" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple style="display:none"></label>
+         <button type="button" class="btn" id="up_run" disabled>🤖 자동 인식</button>
+         <span class="hint" id="up_dropHint">PDF·이미지를 이 칸에 끌어다 놓아도 됩니다</span>
+       </div>
+       <div id="up_list" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+       <div class="status" id="up_status"></div>
+       <div id="up_result" style="font-size:12px;line-height:1.6;margin-top:4px"></div>
      </div>
      <div class="cols2">
 
@@ -1865,7 +1886,9 @@ function fillOrPush(arr,cols,v){
   cols.forEach(function(c){if(v[c]!=null)arr[i][c]=v[c];});
   return i;
 }
-bindQuery('btnLand','landQuery','landStatus',function(v,out){
+bindQuery('btnLand','landQuery','landStatus',landFromQuery);
+// 토지 조회 결과 한 필지를 본건 토지 표에 넣는다 — 조회 버튼과 공부서류 자동 인식(arap_toji_upload.js)이 같이 쓴다
+function landFromQuery(v,out){
   var i=fillOrPush(LANDS,LAND_COLS,{소재지:v.소재지,지번:v.지번,지목:v.지목,면적:v.면적,용도지역:v.용도지역,
     이용상황:v.이용상황,도로교통:v.도로교통,형상:v.형상,지세:v.지세,공시지가:v.공시지가,비고:'-'});
   LANDS[i].pnu=(out&&out.pnu)||'';
@@ -1874,7 +1897,8 @@ bindQuery('btnLand','landQuery','landStatus',function(v,out){
   if(i===0&&LANDS[i].roadAddr&&!cgVal('bt_roadAddr').trim())document.getElementById('bt_roadAddr').value=LANDS[i].roadAddr;
   if(isLandGroup())recalcGroupArea();   // 묶기 모드에서 필지를 더 조회하면 묶음 면적도 다시 합산
   renderLands();calcGongsi();saveForm();sd();
-});
+  return i;
+}
 bindQuery('btnStd','stdQuery','stdStatus',function(v){
   fillOrPush(STDS,STD_COLS,{소재지:v.소재지,지번:v.지번,면적:v.면적,지목:v.지목,용도지역:v.용도지역,
     형상:v.형상,공시지가:v.공시지가,이용상황:v.이용상황,도로교통:v.도로교통,지세:v.지세});
@@ -5357,5 +5381,6 @@ function mapCheckKinds(on){mapKindBoxes().forEach(function(b){b.checked=!!on;});
 <script src="arap_gijunsiga.js"></script>
 <script src="arap_building_cost.js"></script>
 <script src="arap_toji_documents.js"></script>
+<script src="arap_toji_upload.js"></script><!-- 공부서류·접수 캡처 업로드 → 자동 인식 -->
 </body>
 </html>
