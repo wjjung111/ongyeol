@@ -64,6 +64,7 @@
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
   <script src="arap_jiphap_parcels.js"></script>
   <script src="arap_multi_hwpx.js"></script>
+  <script src="arap_etc_items.js"></script><!-- 의견서 「6. 그 밖의 사항」 추가 문구 박스·끼우기(단일·여러 호수 공용) -->
   <script src="arap_multi_myeongse.js"></script><!-- 여러 호수 명세표(xlsx, 시트 1개 한 장) — 단일호수 명세표 템플릿 서식을 빌려 씀 -->
   <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
   <script src="arap_casebak.js"></script><!-- 저장건 안전장치: 접수번호 고치면 이름만 바꾸기·이미 있는 번호 덮어쓰기 막기·건별 이전 버전 -->
@@ -1644,7 +1645,7 @@ async function recognizePDFs(files){
 }
 
 // ── Step 2 ──
-function Step2({ov,setOv,propType,setPropType}){
+function Step2({ov,setOv,propType,setPropType,pushUndo}){
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
   const [files,setFiles]=useState([]);
   const [loading,setLoading]=useState(false);
@@ -1943,6 +1944,8 @@ function Step2({ov,setOv,propType,setPropType}){
         ):null;})()}
       </div>)}
     </div>
+    {/* 의견서 문구 박스 — 「6. 그 밖의 사항」 마./바.… 항목으로 그대로 들어감 (2026-11-05, arap_etc_items.js) */}
+    {window.ArapEtcItems&&<window.ArapEtcItems.Card ov={ov} setOv={setOv} S={S} C={C} BTN={BTN} pushUndo={pushUndo} kind={propType==="비주거용"?"":(ov.kind||"")} shareText={shareLabel(ov)?shareEtcText(ov):""}/>}
   </div>);
 }
 
@@ -3090,17 +3093,18 @@ function v2ShareLayout(xml,map){
   const nt=head+"<hp:tr>"+H.join("")+"</hp:tr><hp:tr>"+D.join("")+"</hp:tr></hp:tbl>";
   return xml.slice(0,ts)+nt+xml.slice(te);
 }
-// 「6. 그 밖의 사항」 맨 끝 항목(가.~라.) 다음에 빈 줄 + 다음 글자 항목(마.)을 붙이고 본문은 {{그밖의사항_추가}} 토큰으로 — 값이 없으면 안 건드림
+// 「6. 그 밖의 사항」 맨 끝 항목(가.~라.) 다음에 빈 줄 + 다음 글자 항목(마.·바.…)을 붙이고 본문은 {{그밖의사항_추가}}(둘째부터 _2, _3…) 토큰으로 — 값이 없으면 안 건드림
+//   항목 = 지분평가 문구(있으면 먼저) + 2. 대상물건개요 「의견서 문구」 박스(ov.etcItems). 끼우기는 arap_etc_items.js(여러 호수와 공용)
+const v2EtcTok=i=>"그밖의사항_추가"+(i?"_"+(i+1):"");
+function v2EtcTokens(map,ov){
+  const sh=shareLabel(ov)?shareEtcText(ov):"";
+  const a=window.ArapEtcItems?window.ArapEtcItems.texts(ov,sh):(String(sh).trim()?[String(sh).replace(/\s*\n\s*/g," ").trim()]:[]);
+  map["_그밖의사항"]=a;a.forEach((t,i)=>{map[v2EtcTok(i)]=t;});return map;
+}
 function v2EtcExtraItem(xml,map){
-  if(!String(map["그밖의사항_추가"]||"").trim())return xml;
-  const h=xml.indexOf("그 밖의 사항"),end=xml.indexOf("Ⅱ. 대상물건 개요",h);if(h<0||end<0)return xml;
-  const seg=xml.slice(h,end),re=/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?<hp:t>([가-하])\.<\/hp:t>[\s\S]*?<\/hp:p>/g;
-  let m,last=null;while((m=re.exec(seg)))last=m;if(!last)return xml;
-  const at=h+last.index+last[0].length,L="가나다라마바사아자차카타파하",nx=L[L.indexOf(last[1])+1]||"";if(!nx)return xml;
-  const pOpen=last[0].match(/^<hp:p\b[^>]*>/)[0],head=last[0].match(/<hp:run charPrIDRef="(\d+)"><hp:t>[가-하]\.<\/hp:t><\/hp:run>/),body=last[0].match(/<hp:run charPrIDRef="(\d+)"><hp:t> /);
-  const hc=head?head[1]:V2_IDS.head,bc=body?body[1]:V2_IDS.body;
-  const p=pOpen+'<hp:run charPrIDRef="'+bc+'"/></hp:p>'+pOpen+'<hp:run charPrIDRef="'+hc+'"><hp:t>'+nx+'.</hp:t></hp:run><hp:run charPrIDRef="'+bc+'"><hp:t> {{그밖의사항_추가}}</hp:t></hp:run></hp:p>';
-  return xml.slice(0,at)+p+xml.slice(at);
+  const a=map["_그밖의사항"]||(String(map["그밖의사항_추가"]||"").trim()?[map["그밖의사항_추가"]]:[]);
+  if(!a.length||!window.ArapEtcItems)return xml;
+  return window.ArapEtcItems.insertXml(xml,a.length,v2EtcTok);
 }
 // 지분평가 결정표 바로 아래 「□ 산식」 문단 — 반올림 주석(v2DecisionNote)보다 위에 오도록 그 뒤에 부른다
 function v2ShareFormula(xml,map){
@@ -4096,7 +4100,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       const data=buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,tMl,propType);
       const map=buildV2TokenMap(data,ov,cases,comp,fT,precs);
       if(propType==="비주거용")v2NrTokens(map,ov,comp[0]||{});
-      v2ShareTokens(map,ov,fU,fullT,fT);   // 지분평가면 지분 양식 토큰   // 비주거용: 자본수익률 표·상업용 개별요인 양식
+      v2ShareTokens(map,ov,fU,fullT,fT);v2EtcTokens(map,ov);   // 지분평가면 지분 양식 토큰 · 그 밖의 사항 추가 문구(지분 문구 + 의견서 문구 박스)   // 비주거용: 자본수익률 표·상업용 개별요인 양식
       const nr=propType==="비주거용";
       const bytes=part==="pyoji"?await buildEvalHwpxV2(map,null,{keep:"pyoji"})
         :part==="gwal"?await buildEvalHwpxV2(map,V2GWAL_TPL_B64,{ids:V2_IDS_SPLIT})
@@ -4849,7 +4853,7 @@ function App(){
     <div style={{fontSize:12,color:"#888",marginBottom:4}}>거래사례비교법 · {propType}</div>
     <div style={S.steps}>{labels.map((l,i)=><div key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</div>)}</div>
     <div style={{display:step===0?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
-    <div style={{display:step===1?"block":"none"}}><Step2 key={caseRevision} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
+    <div style={{display:step===1?"block":"none"}}><Step2 key={caseRevision} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType} pushUndo={pushUndo}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} saved={!!(currentId&&saveStatus==="✅")}/></div>
     <div style={{display:step===4?"block":"none"}}><StepMap ov={ov} sfx="" active={step===4}/></div>
@@ -5669,7 +5673,7 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
 }
 
 // ── Step 2 ──
-function Step2({ov,setOv,propType,setPropType}){
+function Step2({ov,setOv,propType,setPropType,pushUndo}){
   const u=(k,v)=>setOv(p=>({...p,[k]:v}));
   const crU=useColResize("units",13);   // 상세물건정보(호 단위) 표 열 너비
   const MIRROR_KEYS=["dong","floor","ho","area","commonArea","landArea","mainUseJeonyu"];
@@ -6044,6 +6048,8 @@ function Step2({ov,setOv,propType,setPropType}){
       </div>
       <div style={{marginTop:6,fontSize:11,color:"#666"}}>※ 사정면적은 호별로 직접 입력 (미입력 시 전유면적 사용). 탁상가격은 ▲▼ 버튼으로 백만원 단위 증감.</div>
     </div>
+    {/* 의견서 문구 박스 — 「6. 그 밖의 사항」 마./바.… 항목으로 그대로 들어감 (2026-11-05, arap_etc_items.js) */}
+    {window.ArapEtcItems&&<window.ArapEtcItems.Card ov={ov} setOv={setOv} S={S} C={C} pushUndo={pushUndo} kind={ov.kind||""} shareText=""/>}
   </div>);
 }
 
@@ -8251,7 +8257,7 @@ function App(){
     <div style={{fontSize:12,color:"#888",marginBottom:4}}>거래사례비교법 · {propType}</div>
     <div style={S.steps}>{labels.map((l,i)=><div key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</div>)}</div>
     <div style={{display:step===0?"block":"none"}}><Step1 ov={ov} setOv={setOv}/></div>
-    <div style={{display:step===1?"block":"none"}}><Step2 key={caseRevision} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
+    <div style={{display:step===1?"block":"none"}}><Step2 key={caseRevision} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType} pushUndo={pushUndo}/></div>
     <div style={{display:step===2?"block":"none"}}><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
     <div style={{display:step===3?"block":"none"}}><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} tplFromUser={tplFromUser} saved={!!(currentId&&saveStatus==="✅")}/></div>
     <div style={{display:step===4?"block":"none"}}><StepMap ov={ov} sfx="M" active={step===4}/></div>
