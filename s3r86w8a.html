@@ -5120,6 +5120,10 @@ function parseKapaRow(text,idx){const{h,rows}=parseTSV(text);return rows.map((r,
 
 // ── Styles ──
 const C={pri:"#1a2744",acc:"#2563eb",dng:"#dc2626",bg:"#f5f6f8",card:"#fff",bdr:"#e2e5ea",hdr:"#f0f2f5",sel:"#eff6ff",lb:"#f0f7ff"};
+// 버튼 색 체계 — 단일호수 블록과 같은 값(2026-11-05: 여러호수 블록엔 없어 폰 연결 버튼에서 ReferenceError) (토지건물 .btn과 같은 규칙, 2026-09-28): p=주요(파랑) · s=보조(흰 바탕·회색 테두리) · d=삭제(빨강 글씨) · on=켜진 토글(남색) · off=꺼짐
+const BTN={p:{background:C.acc,color:"#fff",border:`1px solid ${C.acc}`},s:{background:"#fff",color:"#1e293b",border:"1px solid #cbd5e1"},
+  d:{background:"#fff",color:C.dng,border:"1px solid #fecaca"},on:{background:C.pri,color:"#fff",border:`1px solid ${C.pri}`},
+  off:{background:"#e2e8f0",color:"#94a3b8",border:"1px solid #e2e8f0",cursor:"not-allowed",boxShadow:"none"}};
 const S={
   app:{fontFamily:"'Malgun Gothic','맑은 고딕',sans-serif",margin:0,padding:0,background:C.bg,minHeight:"100vh",fontSize:13,lineHeight:1.5},
   card:{background:C.card,borderRadius:6,padding:16,marginBottom:12,border:`1px solid ${C.bdr}`},
@@ -7829,9 +7833,9 @@ function SyncPanel(){
       <span style={{fontSize:12,fontWeight:700,color:"#1a2744"}}>☁️ GitHub 자동 백업</span>
       <input type="password" style={{border:"1px solid #e2e5ea",borderRadius:3,padding:"4px 8px",fontSize:11,outline:"none",width:230}} value={tokenInput}
         onChange={e=>setTokenInput(e.target.value)} placeholder="GitHub 토큰 (gist 권한) — 기기당 1회"/>
-      <button style={{...S.btn,background:"#1a2744",color:"#fff",fontSize:11,padding:"4px 12px"}} disabled={syncBusy}
+      <button style={{...S.btn,...BTN.p,fontSize:11,padding:"4px 12px"}} disabled={syncBusy}
         onClick={()=>connectTok(tokenInput)}>{syncBusy?"⏳":connected?"지금 동기화":"연결"}</button>
-      {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,background:"#e2e8f0",color:"#1a2744",fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
+      {window.ArapCred&&window.ArapCred.ok()&&<button style={{...S.btn,...BTN.s,fontSize:11,padding:"4px 10px"}} disabled={syncBusy} title="크롬 비밀번호 관리자에 저장해 둔 토큰을 불러와 연결"
         onClick={async()=>{const t=await window.ArapCred.load();if(!t){alert("크롬에 저장된 토큰이 없습니다. 토큰을 직접 붙여넣고 「연결」을 눌러 주세요.");return;}setTokenInput(t);connectTok(t);}}>🔑 저장된 토큰으로 연결</button>}
       {connected&&window.ArapSync.phoneLink&&<button style={{...S.btn,...BTN.s,fontSize:11,padding:"4px 10px"}} title="폰에서 이 링크를 한 번 열면 이름·접속코드·토큰 입력 없이 이 컴퓨터 저장건이 그대로 보여요"
         onClick={async()=>{const l=window.ArapSync.phoneLink();try{await navigator.clipboard.writeText(l);alert("📱 폰 연결 링크를 복사했어요.\n카톡 「나와의 채팅」에 붙여넣고 폰에서 한 번 열면 끝 — 그다음부턴 폰에서 그냥 열면 됩니다.\n\n⚠️ 이 링크엔 백업 열쇠(토큰)가 들어 있어요. 다른 사람에게 보내지 마세요.");}catch(e){prompt("이 링크를 복사해 폰에서 여세요 (다른 사람에게 보내지 마세요)",l);}}}>📱 폰 연결 링크</button>}
