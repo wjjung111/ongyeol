@@ -789,7 +789,7 @@ const stripComma=v=>String(v).replace(/,/g,"");
 
 const dUnits=[{k:"천원",v:1000},{k:"만원",v:10000},{k:"십만원",v:100000},{k:"백만원",v:1000000},{k:"천만원",v:10000000}];
 const mOpts=[{k:"floor",l:"절사"},{k:"round",l:"반올림"},{k:"none",l:"없음"}];
-const applyR=(val,uv,m)=>{if(!val||isNaN(val))return Math.round(val);if(m==="none")return Math.round(val);if(!uv)return Math.round(val);const d=uv*10;return m==="round"?Math.round(val/d)*d:Math.floor(val/d)*d;};
+const applyR=(val,uv,m)=>{if(!val||isNaN(val))return Math.round(val);if(m==="none")return Math.round(val);if(!uv)return Math.round(val);const d=uv*10,q=Math.round(val/d*1e6)/1e6;return m==="round"?Math.round(q)*d:Math.floor(q)*d;};   // q: 부동소수점 끝자리 오차 제거(29.5억×0.7=2,064,999,999.9999998 → 20.6억으로 내려가던 문제)
 const getUV=k=>dUnits.find(d=>d.k===k)?.v||10000;
 const calcTF=c=>Math.round(((c.extFactor||1)*(c.intFactor||1)*(c.hoFactor||1)*(c.etcFactor||1))*1000)/1000;
 const parseTA=t=>{const m=t.match(/≒\s*([\d.]+)/);if(m)return parseFloat(m[1]);const keyin=(t||"").trim();if(/^\d+(?:\.\d+)?$/.test(keyin)){const n=parseFloat(keyin);if(isFinite(n)&&n>0)return n;}return null;}; // 산식 복붙 외에 숫자만 키인해도 시점수정치로 인식
@@ -1694,8 +1694,9 @@ const ipjRound=(v,unit,mode)=>{
   if(!v||isNaN(v))return 0;
   if(mode==="none"||!unit)return Math.round(v);
   const d=unit*10;
-  if(mode==="floor")return Math.floor(v/d)*d;
-  return Math.round(v/d)*d;
+  const q=Math.round(v/d*1e6)/1e6;   // 부동소수점 끝자리 오차 제거
+  if(mode==="floor")return Math.floor(q)*d;
+  return Math.round(q)*d;
 };
 
 const ipjNewUnit=sym=>({
