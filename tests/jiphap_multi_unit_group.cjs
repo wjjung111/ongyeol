@@ -1,6 +1,6 @@
 // 집합건물 여러 호수 ④ 적용단가 — 본건 묶기(A~E): 같은 글자 호수끼리 선정사례·요인 공유 (2026-11-09)
 //  ① 묶음 지정 → 한 호 요인 수정이 묶음 전체에 반영  ② 사례 변경도 묶음 전체  ③ 두 묶음 독립
-//  ④ 값 있는 묶음에 나중 합류 → 그 값 승계  ⑤ 묶음 해제 후 따로 놂  ⑥ 저장(ov.units[].grp) 유지
+//  ④ 값 있는 묶음에 나중 합류 → 그 값 승계  ④-2 비교 의견도 공유(묶음당 칸 하나)  ⑤ 묶음 해제 후 따로 놂  ⑥ 저장(ov.units[].grp) 유지
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_multi_unit_group.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -55,6 +55,14 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
     assert.equal(await fac(0,2).inputValue(),'1','A 묶음은 B 영향 없음');
     await setF(3,0,1.1);
     assert.equal(await fac(2,0).inputValue(),'1.1');assert.equal(await fac(0,0).inputValue(),'1');
+    // 비교 의견도 묶음 공유 — B 묶음(다·라)은 의견 칸 하나
+    const notes=scope.locator('textarea[aria-label^="호별 비교 의견"]');
+    assert.equal(await notes.count(),2,'A(가·나) 1칸 + B(다·라) 1칸');
+    const noteB=scope.getByLabel('호별 비교 의견 3',{exact:true});
+    await noteB.fill('- 외부요인: 같음');
+    await page.waitForFunction(()=>{const u=JSON.parse(localStorage.getItem('v2:case:GRP')).ov.units;return u[2].factorNote==='- 외부요인: 같음'&&u[3].factorNote==='- 외부요인: 같음';});
+    assert.equal(await scope.getByLabel('호별 비교 의견 4',{exact:true}).count(),0,'라호 의견 칸은 숨김(묶음 칸 하나)');
+    assert.match(await noteB.locator('xpath=..').innerText(),/다·라/,'묶음 의견 칸 이름');
     // 본건 칸에 호수 표시
     assert.equal(await row(0).locator('td').nth(1).innerText(),'(가)201호','본건 옆 호수');
     // 색 띠
