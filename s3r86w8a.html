@@ -7485,10 +7485,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
   const updF=(id,key,val)=>{setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,[key]:val};nv.totalFactor=calcTF(nv);return nv;}));};
   const updN=(id,key,val)=>setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));
-  // 본건 묶기(A~E, 2026-11-09) — 토건 건물 층 묶기와 같은 방식. 같은 글자 호수끼리 선정사례·요인 4개를 공유:
+  // 본건 묶기(A~E, 2026-11-09) — 토건 건물 층 묶기와 같은 방식. 같은 글자 호수끼리 선정사례·요인 4개·비교 의견을 공유:
   //   한 호를 고치면 묶음 전체가 같이 바뀜. 값 있는 묶음에 들어가면 그 값을 받아 오고, 빈 묶음이면 내 값이 묶음 값.
   //   묶음을 풀면 값은 그대로 남고 그 뒤로 따로 논다. 저장 = ov.units[].grp
-  const UNIT_GRP_KEYS=["appliedCaseId","appliedSymbol","extFactor","intFactor","hoFactor","etcFactor"];
+  const UNIT_GRP_KEYS=["appliedCaseId","appliedSymbol","extFactor","intFactor","hoFactor","etcFactor","factorNote"];   // factorNote(호별 비교 의견)도 공유 — 2026-11-09 후속
   const updUnitShared=(id,values)=>setOv(p=>{const us=p.units||[];const me=us.find(u=>u.id===id);const g=me&&me.grp;
     return {...p,units:us.map(u=>(u.id===id||(g&&u.grp===g))?{...u,...values}:u)};});
   const updUnit=(id,key,val)=>UNIT_GRP_KEYS.includes(key)?updUnitShared(id,{[key]:val}):setOv(p=>({...p,units:(p.units||[]).map(u=>u.id===id?{...u,[key]:val}:u)}));
@@ -7719,7 +7719,12 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             </tr>);
           })}
         </tbody></table></div>
-        <div style={{marginTop:12}}><b>호별 개별요인 비교 의견</b>{units.map((u,i)=><label key={u.id} style={{display:"flex",gap:8,marginTop:6,alignItems:"flex-start"}}><span style={{paddingTop:8,fontWeight:700}}>{HANGUL_SYMBOLS.charAt(i)||i+1}</span><textarea aria-label={`호별 비교 의견 ${i+1}`} style={{...S.ta,minHeight:92,flex:1,lineHeight:1.55}} value={u.factorNote||FACTOR_NOTE_DEFAULT} onChange={e=>updUnit(u.id,'factorNote',e.target.value)} placeholder={FACTOR_NOTE_DEFAULT}/></label>)}</div>
+        <div style={{marginTop:12}}><b>호별 개별요인 비교 의견</b>{units.map((u,i)=>{
+          // 묶음은 첫 호에서 한 칸만(「가·나·다·라」) — 고치면 묶음 전체에 저장
+          if(u.grp&&units.findIndex(x=>x.grp===u.grp)!==i)return null;
+          const lbl=u.grp?units.map((x,j)=>x.grp===u.grp?(HANGUL_SYMBOLS.charAt(j)||j+1):null).filter(v=>v!=null).join("·"):(HANGUL_SYMBOLS.charAt(i)||i+1);
+          const gc=UNIT_GRP_COLOR[u.grp];
+          return <label key={u.id} style={{display:"flex",gap:8,marginTop:6,alignItems:"flex-start"}}><span style={{paddingTop:8,fontWeight:700,width:units.some(x=>x.grp)?58:18,flexShrink:0,wordBreak:"keep-all",lineHeight:1.3,color:gc||undefined}}>{lbl}{u.grp&&<span style={{display:"block",fontSize:10,fontWeight:600}}>묶음 {u.grp}</span>}</span><textarea aria-label={`호별 비교 의견 ${i+1}`} style={{...S.ta,minHeight:92,flex:1,lineHeight:1.55}} value={u.factorNote||FACTOR_NOTE_DEFAULT} onChange={e=>updUnit(u.id,'factorNote',e.target.value)} placeholder={FACTOR_NOTE_DEFAULT}/></label>;})}</div>
         {!allReady&&<div style={{color:C.dng,marginTop:8}}>미입력 또는 0 이하인 면적·단가·시점수정치·비교치가 있어 전체 합계를 확정할 수 없습니다.</div>}
         {!hasAdj&&<div style={{marginTop:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산출단가/결정단가/총액이 계산되지 않습니다. 3. 사례 등 입력 탭에서 시점수정치를 입력하세요.</div>}
         <div style={{marginTop:6,fontSize:11,color:"#666"}}>
