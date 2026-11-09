@@ -5270,6 +5270,7 @@ function DragRow({children,index,onDrop,style}){
 // ── 왼쪽 사이드바: 대상물건 요약 ──
 const SYM=i=>"가나다라마바사아자차카타파하".charAt(i)||String(i+1);
 const FACTOR_NOTE_DEFAULT="- 외부요인:\n- 내부요인:\n- 호별요인:\n- 기타요인:";
+const UNIT_GRP_COLOR={A:"#dc2626",B:"#2563eb",C:"#16a34a",D:"#ea580c",E:"#7c3aed"};   // 여러 호수 본건 묶음 색(토건 건물 묶음과 같은 색)
 // 호별 탁상가격 합산 (② 상세물건정보 표의 units[].deskPrice 우선 → 옛 deskPrices → 단일 deskPrice 호환)
 const unitDeskList=(ov)=>(ov.units||[]).map((u,i)=>({symbol:SYM(i),price:u&&u.deskPrice,idx:i})).filter(d=>pNum(d.price));
 const getTotalDeskPrice=(ov)=>{
@@ -7483,12 +7484,22 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
   const updF=(id,key,val)=>{setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,[key]:val};nv.totalFactor=calcTF(nv);return nv;}));};
   const updN=(id,key,val)=>setCases(p=>p.map(c=>c.id===id?{...c,[key]:val}:c));
-  const updUnit=(id,key,val)=>setOv(p=>({...p,units:(p.units||[]).map(u=>u.id===id?{...u,[key]:val}:u)}));
+  // 본건 묶기(A~E, 2026-11-09) — 토건 건물 층 묶기와 같은 방식. 같은 글자 호수끼리 선정사례·요인 4개를 공유:
+  //   한 호를 고치면 묶음 전체가 같이 바뀜. 값 있는 묶음에 들어가면 그 값을 받아 오고, 빈 묶음이면 내 값이 묶음 값.
+  //   묶음을 풀면 값은 그대로 남고 그 뒤로 따로 논다. 저장 = ov.units[].grp
+  const UNIT_GRP_KEYS=["appliedCaseId","appliedSymbol","extFactor","intFactor","hoFactor","etcFactor"];
+  const updUnitShared=(id,values)=>setOv(p=>{const us=p.units||[];const me=us.find(u=>u.id===id);const g=me&&me.grp;
+    return {...p,units:us.map(u=>(u.id===id||(g&&u.grp===g))?{...u,...values}:u)};});
+  const updUnit=(id,key,val)=>UNIT_GRP_KEYS.includes(key)?updUnitShared(id,{[key]:val}):setOv(p=>({...p,units:(p.units||[]).map(u=>u.id===id?{...u,[key]:val}:u)}));
+  const setUnitGrp=(id,g)=>setOv(p=>{const us=p.units||[];const mate=g?us.find(u=>u.id!==id&&u.grp===g):null;
+    return {...p,units:us.map(u=>{if(u.id!==id)return u;const nu={...u,grp:g||""};
+      if(mate)UNIT_GRP_KEYS.forEach(k=>{if(mate[k]===undefined)delete nu[k];else nu[k]=mate[k];});
+      return nu;})};});
   const selectUnitCase=(unitId,caseId)=>{
     const chosen=cases.find(c=>String(c.id)===caseId);
     if(!chosen)return;
     setCases(p=>p.map(c=>c.id===chosen.id?{...c,isSelected:true,isShown:true}:c));
-    setOv(p=>({...p,units:(p.units||[]).map(u=>u.id===unitId?{...u,appliedCaseId:chosen.id,appliedSymbol:String(chosen.symbol)}:u)}));
+    updUnitShared(unitId,{appliedCaseId:chosen.id,appliedSymbol:String(chosen.symbol)});
   };
 
   const area=getEffArea(ov);const rawArea=pNum(ov.area);const isAdj=ov.areaOption==="share"||ov.areaOption==="areaAdj";const uv=getUV(uD);const tv=getUV(tD);
@@ -7661,6 +7672,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
           <th style={S.th}>구분</th>
           <th style={S.th}>본건</th>
+          <th style={S.th} title="같은 글자를 고른 호수끼리 선정사례·요인을 같이 씁니다(한 호를 고치면 묶음 전체가 바뀜)">묶음</th>
           <th style={S.th}>선정사례</th>
           <th style={S.th}>시점수정치</th>
           <th style={S.th}>외부요인</th>
@@ -7677,9 +7689,16 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             const sym=HANGUL_SYMBOLS.charAt(i)||String(i+1);
             const r=calcRow(u);
             const curCaseId=r.appC?.id??"";
+            const gc=UNIT_GRP_COLOR[u.grp];
             return(<tr key={u.id}>
-              <td style={S.td}>{i+1}</td>
-              <td style={{...S.td,fontWeight:700}}>({sym})</td>
+              <td style={{...S.td,...(gc?{boxShadow:`inset 4px 0 0 ${gc}`}:{})}}>{i+1}</td>
+              <td style={{...S.td,fontWeight:700,whiteSpace:"nowrap"}}>({sym})<span style={{marginLeft:6,fontWeight:500,fontSize:11,color:"#475569"}}>{u.ho?`${u.dong?u.dong+"동 ":""}${u.ho}호`:(u.floor?`${u.floor}층`:"")}</span></td>
+              <td style={S.td}>
+                <select aria-label={`묶음 ${sym}`} value={u.grp||""} onChange={e=>setUnitGrp(u.id,e.target.value)} style={{...S.sel2,padding:"2px 4px",fontSize:11,width:48,fontWeight:700,color:gc||"#94a3b8"}}>
+                  <option value="">-</option>
+                  {Object.keys(UNIT_GRP_COLOR).map(k=><option key={k} value={k}>{k}</option>)}
+                </select>
+              </td>
               <td style={S.td}>
                 <select aria-label={`적용 사례 ${sym}`} value={String(curCaseId)} onChange={e=>selectUnitCase(u.id,e.target.value)} style={{...S.sel2,padding:"2px 4px",fontSize:11,maxWidth:210}}>
                   <option value="" disabled>사례 선택</option>
