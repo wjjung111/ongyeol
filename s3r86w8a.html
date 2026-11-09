@@ -4228,24 +4228,25 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           return ck.ok?<div style={{color:"#16a34a"}}>붙여넣은 계산서 = 자동 계산과 같음 ✓</div>:<div style={{color:"#dc2626",fontWeight:600}}>⚠ 붙여넣은 계산서가 자동 계산과 다릅니다: {ck.diffs.map(k=>k.replace("수수료","")+" "+fmt(ck.site[k])+" ↔ 자동 "+fmt(ck.auto[k])).join(", ")}</div>;})()}
       </div>
       <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeTextRaw} onChange={e=>setFeeText(e.target.value)} placeholder={"(선택) 수수료 사이트 계산서1을 붙여넣으면 그 값을 씁니다 — 비워 두면 감정평가액으로 자동 계산"}/>
-      {/* 수수료 요율 / 특별용역비 방식 — 집합건물 고유 컨트롤 */}
-      <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
+      {/* 수수료 요율 / 특수평가 할증 / 지분평가 할증 / 특별용역비 방식 — 「이름표 | 칸」 2열로 줄 맞춤(2026-11-09) */}
+      <div style={{display:"grid",gridTemplateColumns:"104px minmax(0,220px)",gap:"6px 10px",alignItems:"center",marginTop:8}}>
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
-        <select style={{...S.sel2,width:96}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
+        <select style={{...S.sel2,width:"100%"}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
-        <select style={{...S.sel2,width:150,...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
+        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특수평가 할증</span>
+        <select style={{...S.sel2,width:"100%",...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
           {FEE_SUR_REASONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
         </select>
-        {ov.areaOption==="share"&&<><span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>지분평가 할증</span>
-        <select style={{...S.sel2,width:80,...(feeMulOf(ov.feeMul)!==1?{color:"#2563eb",fontWeight:700}:{})}} value={String(feeMulOf(ov.feeMul))} onChange={e=>setOv(p=>({...p,feeMul:e.target.value==="1"?"":e.target.value}))} title="지분평가 시 평가수수료 배수 (요율 수수료 × 배수, 천원 미만 절사). 특별용역비를 차액 방식으로 계산할 때도 같은 배수가 적용됩니다.">
+        {ov.areaOption==="share"&&<><span style={{fontSize:12,fontWeight:600,color:"#555"}}>지분평가 할증</span>
+        <select style={{...S.sel2,width:"100%",...(feeMulOf(ov.feeMul)!==1?{color:"#2563eb",fontWeight:700}:{})}} value={String(feeMulOf(ov.feeMul))} onChange={e=>setOv(p=>({...p,feeMul:e.target.value==="1"?"":e.target.value}))} title="지분평가 시 평가수수료 배수 (요율 수수료 × 배수, 천원 미만 절사). 특별용역비를 차액 방식으로 계산할 때도 같은 배수가 적용됩니다.">
           {["1","1.1","1.5"].map(o=><option key={o} value={o}>{o==="1"?"할증 없음":"×"+o+"배"}</option>)}
         </select></>}
-        <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>특별용역비 방식</span>
-        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
+        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특별용역비 방식</span>
+        <select style={{...S.sel2,width:"100%"}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
           {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
         </select>
-        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>{feeTextRaw.trim()?"✅ 붙여넣은 계산서 사용":"✅ 평가수수료 자동 계산"}</span>:<span style={{fontSize:11,color:"#999"}}>감정평가액이 정해지면 평가수수료 자동 계산</span>;})()}
+        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{gridColumn:"1 / -1",fontSize:11,color:"#16a34a"}}>{feeTextRaw.trim()?"✅ 붙여넣은 계산서 사용":"✅ 평가수수료 자동 계산"}</span>:<span style={{gridColumn:"1 / -1",fontSize:11,color:"#999"}}>감정평가액이 정해지면 평가수수료 자동 계산</span>;})()}
       </div>
       {(()=>{
         const fee=parseFeeStatement(feeText);
@@ -7772,20 +7773,21 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           return ck.ok?<div style={{color:"#16a34a"}}>붙여넣은 계산서 = 자동 계산과 같음 ✓</div>:<div style={{color:"#dc2626",fontWeight:600}}>⚠ 붙여넣은 계산서가 자동 계산과 다릅니다: {ck.diffs.map(k=>k.replace("수수료","")+" "+fmt(ck.site[k])+" ↔ 자동 "+fmt(ck.auto[k])).join(", ")}</div>;})()}
       </div>
       <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeTextRaw} onChange={e=>setFeeText(e.target.value)} placeholder={"(선택) 수수료 사이트 계산서1을 붙여넣으면 그 값을 씁니다 — 비워 두면 감정평가액으로 자동 계산"}/>
-      {/* 수수료 요율 / 특별용역비 방식 — 집합건물 고유 컨트롤 */}
-      <div style={{display:"flex",gap:10,alignItems:"center",marginTop:8,flexWrap:"wrap"}}>
+      {/* 수수료 요율 / 특수평가 할증 / 지분평가 할증 / 특별용역비 방식 — 「이름표 | 칸」 2열로 줄 맞춤(2026-11-09) */}
+      <div style={{display:"grid",gridTemplateColumns:"104px minmax(0,220px)",gap:"6px 10px",alignItems:"center",marginTop:8}}>
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
-        <select style={{...S.sel2,width:96}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
+        <select style={{...S.sel2,width:"100%"}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
-        <select style={{...S.sel2,width:150,...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
+        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특수평가 할증</span>
+        <select style={{...S.sel2,width:"100%",...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
           {FEE_SUR_REASONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
         </select>
-        <span style={{fontSize:12,fontWeight:600,color:"#555",marginLeft:6}}>특별용역비 방식</span>
-        <select style={{...S.sel2,width:100}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
+        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특별용역비 방식</span>
+        <select style={{...S.sel2,width:"100%"}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
           {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
         </select>
-        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{fontSize:11,color:"#16a34a"}}>{feeTextRaw.trim()?"✅ 붙여넣은 계산서 사용":"✅ 평가수수료 자동 계산"}</span>:<span style={{fontSize:11,color:"#999"}}>감정평가액이 정해지면 평가수수료 자동 계산</span>;})()}
+        {(()=>{const fee=parseFeeStatement(feeText);return fee.하한수수료?<span style={{gridColumn:"1 / -1",fontSize:11,color:"#16a34a"}}>{feeTextRaw.trim()?"✅ 붙여넣은 계산서 사용":"✅ 평가수수료 자동 계산"}</span>:<span style={{gridColumn:"1 / -1",fontSize:11,color:"#999"}}>감정평가액이 정해지면 평가수수료 자동 계산</span>;})()}
       </div>
       {(()=>{
         const fee=parseFeeStatement(feeText);
