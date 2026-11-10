@@ -28,7 +28,7 @@ const xml=s=>{const d=new DOMParser().parseFromString(s,'application/xml');if(d.
 const serial=d=>new XMLSerializer().serializeToString(d);
 const visible=n=>all(n,'t').map(x=>x.textContent).join('');
 function caseValues(c,idx,parse,ov){
- c=c||{};const t=parse(c.timeAdjDetail||'',c.tradeDate,ov.baseDate),kind=t.유형||(/오피스텔/.test(c.aptName+' '+ov.kind)?'오피스텔':ov.kind||'');
+ c=c||{};const t=parse(c.timeAdjDetail||'',c.tradeDate,ov.baseDate,c.timeAdj),kind=t.유형||(/오피스텔/.test(c.aptName+' '+ov.kind)?'오피스텔':ov.kind||'');
  return {'선정_기호':c.symbol!=null?'#'+c.symbol:'','선정_법정동':c.location||'','선정_지번':c.jibun||'','선정_건물명':c.aptName||'','선정_동층호':[c.dong,c.floor,c.ho].some(v=>!blank(v))?[c.dong,c.floor,c.ho].map(text).join('/'):'','선정_전유면적':fmt(num(c.exclusiveArea)),'선정_가격':fmt(num(c.price)),'선정_단가':fmt(num(c.unitPrice)),'선정_거래시점':c.tradeDate||'','선정_승인일':c.approvalDate||'',
  '시점수정_용도':kind,'지수출처':kind==='오피스텔'?'한국부동산원 오피스텔 가격동향조사':'한국부동산원 전국주택가격동향조사','지수기준월':idx?.tables?.[kind]?.baseMonth||'',
  '거래지수기간':t.거래지수기간,'기준지수기간':t.기준지수기간,'거래지수값':t.거래지수값,'기준지수값':t.기준지수값,'지수지역':t.지역,'시점수정산식':t.시점수정산식||c.timeAdjDetail||'','상승률':c.timeAdj?((Number(c.timeAdj)-1)*100).toFixed(3):'','적용_시점수정':c.timeAdj?Number(c.timeAdj).toFixed(5):''};
