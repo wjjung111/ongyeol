@@ -37,11 +37,11 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
       await scope.getByText('3. 사례 등 입력',{exact:true}).click({timeout:60000});
-      const cell=scope.getByLabel('거래사례 #1 시점수정 단가').locator('xpath=preceding-sibling::td[1]');await cell.click();
+      const cell=scope.getByLabel('거래사례 #1 시점수정 창',{exact:true});await cell.click();   // 시점수정치 칸은 입력칸 — 창은 🧮(2026-11-09)
       assert.equal(await page.locator('[data-region]').getAttribute('data-region'),'강남구');
       const v=await checkModal(page,'2025.03.10','2026.08.01','집건 '+mode+' ③');
       await page.click('button:text-is("적용")');await page.waitForSelector('button:text-is("시점수정치 계산")',{state:'detached'});
-      assert.match(await cell.textContent(),new RegExp(v.replace('.','\\.')),mode+' 적용 → 사례 칸');
+      assert.match(await scope.getByLabel('거래사례 #1 시점수정치',{exact:true}).inputValue(),new RegExp(v.replace('.','\\.')),mode+' 적용 → 사례 칸');
       assert.deepEqual(errors,[]);await ctx.close();console.log('집건',mode,'OK');
     }
     {const {ctx,page,errors}=await newPage(()=>{localStorage.setItem('arap-user-name','wdw');});
