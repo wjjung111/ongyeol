@@ -81,14 +81,15 @@
     body.rsz-dragging{cursor:col-resize;user-select:none;-webkit-user-select:none;}
     body.rsz-dragging *{cursor:col-resize!important;}
     /* ④ 가격산출 2단 — 사례 선택·가치형성요인·시산가액(왼쪽) | 청구서(오른쪽). 본문 폭이 모자라면 한 줄로 쌓는다(사이드바·메모를 접고 펴도 본문 폭 기준으로 반응).
-       단일호수 1300px 미만 / 여러호수 1460px 미만(적용단가 표가 약 980px 필요)에서 한 줄. 단일호수는 청구서가 스크롤해도 따라온다(sticky) — 여러호수는 페이지 전체가 스크롤되는 구조라 sticky 없이 같이 스크롤 */
+       단일호수 1300px 미만 / 여러호수 1780px 미만(청구서 460px 고정, 적용단가 표가 약 1300px 필요 — 2026-11-10 본건 면적·사례 지번/건물명/호/면적 열 추가)에서 한 줄. 단일호수는 청구서가 스크롤해도 따라온다(sticky) — 여러호수는 페이지 전체가 스크롤되는 구조라 sticky 없이 같이 스크롤 */
     .k4-wrap{container-type:inline-size;}
     .k4-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(440px,30%);gap:12px;align-items:start;}
     .k4-left,.k4-right{min-width:0;}
     .k4-right{position:sticky;top:0;max-height:calc(100vh - 80px);overflow-y:auto;}
     .k4-multi .k4-right{position:static;max-height:none;overflow:visible;}
     @container (max-width:1299px){.k4-split{grid-template-columns:minmax(0,1fr);}.k4-right{position:static;max-height:none;overflow:visible;}}
-    @container (max-width:1459px){.k4-multi .k4-split{grid-template-columns:minmax(0,1fr);}}
+    .k4-multi .k4-split{grid-template-columns:minmax(0,1fr) 460px;}   /* 여러호수: 청구서 폭 고정 — 적용단가 표(~1300px)에 자리를 더 준다 */
+    @container (max-width:1779px){.k4-multi .k4-split{grid-template-columns:minmax(0,1fr);}}
     table.rsz-on td{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:3px!important;padding-right:3px!important;}   /* 자동 너비는 글자 폭에 딱 맞춰져 있어 고정 뒤 소수점 이하 차이로 '…'가 뜨지 않게 좌우 여백을 줄여 여유를 둔다 */
   </style>
   <script>
@@ -824,6 +825,20 @@ Z.prototype.chain=tf,Z.prototype.commit=rf,Z.prototype.next=ef,Z.prototype.plant
 // ── Helpers ──
 const fmt=n=>n==null||isNaN(n)?"-":Number(n).toLocaleString("ko-KR");
 const fmtDec=(n,d=5)=>n==null||isNaN(n)?"-":Number(n).toFixed(d);
+// 적용단가 표의 선정사례 칸(지번·건물명·호·면적) — 지번은 소재지 끝 동·리 + 지번, 전체 소재지는 마우스 올리면(2026-11-10)
+const caseJibun=c=>{if(!c)return"";const loc=String(c.location||"").trim().split(/\s+/).filter(Boolean);return[loc[loc.length-1]||"",c.jibun||""].filter(Boolean).join(" ");};
+const caseHoText=c=>!c?"":c.ho?`${c.dong?c.dong+"동 ":""}${c.ho}호`:(c.floor?`${c.floor}층`:"");
+const caseAreaText=c=>{const n=Number(String(c?.exclusiveArea??"").replace(/,/g,""));return c&&String(c.exclusiveArea??"").trim()!==""&&isFinite(n)?n.toFixed(2):"";};
+const caseOptLabel=c=>["#"+c.symbol,caseJibun(c),c.aptName,caseHoText(c),caseAreaText(c)?caseAreaText(c)+"㎡":""].filter(Boolean).join(" · ");
+function CaseInfoCells({c}){
+  const td={...S.td,whiteSpace:"nowrap"};
+  return <>
+    <td style={td} title={c?[c.location,c.jibun].filter(Boolean).join(" "):undefined}>{caseJibun(c)||"-"}</td>
+    <td style={{...td,whiteSpace:"normal",minWidth:90,maxWidth:160,wordBreak:"keep-all"}}>{c?.aptName||"-"}</td>
+    <td style={td}>{caseHoText(c)||"-"}</td>
+    <td style={td}>{caseAreaText(c)||"-"}</td>
+  </>;
+}
 const fmtDec2=n=>n==null||isNaN(n)?"-":Number(n).toFixed(2);
 const fmtDec3=n=>n==null||isNaN(n)?"-":Number(n).toFixed(3);
 // 을/를 조사 자동선택: 숫자 끝자리 받침 유무
@@ -4206,10 +4221,13 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     {/* 비주거용 시점수정: 주거용과 동일하게 사례별 시점수정치 모달(자본수익률 자동계산)로 통일 — 별도 카드 삭제(2026-07-20) */}
 
     {selTA.length>0&&(<div style={S.card}><div style={S.h2}>적용단가</div>
+      {/* 본건 면적 · 선정사례 기호/지번/건물명/호/면적 같이 표시(2026-11-10) — 2단 머리글 */}
       <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
-        <th style={S.th}>기호</th><th style={S.th}>사례</th><th style={S.th}>사례단가</th><th style={S.th}>사정보정</th><th style={S.th}>시점수정</th><th style={S.th}>가형요</th><th style={S.th}>산출단가</th><th style={S.th}>결정단가</th>
+        <th style={S.th} colSpan={3}>본건</th><th style={S.th} colSpan={5}>선정사례</th><th style={S.th} rowSpan={2}>사례단가</th><th style={S.th} rowSpan={2}>사정보정</th><th style={S.th} rowSpan={2}>시점수정</th><th style={S.th} rowSpan={2}>가형요</th><th style={S.th} rowSpan={2}>산출단가</th><th style={S.th} rowSpan={2}>결정단가</th>
+      </tr><tr>
+        <th style={S.th}>기호</th><th style={S.th}>호</th><th style={S.th}>{isAdj?"사정면적(㎡)":"면적(㎡)"}</th><th style={S.th}>기호</th><th style={S.th}>지번</th><th style={S.th}>건물명</th><th style={S.th}>호</th><th style={S.th}>면적(㎡)</th>
       </tr></thead><tbody>
-        {comp.map(c=>(<tr key={c.id}><td style={{...S.td,fontWeight:700}}>가</td><td style={S.td}>#{c.symbol}</td><td style={S.tdR}>{fmt(c.unitPrice)}</td><td style={S.tdR}>1.000</td><td style={S.tdR}>{fmtDec(c.timeAdj,5)}</td><td style={S.tdR}>{fmtDec3(c.totalFactor||1)}</td><td style={{...S.tdR,fontWeight:600}}>{fmt(Math.round(c.rawU))}</td><td style={{...S.tdR,fontWeight:700,color:C.acc}}>{fmt(c.rndU)}</td></tr>))}
+        {comp.map(c=>(<tr key={c.id}><td style={{...S.td,fontWeight:700}}>가</td><td style={{...S.td,whiteSpace:"nowrap"}}>{ov.ho?`${ov.dong?ov.dong+"동 ":""}${ov.ho}호`:(ov.floor?`${ov.floor}층`:"-")}</td><td style={{...S.tdR,whiteSpace:"nowrap"}}>{area>0?fmtDec(area,2):"-"}</td><td style={{...S.td,fontWeight:700}}>#{c.symbol}</td><CaseInfoCells c={c}/><td style={S.tdR}>{fmt(c.unitPrice)}</td><td style={S.tdR}>1.000</td><td style={S.tdR}>{fmtDec(c.timeAdj,5)}</td><td style={S.tdR}>{fmtDec3(c.totalFactor||1)}</td><td style={{...S.tdR,fontWeight:600}}>{fmt(Math.round(c.rawU))}</td><td style={{...S.tdR,fontWeight:700,color:C.acc}}>{fmt(c.rndU)}</td></tr>))}
       </tbody></table></div>
       <RndSel dU={uD} setDU={setUD} mth={uM} setMth={setUM} label="결정단가 처리"/>
       <div style={{marginTop:4,fontSize:11,color:"#666"}}>{uM==="none"?"※ 산출단가를 그대로 결정단가로 적용":`※ ${uD}단위에서 ${uMl}하여 산정`}</div>
@@ -4907,6 +4925,20 @@ function App(){
 // ── Helpers ──
 const fmt=n=>n==null||isNaN(n)?"-":Number(n).toLocaleString("ko-KR");
 const fmtDec=(n,d=5)=>n==null||isNaN(n)?"-":Number(n).toFixed(d);
+// 적용단가 표의 선정사례 칸(지번·건물명·호·면적) — 지번은 소재지 끝 동·리 + 지번, 전체 소재지는 마우스 올리면(2026-11-10)
+const caseJibun=c=>{if(!c)return"";const loc=String(c.location||"").trim().split(/\s+/).filter(Boolean);return[loc[loc.length-1]||"",c.jibun||""].filter(Boolean).join(" ");};
+const caseHoText=c=>!c?"":c.ho?`${c.dong?c.dong+"동 ":""}${c.ho}호`:(c.floor?`${c.floor}층`:"");
+const caseAreaText=c=>{const n=Number(String(c?.exclusiveArea??"").replace(/,/g,""));return c&&String(c.exclusiveArea??"").trim()!==""&&isFinite(n)?n.toFixed(2):"";};
+const caseOptLabel=c=>["#"+c.symbol,caseJibun(c),c.aptName,caseHoText(c),caseAreaText(c)?caseAreaText(c)+"㎡":""].filter(Boolean).join(" · ");
+function CaseInfoCells({c}){
+  const td={...S.td,whiteSpace:"nowrap"};
+  return <>
+    <td style={td} title={c?[c.location,c.jibun].filter(Boolean).join(" "):undefined}>{caseJibun(c)||"-"}</td>
+    <td style={{...td,whiteSpace:"normal",minWidth:90,maxWidth:160,wordBreak:"keep-all"}}>{c?.aptName||"-"}</td>
+    <td style={td}>{caseHoText(c)||"-"}</td>
+    <td style={td}>{caseAreaText(c)||"-"}</td>
+  </>;
+}
 const fmtDec2=n=>n==null||isNaN(n)?"-":Number(n).toFixed(2);
 const fmtDec3=n=>n==null||isNaN(n)?"-":Number(n).toFixed(3);
 // 을/를 조사 자동선택: 숫자 끝자리 받침 유무
@@ -7718,21 +7750,30 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             ))}
           </div>
         </div>
+        {/* 본건 면적 · 선정사례 기호/지번/건물명/호/면적 같이 표시(2026-11-10) — 2단 머리글 */}
         <div style={{overflowX:"auto"}}><table style={S.tbl}><thead><tr>
-          <th style={S.th}>구분</th>
-          <th style={S.th}>본건</th>
-          <th style={S.th} title="같은 글자를 고른 호수끼리 선정사례·요인을 같이 씁니다(한 호를 고치면 묶음 전체가 바뀜)">묶음</th>
-          <th style={S.th}>선정사례</th>
-          <th style={S.th}>시점수정치</th>
-          <th style={S.th}>외부요인</th>
-          <th style={S.th}>내부요인</th>
-          <th style={S.th}>호별요인</th>
-          <th style={S.th}>기타요인</th>
-          <th style={S.th}>계</th>
-          <th style={S.th}>산출단가</th>
-          <th style={S.th}>결정단가</th>
-          <th style={S.th}>산출금액</th>
-          <th style={S.th}>감정평가액</th>
+          <th style={S.th} rowSpan={2}>구분</th>
+          <th style={S.th} colSpan={2}>본건</th>
+          <th style={S.th} rowSpan={2} title="같은 글자를 고른 호수끼리 선정사례·요인을 같이 씁니다(한 호를 고치면 묶음 전체가 바뀜)">묶음</th>
+          <th style={S.th} colSpan={5}>선정사례</th>
+          <th style={S.th} rowSpan={2}>시점수정치</th>
+          <th style={S.th} rowSpan={2}>외부요인</th>
+          <th style={S.th} rowSpan={2}>내부요인</th>
+          <th style={S.th} rowSpan={2}>호별요인</th>
+          <th style={S.th} rowSpan={2}>기타요인</th>
+          <th style={S.th} rowSpan={2}>계</th>
+          <th style={S.th} rowSpan={2}>산출단가</th>
+          <th style={S.th} rowSpan={2}>결정단가</th>
+          <th style={S.th} rowSpan={2}>산출금액</th>
+          <th style={S.th} rowSpan={2}>감정평가액</th>
+        </tr><tr>
+          <th style={S.th}>기호·호</th>
+          <th style={S.th}>면적(㎡)</th>
+          <th style={S.th}>기호</th>
+          <th style={S.th}>지번</th>
+          <th style={S.th}>건물명</th>
+          <th style={S.th}>호</th>
+          <th style={S.th}>면적(㎡)</th>
         </tr></thead><tbody>
           {units.map((u,i)=>{
             const sym=HANGUL_SYMBOLS.charAt(i)||String(i+1);
@@ -7742,6 +7783,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             return(<tr key={u.id}>
               <td style={{...S.td,...(gc?{boxShadow:`inset 4px 0 0 ${gc}`}:{})}}>{i+1}</td>
               <td style={{...S.td,fontWeight:700,whiteSpace:"nowrap"}}>({sym})<span style={{marginLeft:6,fontWeight:500,fontSize:11,color:"#475569"}}>{u.ho?`${u.dong?u.dong+"동 ":""}${u.ho}호`:(u.floor?`${u.floor}층`:"")}</span></td>
+              <td style={{...S.tdR,whiteSpace:"nowrap"}} title={r.ua!=null&&pNum(u.area)!==r.ua?`전유 ${u.area}㎡ → 사정 ${r.ua}㎡`:undefined}>{r.ua!=null?fmtDec(r.ua,2):"-"}</td>
               <td style={S.td}>
                 <select aria-label={`묶음 ${sym}`} value={u.grp||""} onChange={e=>setUnitGrp(u.id,e.target.value)} style={{...S.sel2,padding:"2px 4px",fontSize:11,width:48,fontWeight:700,color:gc||"#94a3b8"}}>
                   <option value="">-</option>
@@ -7749,11 +7791,16 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
                 </select>
               </td>
               <td style={S.td}>
-                <select aria-label={`적용 사례 ${sym}`} value={String(curCaseId)} onChange={e=>selectUnitCase(u.id,e.target.value)} style={{...S.sel2,padding:"2px 4px",fontSize:11,maxWidth:210}}>
-                  <option value="" disabled>사례 선택</option>
-                  {cases.map(c=><option key={c.id} value={String(c.id)}>#{c.symbol} · {c.aptName||c.location||"사례"}{c.ho?` ${c.ho}호`:""}</option>)}
-                </select>
+                {/* 닫힌 칸엔 「#17」만, 펼치면 지번·건물명·호·면적까지 — 보이는 글자 위에 투명한 select를 겹침 */}
+                <div style={{position:"relative",display:"inline-flex",alignItems:"center",gap:4,...S.sel2,padding:"2px 6px",fontSize:12,fontWeight:700,minWidth:48,justifyContent:"space-between"}} title="눌러서 사례 바꾸기 — 지번·건물명·호·면적은 오른쪽 칸에">
+                  <span>{r.appC?`#${r.appC.symbol}`:"선택"}</span><span style={{fontSize:9,color:"#64748b"}}>▼</span>
+                  <select aria-label={`적용 사례 ${sym}`} value={String(curCaseId)} onChange={e=>selectUnitCase(u.id,e.target.value)} style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0,cursor:"pointer",fontSize:12}}>
+                    <option value="" disabled>사례 선택</option>
+                    {cases.map(c=><option key={c.id} value={String(c.id)}>{caseOptLabel(c)}</option>)}
+                  </select>
+                </div>
               </td>
+              <CaseInfoCells c={r.appC}/>
               <td style={S.tdR}>{r.appC?.timeAdj?fmtDec(r.appC.timeAdj,5):"-"}</td>
               <td style={S.td}><FactorInput value={r.ext} onChange={v=>updUnit(u.id,'extFactor',v)}/></td>
               <td style={S.td}><FactorInput value={r.intF} onChange={v=>updUnit(u.id,'intFactor',v)}/></td>

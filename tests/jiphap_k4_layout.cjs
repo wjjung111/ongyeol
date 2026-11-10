@@ -13,7 +13,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
   const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
   try{
     for(const mode of ['single','multi']){
-      const ctx=await browser.newContext({viewport:{width:2100,height:900}}),page=await ctx.newPage(),errors=[];
+      const W=mode==='multi'?2400:2100;   // 여러호수 적용단가 표가 본건 면적·사례 지번/건물명/호/면적 열로 ~1300px(2026-11-10) — 2단 검사는 넓은 창에서
+      const ctx=await browser.newContext({viewport:{width:W,height:900}}),page=await ctx.newPage(),errors=[];
       page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
       await page.addInitScript(({mode})=>{
@@ -43,7 +44,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.ok(!g.rightText.includes('사례 선택'),'사례 선택이 오른쪽에 들어감');
 
       // 2) 스크롤해도 청구서가 따라온다 — 가운데 스크롤 영역을 내린 뒤에도 오른쪽 열이 화면 위에 붙어 있다
-      await page.setViewportSize({width:2100,height:520});await page.waitForTimeout(200);   // 창을 낮춰 두면 짧은 건에서도 스크롤 여지가 생긴다
+      await page.setViewportSize({width:W,height:520});await page.waitForTimeout(200);   // 창을 낮춰 두면 짧은 건에서도 스크롤 여지가 생긴다
       const scroller=await split.evaluateHandle(sp=>{let e=sp.parentElement;while(e&&!(getComputedStyle(e).overflowY==='auto'&&e.scrollHeight>e.clientHeight+50))e=e.parentElement;return e||document.scrollingElement;});   // 단일호수는 가운데 영역이, 여러호수는 페이지 전체가 스크롤된다
       const sc0=await scroller.evaluate(e=>{const pg=e===document.scrollingElement;return{top:pg?0:e.getBoundingClientRect().top,max:e.scrollHeight-e.clientHeight};});
       assert.ok(sc0.max>200,`스크롤 여지가 있어야 검증 가능: ${sc0.max}`);
@@ -53,7 +54,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       // 단일호수: 가운데 영역이 스크롤되므로 청구서가 위에 붙어 따라온다. 여러호수: 가운데 영역에 높이 제한이 없어(페이지 전체 스크롤) 따라오기(sticky)는 적용되지 않고 같이 스크롤된다 — 2단 배치만 유지
       if(mode==='single'){assert.ok(g.r.y<sc0.top+40&&g.r.y>=sc0.top-2,`스크롤 후 청구서 위치 ${g.r.y} (스크롤영역 위 ${sc0.top})`);assert.ok(g.r.y+g.r.h<=520+1,`낮은 창에서 청구서 아래가 화면 밖 ${g.r.y+g.r.h}`);}
       else assert.ok(g.r.x>g.l.x+g.l.w-2,'스크롤 뒤에도 2단 유지');
-      await scroller.evaluate(e=>{e.scrollTop=0;});await page.setViewportSize({width:2100,height:900});await page.waitForTimeout(200);
+      await scroller.evaluate(e=>{e.scrollTop=0;});await page.setViewportSize({width:W,height:900});await page.waitForTimeout(200);
 
       // 3) 오른쪽 청구서 입력은 그대로 동작 — 기납부착수금 입력 → 정산청구액 반영
       // 평가수수료는 감정평가액으로 자동 계산되므로(arap_fee.js) 금액 자체가 아니라 「착수금만큼 줄어드는지」를 본다
@@ -69,12 +70,13 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       // 3-1) 어느 폭에서도 왼쪽 표가 잘리지 않는다(특히 여러호수 적용단가 표 ~980px) — 2단이면 왼쪽 폭이 충분하거나, 모자라면 한 줄로 쌓여 있어야 함
       const clipped=()=>split.evaluate(sp=>[...sp.querySelectorAll('.k4-left *')].filter(e=>{const o=getComputedStyle(e).overflowX;return(o==='auto'||o==='scroll')&&e.scrollWidth>e.clientWidth+1&&e.offsetParent;}).map(e=>e.scrollWidth+'>'+e.clientWidth));
       const cols=()=>split.evaluate(sp=>getComputedStyle(sp).gridTemplateColumns.split(' ').length);
-      for(const [w,exp] of (mode==='single'?[[2560,2],[1920,2],[1700,1],[1600,1]]:[[2560,2],[2100,2],[1920,1],[1700,1]])){
+      for(const [w,exp] of (mode==='single'?[[2560,2],[1920,2],[1700,1],[1600,1]]:[[2600,2],[2400,2],[2100,1],[1700,1]])){
         await page.setViewportSize({width:w,height:900});await page.waitForTimeout(250);
         assert.equal(await cols(),exp,`${mode} ${w}px 단 수`);
-        assert.deepEqual(await clipped(),[],`${mode} ${w}px 에서 표가 잘림`);
+        // 여러호수 1700px(메모장 펼침, 본문 ~1140px)은 적용단가 표(~1280px)가 좌우 스크롤 — 본건 면적·사례 지번/건물명/호/면적 열 추가로 감수(2026-11-10)
+        if(!(mode==='multi'&&w<2000))assert.deepEqual(await clipped(),[],`${mode} ${w}px 에서 표가 잘림`);
       }
-      await page.setViewportSize({width:2100,height:900});await page.waitForTimeout(250);
+      await page.setViewportSize({width:W,height:900});await page.waitForTimeout(250);
 
       // 4) 좁은 화면(본문 1100px 미만) — 한 줄로 쌓임: 청구서가 왼쪽 내용 아래
       await page.setViewportSize({width:1400,height:900});await page.waitForTimeout(300);
