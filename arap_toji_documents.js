@@ -298,17 +298,25 @@ async function gwalOutRow(b64){
     var d=xml(dec.decode(e.data));
     var tr=Array.from(d.getElementsByTagNameNS('*','tr')).find(function(t){return t.textContent.indexOf('{{괄_토지_')>=0;});
     if(!tr)return;
-    var tbl=tr.parentNode,c=tr.cloneNode(true),h=0;
+    var tbl=tr.parentNode,c=tr.cloneNode(true);
     Array.from(c.getElementsByTagNameNS('*','t')).forEach(function(t){
       if(t.textContent.trim()==='토지')t.textContent='';
       else if(t.textContent.indexOf('{{괄_토지_')>=0)t.textContent=t.textContent.split('{{괄_토지_').join('{{괄_토지외_');});
     Array.from(c.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){n.remove();});
-    kids(c,'tc').forEach(function(tc){var sz=kids(tc,'cellSz')[0],sp=kids(tc,'cellSpan')[0];
-      var rs=sp?Number(sp.getAttribute('rowSpan'))||1:1;if(sz)h=Math.max(h,Number(sz.getAttribute('height'))/rs);});
+    // 표 전체 높이는 그대로 둔다 — 늘리면 심사자 (인)이 내려가 미리 서명해 둔 종이와 어긋난다(2026-11-10 박찬희 양식 교체).
+    // 그래서 평가내역 줄(토지·감정평가 외·건물) 세 줄이 원래 두 줄 높이를 나눠 쓴다(줄마다 2/3).
+    var at=kids(tbl,'tr').indexOf(tr);
+    kids(tbl,'tr').forEach(function(r){kids(r,'tc').forEach(function(tc){   // 끼우는 자리를 덮는 세로 병합 칸(「평가내역」)은 한 줄 더 덮게
+      var ad=kids(tc,'cellAddr')[0],sp=kids(tc,'cellSpan')[0];if(!ad||!sp)return;
+      var r0=Number(ad.getAttribute('rowAddr')),rs=Number(sp.getAttribute('rowSpan'))||1;
+      if(rs>1&&r0<=at&&r0+rs-1>at)sp.setAttribute('rowSpan',String(rs+1));});});
     tbl.insertBefore(c,tr.nextSibling);
+    kids(tbl,'tr').forEach(function(r){
+      if(!/\{\{괄_(토지|토지외|건물)_/.test(r.textContent))return;
+      kids(r,'tc').forEach(function(tc){var sz=kids(tc,'cellSz')[0],sp=kids(tc,'cellSpan')[0];
+        if(sz&&!(sp&&Number(sp.getAttribute('rowSpan'))>1))sz.setAttribute('height',String(Math.round(Number(sz.getAttribute('height'))*2/3)));});});
     kids(tbl,'tr').forEach(function(r,i){kids(r,'tc').forEach(function(tc){var ad=kids(tc,'cellAddr')[0];if(ad)ad.setAttribute('rowAddr',String(i));});});
     tbl.setAttribute('rowCnt',String(kids(tbl,'tr').length));
-    var sz=kids(tbl,'sz')[0];if(sz&&h)sz.setAttribute('height',String(Math.round(Number(sz.getAttribute('height'))+h)));
     var p=tbl.parentNode;while(p&&p.localName!=='p')p=p.parentNode;
     if(p)Array.from(p.getElementsByTagNameNS('*','linesegarray')).forEach(function(n){if(!tbl.contains(n))n.remove();});
     e.data=enc.encode(ser(d));
