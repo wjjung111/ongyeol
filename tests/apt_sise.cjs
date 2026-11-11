@@ -137,4 +137,12 @@ assert.equal(A.resolveAddress(amb.candidates[0].address, SGG).umd, '신사동');
 assert.throws(() => A.resolveAddress('서울 신사동', SGG), e => e.candidates.length === 2);
 assert.equal(A.resolveAddress('강남구 신사동', SGG).code, '11680');
 
+// 건축물대장 주소 검색(V-World) 후보 → 실거래 주소
+let pa = A.addrFromParcel({id: '4146311300105240008', addr: '경기도 용인시 기흥구 마북동 524-8'}, SGG);
+assert.deepEqual([pa.code, pa.sido, pa.sgg, pa.umd, pa.jibun], ['41463', '경기도', '용인시 기흥구', '마북동', '524-8']);
+pa = A.addrFromParcel({id: '1168010600109740000', addr: '서울특별시 강남구 대치동 974'}, SGG);
+assert.deepEqual([pa.code, pa.umd, pa.jibun], ['11680', '대치동', '974']);
+pa = A.addrFromParcel({id: '4159099999200120003', addr: '연원로 1 → 경기도 화성시 동탄구 오산동 산12-3'}, []);
+assert.deepEqual([pa.code, pa.sido, pa.sgg, pa.umd, pa.jibun], ['41590', '경기도', '화성시 동탄구', '오산동', '산12-3']);
+
 console.log('apt_sise: OK');
