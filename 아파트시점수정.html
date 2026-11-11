@@ -65,6 +65,7 @@
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;background:#eef0f3;color:var(--ink-2);margin:1px 2px 1px 0}
   .tag.bad{background:var(--danger-bg);color:var(--danger)}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chips button.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
   details summary{cursor:pointer;color:var(--ink-2);font-size:12px;margin-top:10px}
   .hidden{display:none}
   /* 조회 기록 패널: 넓은 화면은 왼쪽 세로 목록, 좁은 화면은 위로 올라가고 접힘 */
@@ -187,7 +188,7 @@
 <script>window.ARAP_DATE_POPUP=true;</script><script src="arap_date.js"></script><!-- 작성일 칸 누르면 집건과 같은 달력 -->
 <script src="arap_sgg_codes.js?v=20261111"></script>
 <script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
-<script src="arap_apt_sise.js?v=20261111f"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script src="arap_apt_sise.js?v=20261111g"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
 'use strict';
@@ -198,6 +199,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const num = (v, d) => v == null ? '' : Number(v).toLocaleString('ko-KR', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
 let mode = 'api', last = null, sortK = null, sortDir = 1;
+let selAreas = []; // 칩에서 고른 전용면적(누른 순서). 고른 면적 거래는 전부 '동일' 면적대로 집계
 let curParcel = null; // 고른 필지 {id: PNU, addr, q: 그때 주소칸 글자}. 주소칸을 고치면 버림
 
 const todayIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
@@ -273,7 +275,7 @@ async function rtmsMonth(lawd, ym){
   return items;
 }
 
-async function calc(aptPick, parcel){
+async function calc(aptPick, parcel, keepSort){
   showMsg(''); $('pick').classList.add('hidden'); $('areaPick').classList.add('hidden');
   const area = parseFloat(String($('area').value).replace(/,/g, '')) || null; // 비우면 단지 면적 종류에서 고르기
   const subjectFloor = parseInt($('floor').value, 10) || A.floorFromHo($('ho').value);
@@ -324,13 +326,15 @@ async function calc(aptPick, parcel){
     const tbls = {}; (await pool(need, 6, ym => roneMonth(ym))).forEach((t, i) => tbls[need[i]] = t);
     tbls[baseYm] = baseTbl;
     const idx = (cls, ym) => { const t = tbls[ym]; const v = t && t.vals.get(Number(cls)); return v || null; };
-    const res = A.calculate(trades, area, writeIso, chain, baseYm, idx, {subjectFloor});
-    res.areaTypes = A.areaTypes(trades);
+    const ats = A.areaTypes(trades);
+    selAreas = selAreas.filter(a => ats.some(t => Math.abs(t.area - a) < 1e-9)); // 이 단지에 없는 면적은 버림
+    const res = A.calculate(trades, area, writeIso, chain, baseYm, idx, {subjectFloor, sameAreas: selAreas});
+    res.areaTypes = ats;
     res.parcel = curParcel;
     res.ruleYm = ruleYm; res.addr = addr; res.complexes = complexes; res.aptPick = aptPick || null;
     res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
     res.subject = {dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: subjectFloor || null};
-    last = res; sortK = null; sortDir = 1;
+    last = res; if (!keepSort) { sortK = null; sortDir = 1; }
     if (warns.length) showMsg(warns.join(' / '), 'warn');
     render();
     histRecord(histInput);
@@ -423,6 +427,7 @@ function histOpen(id){
   document.querySelector(`[data-mode=${i.mode === 'paste' ? 'paste' : 'api'}]`).click();
   paintBaseHint();
   last = h.res; sortK = h.sortK || null; sortDir = h.sortDir || 1; curHist = id;
+  selAreas = (h.res.sameAreas || []).slice();
   curParcel = h.res.parcel || null;
   $('pick').classList.add('hidden');
   render(); paintHist();
@@ -470,17 +475,26 @@ function showPick(message, complexes){
 }
 
 /* 면적을 비우고 계산했을 때: 단지 전용면적 종류 버튼 → 누르면 그 면적으로 바로 계산 */
+/* 전용면적 칩: 여러 개 고르기(누를 때마다 켜고 끔). 고른 면적 거래는 전부 '동일' 면적대로 집계.
+   환산 면적 = 면적 칸 값, 비어 있으면 처음 누른 칩 면적을 면적 칸에 채움. 누를 때마다 바로 다시 계산 */
 function showAreaPick(){
-  const box = $('areaPick');
-  if (last.subjectArea || !last.areaTypes.length){ box.classList.add('hidden'); return; }
+  const box = $('areaPick'), types = last.areaTypes || [], sel = last.sameAreas || [];
+  if (!types.length || (last.subjectArea && types.length < 2 && !sel.length)){ box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
-  box.innerHTML = '<div class="hint">본건 전용면적을 고르세요 (누르면 바로 계산)</div><div class="chips"></div>';
-  last.areaTypes.forEach(t => {
+  box.innerHTML = `<div class="hint">${last.subjectArea ? '같은 면적으로 볼 전용면적을 고르세요' : '본건 전용면적을 고르세요'} (여러 개 고를 수 있음, 누르면 켜고 꺼짐. 고른 면적 거래는 모두 동일 면적대로 집계)</div><div class="chips"></div>`;
+  types.forEach(t => {
     const b = document.createElement('button'); b.type = 'button';
+    if (sel.some(a => Math.abs(a - t.area) < 1e-9)) b.className = 'on';
     b.textContent = `${t.area}㎡ (${t.n}건)`;
-    b.onclick = () => { $('area').value = t.area; calc(last.aptPick); };
+    b.onclick = () => toggleArea(t.area);
     box.querySelector('.chips').appendChild(b);
   });
+}
+function toggleArea(a){
+  const i = selAreas.findIndex(x => Math.abs(x - a) < 1e-9);
+  if (i >= 0) selAreas.splice(i, 1); else selAreas.push(a);
+  if (!String($('area').value).trim() && selAreas.length) $('area').value = selAreas[0];
+  calc(last.aptPick, null, true);
 }
 /* 본건 표시: 동, 호, 층, 면적 중 입력된 것만 */
 function subjectText(r){
@@ -543,9 +557,10 @@ function render(){
   $('result').classList.remove('hidden');
   sortRows(); paintHead(); showAreaPick();
   const tb = $('tbody'); tb.innerHTML = '';
-  const bOnly = $('bandOnly').checked; let hid = 0;
+  const bOnly = $('bandOnly').checked, selOn = (last.sameAreas || []).length > 0; let hid = 0;
   last.rows.forEach(r => {
-    if (bOnly && r.band === '상이') { hid++; return; } // 보기만 숨김. 집계 체크, 최저/중간/최고는 그대로
+    // 보기만 숨김(집계 체크, 최저/중간/최고는 그대로). 칩으로 면적을 골랐으면 고른 면적(동일)만 보임
+    if (bOnly && (selOn ? r.band !== '동일' : r.band === '상이')) { hid++; return; }
     const tr = document.createElement('tr');
     if (!r.include) tr.className = 'off';
     const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
@@ -557,7 +572,7 @@ function render(){
     tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); histUpdateState(); });
     tb.appendChild(tr);
   });
-  $('bandInfo').textContent = bOnly ? `${last.rows.length - hid}건 표시, 면적대 상이 ${hid}건 숨김 (계산은 그대로)` : '';
+  $('bandInfo').textContent = bOnly ? `${last.rows.length - hid}건 표시, ${selOn ? '고른 면적 외' : '면적대 상이'} ${hid}건 숨김 (계산은 그대로)` : '';
   renderSummary();
 }
 
@@ -630,7 +645,7 @@ $('bandOnly').addEventListener('change', () => {
   if (last) render();
 });
 
-$('address').addEventListener('input', () => { curParcel = null; });
+$('address').addEventListener('input', () => { curParcel = null; selAreas = []; });
 // 호수를 넣으면 층 자동(1105 → 11). 층을 직접 고쳤으면 그 값을 우선.
 $('ho').addEventListener('input', () => {
   const f = $('floor');

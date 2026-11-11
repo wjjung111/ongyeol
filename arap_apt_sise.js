@@ -316,10 +316,13 @@
   /**
    * subjectArea 없으면(면적 미정) 시점수정까지만 하고 기준시점 거래가격, 집계는 비움.
    * opts.subjectFloor: 본건 층 → 같은 층대 사례 비고(보정에는 안 씀)
+   * opts.sameAreas: 칩에서 고른 전용면적들 → 그 면적 거래는 전부 '동일'(±3% 판정보다 우선), 나머지는 유사/상이만
    */
   function calculate(trades, subjectArea, writeIso, chain, baseYm, idx, opts) {
     opts = opts || {};
     subjectArea = subjectArea ? +subjectArea : null;
+    const same = (opts.sameAreas || []).map(Number).filter(a => isFinite(a) && a > 0);
+    const isSame = a => same.some(x => Math.abs(x - +a) < 1e-9);
     const sf = opts.subjectFloor != null && opts.subjectFloor !== '' && isFinite(+opts.subjectFloor) ? +opts.subjectFloor : null;
     const firstYm = ymAdd(ymOf(writeIso), -LOOKBACK);
     const rows = trades.map((t, i) => {
@@ -342,7 +345,8 @@
       r.subjectPrice = r.unit && subjectArea ? r.unit * subjectArea : null;
       if (subjectArea) {
         const dev = Math.abs(r.area / subjectArea - 1);
-        r.band = dev <= SAME_BAND ? '동일' : dev <= NEAR_BAND ? '유사' : '상이';
+        if (same.length) r.band = isSame(r.area) ? '동일' : dev <= NEAR_BAND ? '유사' : '상이';
+        else r.band = dev <= SAME_BAND ? '동일' : dev <= NEAR_BAND ? '유사' : '상이';
       } else r.band = '';
       if (r.cancelled) r.notes.push('해제');
       if (r.direct) r.notes.push('직거래');
@@ -360,6 +364,7 @@
       const p = usable.filter(r => band == null || r.band === band);
       if (p.length) { pool = p; bandUsed = band || '전체'; break; }
     }
+    if (same.length && subjectArea && bandUsed === '동일') bandUsed = `동일(고른 면적 ${same.join(', ')}㎡)`;
     for (const r of pool) {
       let others = pool.filter(o => o !== r && Math.abs(ymDiff(o.ym, r.ym)) <= OUTLIER_WINDOW);
       if (others.length < 2) others = pool.filter(o => o !== r);
@@ -372,7 +377,7 @@
       r.include = pool.includes(r) && !r.outlier;
       if (subjectArea && usable.includes(r) && !pool.includes(r)) r.notes.push(`면적대 ${r.band}, 집계 제외`);
     }
-    return { rows, bandUsed, subjectArea, subjectFloor: sf, writeDate: writeIso, baseYm, chain };
+    return { rows, bandUsed, subjectArea, subjectFloor: sf, sameAreas: subjectArea ? same : [], writeDate: writeIso, baseYm, chain };
   }
 
   function summarize(rows) {

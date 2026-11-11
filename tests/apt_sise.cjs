@@ -158,4 +158,14 @@ assert.deepEqual(A.filterRtms(eup, {umd: '별내면 청학리', jibun: '476', ke
 assert.equal(A.filterRtms(eup, {umd: '별내면', jibun: null, keyword: null}).complexes.length, 3, '읍면만 넣으면 그 읍면 리 전부');
 assert.ok(A.umdMatch('별내면 청학리', '청학리') && !A.umdMatch('별내동', '별내면') && A.umdMatch('동패동', '동패동'));
 
+// 칩으로 여러 면적 고르기: 고른 면적은 전부 동일(±3%보다 우선), 안 고른 84.97은 ±3% 안이어도 유사로 빠짐
+const mt = [84.94, 84.96, 84.99, 84.97, 59.93].map((area, i) => ({date: '2026-0' + (i + 3) + '-10', price: 2400000000, area, floor: 10, cancelled: false, direct: false}));
+r = A.calculate(mt, 84.94, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat, {sameAreas: [84.94, 84.96, 84.99]});
+assert.deepEqual(r.rows.map(x => x.band), ['동일', '동일', '동일', '유사', '상이']);
+assert.deepEqual(r.rows.map(x => x.include), [true, true, true, false, false]);
+assert.equal(r.bandUsed, '동일(고른 면적 84.94, 84.96, 84.99㎡)');
+assert.deepEqual(r.sameAreas, [84.94, 84.96, 84.99]);
+r = A.calculate(mt, 84.94, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat);
+assert.deepEqual(r.rows.map(x => x.band), ['동일', '동일', '동일', '동일', '상이'], '고르지 않으면 ±3% 그대로');
+
 console.log('apt_sise: OK');
