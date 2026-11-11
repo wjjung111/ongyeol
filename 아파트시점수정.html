@@ -85,7 +85,7 @@
       <div><label>호</label><input id="ho" placeholder="1203"></div>
       <div><label>층</label><input id="floor" inputmode="numeric" placeholder="12"></div>
       <div><label>본건 전용면적(㎡)</label><input id="area" inputmode="decimal" placeholder="비우면 고르기"></div>
-      <div><label>작성일</label><input id="wdate" data-date placeholder="2026.11.11"></div>
+      <div><label>작성일 <span class="hint" id="baseHint"></span></label><input id="wdate" data-date placeholder="2026.11.11" autocomplete="off"></div>
       <div><button class="primary" id="go" type="button">계산</button></div>
     </div>
 
@@ -148,7 +148,7 @@
 </main>
 <footer class="tsign">출처: 국토교통부 아파트 매매 실거래가, 한국부동산원 R-ONE 전국주택가격동향조사(월간)</footer>
 
-<script src="arap_date.js"></script>
+<script>window.ARAP_DATE_POPUP=true;</script><script src="arap_date.js"></script><!-- 작성일 칸 누르면 집건과 같은 달력 -->
 <script src="arap_sgg_codes.js?v=20261111"></script>
 <script src="arap_apt_sise.js?v=20261111c"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
@@ -462,7 +462,15 @@ ${safeRange(s.mid)}`;
 };
 $('xlsx').onclick = () => exportXlsx().catch(e => showMsg(e.message || String(e)));
 
+// 작성일: 열 때마다 오늘(저장값 불러오지 않음). 바꾸면 공표 규칙대로 기준월 안내도 바로 갱신.
 $('wdate').value = todayIso().replace(/-/g, '.');
+function paintBaseHint(){
+  const iso = readDate($('wdate').value);
+  $('baseHint').textContent = iso ? '(지수 ' + A.fmtYm(A.baseMonthByRule(iso)) + ')' : '';
+}
+$('wdate').addEventListener('input', paintBaseHint);
+$('wdate').addEventListener('change', paintBaseHint);
+paintBaseHint();
 try {
   const l = JSON.parse(localStorage.getItem('arap-apt-sise-last') || 'null');
   if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
