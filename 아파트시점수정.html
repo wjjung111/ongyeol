@@ -64,6 +64,31 @@
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   details summary{cursor:pointer;color:var(--ink-2);font-size:12px;margin-top:10px}
   .hidden{display:none}
+  /* 조회 기록 패널: 넓은 화면은 왼쪽 세로 목록, 좁은 화면은 위로 올라가고 접힘 */
+  .layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:0 18px;max-width:1500px;width:100%;margin:0 auto;padding:0 16px}
+  .layout .page{max-width:none;padding:18px 0 40px}
+  .hist{position:sticky;top:60px;align-self:start;max-height:calc(100vh - 72px);overflow:auto;margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--t-radius);padding:10px}
+  .hhead{width:100%;text-align:left;border:none;background:none;font-weight:700;padding:2px 2px 8px;cursor:default}
+  .hhead span{color:var(--ink-2);font-weight:400;margin-left:4px}
+  #histList{list-style:none}
+  #histList li{display:flex;align-items:stretch;border-radius:6px;margin-bottom:2px}
+  #histList li:hover{background:#f1f5f9}
+  #histList li.on{background:var(--accent-soft)}
+  .hopen{flex:1;min-width:0;border:none;background:none;text-align:left;padding:6px;cursor:pointer;border-radius:6px}
+  .hopen b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hopen span{display:block;font-size:12px;color:var(--ink-2)}
+  .hdel{border:none;background:none;color:var(--faint);padding:0 6px;cursor:pointer;font-size:15px}
+  .hdel:hover{color:var(--danger)}
+  .hempty{font-size:12px;color:var(--faint);padding:6px}
+  .hnote{font-size:11px;color:var(--faint);margin-top:6px}
+  @media (max-width:1100px){
+    .layout{grid-template-columns:1fr}
+    .hist{position:static;max-height:none;margin-top:12px}
+    .hhead{cursor:pointer;padding-bottom:2px}
+    .hhead::after{content:' ▾'}
+    .hist.open .hhead{padding-bottom:8px}
+    .hist:not(.open) #histList,.hist:not(.open) .hnote{display:none}
+  }
 </style>
 </head>
 <body>
@@ -73,6 +98,12 @@
   <span class="tb-right"><span class="tb-tag">탁상용</span></span>
 </header>
 
+<div class="layout">
+<aside class="hist" id="histPanel">
+  <button type="button" class="hhead" id="histToggle">조회 기록<span id="histCount">0</span></button>
+  <ul id="histList"></ul>
+  <div class="hnote">이 브라우저에만 저장돼요 (최근 100건)</div>
+</aside>
 <main class="page">
   <h1>아파트 실거래 시점수정</h1>
   <p class="lede">단지 주소와 본건 면적만 넣으면 최근 2년 실거래를 부동산원 월간 아파트 매매가격지수로 시점수정해 본건 최저, 중간, 최고 가격을 보여줍니다.</p>
@@ -146,6 +177,7 @@
     </div>
   </div>
 </main>
+</div>
 <footer class="tsign">출처: 국토교통부 아파트 매매 실거래가, 한국부동산원 R-ONE 전국주택가격동향조사(월간)</footer>
 
 <script>window.ARAP_DATE_POPUP=true;</script><script src="arap_date.js"></script><!-- 작성일 칸 누르면 집건과 같은 달력 -->
@@ -235,6 +267,7 @@ async function calc(aptPick){
   const area = parseFloat(String($('area').value).replace(/,/g, '')) || null; // 비우면 단지 면적 종류에서 고르기
   const subjectFloor = parseInt($('floor').value, 10) || A.floorFromHo($('ho').value);
   const writeIso = readDate($('wdate').value) || todayIso();
+  const histInput = inputNow(); // 조회 기록용(누른 순간의 입력)
   $('go').disabled = true; $('go').textContent = '계산 중...';
   try{
     const addr = A.resolveAddress($('address').value, SGG);
@@ -274,10 +307,88 @@ async function calc(aptPick){
     last = res; sortK = null; sortDir = 1;
     if (warns.length) showMsg(warns.join(' / '), 'warn');
     render();
+    histRecord(histInput);
     try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, mode})); } catch (e) {}
   } catch (e){
     showMsg(e && e.name === 'AbortError' ? '응답이 늦어 중단했어요. 다시 눌러주세요.' : (e.message || String(e)));
   } finally { $('go').disabled = false; $('go').textContent = '계산'; }
+}
+
+/* ── 조회 기록: 이 브라우저(localStorage)에 최근 100건. 같은 입력(주소, 동, 호, 층, 면적, 작성일, 고른 단지)이면 덮어씀.
+      누르면 다시 조회하지 않고 저장된 결과(입력값, 거래표, 집계 체크, 정렬)를 그대로 보여줌. ── */
+const HIST_KEY = 'arap-apt-sise-history', HIST_MAX = 100;
+let curHist = null;
+function histLoad(){ try { const v = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+function histSave(list){
+  for (let n = list.length; n >= 0; n = n ? Math.floor(n * 0.8) : -1){ // 용량이 넘치면 오래된 것부터 덜어냄
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, n))); return true; } catch (e) {}
+  }
+  return false;
+}
+function inputNow(){
+  return {address: $('address').value.trim(), dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: $('floor').value.trim(),
+    area: $('area').value.trim(), wdate: $('wdate').value.trim(), mode, paste: mode === 'paste' ? $('paste').value : '',
+    caseArea: $('caseArea').value.trim(), baseOverride: $('baseOverride').value.trim()};
+}
+const histKeyOf = (i, pick) => [i.address, i.dong, i.ho, i.floor, i.area, i.wdate, pick || ''].join('|');
+const ROW_KEYS = ['date', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled'];
+function compactRes(r){
+  return Object.assign({}, r, {chain: r.chain.slice(0, 1), complexes: [],
+    rows: r.rows.map(x => { const o = {}; ROW_KEYS.forEach(k => { o[k] = x[k]; }); return o; })});
+}
+function histRecord(inp){
+  const list = histLoad(), key = histKeyOf(inp, last.aptPick);
+  const old = list.findIndex(h => h.key === key);
+  const id = old >= 0 ? list[old].id : Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  if (old >= 0) list.splice(old, 1);
+  list.unshift({id, key, t: Date.now(), input: inp, res: compactRes(last), sortK, sortDir});
+  histSave(list.slice(0, HIST_MAX)); curHist = id; paintHist();
+}
+function histUpdateState(){ // 집계 체크, 정렬이 바뀌면 지금 보고 있는 기록에도 반영
+  if (!curHist || !last) return;
+  const list = histLoad(), h = list.find(x => x.id === curHist);
+  if (!h) return;
+  h.res = compactRes(last); h.sortK = sortK; h.sortDir = sortDir;
+  histSave(list); paintHist();
+}
+function histLabel(h){
+  const r = h.res, x = r.subject || {}, a = r.addr || {};
+  const apt = [...new Set(r.rows.map(z => z.apt).filter(Boolean))][0] || a.keyword || [a.umd, a.jibun].filter(Boolean).join(' ') || a.sgg || '';
+  const unit = x.dong && x.ho ? `${x.dong}-${x.ho}` : x.ho ? `${x.ho}호` : x.floor ? `${x.floor}층` : '';
+  const s = A.summarize(r.rows);
+  return {title: [apt, unit, r.subjectArea ? r.subjectArea + '㎡' : '면적 미정'].filter(Boolean).join(' '),
+    sub: `${s.mid != null ? A.fmtWon(s.mid) : '-'} / ${String(r.writeDate).replace(/-/g, '.')}`};
+}
+function paintHist(){
+  const list = histLoad();
+  $('histCount').textContent = list.length;
+  const ul = $('histList');
+  ul.innerHTML = list.length ? '' : '<li class="hempty">아직 조회 기록이 없어요</li>';
+  list.forEach(h => {
+    let L; try { L = histLabel(h); } catch (e) { return; }
+    const li = document.createElement('li'); li.className = h.id === curHist ? 'on' : '';
+    li.innerHTML = `<button type="button" class="hopen" title="${esc(L.title)}"><b>${esc(L.title)}</b><span>${esc(L.sub)}</span></button><button type="button" class="hdel" title="이 기록 삭제">×</button>`;
+    li.querySelector('.hopen').onclick = () => histOpen(h.id);
+    li.querySelector('.hdel').onclick = () => { histSave(histLoad().filter(z => z.id !== h.id)); if (curHist === h.id) curHist = null; paintHist(); };
+    ul.appendChild(li);
+  });
+}
+function histOpen(id){
+  const h = histLoad().find(x => x.id === id);
+  if (!h) return;
+  const i = h.input || {};
+  ['address', 'dong', 'ho', 'floor', 'area', 'wdate', 'caseArea', 'baseOverride'].forEach(k => { $(k).value = i[k] || ''; });
+  $('floor').dataset.auto = '';
+  if (i.mode === 'paste') $('paste').value = i.paste || '';
+  document.querySelector(`[data-mode=${i.mode === 'paste' ? 'paste' : 'api'}]`).click();
+  paintBaseHint();
+  last = h.res; sortK = h.sortK || null; sortDir = h.sortDir || 1; curHist = id;
+  $('pick').classList.add('hidden');
+  render(); paintHist();
+  $('msg').innerHTML = `<div class="msg warn">저장된 결과예요 (${esc(new Date(h.t).toLocaleString('ko-KR'))} 조회). <button type="button" id="reRun">다시 조회 (오늘 기준)</button></div>`;
+  $('reRun').onclick = () => { $('wdate').value = todayIso().replace(/-/g, '.'); paintBaseHint(); calc(h.res.aptPick); };
+  if (window.innerWidth <= 1100) $('histPanel').classList.remove('open');
+  window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
 function showMsg(text, kind){ $('msg').innerHTML = text ? `<div class="msg ${kind || 'err'}">${esc(text)}</div>` : ''; }
@@ -356,7 +467,7 @@ document.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click
   if (!last) return;
   const k = th.dataset.k;
   if (sortK === k) sortDir = -sortDir; else { sortK = k; sortDir = 1; }
-  render();
+  render(); histUpdateState();
 }));
 
 function render(){
@@ -372,7 +483,7 @@ function render(){
       <td class="n">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
       <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n"><b>${A.fmtWon(r.subjectPrice)}</b></td>
       <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
-    tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); });
+    tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); histUpdateState(); });
     tb.appendChild(tr);
   });
   renderSummary();
@@ -471,6 +582,8 @@ function paintBaseHint(){
 $('wdate').addEventListener('input', paintBaseHint);
 $('wdate').addEventListener('change', paintBaseHint);
 paintBaseHint();
+$('histToggle').onclick = () => $('histPanel').classList.toggle('open');
+paintHist();
 try {
   const l = JSON.parse(localStorage.getItem('arap-apt-sise-last') || 'null');
   if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
