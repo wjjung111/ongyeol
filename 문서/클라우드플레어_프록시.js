@@ -17,8 +17,10 @@
  *  /bld?op=getBrAtchJibunInfo&pnu=...  부속지번 (대장의 관련지번 — 3판부터)
  *    공통 추가 파라미터: pageNo(기본 1), numOfRows(기본 200, 최대 1000), dongNm, hoNm — 있으면 그대로 국토부 API에 전달
  *  /rone?...                          부동산원 R-ONE (지가변동률 등 — 쿼리 그대로 전달)
+ *  /rtms?LAWD_CD=41480&DEAL_YMD=202608[&pageNo=1&numOfRows=1000][&svc=rent]
+ *                                     국토부 아파트 매매 실거래가 자료(svc=rent면 전월세). XML 그대로 전달 (4판부터)
  *
- * 버전: 2 (2026-09-04 — 동·호·페이지 전달, 전유부 추가). 상태 확인(/) 응답의 ver 값으로 확인.
+ * 버전: 4 (2026-11-11 — /rtms 아파트 실거래 추가). 상태 확인(/) 응답의 ver 값으로 확인.
  *
  * 설치법: 문서/클라우드플레어_프록시_설정.md 참고.
  * 환경변수(Settings → Variables and Secrets):
@@ -102,8 +104,26 @@ export default {
         return new Response(body, { status: r.status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8" } });
       }
 
+      // ── 국토부 아파트 실거래: /rtms?LAWD_CD=<5자리>&DEAL_YMD=<YYYYMM>[&pageNo&numOfRows][&svc=rent] ──
+      if (url.pathname === "/rtms") {
+        const lawd = String(url.searchParams.get("LAWD_CD") || "");
+        const ymd = String(url.searchParams.get("DEAL_YMD") || "");
+        if (!/^\d{5}$/.test(lawd) || !/^\d{6}$/.test(ymd)) return json({ error: "LAWD_CD 5자리, DEAL_YMD 6자리 필요" }, 400, cors);
+        if (!env.DATAGO_KEY) return json({ error: "서버에 DATAGO_KEY 미설정" }, 500, cors);
+        const pageNo = Math.max(1, parseInt(url.searchParams.get("pageNo") || "1", 10) || 1);
+        const numOfRows = Math.min(1000, Math.max(1, parseInt(url.searchParams.get("numOfRows") || "1000", 10) || 1000));
+        const svc = url.searchParams.get("svc") === "rent"
+          ? "RTMSDataSvcAptRent/getRTMSDataSvcAptRent"
+          : "RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade";
+        const key = /%[0-9A-Fa-f]{2}/.test(env.DATAGO_KEY) ? env.DATAGO_KEY : encodeURIComponent(env.DATAGO_KEY);
+        const target = `https://apis.data.go.kr/1613000/${svc}?serviceKey=${key}&LAWD_CD=${lawd}&DEAL_YMD=${ymd}&numOfRows=${numOfRows}&pageNo=${pageNo}`;
+        const r = await fetch(target);
+        const body = await r.text(); // 키 미등록 등은 403 + XML 본문 → 상태 200으로 넘겨 화면이 본문을 읽게 함
+        return new Response(body, { status: 200, headers: { ...cors, "Content-Type": "application/xml; charset=utf-8" } });
+      }
+
       // ── 상태 확인: / ──
-      return json({ ok: true, service: "ongyeol-proxy", ver: 3, paths: ["/bld?pnu=", "/rone?..."] }, 200, cors);
+      return json({ ok: true, service: "ongyeol-proxy", ver: 4, paths: ["/bld?pnu=", "/rone?...", "/rtms?LAWD_CD=&DEAL_YMD="] }, 200, cors);
     } catch (e) {
       return json({ error: String(e && e.message || e) }, 502, cors);
     }
