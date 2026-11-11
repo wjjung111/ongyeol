@@ -100,4 +100,14 @@ assert.equal(f.trades.length, 2); assert.equal(f.trades[0].cancelled, true); ass
 f = A.filterRtms(items, {umd: '동패동', jibun: null, keyword: null}, '다른단지');
 assert.equal(f.trades.length, 1); assert.equal(f.trades[0].direct, true);
 
+// 키워드가 여러 단지에 걸리면 후보 고르기 (실제 파주 와동동: 가람마을1 → 1단지, 10단지)
+const g2 = [
+  Object.assign({}, items[0], {aptNm: '가람마을1단지벽산한라(1308)', umdNm: '와동동', jibun: '1308'}),
+  Object.assign({}, items[0], {aptNm: '가람마을10단지월드메르디앙(1356)', umdNm: '와동동', jibun: '1356'}),
+];
+f = A.filterRtms(g2, {umd: null, jibun: null, keyword: '가람마을1'});
+assert.equal(f.complexes.length, 2); assert.ok(f.message);
+f = A.filterRtms(g2, {umd: null, jibun: '1308', keyword: null});
+assert.equal(f.trades.length, 1); assert.equal(f.message, null);
+
 console.log('apt_sise: OK');
