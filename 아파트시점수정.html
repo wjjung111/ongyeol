@@ -46,7 +46,8 @@
   .big .k{font-size:13px;color:var(--ink-2)}
   .big .v{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-top:2px}
   .big .s{font-size:12px;color:var(--faint);margin-top:2px}
-  .big .rng{font-size:12px;color:var(--ink-2);margin-top:4px}
+  .big .rng{font-size:12px;color:var(--ink-2);margin-top:6px}
+  .big .rng.chip{display:inline-block;font-size:13px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px}
   .sub{margin:8px 2px 0;color:var(--ink-2);font-size:13px}
   .tbl{overflow:auto;max-height:70vh;padding:0}
   table{width:100%;border-collapse:collapse;font-size:13px}
@@ -319,7 +320,14 @@ async function calc(aptPick){
       누르면 다시 조회하지 않고 저장된 결과(입력값, 거래표, 집계 체크, 정렬)를 그대로 보여줌. ── */
 const HIST_KEY = 'arap-apt-sise-history', HIST_MAX = 100;
 let curHist = null;
-function histLoad(){ try { const v = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+const histHasResult = h => { try { return A.summarize(h.res.rows).n > 0; } catch (e) { return false; } };
+function histLoad(){
+  let v; try { v = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { v = []; }
+  if (!Array.isArray(v)) v = [];
+  const ok = v.filter(histHasResult); // 결과 없는 기록(면적 고르기 전, 실패)은 빼고 저장소도 정리
+  if (ok.length !== v.length) { try { localStorage.setItem(HIST_KEY, JSON.stringify(ok)); } catch (e) {} }
+  return ok;
+}
 function histSave(list){
   for (let n = list.length; n >= 0; n = n ? Math.floor(n * 0.8) : -1){ // 용량이 넘치면 오래된 것부터 덜어냄
     try { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, n))); return true; } catch (e) {}
@@ -342,6 +350,7 @@ function compactRes(r){
     rows: r.rows.map(x => { const o = {}; ROW_KEYS.forEach(k => { o[k] = x[k]; }); return o; })});
 }
 function histRecord(inp){
+  if (!(A.summarize(last.rows).n > 0)) return; // 최저/중간/최고가 나온 경우만 기록
   const list = histLoad(), key = histKeyOf(inp, last.aptPick);
   const old = list.findIndex(h => h.key === key);
   const id = old >= 0 ? list[old].id : Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -350,7 +359,7 @@ function histRecord(inp){
   histSave(list.slice(0, HIST_MAX)); curHist = id; paintHist();
 }
 function histUpdateState(){ // 집계 체크, 정렬이 바뀌면 지금 보고 있는 기록에도 반영
-  if (!curHist || !last) return;
+  if (!curHist || !last || !(A.summarize(last.rows).n > 0)) return; // 체크를 다 꺼도 기록은 마지막 결과 유지
   const list = histLoad(), h = list.find(x => x.id === curHist);
   if (!h) return;
   h.res = compactRes(last); h.sortK = sortK; h.sortDir = sortDir;
@@ -447,7 +456,9 @@ function renderSummary(){
   const s = A.summarize(last.rows);
   const set = (k, v) => { $('v' + k).textContent = v != null ? A.fmtWon(v) : '-'; $('s' + k).textContent = v != null ? num(Math.round(v)) + '원' : ''; };
   set('Min', s.min); set('Mid', s.mid); set('Max', s.max);
-  $('rMid').textContent = last.subjectArea ? safeRange(s.mid) : '본건 전용면적을 고르면 계산됩니다';
+  const rm = $('rMid'), hasRange = last.subjectArea && s.mid != null;
+  rm.textContent = hasRange ? safeRange(s.mid) + ' ±20%' : (last.subjectArea ? '' : '본건 전용면적을 고르면 계산됩니다');
+  rm.className = hasRange ? 'rng chip' : 'rng';
   const c = last.chain[0];
   const apts = [...new Set(last.rows.map(r => r.apt).filter(Boolean))];
   $('subline').innerHTML = `집계 <b>${s.n}</b>건 / 전체 ${last.rows.length}건 (면적대 ${esc(last.bandUsed)}), `
