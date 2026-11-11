@@ -586,7 +586,7 @@ $('histToggle').onclick = () => $('histPanel').classList.toggle('open');
 paintHist();
 try {
   const l = JSON.parse(localStorage.getItem('arap-apt-sise-last') || 'null');
-  if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); $('floor').dataset.auto = '1'; // 불러온 층은 자동값(호수를 새로 치면 바뀜) if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
+  if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); $('floor').dataset.auto = '1'; /* 불러온 층은 자동값(호수를 새로 치면 바뀜) */ if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
 } catch (e) {}
 })();
 </script>
