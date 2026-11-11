@@ -46,6 +46,7 @@
   .big .k{font-size:13px;color:var(--ink-2)}
   .big .v{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-top:2px}
   .big .s{font-size:12px;color:var(--faint);margin-top:2px}
+  .big .u{font-size:13px;font-weight:600;color:var(--ink-2);margin-top:4px}
   .big .rng{font-size:12px;color:var(--ink-2);margin-top:6px}
   .big .rng.chip{display:inline-block;font-size:13px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px}
   .sub{margin:8px 2px 0;color:var(--ink-2);font-size:13px}
@@ -157,9 +158,9 @@
 
   <div id="result" class="hidden">
     <div class="big">
-      <div class="b min"><div class="k">최저</div><div class="v" id="vMin"></div><div class="s" id="sMin"></div></div>
-      <div class="b"><div class="k">중간</div><div class="v" id="vMid"></div><div class="s" id="sMid"></div><div class="rng" id="rMid"></div></div>
-      <div class="b"><div class="k">최고</div><div class="v" id="vMax"></div><div class="s" id="sMax"></div></div>
+      <div class="b min"><div class="k">최저</div><div class="v" id="vMin"></div><div class="s" id="sMin"></div><div class="u" id="uMin"></div></div>
+      <div class="b"><div class="k">중간</div><div class="v" id="vMid"></div><div class="s" id="sMid"></div><div class="u" id="uMid"></div><div class="rng" id="rMid"></div></div>
+      <div class="b"><div class="k">최고</div><div class="v" id="vMax"></div><div class="s" id="sMax"></div><div class="u" id="uMax"></div></div>
     </div>
     <div class="sub" id="subline"></div>
     <div class="row" style="margin:10px 0 12px">
@@ -489,7 +490,9 @@ function subjectText(r){
 const safeRange = mid => mid != null ? `[${A.fmtWon(mid * 0.8)} ~ ${A.fmtWon(mid * 1.2)}] 재감정 안전범위` : '';
 function renderSummary(){
   const s = A.summarize(last.rows);
-  const set = (k, v) => { $('v' + k).textContent = v != null ? A.fmtWon(v) : '-'; $('s' + k).textContent = v != null ? num(Math.round(v)) + '원' : ''; };
+  const set = (k, v) => { $('v' + k).textContent = v != null ? A.fmtWon(v) : '-'; $('s' + k).textContent = v != null ? num(Math.round(v)) + '원' : '';
+    // ㎡당 단가 = 본건 환산가 / 본건 전용면적 (= 표의 시점수정 ㎡단가, 원 단위)
+    $('u' + k).textContent = v != null && last.subjectArea ? '㎡당 ' + num(Math.round(v / last.subjectArea)) + '원' : ''; };
   set('Min', s.min); set('Mid', s.mid); set('Max', s.max);
   const rm = $('rMid'), hasRange = last.subjectArea && s.mid != null;
   rm.textContent = hasRange ? safeRange(s.mid) + ' ±20%' : (last.subjectArea ? '' : '본건 전용면적을 고르면 계산됩니다');
