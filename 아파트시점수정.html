@@ -46,6 +46,7 @@
   .big .k{font-size:13px;color:var(--ink-2)}
   .big .v{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-top:2px}
   .big .s{font-size:12px;color:var(--faint);margin-top:2px}
+  .big .rng{font-size:12px;color:var(--ink-2);margin-top:4px}
   .sub{margin:8px 2px 0;color:var(--ink-2);font-size:13px}
   .tbl{overflow:auto;max-height:70vh;padding:0}
   table{width:100%;border-collapse:collapse;font-size:13px}
@@ -123,7 +124,7 @@
   <div id="result" class="hidden">
     <div class="big">
       <div class="b min"><div class="k">최저</div><div class="v" id="vMin"></div><div class="s" id="sMin"></div></div>
-      <div class="b"><div class="k">중간</div><div class="v" id="vMid"></div><div class="s" id="sMid"></div></div>
+      <div class="b"><div class="k">중간</div><div class="v" id="vMid"></div><div class="s" id="sMid"></div><div class="rng" id="rMid"></div></div>
       <div class="b"><div class="k">최고</div><div class="v" id="vMax"></div><div class="s" id="sMax"></div></div>
     </div>
     <div class="sub" id="subline"></div>
@@ -135,7 +136,7 @@
     <div class="card tbl">
       <table>
         <thead><tr>
-          <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">지수비</th>
+          <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
           <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">본건 환산가</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -289,10 +290,13 @@ function showPick(message, complexes){
   });
 }
 
+/* 재감정 안전범위 = 중간값 x 0.8 ~ x 1.2 (만원 반올림 표기) */
+const safeRange = mid => mid != null ? `[${A.fmtWon(mid * 0.8)} ~ ${A.fmtWon(mid * 1.2)}] 재감정 안전범위` : '';
 function renderSummary(){
   const s = A.summarize(last.rows);
   const set = (k, v) => { $('v' + k).textContent = v != null ? A.fmtWon(v) : '-'; $('s' + k).textContent = v != null ? num(Math.round(v)) + '원' : ''; };
   set('Min', s.min); set('Mid', s.mid); set('Max', s.max);
+  $('rMid').textContent = safeRange(s.mid);
   const c = last.chain[0];
   const apts = [...new Set(last.rows.map(r => r.apt).filter(Boolean))];
   $('subline').innerHTML = `집계 <b>${s.n}</b>건 / 전체 ${last.rows.length}건 (면적대 ${esc(last.bandUsed)}), `
@@ -383,10 +387,12 @@ async function exportXlsx(){
       if (!i){ cell.fill = head; cell.font = {bold: true}; }
     });
   });
-  ws.getCell(sr + 4, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, 2년 초과 제외`;
+  ws.getCell(sr + 4, 1).value = safeRange(s.mid) + ' (중간값의 80% ~ 120%)';
   ws.getCell(sr + 4, 1).alignment = nowrap;
-  const tr = sr + 6;
-  const heads = ['번호', '계약일', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '지수비', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '본건 환산가(원)', '면적대', '집계', '비고'];
+  ws.getCell(sr + 5, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, 2년 초과 제외`;
+  ws.getCell(sr + 5, 1).alignment = nowrap;
+  const tr = sr + 7;
+  const heads = ['번호', '계약일', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '본건 환산가(원)', '면적대', '집계', '비고'];
   const fmts = [null, null, '0', '0.000', '#,##0', '0.000', '0.000', '0.00000', '#,##0', '#,##0', '#,##0', null, null, null];
   heads.forEach((h, j) => { const cell = ws.getCell(tr, j + 1); cell.value = h; cell.font = {bold: true}; cell.fill = head; cell.border = border; cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: false}; });
   r.rows.forEach((x, i) => {
@@ -421,7 +427,8 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
 });
 $('copy').onclick = () => {
   const s = A.summarize(last.rows);
-  const t = `최저 ${A.fmtWon(s.min)} / 중간 ${A.fmtWon(s.mid)} / 최고 ${A.fmtWon(s.max)} (사례 ${s.n}건, 부동산원 지수 ${A.fmtYm(last.baseYm)} 기준 시점수정)`;
+  const t = `최저 ${A.fmtWon(s.min)} / 중간 ${A.fmtWon(s.mid)} / 최고 ${A.fmtWon(s.max)} (사례 ${s.n}건, 부동산원 지수 ${A.fmtYm(last.baseYm)} 기준 시점수정)
+${safeRange(s.mid)}`;
   navigator.clipboard.writeText(t).then(() => { $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '결론 복사', 1200); });
 };
 $('xlsx').onclick = () => exportXlsx().catch(e => showMsg(e.message || String(e)));
