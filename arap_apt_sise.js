@@ -75,7 +75,16 @@
     return sp.length >= 2 && stripSuffix(t) === sp;
   }
 
-  /** '경기 파주시 동패동 1234' → {code, sido, sgg, umd, jibun, keyword} */
+  /** 법정동 이름 → 시군구 목록 (주소에서 시도, 시군구를 뺐을 때 찾기용) */
+  let _umdIdx = null, _umdSrc = null;
+  function umdIndex(SGG) {
+    if (_umdIdx && _umdSrc === SGG) return _umdIdx;
+    _umdIdx = new Map(); _umdSrc = SGG;
+    for (const e of SGG) for (const u of e.umd || []) { if (!_umdIdx.has(u)) _umdIdx.set(u, []); _umdIdx.get(u).push(e); }
+    return _umdIdx;
+  }
+
+  /** '경기 파주시 동패동 1234', '마북동 524-8' → {code, sido, sgg, umd, jibun, keyword}. 같은 이름 동이 여러 곳이면 err.candidates */
   function resolveAddress(text, SGG) {
     const raw = String(text || '').trim();
     if (!raw) throw new Error('주소를 넣어주세요 (예: 파주시 동패동 1234)');
@@ -93,23 +102,37 @@
       ent = SGG.find(e => e.code === codeTok) || { code: codeTok, sido: '', sgg: codeTok, umd: [] };
       rest = rest.filter(t => t !== codeTok);
     } else {
-      let cands = [];
+      // 시군구 이름이 맞는 정도(전부/일부) + 법정동 이름으로 좁히기. 시도, 시군구를 빼도("마북동 524-8") 법정동으로 찾는다.
+      const scored = [];
       for (const e of SGG) {
         if (sido && sidoShort(e.sido) !== sido) continue;
         const parts = e.sgg.split(' ');
         const used = [];
-        let ok = true;
         for (const p of parts) {
           const m = rest.find(t => !used.includes(t) && partMatch(t, p));
-          if (m == null) { ok = false; break; }
-          used.push(m);
+          if (m != null) used.push(m);
         }
-        if (ok) cands.push({ n: parts.length, e, used });
+        if (used.length) scored.push({ e, n: used.length, full: used.length === parts.length, used });
       }
-      if (!cands.length) throw new Error(`시군구를 못 찾았어요: '${raw}'. 예) 파주시 동패동, 서울 강남구 일원동`);
-      const top = Math.max(...cands.map(c => c.n));
-      cands = cands.filter(c => c.n === top);
-      if (cands.length > 1) throw new Error('시군구가 여러 개예요: ' + cands.slice(0, 6).map(c => c.e.sido + ' ' + c.e.sgg).join(', ') + '. 시도까지 넣어주세요.');
+      const idx = umdIndex(SGG);
+      const umdTok = rest.find(t => idx.has(t) && !scored.some(c => c.used.includes(t)));
+      let cands = scored;
+      if (umdTok) {
+        const withUmd = idx.get(umdTok).filter(e => !sido || sidoShort(e.sido) === sido);
+        const narrowed = scored.filter(c => withUmd.includes(c.e));
+        cands = narrowed.length ? narrowed : (scored.length ? scored : withUmd.map(e => ({ e, n: 0, full: false, used: [] })));
+      }
+      if (!cands.length) throw new Error(`시군구나 법정동을 못 찾았어요: '${raw}'. 예) 마북동 524-8, 파주시 동패동, 서울 강남구 일원동`);
+      const rank = c => (c.full ? 100 : 0) + c.n;
+      const top = Math.max(...cands.map(rank));
+      cands = cands.filter(c => rank(c) === top);
+      if (cands.length > 1) {
+        // 같은 이름 동이 여러 곳 → 화면에서 고르게 후보를 붙여 던짐
+        const tail = rest.filter(t => !cands.some(c => c.used.includes(t)) && t !== umdTok).join(' ');
+        const err = new Error(`'${umdTok || raw}'이(가) 여러 곳에 있어요. 아래에서 고르세요.`);
+        err.candidates = cands.slice(0, 30).map(c => ({ label: [c.e.sido, c.e.sgg, umdTok].filter(Boolean).join(' '), address: [c.e.sido, c.e.sgg, umdTok, tail].filter(Boolean).join(' ') }));
+        throw err;
+      }
       ent = cands[0].e;
       rest = rest.filter(t => !cands[0].used.includes(t));
     }

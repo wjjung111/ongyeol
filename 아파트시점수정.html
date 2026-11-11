@@ -110,8 +110,8 @@
 
   <div class="card">
     <div class="grid">
-      <div class="addr"><label>단지 주소 (시군구 + 법정동 + 지번 또는 단지명)</label>
-        <input id="address" placeholder="예) 파주시 동패동 1234 / 서울 강남구 일원동 한솔마을"></div>
+      <div class="addr"><label>단지 주소 (법정동 + 지번 또는 단지명, 시도, 시군구는 빼도 됨)</label>
+        <input id="address" placeholder="예) 마북동 524-8 / 파주시 동패동 1234 / 일원동 한솔마을"></div>
       <div><label>동</label><input id="dong" placeholder="101"></div>
       <div><label>호</label><input id="ho" placeholder="1203"></div>
       <div><label>층</label><input id="floor" inputmode="numeric" placeholder="12"></div>
@@ -182,7 +182,7 @@
 
 <script>window.ARAP_DATE_POPUP=true;</script><script src="arap_date.js"></script><!-- 작성일 칸 누르면 집건과 같은 달력 -->
 <script src="arap_sgg_codes.js?v=20261111"></script>
-<script src="arap_apt_sise.js?v=20261111c"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script src="arap_apt_sise.js?v=20261111d"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
 'use strict';
@@ -310,6 +310,7 @@ async function calc(aptPick){
     histRecord(histInput);
     try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, mode})); } catch (e) {}
   } catch (e){
+    if (e && e.candidates){ showRegionPick(e.message, e.candidates); return; }
     showMsg(e && e.name === 'AbortError' ? '응답이 늦어 중단했어요. 다시 눌러주세요.' : (e.message || String(e)));
   } finally { $('go').disabled = false; $('go').textContent = '계산'; }
 }
@@ -330,7 +331,11 @@ function inputNow(){
     area: $('area').value.trim(), wdate: $('wdate').value.trim(), mode, paste: mode === 'paste' ? $('paste').value : '',
     caseArea: $('caseArea').value.trim(), baseOverride: $('baseOverride').value.trim()};
 }
-const histKeyOf = (i, pick) => [i.address, i.dong, i.ho, i.floor, i.area, i.wdate, pick || ''].join('|');
+const histKeyOf = (i, pick) => {
+  const area = parseFloat(String(i.area || '').replace(/,/g, '')) || '';
+  const fl = parseInt(i.floor, 10) || A.floorFromHo(i.ho) || '';
+  return [i.address.replace(/\s+/g, ' '), String(i.dong || '').replace(/동$/, ''), String(i.ho || '').replace(/\D/g, ''), fl, area, i.wdate, pick || ''].join('|');
+};
 const ROW_KEYS = ['date', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled'];
 function compactRes(r){
   return Object.assign({}, r, {chain: r.chain.slice(0, 1), complexes: [],
@@ -354,7 +359,8 @@ function histUpdateState(){ // 집계 체크, 정렬이 바뀌면 지금 보고 
 function histLabel(h){
   const r = h.res, x = r.subject || {}, a = r.addr || {};
   const apt = [...new Set(r.rows.map(z => z.apt).filter(Boolean))][0] || a.keyword || [a.umd, a.jibun].filter(Boolean).join(' ') || a.sgg || '';
-  const unit = x.dong && x.ho ? `${x.dong}-${x.ho}` : x.ho ? `${x.ho}호` : x.floor ? `${x.floor}층` : '';
+  const flTag = x.ho && x.floor && x.floor !== A.floorFromHo(x.ho) ? `(${x.floor}층)` : '';
+  const unit = (x.dong && x.ho ? `${x.dong}-${x.ho}` : x.ho ? `${x.ho}호` : x.floor ? `${x.floor}층` : '') + flTag;
   const s = A.summarize(r.rows);
   return {title: [apt, unit, r.subjectArea ? r.subjectArea + '㎡' : '면적 미정'].filter(Boolean).join(' '),
     sub: `${s.mid != null ? A.fmtWon(s.mid) : '-'} / ${String(r.writeDate).replace(/-/g, '.')}`};
@@ -392,6 +398,18 @@ function histOpen(id){
 }
 
 function showMsg(text, kind){ $('msg').innerHTML = text ? `<div class="msg ${kind || 'err'}">${esc(text)}</div>` : ''; }
+/* 같은 이름 법정동이 여러 곳 → 지역 후보 버튼(누르면 주소를 채워 다시 계산) */
+function showRegionPick(message, cands){
+  showMsg(message, 'warn');
+  const box = $('pick'); box.classList.remove('hidden');
+  box.innerHTML = '<div class="hint">지역 후보 (눌러서 선택)</div><div class="chips"></div>';
+  cands.forEach(c => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.textContent = c.label;
+    b.onclick = () => { $('address').value = c.address; calc(); };
+    box.querySelector('.chips').appendChild(b);
+  });
+}
 function showPick(message, complexes){
   showMsg(message, 'warn');
   const box = $('pick'); box.classList.remove('hidden');

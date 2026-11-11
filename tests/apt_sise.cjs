@@ -44,7 +44,7 @@ a = A.resolveAddress('광주 북구 운암동', SGG);
 assert.equal(a.code, '29170');
 assert.deepEqual(A.roneChain(a.sido, a.sgg, CLS).map(c => c.cls), [510045, 500013]);
 assert.equal(A.resolveAddress('춘천시 퇴계동', SGG).code, '51110', '강원특별자치도 51');
-assert.throws(() => A.resolveAddress('중구 신당동', SGG), /여러 개/);
+assert.throws(() => A.resolveAddress('중구 1', SGG), /여러 곳/);
 
 // 검증 케이스 1: 파주
 a = A.resolveAddress('경기 파주시 동패동', SGG);
@@ -121,5 +121,20 @@ assert.ok(r.rows[0].notes.includes('본건 층 ±2')); assert.ok(!r.rows[1].note
 r = A.calculate(tt, 124.985, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat, {subjectFloor: 1});
 assert.ok(r.rows[1].notes.includes('본건과 같은 저층')); assert.ok(r.rows[3].notes.includes('본건과 같은 저층'));
 assert.equal(r.subjectFloor, 1);
+
+// 시도, 시군구를 빼도 법정동으로 찾기 (우진: '마북동 524-8')
+for (const q of ['마북동 524-8', '기흥구 마북동 524-8', '경기도 용인시 기흥구 마북동 524-8', '용인시 마북동 524-8', '기흥 마북동 524-8']) {
+  const x = A.resolveAddress(q, SGG);
+  assert.equal(x.code, '41463', q); assert.equal(x.umd, '마북동', q); assert.equal(x.jibun, '524-8', q); assert.equal(x.keyword, null, q);
+}
+assert.equal(A.resolveAddress('중구 신당동', SGG).code, '11140', '서울 중구에만 신당동');
+assert.equal(A.resolveAddress('대치동 974', SGG).code, '11680');
+// 같은 이름 동이 여러 곳이면 후보
+let amb = null; try { A.resolveAddress('신사동 한양', SGG); } catch (e) { amb = e; }
+assert.ok(amb && amb.candidates && amb.candidates.length >= 2, '신사동 후보');
+assert.ok(amb.candidates.some(c => c.label === '서울특별시 강남구 신사동' && c.address === '서울특별시 강남구 신사동 한양'));
+assert.equal(A.resolveAddress(amb.candidates[0].address, SGG).umd, '신사동');
+assert.throws(() => A.resolveAddress('서울 신사동', SGG), e => e.candidates.length === 2);
+assert.equal(A.resolveAddress('강남구 신사동', SGG).code, '11680');
 
 console.log('apt_sise: OK');
