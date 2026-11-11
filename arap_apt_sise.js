@@ -213,8 +213,13 @@
     if (aptPick) cand = cand.filter(r => r.aptNm === aptPick);
     const cx = {};
     for (const r of cand) { const k = r.aptNm || ''; (cx[k] = cx[k] || { name: k, umd: r.umdNm, jibun: r.jibun, n: 0, built: r.buildYear }).n++; }
-    const complexes = Object.values(cx).sort((a, b) => b.n - a.n);
-    if (!addr.jibun && !addr.keyword && !aptPick && complexes.length > 1)
+    let complexes = Object.values(cx).sort((a, b) => b.n - a.n);
+    if (complexes.length > 1 && !aptPick && !addr.jibun && addr.keyword) {
+      // 키워드가 여러 단지에 걸리면(가람마을1 → 1단지, 10단지, 11단지) 이름이 정확히 같은 단지만, 아니면 후보 고르기
+      const exact = complexes.filter(c => norm(c.name) === norm(addr.keyword));
+      if (exact.length === 1) { cand = cand.filter(r => r.aptNm === exact[0].name); complexes = exact; }
+    }
+    if (!addr.jibun && !aptPick && complexes.length > 1)
       return { trades: [], complexes, message: `단지가 ${complexes.length}개예요. 지번이나 단지명을 넣거나 아래 후보에서 고르세요.` };
     const trades = [];
     for (const r of cand) {
