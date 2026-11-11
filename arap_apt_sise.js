@@ -139,6 +139,8 @@
     let umd = rest.find(t => (ent.umd || []).includes(t)) || null;
     if (!umd && !(ent.umd || []).length) umd = rest.find(t => /^\D.*(동|읍|면|리|가)$/.test(t)) || null;
     if (umd) rest = rest.filter(t => t !== umd);
+    // 읍면 지역: 국토부 실거래 법정동(umdNm)은 '별내면 청학리'처럼 읍면 + 리. 뒤에 리가 오면 붙인다
+    if (umd && /(읍|면)$/.test(umd)) { const ri = rest.find(t => /^\D+리$/.test(t)); if (ri) { umd += ' ' + ri; rest = rest.filter(t => t !== ri); } }
     let jibun = null;
     for (const t of rest) {
       const m = t.match(/^(산\s?)?(\d+)(-(\d+))?(번지)?$/);
@@ -161,7 +163,9 @@
     const jibun = (pnu.charAt(10) === '2' ? '산' : '') + bun + (ji ? '-' + ji : '');
     let ui = toks.findIndex((t, i) => i > 0 && /^\D.*(동|읍|면|가)$/.test(t));
     const ent = (SGG || []).find(e => e.code === code);
-    const umd = ui > 0 ? toks[ui] : null;
+    let umd = ui > 0 ? toks[ui] : null;
+    // 읍면 지역은 '별내면 청학리'처럼 리까지 (국토부 umdNm과 같은 모양)
+    if (umd && /(읍|면)$/.test(umd) && /^\D+리$/.test(toks[ui + 1] || '')) umd += ' ' + toks[ui + 1];
     return {
       code, umd, jibun, keyword: null, parcel: parcelAddr, pnu,
       sido: ent ? ent.sido : (toks[0] || ''),
@@ -250,9 +254,17 @@
 
   /* ── 국토부 실거래 (XML item 객체 배열) → 단지 거르기 ── */
   const norm = s => String(s || '').replace(/[\s()\-.,·]/g, '').toLowerCase();
+  /** 실거래 umdNm('별내면 청학리', '동패동')과 주소 법정동 비교. 읍면만 넣었으면 그 읍면의 리 전부, 리만 넣었으면 끝 리로 */
+  function umdMatch(rowUmd, umd) {
+    const r = norm(rowUmd), u = norm(umd);
+    if (r === u) return true;
+    if (/(읍|면)$/.test(umd) && r.startsWith(u)) return true;
+    const last = String(rowUmd || '').trim().split(/\s+/).pop();
+    return /리$/.test(umd) && !/\s/.test(String(umd).trim()) && norm(last) === u;
+  }
   function filterRtms(items, addr, aptPick) {
     let cand = items;
-    if (addr.umd) cand = cand.filter(r => norm(r.umdNm) === norm(addr.umd));
+    if (addr.umd) cand = cand.filter(r => umdMatch(r.umdNm, addr.umd));
     if (addr.jibun) cand = cand.filter(r => String(r.jibun || '').trim() === addr.jibun);
     if (addr.keyword) { const kw = norm(addr.keyword); cand = cand.filter(r => norm(r.aptNm).includes(kw)); }
     if (aptPick) cand = cand.filter(r => r.aptNm === aptPick);
@@ -368,7 +380,7 @@
     return v.length ? { n: v.length, total: rows.length, min: v[0], mid: median(v), max: v[v.length - 1] } : { n: 0, total: rows.length, min: null, mid: null, max: null };
   }
 
-  const api = { ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, LOOKBACK };
+  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, LOOKBACK };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   g.ArapAptSise = api;
 })(typeof window !== 'undefined' ? window : globalThis);

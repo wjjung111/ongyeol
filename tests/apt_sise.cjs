@@ -145,4 +145,17 @@ assert.deepEqual([pa.code, pa.umd, pa.jibun], ['11680', '대치동', '974']);
 pa = A.addrFromParcel({id: '4159099999200120003', addr: '연원로 1 → 경기도 화성시 동탄구 오산동 산12-3'}, []);
 assert.deepEqual([pa.code, pa.sido, pa.sgg, pa.umd, pa.jibun], ['41590', '경기도', '화성시 동탄구', '오산동', '산12-3']);
 
+// 읍면 지역: 국토부 umdNm은 '별내면 청학리'(읍면 + 리)
+pa = A.addrFromParcel({id: '4136031021104760000', addr: '경기도 남양주시 별내면 청학리 476'}, SGG);
+assert.deepEqual([pa.code, pa.umd, pa.jibun], ['41360', '별내면 청학리', '476']);
+const ra = A.resolveAddress('남양주시 별내면 청학리 동부일신', SGG);
+assert.deepEqual([ra.code, ra.umd, ra.keyword], ['41360', '별내면 청학리', '동부일신']);
+const eup = [
+  {umdNm: '별내면 청학리', jibun: '476', aptNm: '동부일신'}, {umdNm: '별내면 청학리', jibun: '488', aptNm: '거성수락산'},
+  {umdNm: '별내면 광전리', jibun: '1', aptNm: '다른리'}, {umdNm: '별내동', jibun: '476', aptNm: '별내동단지'},
+];
+assert.deepEqual(A.filterRtms(eup, {umd: '별내면 청학리', jibun: '476', keyword: null}).complexes.map(c => c.name), ['동부일신']);
+assert.equal(A.filterRtms(eup, {umd: '별내면', jibun: null, keyword: null}).complexes.length, 3, '읍면만 넣으면 그 읍면 리 전부');
+assert.ok(A.umdMatch('별내면 청학리', '청학리') && !A.umdMatch('별내동', '별내면') && A.umdMatch('동패동', '동패동'));
+
 console.log('apt_sise: OK');
