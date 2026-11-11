@@ -172,7 +172,7 @@
       <table>
         <thead><tr>
           <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
-          <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">본건 환산가</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
+          <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">기준시점 거래가격</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -491,7 +491,7 @@ const safeRange = mid => mid != null ? `[${A.fmtWon(mid * 0.8)} ~ ${A.fmtWon(mid
 function renderSummary(){
   const s = A.summarize(last.rows);
   const set = (k, v) => { $('v' + k).textContent = v != null ? A.fmtWon(v) : '-'; $('s' + k).textContent = v != null ? num(Math.round(v)) + '원' : '';
-    // ㎡당 단가 = 본건 환산가 / 본건 전용면적 (= 표의 시점수정 ㎡단가, 원 단위)
+    // ㎡당 단가 = 기준시점 거래가격 / 본건 전용면적 (= 표의 시점수정 ㎡단가, 원 단위)
     $('u' + k).textContent = v != null && last.subjectArea ? '㎡당 ' + num(Math.round(v / last.subjectArea)) + '원' : ''; };
   set('Min', s.min); set('Mid', s.mid); set('Max', s.max);
   const rm = $('rMid'), hasRange = last.subjectArea && s.mid != null;
@@ -576,7 +576,7 @@ async function exportXlsx(){
     ['시점수정', `한국부동산원 월간 아파트 매매가격지수, ${c0.path} (CLS ${c0.cls}), 기준월 ${A.fmtYm(r.baseYm)}` + (r.idxBase ? ` (${A.fmtYm(r.idxBase)}=100)` : '')]];
   info.forEach(([k, v], i) => { const row = ws.getRow(3 + i); row.getCell(1).value = k; row.getCell(1).font = {bold: true}; row.getCell(2).value = v; row.getCell(1).alignment = nowrap; row.getCell(2).alignment = nowrap; });
   const sr = 3 + info.length + 1;
-  [['구분', '본건 환산가(원)', '표기'], ['최저', s.min, A.fmtWon(s.min)], ['중간', s.mid, A.fmtWon(s.mid)], ['최고', s.max, A.fmtWon(s.max)]].forEach((vals, i) => {
+  [['구분', '기준시점 거래가격(원)', '표기'], ['최저', s.min, A.fmtWon(s.min)], ['중간', s.mid, A.fmtWon(s.mid)], ['최고', s.max, A.fmtWon(s.max)]].forEach((vals, i) => {
     const row = ws.getRow(sr + i);
     vals.forEach((v, j) => {
       const cell = row.getCell(j + 1);
@@ -592,7 +592,7 @@ async function exportXlsx(){
   ws.getCell(sr + 5, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, 2년 초과 제외`;
   ws.getCell(sr + 5, 1).alignment = nowrap;
   const tr = sr + 7;
-  const heads = ['번호', '계약일', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '본건 환산가(원)', '면적대', '집계', '비고'];
+  const heads = ['번호', '계약일', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '기준시점 거래가격(원)', '면적대', '집계', '비고'];
   const fmts = [null, null, '0', '0.000', '#,##0', '0.000', '0.000', '0.00000', '#,##0', '#,##0', '#,##0', null, null, null];
   heads.forEach((h, j) => { const cell = ws.getCell(tr, j + 1); cell.value = h; cell.font = {bold: true}; cell.fill = head; cell.border = border; cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: false}; });
   r.rows.forEach((x, i) => {
@@ -607,7 +607,7 @@ async function exportXlsx(){
     });
   });
   const nr = tr + r.rows.length + 2;
-  ws.getCell(nr, 1).value = '시점수정치 = 기준월 지수 / 계약월 지수. 기준월은 작성일 현재 공표된 최신월(익월 15일 공표). 본건 환산가 = 시점수정 ㎡단가 x 본건 전용면적.';
+  ws.getCell(nr, 1).value = '시점수정치 = 기준월 지수 / 계약월 지수. 기준월은 작성일 현재 공표된 최신월(익월 15일 공표). 기준시점 거래가격 = 시점수정 ㎡단가 x 본건 전용면적.';
   ws.getCell(nr + 1, 1).value = '출처: 국토교통부 아파트 매매 실거래가, 한국부동산원 R-ONE 전국주택가격동향조사(월간).';
   [9, 14, 6, 13, 16, 12, 12, 10, 19, 19, 17, 8, 6, 40].forEach((w, j) => ws.getColumn(j + 1).width = w);
   const buf = await wb.xlsx.writeBuffer();
