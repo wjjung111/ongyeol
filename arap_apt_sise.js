@@ -147,6 +147,28 @@
     return { code: ent.code, sido: ent.sido, sgg: ent.sgg, umd, jibun, keyword: rest.join(' ') || null };
   }
 
+  /**
+   * 건축물대장 조회와 같은 주소 검색(ArapBldrgst.search, V-World)에서 고른 필지 {id: PNU 19자리, addr} →
+   * {code(실거래 LAWD 5자리), sido, sgg, umd, jibun, keyword:null, parcel}
+   */
+  function addrFromParcel(c, SGG) {
+    const pnu = String(c.id || '');
+    if (!/^\d{19}$/.test(pnu)) throw new Error('필지 번호(PNU)가 이상해요: ' + pnu);
+    const code = pnu.slice(0, 5);
+    const parcelAddr = String(c.addr || '').replace(/^.*→\s*/, '').trim();
+    const toks = parcelAddr.split(/\s+/).filter(Boolean);
+    const bun = +pnu.slice(11, 15), ji = +pnu.slice(15, 19);
+    const jibun = (pnu.charAt(10) === '2' ? '산' : '') + bun + (ji ? '-' + ji : '');
+    let ui = toks.findIndex((t, i) => i > 0 && /^\D.*(동|읍|면|가)$/.test(t));
+    const ent = (SGG || []).find(e => e.code === code);
+    const umd = ui > 0 ? toks[ui] : null;
+    return {
+      code, umd, jibun, keyword: null, parcel: parcelAddr, pnu,
+      sido: ent ? ent.sido : (toks[0] || ''),
+      sgg: ent ? ent.sgg : (ui > 1 ? toks.slice(1, ui).join(' ') : ''),
+    };
+  }
+
   /** 지수 지역 순서: 구 → 시 → 시도. clsList = [{cls, path}] (R-ONE 기준월 전체 행) */
   function roneChain(sidoFull, sggName, clsList) {
     const s = sidoFull ? sidoShort(sidoFull) : '';
@@ -346,7 +368,7 @@
     return v.length ? { n: v.length, total: rows.length, min: v[0], mid: median(v), max: v[v.length - 1] } : { n: 0, total: rows.length, min: null, mid: null, max: null };
   }
 
-  const api = { ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, LOOKBACK };
+  const api = { ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, LOOKBACK };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   g.ArapAptSise = api;
 })(typeof window !== 'undefined' ? window : globalThis);
