@@ -110,4 +110,16 @@ assert.equal(f.complexes.length, 2); assert.ok(f.message);
 f = A.filterRtms(g2, {umd: null, jibun: '1308', keyword: null});
 assert.equal(f.trades.length, 1); assert.equal(f.message, null);
 
+// 입력 유연화: 호 → 층, 면적 미정, 층 비고, 면적 종류
+assert.equal(A.floorFromHo('1105'), 11); assert.equal(A.floorFromHo('203호'), 2); assert.equal(A.floorFromHo('12'), null); assert.equal(A.floorFromHo(''), null);
+const tt = A.parsePaste('2026.08.20 4.3억 124.985㎡ 12층\n2026.07.11 2억 84.9㎡ 1층\n2026.06.02 4억 124.985㎡ 13층 해제\n2026.05.02 4.2억 124.985㎡ 2층', null).trades;
+assert.deepEqual(A.areaTypes(tt), [{area: 84.9, n: 1}, {area: 124.985, n: 2}]);
+r = A.calculate(tt, null, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat, {subjectFloor: 11});
+assert.equal(r.bandUsed, '면적 미정'); assert.equal(A.summarize(r.rows).n, 0);
+assert.ok(r.rows.every(x => x.subjectPrice == null && x.unit > 0 && !x.include));
+assert.ok(r.rows[0].notes.includes('본건 층 ±2')); assert.ok(!r.rows[1].notes.includes('본건 층 ±2'));
+r = A.calculate(tt, 124.985, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat, {subjectFloor: 1});
+assert.ok(r.rows[1].notes.includes('본건과 같은 저층')); assert.ok(r.rows[3].notes.includes('본건과 같은 저층'));
+assert.equal(r.subjectFloor, 1);
+
 console.log('apt_sise: OK');

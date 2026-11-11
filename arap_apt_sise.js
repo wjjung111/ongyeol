@@ -244,8 +244,26 @@
   /**
    * idx(cls, ym) → 지수값 또는 null. chain = roneChain 결과. baseYm = 실제 쓰는 기준월.
    */
-  function calculate(trades, subjectArea, writeIso, chain, baseYm, idx) {
-    subjectArea = +subjectArea;
+  /** 호수 → 층: 1105 → 11, 203 → 2 (숫자 3자리 이상일 때 끝 두 자리를 뺀 앞부분) */
+  function floorFromHo(ho) {
+    const d = String(ho || '').replace(/\D/g, '');
+    return d.length >= 3 ? parseInt(d.slice(0, -2), 10) || null : null;
+  }
+  /** 거래들의 전용면적 종류 [{area, n}] (해제 제외, 신고 면적 그대로, 작은 면적부터) */
+  function areaTypes(trades) {
+    const m = new Map();
+    for (const t of trades) { if (t.cancelled) continue; const k = +t.area; m.set(k, (m.get(k) || 0) + 1); }
+    return [...m.entries()].map(([a, n]) => ({ area: a, n })).sort((x, y) => x.area - y.area);
+  }
+
+  /**
+   * subjectArea 없으면(면적 미정) 시점수정까지만 하고 본건 환산가, 집계는 비움.
+   * opts.subjectFloor: 본건 층 → 같은 층대 사례 비고(보정에는 안 씀)
+   */
+  function calculate(trades, subjectArea, writeIso, chain, baseYm, idx, opts) {
+    opts = opts || {};
+    subjectArea = subjectArea ? +subjectArea : null;
+    const sf = opts.subjectFloor != null && opts.subjectFloor !== '' && isFinite(+opts.subjectFloor) ? +opts.subjectFloor : null;
     const firstYm = ymAdd(ymOf(writeIso), -LOOKBACK);
     const rows = trades.map((t, i) => {
       const r = Object.assign({}, t, { no: i + 1, ym: ymOf(t.date), notes: [] });
@@ -264,17 +282,23 @@
       r.idxRegion = used ? used.path : '';
       r.adjPrice = r.ratio ? r.price * r.ratio : null;
       r.unit = r.adjPrice ? r.adjPrice / r.area : null;
-      r.subjectPrice = r.unit ? r.unit * subjectArea : null;
-      const dev = Math.abs(r.area / subjectArea - 1);
-      r.band = dev <= SAME_BAND ? '동일' : dev <= NEAR_BAND ? '유사' : '상이';
+      r.subjectPrice = r.unit && subjectArea ? r.unit * subjectArea : null;
+      if (subjectArea) {
+        const dev = Math.abs(r.area / subjectArea - 1);
+        r.band = dev <= SAME_BAND ? '동일' : dev <= NEAR_BAND ? '유사' : '상이';
+      } else r.band = '';
       if (r.cancelled) r.notes.push('해제');
       if (r.direct) r.notes.push('직거래');
       if (r.floor != null && r.floor <= 2) r.notes.push('저층');
+      if (sf != null && r.floor != null) {
+        if (sf <= 2 && r.floor <= 2) r.notes.push('본건과 같은 저층');
+        else if (sf > 2 && r.floor > 2 && Math.abs(r.floor - sf) <= 2) r.notes.push('본건 층 ±2');
+      }
       if (r.ym < firstYm) r.notes.push('2년 초과');
       return r;
     });
     const usable = rows.filter(r => r.subjectPrice && !r.cancelled && r.ym >= firstYm);
-    let pool = [], bandUsed = '없음';
+    let pool = [], bandUsed = subjectArea ? '없음' : '면적 미정';
     for (const band of ['동일', '유사', null]) {
       const p = usable.filter(r => band == null || r.band === band);
       if (p.length) { pool = p; bandUsed = band || '전체'; break; }
@@ -289,9 +313,9 @@
     for (const r of rows) {
       r.outlier = !!r.outlier;
       r.include = pool.includes(r) && !r.outlier;
-      if (usable.includes(r) && !pool.includes(r)) r.notes.push(`면적대 ${r.band}, 집계 제외`);
+      if (subjectArea && usable.includes(r) && !pool.includes(r)) r.notes.push(`면적대 ${r.band}, 집계 제외`);
     }
-    return { rows, bandUsed, subjectArea, writeDate: writeIso, baseYm, chain };
+    return { rows, bandUsed, subjectArea, subjectFloor: sf, writeDate: writeIso, baseYm, chain };
   }
 
   function summarize(rows) {
@@ -299,7 +323,7 @@
     return v.length ? { n: v.length, total: rows.length, min: v[0], mid: median(v), max: v[v.length - 1] } : { n: 0, total: rows.length, min: null, mid: null, max: null };
   }
 
-  const api = { ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, LOOKBACK };
+  const api = { ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, LOOKBACK };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   g.ArapAptSise = api;
 })(typeof window !== 'undefined' ? window : globalThis);
