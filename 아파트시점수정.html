@@ -51,6 +51,9 @@
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}
   th{background:#f8fafc;color:var(--ink-2);font-weight:600;text-align:center;position:sticky;top:0}
+  th[data-k]{cursor:pointer;user-select:none}
+  th[data-k]:hover{color:var(--ink)}
+  th .ar{display:inline-block;width:1em;color:var(--accent);font-size:11px}
   td.n{text-align:right;font-variant-numeric:tabular-nums}
   td.c{text-align:center}
   tr.off td{color:var(--faint)}
@@ -132,8 +135,8 @@
     <div class="card tbl">
       <table>
         <thead><tr>
-          <th>집계</th><th>계약일</th><th>층</th><th>전용(㎡)</th><th>거래가</th><th>지수비</th>
-          <th>시점수정 ㎡단가</th><th>본건 환산가</th><th>면적대</th><th>비고</th>
+          <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">지수비</th>
+          <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">본건 환산가</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -154,7 +157,7 @@ const STATBL = 'A_2024_00045';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const num = (v, d) => v == null ? '' : Number(v).toLocaleString('ko-KR', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
-let mode = 'api', last = null;
+let mode = 'api', last = null, sortK = null, sortDir = 1;
 
 const todayIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 function readDate(v){
@@ -264,7 +267,7 @@ async function calc(aptPick){
     res.ruleYm = ruleYm; res.addr = addr; res.complexes = complexes; res.aptPick = aptPick || null;
     res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
     res.subject = {dong: $('dong').value.trim(), ho: $('ho').value.trim()};
-    last = res;
+    last = res; sortK = null; sortDir = 1;
     if (warns.length) showMsg(warns.join(' / '), 'warn');
     render();
     try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, area: $('area').value, mode})); } catch (e) {}
@@ -298,8 +301,41 @@ function renderSummary(){
     + (last.baseYm !== last.ruleYm ? ` <span class="tag bad">규칙상 ${A.fmtYm(last.ruleYm)} 자료 없음</span>` : '')
     + `, 본건 ${last.subjectArea}㎡` + (apts.length ? `, 단지 ${esc(apts.join(', '))}` : '');
 }
+/* 헤더 클릭 정렬: 오름 → 내림. 원값 비교(금액, 날짜), 빈 값은 항상 맨 아래. 집계 체크, 재집계 그대로. 엑셀도 화면 순서. */
+const BAND_ORDER = {'동일': 0, '유사': 1, '상이': 2};
+function sortVal(r, k){
+  if (k === 'include') return r.include ? 0 : 1;
+  if (k === 'band') return BAND_ORDER[r.band] ?? 9;
+  if (k === 'notes') return r.notes.join(', ');
+  return r[k];
+}
+function sortRows(){
+  if (!sortK) { last.rows.sort((a, b) => a.no - b.no); return; }
+  last.rows.sort((a, b) => {
+    const x = sortVal(a, sortK), y = sortVal(b, sortK);
+    const ex = x == null || x === '', ey = y == null || y === '';
+    if (ex || ey) return ex === ey ? a.no - b.no : (ex ? 1 : -1);
+    const c = typeof x === 'string' ? x.localeCompare(y, 'ko') : x - y;
+    return c ? c * sortDir : a.no - b.no;
+  });
+}
+function paintHead(){
+  document.querySelectorAll('th[data-k]').forEach(th => {
+    let ar = th.querySelector('.ar');
+    if (!ar){ ar = document.createElement('span'); ar.className = 'ar'; th.appendChild(ar); }
+    ar.textContent = th.dataset.k === sortK ? (sortDir > 0 ? '▲' : '▼') : '';
+  });
+}
+document.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click', () => {
+  if (!last) return;
+  const k = th.dataset.k;
+  if (sortK === k) sortDir = -sortDir; else { sortK = k; sortDir = 1; }
+  render();
+}));
+
 function render(){
   $('result').classList.remove('hidden');
+  sortRows(); paintHead();
   const tb = $('tbody'); tb.innerHTML = '';
   last.rows.forEach(r => {
     const tr = document.createElement('tr');
