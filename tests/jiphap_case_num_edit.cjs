@@ -22,7 +22,7 @@ const DETAIL='아파트\n지역 : 서울 송파구\n거래 2025.12 / 기준 2026
         localStorage.setItem(prefix+'case:TEST-NE',JSON.stringify({ov,cases:[c('c1','1',{}),c('c2','2',{timeAdj:1.04781,timeAdjDetail:DETAIL,isSelected:true})],precs:[],propType:'주거용'}));},{m:mode,DETAIL});
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
-      await scope.getByText('2. 사례 등 입력',{exact:true}).click({timeout:60000});
+      await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
       const box=(n,f)=>scope.getByLabel(`거래사례 #${n} ${f}`,{exact:true});
       const set=async(n,f,v)=>{await box(n,f).fill(v);await box(n,f).blur();};
       const blueBold=async loc=>loc.evaluate(e=>{const s=getComputedStyle(e);return s.fontWeight==='700'&&s.color==='rgb(37, 99, 235)';});

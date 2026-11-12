@@ -33,7 +33,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.match(await ta.inputValue(),/귀 의뢰지분\(1\/4/,'자동 문구 복귀');
       await ta.fill('지분 위치 특정 불가 & 전체 기준 평가');
     }
-    await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
+    await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
     // 2026-10-28부터 표지·괄감·의견서가 따로 — 의견서(x)·괄감(x0)을 각각 받는다
     const get=async(name,fname)=>{const btn=scope.getByRole('button',{name,exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||require('os').tmpdir(),fname);await dl.saveAs(file);return unzip(fs.readFileSync(file));};

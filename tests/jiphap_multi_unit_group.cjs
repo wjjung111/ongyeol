@@ -30,7 +30,7 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
       await scope.locator('button',{hasText:'저장된 건'}).first().click();
       await scope.getByText('묶기 검증').first().click();
     }
-    await scope.getByText('3. 가격산출 · 위치도',{exact:true}).click();
+    await scope.getByText('2. 사례 · 가격산출',{exact:true}).click();
     const tbl=scope.locator('table').filter({has:page.getByRole('columnheader',{name:'묶음',exact:true})});
     await tbl.waitFor();
     const row=i=>tbl.locator('tbody tr').nth(i);
@@ -78,7 +78,7 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
     assert.deepEqual(us.map(u=>u.appliedCaseId),['c2','c2',undefined,undefined].map((v,i)=>v??us[i].appliedCaseId));
     assert.equal(us[0].appliedCaseId,'c2');
     await page.reload();
-    await scope.getByText('3. 가격산출 · 위치도',{exact:true}).click({timeout:60000});
+    await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
     await tbl.waitFor();
     assert.equal(await scope.getByLabel('묶음 다',{exact:true}).inputValue(),'B','새로고침 후 묶음 유지');
     assert.equal(await fac(2,2).inputValue(),'0.97');

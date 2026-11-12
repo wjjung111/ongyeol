@@ -62,7 +62,7 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
     const scope=p.locator('#root');
     await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
     await scope.locator('button',{hasText:/^비주거용$/}).first().click();
-    await scope.getByText('2. 사례 등 입력',{exact:true}).click();
+    await scope.getByText('2. 사례 · 가격산출',{exact:true}).click();
     await scope.locator('span[aria-label$="시점수정 창"]').first().click();   // 🧮(2026-11-09)
     const s1=scope.locator('select[title="① 시도"]'),s2=scope.locator('select[title="② 상권"]');
     assert.equal(await s1.inputValue(),'서울','저장값(도심) → 서울 그룹');assert.equal(await s2.inputValue(),'도심');

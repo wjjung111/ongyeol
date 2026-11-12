@@ -23,7 +23,7 @@ const TSV=['소재지\t지번\t기타주소\t거래시점\t전용면적\t물건�
       await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
       await page.goto(base+'/s3r86w8a.html');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('2. 사례 등 입력',{exact:true}).click({timeout:60000});
+      await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
       await scope.locator('textarea[placeholder^="카이스에서 복사"]').first().evaluate((ta,t)=>{const dt=new DataTransfer();dt.setData('text/plain',t);ta.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));},TSV);
       const table=scope.locator('table',{has:page.locator('th',{hasText:'거래시점'})}).first();
       await table.locator('tbody tr').nth(5).waitFor();

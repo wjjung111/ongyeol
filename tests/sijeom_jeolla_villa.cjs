@@ -27,7 +27,7 @@ const checkText=(t,sido)=>{assert.match(t,/^연립다세대\n/,t);assert.match(t
         localStorage.setItem(prefix+'case:TEST-JV',JSON.stringify({ov,cases:[c],precs:[],propType:'주거용'}));},[mode,loc,name]);
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
-      await scope.getByText('2. 사례 등 입력',{exact:true}).click({timeout:60000});
+      await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
       await scope.getByLabel('거래사례 #1 시점수정 단가').locator('xpath=preceding-sibling::td[1]').click();
       await page.waitForSelector('text=시점수정치 계산');
       const sel=page.locator('select[aria-label="시점수정 유형"]');

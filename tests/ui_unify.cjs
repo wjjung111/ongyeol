@@ -69,7 +69,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       await r.getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});
       assert.equal(await r.getByText('현장조사일',{exact:true}).count(),1);
       // 샘플 건: 사례 ✕ → 안내·되돌리기 → Ctrl+Y
-      await r.getByText('2. 사례 등 입력',{exact:true}).click();
+      await r.getByText('2. 사례 · 가격산출',{exact:true}).click();
       const tag=()=>r.getByText(/^사례 \d+ \| 선정/).textContent();
       const before=await tag();
       await r.locator('td span',{hasText:'✕'}).first().click();await page.waitForTimeout(600);

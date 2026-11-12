@@ -64,7 +64,7 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
       assert.equal(await card.locator('.etc-item').count(),3);
       await card.getByLabel('그 밖의 사항 '+(share?'아':'사')+' 삭제').click();
       assert.equal(await card.locator('.etc-item').count(),2);
-      await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
+      await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
       const btn=scope.getByRole('button',{name:'의견서',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||os.tmpdir(),'etc_items_'+(share?'share':'plain')+'.hwpx');await dl.saveAs(file);
       const x=unzip(fs.readFileSync(file))['Contents/section0.xml'].toString('utf8');

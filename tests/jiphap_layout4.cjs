@@ -1,6 +1,6 @@
 // 집합건물 화면 개편(2026-11-12) 검증 — 단일·여러 호수 둘 다
 //  - 왼쪽 = 최근 평가서 목록(누르면 열림, 찾기), 탭 위 = 요약 띠(1번 탭은 한 줄, 나머지는 물건/접수/탁상 펼침)
-//  - 탭 4개: 1. 접수 · 대상물건(접수개요|대상물건개요 한 화면) / 2. 사례 등 입력 / 3. 가격산출 · 위치도 / 4. 청구서 · 내려받기
+//  - 탭 4개: 1. 접수 · 대상물건(접수개요|대상물건개요 한 화면) / 2. 사례 · 가격산출 / 2. 사례 · 가격산출 / 3. 위치도 · 청구서
 //  - 3번 탭엔 청구서·서류 버튼이 안 보이고, 4번 탭엔 「내려받기 전 확인」+서류 버튼+청구서만 보인다(Step4는 한 번만 그림)
 //  - 「💾 저장」 묶음은 화면에 하나만(1번 탭 = 접수번호 칸 위, 다른 탭 = 요약 띠)
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_layout4.cjs
@@ -8,7 +8,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..');
 const server=http.createServer((req,res)=>{const f=path.join(root,decodeURIComponent(req.url.split('?')[0]));if(!f.startsWith(root)||!fs.existsSync(f)){res.statusCode=404;return res.end();}res.setHeader('Content-Type',f.endsWith('.html')?'text/html; charset=utf-8':f.endsWith('.js')?'text/javascript':'application/octet-stream');fs.createReadStream(f).pipe(res);});
-const TABS=['1. 접수 · 대상물건','2. 사례 등 입력','3. 가격산출 · 위치도','4. 청구서 · 내려받기'];
+const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치도 · 청구서'];
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
   const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
@@ -42,18 +42,22 @@ const TABS=['1. 접수 · 대상물건','2. 사례 등 입력','3. 가격산출 
       assert(await sc.getByPlaceholder('카이스에서 복사 후 여기에 Ctrl+V').isVisible());
       assert(await sc.getByPlaceholder('카파허브에서 복사 후 여기에 Ctrl+V').isVisible());
 
-      // 3번 탭: 계산 쪽만 + 위치도, 4번 탭: 확인·서류·청구서만
+      // 2번 탭 = 사례 + 가격산출(가치형성요인 등), 청구서·위치도 없음 / 3번 탭 = 확인·서류·청구서 + 위치도, 사례·계산 없음
+      const vis=async t=>sc.getByText(t,{exact:true}).first().isVisible();
+      assert(await sc.locator('.s3-card').isVisible(),mode+': 2번 탭에 거래사례 표');
+      if(mode==='multi')assert(await vis('적용단가'),mode+': 2번 탭에 적용단가(여러 호수는 빈 건에도 표가 있음)');
+      assert(!(await sc.locator('.pf-list').isVisible()),mode+': 2번 탭엔 내려받기 전 확인 없음');
+      assert(!(await vis('위치도 — 본건')),mode+': 2번 탭엔 위치도 없음');
+      assert(!(await sc.locator('.k4-pick').isVisible()),mode+': 가격산출의 사례 선택 표는 숨김(왼쪽 거래사례 표와 겹침)');
       await tabs.nth(2).click();
-      assert(await sc.locator('.k4-left').isVisible(),mode+': 3번 탭 계산 보임');
-      assert(!(await sc.locator('.k4-right').isVisible()),mode+': 3번 탭엔 청구서 없음');
-      assert(await sc.getByText('위치도 — 본건',{exact:true}).isVisible(),mode+': 3번 탭에 위치도');
-      await tabs.nth(3).click();
-      assert(!(await sc.locator('.k4-left').isVisible()),mode+': 4번 탭엔 계산 없음');
-      assert(await sc.locator('.k4-right').isVisible(),mode+': 4번 탭 청구서 보임');
-      assert(!(await sc.getByText('위치도 — 본건',{exact:true}).isVisible()),mode+': 4번 탭엔 위치도 없음');
+      assert(!(await sc.locator('.s3-card').isVisible()),mode+': 3번 탭엔 거래사례 표 없음');
+      if(mode==='multi')assert(!(await vis('적용단가')),mode+': 3번 탭엔 계산 없음');
+      assert(!(await sc.getByPlaceholder('카이스에서 복사 후 여기에 Ctrl+V').isVisible()),mode+': 3번 탭엔 사례 없음');
+      assert(await sc.locator('.pf-list').isVisible(),mode+': 3번 탭 내려받기 전 확인');
+      assert(await vis('위치도 — 본건'),mode+': 3번 탭에 위치도');
       assert(await sc.locator('.k4-right .pf-item').count()>=6,mode+': 내려받기 전 확인 목록');
       assert(await sc.locator('.k4-right .pf-item.todo').count()>=3,mode+': 빈 건은 남은 일이 있다');
-      assert(await sc.locator('.k4-right').getByRole('button',{name:'명세표(excel)'}).isVisible(),mode+': 서류 버튼은 4번 탭');
+      assert(await sc.locator('.k4-right').getByRole('button',{name:'명세표(excel)'}).isVisible(),mode+': 서류 버튼은 3번 탭');
       // 「바로 가기」 → 그 탭으로
       await sc.locator('.k4-right .pf-item.todo a').first().click();
       assert(await sc.getByText('감정평가 개요',{exact:true}).isVisible(),mode+': 바로 가기 → 1번 탭');
@@ -68,17 +72,22 @@ const TABS=['1. 접수 · 대상물건','2. 사례 등 입력','3. 가격산출 
         await sc.locator('.js-nm',{hasText:'현대아파트 77동 904호'}).waitFor();
         assert(await sc.locator('.jr-item.cur').count()===1,'연 건이 목록에서 표시됨');
         assert.equal(await sc.locator('.js-row').count(),0,'열면 1번 탭 — 요약 한 줄');
-        await tabs.nth(2).click();
+        await tabs.nth(1).click();
         await sc.locator('.js-grp.res').waitFor();
         const res=await sc.locator('.js-grp.res').innerText();
         assert(res.includes('50,200,000')&&res.includes('7,900,000,000')&&res.includes('0.00%'),'요약 띠 결과: '+res);
         const row=await sc.locator('.js-row').innerText();
         assert(row.includes('157.36㎡')&&row.includes('2026.07.14')&&row.includes('7,900,000,000원'),'요약 띠 물건/접수/탁상: '+row);
-        // 2단: 사례 선택(왼쪽) | 적용단가(오른쪽)
-        const a=await sc.locator('.k4-colA').boundingBox(),b=await sc.locator('.k4-colB').boundingBox();
-        assert(b.x>a.x+a.width-2&&Math.abs(a.y-b.y)<4,'가격산출 2단');
-        assert((await tabs.nth(2).innerText()).includes('✓'),'3번 탭 배지 ✓');
-        await tabs.nth(3).click();
+        // 2번 탭 배치: 왼쪽 [거래사례 표 / 적용단가] | 오른쪽 [가치형성요인], 맨 아래 전체 폭 [시산가액 결정]
+        await page.setViewportSize({width:1950,height:1000});await page.waitForTimeout(300);   // 2단은 본문 1550px 이상
+        const bb=sel=>sc.locator(sel).first().boundingBox();
+        const C=await bb('.s3-card'),A=await bb('.k4-apply'),F=await bb('.k4-colA'),Z=await bb('.k4-final');
+        assert(F.x>C.x+C.width-2&&Math.abs(F.y-C.y)<4,'거래사례 | 가치형성요인 나란히');
+        assert(Math.abs(A.x-C.x)<2&&A.y>C.y+C.height-2&&A.y<C.y+C.height+40,'적용단가는 거래사례 표 바로 아래');
+        assert(Z.y>=F.y+F.height-2&&Z.width>C.width+F.width-2,'시산가액 결정은 맨 아래 전체 폭');
+        assert((await tabs.nth(1).innerText()).includes('✓'),'2번 탭 배지 ✓');
+        await page.setViewportSize({width:1700,height:1000});
+        await tabs.nth(2).click();
         assert.equal(await sc.locator('.k4-right .pf-item.todo').count(),1,'샘플은 층별면적만 남음');
         for(const n of ['표지','괄감','의견서','요항표']){const b=sc.locator('.k4-right').getByRole('button',{name:n,exact:true});for(let k=0;k<40&&!(await b.isEnabled());k++)await page.waitForTimeout(250);assert(await b.isEnabled(),n+' 버튼 켜짐');}
         // 찾기

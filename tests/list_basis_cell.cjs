@@ -30,7 +30,7 @@ function cellLines(xml){const i=xml.indexOf('>목록표시근거<');assert(i>=0,
       const scope=page.locator('#root');
       await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
       await scope.locator('div:has(> span:text-is("목록표시근거")) input').first().fill(val);
-      await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
+      await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
       const btn=scope.getByRole('button',{name:'괄감',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const z=await save(page,()=>btn.click(),'jip.hwpx');
       const xml=z['Contents/section0.xml'].toString('utf8');

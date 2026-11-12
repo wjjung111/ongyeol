@@ -20,7 +20,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         localStorage.setItem(prefix+'case:TEST-TU',JSON.stringify({ov,cases:[c('c1','1',30077703,1.28182),c('c2','2',28479012,null)],precs:[],propType:'주거용'}));},mode);
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
-      await scope.getByText('2. 사례 등 입력',{exact:true}).click({timeout:60000});
+      await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
       const cell=scope.getByLabel('거래사례 #1 시점수정 단가');
       assert.equal(await cell.innerText(),(Math.round(30077703*1.28182)).toLocaleString('en-US'),'단가 × 시점수정치');
       assert.equal(await scope.getByLabel('거래사례 #2 시점수정 단가').innerText(),'-','시점수정치 없으면 -');
