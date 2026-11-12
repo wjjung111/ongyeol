@@ -17,7 +17,7 @@
   window.arapUserName=function(forceAsk){
     try{var q=new URLSearchParams(location.search).get("user");if(q&&window.arapUserAllowed(q))localStorage.setItem("arap-user-name",q);}catch(e){}
     var name=lsGet("arap-user-name")||"";
-    if(!window.arapUserAllowed(name))name="";
+    if(!window.arapUserAllowed(name)){name="wdw";try{localStorage.setItem("arap-user-name",name);}catch(e){}}   // 1인 사용 — 이름 없으면 자동으로 관리자(wdw) 처리, 첫 화면 안 뜸
     var el=document.getElementById("mb-user");if(el)el.textContent=name?"🙋 "+name:"🙋 이름 선택";
     if(forceAsk||!name){try{window.arapShowNameGate(name);}catch(e){console.error('name gate',e);}}
     return name;
