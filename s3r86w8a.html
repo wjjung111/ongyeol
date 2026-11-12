@@ -125,6 +125,7 @@
     };
   })();
   </script>
+  <script src="arap_filebak.js"></script><!-- 💾 백업 파일 내려받기/불러오기(GitHub 백업과 별개의 두 번째 백업) -->
   <script src="arap_sync.js"></script><!-- ArapCred: GitHub 토큰을 크롬 비밀번호 관리자에 보관 -->
   <script>
   // ── 사용 기록 (관리자용) — 건 저장·다운로드 시 요약을 관리자 수신함(구글 앱스 스크립트)으로 전송 ──
@@ -4391,6 +4392,7 @@ function SyncPanel(){
       {connected?"저장할 때마다 GitHub(비공개)에 자동 백업돼요. 크롬 기록·쿠키를 지워도 「🔑 저장된 토큰으로 연결」 한 번이면 전부 돌아와요. 토지건물과 같은 토큰이에요.":
         "연결해 두면 저장할 때마다 GitHub(비공개)에 자동 백업 → 크롬 기록·쿠키를 지워도 복구되고 다른 기기에서도 보여요. 토큰 발급: github.com → Settings → Developer settings → Personal access tokens(classic) → 'gist' 권한만 체크. (삭제는 기기 간 전파 안 됨)"}
     </div>
+    <div ref={el=>{if(el&&window.ArapFileBak)window.ArapFileBak.mount(el);}}/>{/* 💾 파일 백업(arap_filebak.js) */}
   </div>);
 }
 
@@ -7966,6 +7968,7 @@ function SyncPanel(){
       {connected?"저장할 때마다 GitHub(비공개)에 자동 백업돼요. 크롬 기록·쿠키를 지워도 「🔑 저장된 토큰으로 연결」 한 번이면 전부 돌아와요. 토지건물과 같은 토큰이에요.":
         "연결해 두면 저장할 때마다 GitHub(비공개)에 자동 백업 → 크롬 기록·쿠키를 지워도 복구되고 다른 기기에서도 보여요. 토큰 발급: github.com → Settings → Developer settings → Personal access tokens(classic) → 'gist' 권한만 체크. (삭제는 기기 간 전파 안 됨)"}
     </div>
+    <div ref={el=>{if(el&&window.ArapFileBak)window.ArapFileBak.mount(el);}}/>{/* 💾 파일 백업(arap_filebak.js) */}
   </div>);
 }
 

@@ -25,6 +25,7 @@
 </head>
 <body>
 <script src="arap_access.js"></script>
+<script src="arap_filebak.js"></script><!-- 💾 백업 파일 내려받기/불러오기 -->
 <script src="arap_casebak.js"></script><!-- 저장건 안전장치(집건과 같은 파일): 💾 저장으로 번호 확정·이미 있는 번호 거절·건별 이전 버전 -->
   <style>
     #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;
@@ -2894,7 +2895,7 @@ function App(){
               <span style={{minWidth:150,whiteSpace:"nowrap"}}>{fmtWhen(v.t)}</span><span style={{flex:1}}>{v.summary}</span>
               <button className="bak-restore" style={{...S.btn,background:C.acc,color:"#fff",fontSize:11,padding:"3px 10px"}} onClick={()=>restoreBak(x.id,v.k)}>이 버전으로 되돌리기</button></div>)}
           </td></tr>}</React.Fragment>);})}
-      </tbody></table></Card>}
+      </tbody></table><div ref={el=>{if(el&&window.ArapFileBak)window.ArapFileBak.mount(el);}}/>{/* 💾 파일 백업(arap_filebak.js) */}</Card>}
       <div style={S.steps}>{IPJ_LABELS.map((l,i)=><span key={i} style={S.step(step===i)} onClick={()=>setStep(i)}>{l}</span>)}</div>
       {IPJ_LABELS.map((l,i)=><div key={i} style={{display:step===i?"block":"none"}}>{tabProps[i]}</div>)}
       <div style={{display:"flex",justifyContent:"space-between",marginTop:14}}>

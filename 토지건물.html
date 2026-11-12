@@ -411,6 +411,7 @@
 <script src="arap_cheonggu.js"></script>
 <script src="arap_fee.js"></script><!-- 감정평가수수료 자동 계산(보수에 관한 기준 별표) — 수수료 사이트 대신 --><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
 <script src="arap_map.js"></script>
+<script src="arap_filebak.js"></script><!-- 💾 백업 파일 내려받기/불러오기 -->
 <script src="arap_sync.js"></script><!-- 저장건 GitHub 자동 백업(집합건물과 같은 토큰·Gist) --><!-- 위치도 공용 엔진 — 거래사례 지도 페이지와 같은 코드 -->
 
 <script src="arap_jibyun_data.js"></script><!-- 지가변동률+연도 누계(매일 06시 자동갱신). 있으면 통신 없이 계산, 없거나 파일 밖 달은 프록시 -->
@@ -4773,7 +4774,8 @@ if(LAND_SYNC)LAND_SYNC.onStatus(function(st){var bar=document.getElementById('sy
   if(bar&&bar.classList.contains('on')!==!!LAND_SYNC.token()){renderSyncBar();return;}
   var el=document.querySelector('#syncBar .arap-sync-st');if(el){el.textContent=st;el.classList.toggle('err',st.indexOf('⚠️')===0);}});
 function renderSyncBar(){var bar=document.getElementById('syncBar');if(!bar||!LAND_SYNC)return;
-  bar.innerHTML=LAND_SYNC.panelHtml();bar.classList.toggle('on',!!LAND_SYNC.token());LAND_SYNC.bindPanel(bar);}
+  bar.innerHTML=LAND_SYNC.panelHtml();bar.classList.toggle('on',!!LAND_SYNC.token());LAND_SYNC.bindPanel(bar);
+  if(window.ArapFileBak){var fb=document.createElement('div');fb.style.margin='0 2px 10px';bar.appendChild(fb);ArapFileBak.mount(fb);}}   // 💾 파일 백업 줄
 function syncHtml(){return '';}   // 저장 목록 안에는 더 두지 않는다(위 #syncBar로 옮김)
 function bindSync(){}
 function eh(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
