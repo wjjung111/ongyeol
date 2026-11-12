@@ -5,6 +5,9 @@
  * - 불러오기: 파일에만 있는 것은 그대로 들여오고, 목록은 번호별로 합친다. 양쪽에 다 있고 내용이 다른 건은 물어본 뒤
  *   「파일 내용으로 바꾸기 / 지금 것 유지」. 지금 저장공간에만 있는 건은 건드리지 않는다(지우지 않음).
  * - 화면: ArapFileBak.mount(el) — 순수 DOM 한 줄. 집건(단일·여러 호수)·입주권은 React ref로, 토건은 #syncBar 아래에 붙인다.
+ * - 백업 폴더(2026-11-12): 「📁 백업 폴더 고르기」로 PC 폴더(구글 드라이브 데스크톱 폴더 등)를 한 번 지정하면 그 폴더에 바로 쓴다.
+ *   파일 이름은 하루에 하나 `ongyeol_backup_YYYYMMDD.json`(그날 것은 덮어씀 → 날짜별로 남음). 저장건·메모가 바뀌면 1분 뒤 자동으로 쓴다.
+ *   폴더 손잡이는 IndexedDB(arap-filebak)에 둔다 — 크롬 기록을 지우면 폴더만 다시 고르면 된다. 웹 화면은 폴더 경로를 글자로 받을 수 없어 고르기 창이 필요.
  * 검증 tests/filebak.cjs
  */
 (function(){
@@ -28,7 +31,7 @@
     return {app:'ongyeol-backup',ver:1,savedAt:new Date().toISOString(),cases:cases,data:data};
   }
   function fileName(d){d=d||new Date();
-    return '온결백업_'+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'_'+p2(d.getHours())+p2(d.getMinutes())+'.json';}
+    return 'ongyeol_backup_'+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'_'+p2(d.getHours())+p2(d.getMinutes())+'.json';}
   function download(){
     var snap=collect();
     var blob=new Blob([JSON.stringify(snap)],{type:'application/json'});
@@ -38,6 +41,68 @@
     set(LAST_KEY,String(Date.now()));refresh();
     return snap;
   }
+
+  // ── 백업 폴더 ── dirState: none(안 고름) / ok(쓸 수 있음) / ask(권한이 풀림 — 버튼을 눌러야 다시 허용 창이 뜸)
+  var dirHandle=null,dirState='none',autoTimer=null,lastErr='';
+  var AUTO=/(^|[:-])case:|case-list$|^tojigeonmul-list$|memo:/;      // 이 칸이 바뀌면 자동 백업 예약
+  function canDir(){return !!(window.showDirectoryPicker&&window.indexedDB);}
+  function idb(mode,fn){return new Promise(function(res,rej){var r=indexedDB.open('arap-filebak',1);
+    r.onupgradeneeded=function(){r.result.createObjectStore('kv');};r.onerror=function(){rej(r.error);};
+    r.onsuccess=function(){var db=r.result,tx=db.transaction('kv',mode),rq=fn(tx.objectStore('kv'));
+      tx.oncomplete=function(){db.close();res(rq&&rq.result);};tx.onerror=function(){db.close();rej(tx.error);};};});}
+  // 폴더 손잡이 보관 — 기본 IndexedDB. 테스트는 window.ArapFileBakStore({get,put,del})로 바꿔 끼운다
+  //  (리눅스 헤드리스 크롬은 IndexedDB에서 OPFS 손잡이를 꺼낼 때 브라우저가 죽어서 실제 경로로는 새로고침을 못 본다)
+  var store=window.ArapFileBakStore||{
+    get:function(){return idb('readonly',function(st){return st.get('dir');});},
+    put:function(h){return idb('readwrite',function(st){return st.put(h,'dir');});},
+    del:function(){return idb('readwrite',function(st){return st.delete('dir');});}};
+  function perm(ask){
+    if(!dirHandle)return Promise.resolve(false);
+    var o={mode:'readwrite'};
+    return Promise.resolve(dirHandle.queryPermission?dirHandle.queryPermission(o):'granted').then(function(p){
+      if(p==='granted')return true;
+      if(ask&&dirHandle.requestPermission)return dirHandle.requestPermission(o).then(function(p2){return p2==='granted';});
+      return false;
+    }).then(function(ok){dirState=ok?'ok':'ask';return ok;});
+  }
+  function dayName(d){d=d||new Date();return 'ongyeol_backup_'+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'.json';}
+  // 폴더에 오늘 날짜 파일로 쓴다(그날 것은 덮어씀)
+  function writeDir(){
+    var snap=collect();
+    return dirHandle.getFileHandle(dayName(),{create:true}).then(function(fh){return fh.createWritable();})
+      .then(function(w){return w.write(JSON.stringify(snap)).then(function(){return w.close();});})
+      .then(function(){lastErr='';set(LAST_KEY,String(Date.now()));refresh();return snap;});
+  }
+  function pickDir(){
+    return window.showDirectoryPicker({mode:'readwrite',id:'arapbak'}).then(function(h){dirHandle=h;dirState='ok';
+      return store.put(h);}).then(function(){return writeDir();});
+  }
+  function forgetDir(){dirHandle=null;dirState='none';clearTimeout(autoTimer);
+    return store.del().then(refresh,refresh);}
+  function loadDir(){
+    if(!canDir())return Promise.resolve();
+    return store.get().then(function(h){if(!h)return;dirHandle=h;return perm(false);})
+      .then(refresh,function(e){console.error('filebak loadDir',e);});
+  }
+  // 「지금 백업」 — 폴더가 있으면 폴더에(권한이 풀렸으면 허용 창), 없으면 내려받기
+  function backupNow(){
+    if(!dirHandle){download();return Promise.resolve('download');}
+    return perm(true).then(function(ok){if(!ok){refresh();alert('백업 폴더에 쓸 권한을 받지 못했습니다. 허용 창에서 「허용」을 눌러 주세요.');return 'denied';}
+      return writeDir().then(function(){return 'dir';});})
+      .catch(function(e){console.error('filebak write',e);lastErr=String(e&&e.message||e);refresh();
+        alert('백업 폴더에 쓰지 못했습니다('+lastErr+').\n폴더가 지워졌거나 옮겨졌으면 「📁 백업 폴더 고르기」로 다시 골라 주세요.');return 'error';});
+  }
+  // 자동: 저장건·메모가 바뀌고 autoMs 동안 더 안 바뀌면 폴더에 쓴다. 권한이 풀려 있으면 쓰지 않고 안내만(허용 창은 버튼을 눌러야 뜸)
+  function schedule(){
+    if(!dirHandle)return;clearTimeout(autoTimer);
+    autoTimer=setTimeout(function(){perm(false).then(function(ok){if(!ok){refresh();return;}
+      if(!collect().cases)return;                                   // 건이 하나도 없으면 빈 파일로 덮지 않는다
+      return writeDir();}).catch(function(e){console.error('filebak auto',e);lastErr=String(e&&e.message||e);refresh();});},api.autoMs);
+  }
+  (function(){var proto=Storage.prototype,prev=proto.setItem;
+    proto.setItem=function(k){var r=prev.apply(this,arguments);
+      try{if(this===window.localStorage&&AUTO.test(String(k)))schedule();}catch(e){}
+      return r;};})();
 
   // 백업 파일 내용과 지금 저장공간 비교 — 새로 들어올 것 / 내용이 다른 것
   function plan(snap){
@@ -77,7 +142,7 @@
     rd.onload=function(){
       var snap=null;try{snap=JSON.parse(String(rd.result||''));}catch(e){}
       var pl=plan(snap);
-      if(!pl.ok){alert('온결 백업 파일이 아닙니다.\n「백업 파일 내려받기」로 받은 온결백업_….json 파일을 골라 주세요.');return;}
+      if(!pl.ok){alert('온결 백업 파일이 아닙니다.\n「백업 파일 내려받기」로 받은 ongyeol_backup_….json 파일을 골라 주세요.');return;}
       if(!pl.newKeys.length&&!pl.diffKeys.length){alert('이 파일의 내용은 이미 전부 들어 있습니다. 바뀐 것이 없습니다.');return;}
       var when=String(snap.savedAt||'').slice(0,16).replace('T',' ');
       var etc=pl.newKeys.length-pl.newCases;
@@ -107,22 +172,38 @@
   }
   function refresh(){mounts=mounts.filter(function(el){return el.isConnected;});
     mounts.forEach(function(el){var st=el.querySelector('.arap-filebak-st');if(!st)return;var s=statusText();
-      st.textContent=s.text;st.style.color=s.warn?'#dc2626':'#64748b';});}
+      var dir=dirHandle?'📁 '+dirHandle.name+' · ':'';
+      if(dirHandle&&dirState==='ask'){st.textContent=dir+'폴더 권한이 풀렸어요 — 「지금 백업」을 한 번 눌러 주세요';st.style.color='#dc2626';}
+      else if(dirHandle&&lastErr){st.textContent=dir+'쓰지 못함 — 「📁 백업 폴더 고르기」로 다시 골라 주세요';st.style.color='#dc2626';}
+      else{st.textContent=dir+(dirHandle?'저장하면 자동 백업 · ':'')+s.text;st.style.color=s.warn?'#dc2626':'#64748b';}
+      var dn=el.querySelector('.arap-filebak-down');if(dn)dn.textContent=dirHandle?'지금 백업':'백업 파일 내려받기';
+      var pk=el.querySelector('.arap-filebak-pick');if(pk)pk.textContent=dirHandle?'📁 폴더 바꾸기':'📁 백업 폴더 고르기';
+      var fg=el.querySelector('.arap-filebak-forget');if(fg)fg.style.display=dirHandle?'':'none';});}
   function mount(el){
     if(!el||el.getAttribute('data-filebak'))return;el.setAttribute('data-filebak','1');
     var B='font-family:inherit;font-size:11px;padding:4px 10px;border-radius:4px;cursor:pointer;';
+    var G=B+'background:#fff;color:#334155;border:1px solid #cbd5e1;';
     el.innerHTML='<div class="arap-filebak" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">'+
       '<b style="font-size:12px;color:#1a2744;">💾 파일 백업</b>'+
-      '<button type="button" class="arap-filebak-down" style="'+B+'background:#2563eb;color:#fff;border:1px solid #2563eb;font-weight:700;" title="집합건물·입주권·토지건물 저장건 전체를 파일 하나로 받습니다">백업 파일 내려받기</button>'+
-      '<button type="button" class="arap-filebak-up" style="'+B+'background:#fff;color:#334155;border:1px solid #cbd5e1;" title="전에 받아 둔 온결백업_….json 파일을 골라 저장건을 되살립니다">백업 파일 불러오기</button>'+
+      '<button type="button" class="arap-filebak-down" style="'+B+'background:#2563eb;color:#fff;border:1px solid #2563eb;font-weight:700;" title="집합건물·입주권·토지건물 저장건 전체를 파일 하나로 백업합니다">백업 파일 내려받기</button>'+
+      (canDir()?'<button type="button" class="arap-filebak-pick" style="'+G+'" title="PC의 구글 드라이브 폴더를 한 번 골라 두면 그 폴더에 바로, 저장할 때마다 자동으로 백업합니다">📁 백업 폴더 고르기</button>':'')+
+      '<button type="button" class="arap-filebak-up" style="'+G+'" title="전에 받아 둔 ongyeol_backup_….json 파일을 골라 저장건을 되살립니다">백업 파일 불러오기</button>'+
+      (canDir()?'<button type="button" class="arap-filebak-forget" style="'+B+'background:#fff;color:#dc2626;border:1px solid #cbd5e1;display:none;" title="백업 폴더 연결만 끊습니다(폴더 안 파일은 그대로)">폴더 해제</button>':'')+
       '<input type="file" class="arap-filebak-file" accept=".json,application/json" style="display:none;">'+
       '<span class="arap-filebak-st" style="font-size:11px;"></span></div>'+
-      '<div style="font-size:10.5px;color:#94a3b8;margin-top:3px;">집합건물·입주권·토지건물 저장건과 메모가 파일 하나에 담겨요. 받은 파일을 구글 드라이브에 넣어 두면 GitHub 백업과 별개로 한 벌 더 남습니다. 불러오기는 토큰 없이 됩니다.</div>';
-    var inp=el.querySelector('.arap-filebak-file');
-    el.querySelector('.arap-filebak-down').addEventListener('click',function(){download();});
+      '<div style="font-size:10.5px;color:#94a3b8;margin-top:3px;">집합건물·입주권·토지건물 저장건과 메모가 파일 하나에 담겨요. 「📁 백업 폴더 고르기」로 구글 드라이브 폴더를 한 번 골라 두면 저장할 때마다 그 폴더에 자동 백업(하루에 파일 하나)됩니다. 불러오기는 토큰 없이 됩니다.</div>';
+    var inp=el.querySelector('.arap-filebak-file'),pk=el.querySelector('.arap-filebak-pick'),fg=el.querySelector('.arap-filebak-forget');
+    el.querySelector('.arap-filebak-down').addEventListener('click',function(){backupNow();});
+    if(pk)pk.addEventListener('click',function(){pickDir().then(function(){refresh();
+        alert('백업 폴더를 「'+dirHandle.name+'」로 정했고, 방금 첫 백업 파일을 넣었습니다.\n이제 저장할 때마다 이 폴더에 자동 백업됩니다.');},
+      function(e){if(e&&e.name==='AbortError')return;console.error('filebak pick',e);refresh();alert('폴더를 정하지 못했습니다('+(e&&e.message||e)+').');});});
+    if(fg)fg.addEventListener('click',function(){if(confirm('백업 폴더 연결을 끊을까요? 폴더 안의 백업 파일은 그대로 남습니다.'))forgetDir();});
     el.querySelector('.arap-filebak-up').addEventListener('click',function(){inp.value='';inp.click();});
     inp.addEventListener('change',function(){if(inp.files&&inp.files[0])restoreFile(inp.files[0]);});
     mounts.push(el);refresh();
   }
-  window.ArapFileBak={mount:mount,download:download,collect:collect,plan:plan,apply:apply,restoreFile:restoreFile,fileName:fileName,_skip:skip};
+  var api={mount:mount,download:download,backupNow:backupNow,collect:collect,plan:plan,apply:apply,restoreFile:restoreFile,fileName:fileName,dayName:dayName,
+    autoMs:60000,_skip:skip,_dir:function(){return {name:dirHandle&&dirHandle.name,state:dirState};}};
+  window.ArapFileBak=api;
+  loadDir();
 })();

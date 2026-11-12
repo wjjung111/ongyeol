@@ -30,7 +30,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     assert.match(await page.textContent('.arap-filebak-st'),/아직 파일 백업을 받은 적이 없어요/);
     // 내려받기
     const [dl]=await Promise.all([page.waitForEvent('download'),page.click('.arap-filebak-down')]);
-    assert.match(await page.evaluate(()=>ArapFileBak.fileName()),/^온결백업_\d{8}_\d{4}\.json$/);   // 리눅스 헤드리스는 한글 파일명을 'download'로 바꿔 보고해 함수 값으로 확인
+    assert.match(await page.evaluate(()=>ArapFileBak.fileName()),/^ongyeol_backup_\d{8}_\d{4}\.json$/);   // 리눅스 헤드리스는 한글 파일명을 'download'로 바꿔 보고해 함수 값으로 확인
     const file=path.join(require('os').tmpdir(),'filebak_test_'+Date.now()+'.json');await dl.saveAs(file);
     const snap=JSON.parse(fs.readFileSync(file,'utf8'));
     assert.equal(snap.app,'ongyeol-backup');assert.equal(snap.cases,4);
