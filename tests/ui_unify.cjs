@@ -66,10 +66,10 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
       await page.goto(base+'/s3r86w8a.html');
       const r=page.locator('#root');
-      await r.getByText('1. 접수개요',{exact:true}).waitFor({timeout:60000});
+      await r.getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});
       assert.equal(await r.getByText('현장조사일',{exact:true}).count(),1);
       // 샘플 건: 사례 ✕ → 안내·되돌리기 → Ctrl+Y
-      await r.getByText('3. 사례 등 입력',{exact:true}).click();
+      await r.getByText('2. 사례 등 입력',{exact:true}).click();
       const tag=()=>r.getByText(/^사례 \d+ \| 선정/).textContent();
       const before=await tag();
       await r.locator('td span',{hasText:'✕'}).first().click();await page.waitForTimeout(600);
@@ -81,7 +81,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       await page.keyboard.press('Control+z');await page.waitForTimeout(600);
       assert.equal(await tag(),before,'Ctrl+Z');
       // 자동저장 0.4초: 의뢰인 고치고 1초 안에 저장소 반영
-      await r.getByText('1. 접수개요',{exact:true}).click();
+      await r.getByText('1. 접수 · 대상물건',{exact:true}).click();
       const client=r.locator('input').nth(1);
       await client.fill('자동저장검증');await page.waitForTimeout(1000);
       assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('case:SAMPLE-압구정현대')).ov.client),'자동저장검증');

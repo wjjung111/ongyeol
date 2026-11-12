@@ -1,5 +1,5 @@
 /* arap_etc_items.js — 집합건물 의견서 「6. 그 밖의 사항」 추가 문구 (2026-11-05)
- * 2. 대상물건개요 탭의 문구 박스에 적은 항목(ov.etcItems: 문자열 배열)을 한글 의견서 그 밖의 사항
+ * 1. 접수 · 대상물건 탭의 문구 박스에 적은 항목(ov.etcItems: 문자열 배열)을 한글 의견서 그 밖의 사항
  * 맨 끝(라. 또는 지분평가 마. 다음)에 바./사.… 항목으로 그대로 넣는다. 단일호수·여러호수 공용.
  * - Card: React 화면(React.createElement — babel 없이). props {ov,setOv,S,C,BTN,shareText,pushUndo}
  * - insertXml(xml,n,tokenOf): 섹션 XML 문자열의 그 밖의 사항 끝에 빈 줄+항목 n개(본문은 {{토큰}})를 끼운다

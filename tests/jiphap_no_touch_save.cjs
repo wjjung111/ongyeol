@@ -14,15 +14,15 @@ const mk=async init=>{const ctx=await browser.newContext({viewport:{width:1300,h
 try{
   // ── 집건: 한 번 열어 단일·여러 호수 각각 마지막 건이 저장된 상태를 만든 뒤, 다시 열기만 하면 시각이 그대로인지
   {const {ctx,p}=await mk({'arap-jiphap-mode':'single'});
-    await p.goto(base+'/s3r86w8a.html');await p.locator('#root').getByText('2. 대상물건개요',{exact:true}).waitFor({timeout:60000});
+    await p.goto(base+'/s3r86w8a.html');await p.locator('#root').getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});
     await p.waitForTimeout(7000);   // 첫 로드 자동저장(여러 호수 5초 디바운스 포함)이 끝나게
     const snap=()=>p.evaluate(()=>{const o={};for(const k of ['appraisal-case-list','v2:appraisal-case-list']){try{o[k]=JSON.parse(localStorage.getItem(k)||'[]').map(x=>x.id+'@'+x.updated);}catch(e){}}return JSON.stringify(o);});
     const s1=await snap();
-    await p.reload();await p.locator('#root').getByText('2. 대상물건개요',{exact:true}).waitFor({timeout:60000});await p.waitForTimeout(7000);
+    await p.reload();await p.locator('#root').getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});await p.waitForTimeout(7000);
     const s2=await snap();assert.equal(s2,s1,'다시 열기만 하면 저장 시각 그대로');
     // 실제로 고치면 저장됨
     const before=await p.evaluate(()=>localStorage.getItem('case:SAMPLE-압구정현대'));
-    await p.locator('#root').getByText('1. 접수개요',{exact:true}).click();
+    await p.locator('#root').getByText('1. 접수 · 대상물건',{exact:true}).click();
     await p.locator('#root input[placeholder="HI260305-2601"]').locator('xpath=ancestor::div[2]').locator('input').nth(1).fill('테스트의뢰인');
     await p.waitForTimeout(1500);
     const after=await p.evaluate(()=>localStorage.getItem('case:SAMPLE-압구정현대'));

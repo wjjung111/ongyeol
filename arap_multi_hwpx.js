@@ -38,7 +38,7 @@ function model(input,h){
  const shown=cases.filter(c=>c.isShown||c.isSelected);const numbered=shown.map((c,i)=>({...c,symbol:i+1,originalSymbol:c.symbol}));
  const findCase=u=>{const c=resolveCase(u,cases);return c?numbered.find(x=>x.id===c.id)||c:null;};
  const units=(ov.units||[]).filter(u=>u&&(u.ho||u.dong||u.floor||num(u.area)>0));
- if(!units.length)throw Error('2. 대상물건개요에 호수를 입력하세요.');
+ if(!units.length)throw Error('1. 접수 · 대상물건에 호수를 입력하세요.');
  const rows=units.map((u,i)=>{const c=findCase(u),cal=calculateUnit(u,c,input,h),{ext,intF,ho,etc,totFac:factor,ua:area,raw,rnd:unit,finalAmt:amount,ready}=cal;
  const cv=caseValues(c,g.ARAP_INDEX_DATA,h.parseTimeAdjDetail,ov);
  return {u,c,area,unit,amount,ready,values:{...cv,'일련번호':sym(i),'동':u.dong||'','층':u.floor||'','호수':u.ho||'','동층호':[u.dong,u.floor,u.ho].map(text).join('/'),'대지지분':fmt(num(u.landArea)),'전유면적':fmt(num(u.area)),'평가면적':fmt(area),'공용면적':fmt(num(u.commonArea)),'합계면적':num(u.area)!=null&&num(u.commonArea)!=null?fmt(num(u.area)+num(u.commonArea)):'',
@@ -47,7 +47,7 @@ function model(input,h){
  const name=g.ArapBldrgst?g.ArapBldrgst.buildingNameOnly(ov.buildingName):ov.buildingName||'',floors=text(ov.floors).split('/'),parts=text(ov.jibun).match(/^(.*?)([^\s]+(?:동|리|가))\s+(.+)$/);
  const common={...caseValues(used[0],g.ARAP_INDEX_DATA,h.parseTimeAdjDetail,ov),'의뢰인':ov.client||'','접수번호':ov.caseNoDisplay||ov.caseNo||'','건명':[ov.jibun,name,rows[0].values['동층호']+'호'+(rows.length>1?' 외 '+(rows.length-1)+'개호':'')].filter(Boolean).join(' '),'감정평가액':fmt(total),'감정평가액한글':total!=null?h.numberToKoreanMoney(total)+'원':'','소유자':ov.owner||'','제출처':ov.submitTo||'','평가목적':ov.purpose||'','평가구분':ov.evalCategory||'','기준시점':ov.baseDate||'','조사기간':ov.surveyDate||'','작성일자':ov.writeDate||'','감정평가사':ov.appraiserName||'','심사자':ov.reviewerName||'','세대':rows.length+'개호','세대_사정':rows.length+'개호','유형':ov.kind||ov.mainUseJeonyu||'','건물명':name,'소재지_동까지':parts?(parts[1]+parts[2]).trim():ov.jibun||'','소재지_시군구':parts?parts[1].trim():'','소재지_지번':parts?(parts[2]+' '+parts[3]):ov.jibun||'','규모':floors[0]?('지상 '+floors[0]+'층'+(floors[1]?' / 지하 '+floors[1]+'층':'')):'','주구조':ov.structure||'','주용도_표제부':ov.mainUse||'','사용승인일':ov.approvalDate||'','인근위치설명':ov.nearDesc||'','기준시점근거구':ov.baseDateBasis==='현장조사완료일인'?'대상물건의 가격조사를 완료한 날짜인':ov.baseDateBasis||'','사례선정이유':ov.caseSelectionReason||(used.length?'대상물건과의 위치·용도·규모 및 가격형성요인의 유사성을 고려하여 '+used.map(c=>'#'+c.symbol).join(', ')+'을 비교 거래사례로 선정하였음.':''),'사정보정치':used.length?'1.000':''};
  for(const key of ['위생','급배수','급탕','난방','냉방','승강기','소방','방송','비고'])common['설비_'+key]=ov['facility'+key]||'';
- // 2. 대상물건개요 「의견서 문구」 박스 → 6. 그 밖의 사항 마.·바.… (arap_etc_items.js, 단일호수와 공용)
+ // 1. 접수 · 대상물건 「의견서 문구」 박스 → 6. 그 밖의 사항 마.·바.… (arap_etc_items.js, 단일호수와 공용)
  const etc=g.ArapEtcItems?g.ArapEtcItems.texts(ov,''):[];etc.forEach((t,i)=>{common[etcTok(i)]=t;});
  return {ov,rows,shown:numbered,used,total,common,etcCount:etc.length,images:ov.reportImages||[],toice:h.assembleToice(ov),roundNote:tM==='none'?'':`※ 호별 감정평가액은 ${tD} 단위에서 ${tM==='round'?'반올림':'절사'}하여 결정하였음.`,adjusted:rows.some(r=>r.area!==num(r.u.area))};
 }

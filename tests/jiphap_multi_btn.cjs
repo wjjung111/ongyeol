@@ -46,7 +46,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.addInitScript(m=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-gh-token','TOK');localStorage.setItem('arap-jiphap-mode',m);},mode);
       await page.goto(base+'/s3r86w8a.html');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
-      await scope.getByText('2. 대상물건개요',{exact:true}).first().waitFor({timeout:60000});
+      await scope.getByText('1. 접수 · 대상물건',{exact:true}).first().waitFor({timeout:60000});
       assert.ok(await page.evaluate(()=>!!(window.ArapSync&&window.ArapSync.token()&&window.ArapSync.phoneLink)),'연결 상태');
       await scope.locator('button',{hasText:'저장된 건'}).first().click();
       const phone=scope.locator('button',{hasText:'📱 폰 연결 링크'});await phone.waitFor({timeout:10000});

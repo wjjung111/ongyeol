@@ -25,7 +25,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       },{mode});
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('3. 사례 등 입력',{exact:true}).click();
+      await scope.getByText('2. 사례 등 입력',{exact:true}).click();
 
       // 표는 머리글 글자로 찾는다(여러호수는 단계가 한 화면에 같이 떠서 순번이 다르다) — 0 = 거래사례, 1 = 평가전례
       const tbl=n=>scope.locator('table').filter({has:page.locator('th',{hasText:n===0?'사용승인일':'기준시점'})}).first();
@@ -58,7 +58,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       // 4) 새로고침해도 유지(표별 localStorage), 평가전례 표는 영향 없음
       await page.waitForFunction(()=>!!localStorage.getItem('arap-colw-cases'));
       assert.equal(await page.evaluate(()=>localStorage.getItem('arap-colw-precs')),null);
-      await page.reload();await scope.getByText('3. 사례 등 입력',{exact:true}).click();
+      await page.reload();await scope.getByText('2. 사례 등 입력',{exact:true}).click();
       const w3=await widths(0);assert.ok(Math.abs(w3[6]-w1[6])<=2&&Math.abs(w3[4]-w2[4])<=2,`새로고침 뒤 ${w3}`);
       assert.equal((await info(1)).fixed,false);
 
@@ -72,9 +72,9 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       i0=await info(0);assert.equal(i0.fixed,false);assert.equal(i0.cols,0);
       assert.equal(await page.evaluate(()=>localStorage.getItem('arap-colw-cases')),null);
 
-      // 7) 여러호수만: 상세물건정보(호 단위) 표 — '2. 대상물건개요'
+      // 7) 여러호수만: 상세물건정보(호 단위) 표 — '1. 접수 · 대상물건'
       if(mode==='multi'){
-        await scope.getByText('2. 대상물건개요',{exact:true}).click();
+        await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
         const ut=scope.locator('table').filter({has:page.locator('th',{hasText:'탁상단가'})}).first();
         const uw=()=>ut.locator('thead > tr:first-child > th').evaluateAll(a=>a.map(t=>Math.round(t.getBoundingClientRect().width)));
         const u0=await uw();assert.equal(u0.length,13);

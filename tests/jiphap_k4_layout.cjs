@@ -1,8 +1,7 @@
-// 집합건물 앱 ④ 가격산출 2단 배치 검증(단일·여러호수)
-//  - 본문 폭이 넓으면: 왼쪽 = 사례 선택·가치형성요인(여러호수는 적용단가·감정평가액 결정), 오른쪽 = 청구서 카드
-//  - 오른쪽 청구서는 아래로 스크롤해도 화면 위쪽에 붙어 따라온다(sticky) — 단일호수만(여러호수는 페이지 전체가 스크롤되는 구조라 같이 스크롤)
-//  - 본문 폭이 좁으면(<1100px) 한 줄로 쌓인다 — 예전과 같은 순서(청구서가 맨 아래)
-//  - 청구서 칸(착수금)을 고치면 정산청구액이 바뀌는 등 입력이 그대로 동작
+// 집합건물 앱 「3. 가격산출 · 위치도」 / 「4. 청구서 · 내려받기」 배치 검증(단일·여러호수) — 2026-11-12 화면 개편으로 다시 씀
+//  - 3번 탭: 계산 쪽(.k4-left)만 — 단일호수는 본문이 넓으면 2단(사례 선택·가치형성요인 | 적용단가·감정평가액), 좁으면(<1300px) 한 줄. 여러호수는 항상 한 줄. 아래에 위치도
+//  - 4번 탭: 청구서 쪽(.k4-right)만 — 내려받기 전 확인·서류 버튼 | 청구서. 좁으면 위아래
+//  - 청구서 칸(착수금)을 고치면 정산청구액이 바뀌고, 탭을 오가도 입력이 남는다
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_k4_layout.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('assert/strict');
@@ -27,37 +26,41 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       const openMemo=async()=>{const b=page.locator('span:text-is("◀ 메모"):visible');await b.first().waitFor();await b.first().click();};   // 메모장은 켤 때 접혀 있다(2026-10-13) — 펼친 뒤 검사
       await openMemo();   // 폭 기준은 메모장을 펼친 화면
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('4. 가격산출',{exact:true}).click();
-      const split=scope.locator('.k4-split:visible').first();await split.waitFor();
-      const geo=()=>split.evaluate(sp=>{const L=sp.querySelector('.k4-left'),R=sp.querySelector('.k4-right');const l=L.getBoundingClientRect(),r=R.getBoundingClientRect();return{l:{x:l.x,y:l.y,w:l.width,h:l.height},r:{x:r.x,y:r.y,w:r.width,h:r.height},leftText:L.innerText,rightText:R.innerText};});
+      const tab=n=>scope.getByText(n,{exact:true}).click();
+      const split=scope.locator('.k4-split').first();
+      const box=sel=>split.locator(sel).evaluate(e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height,vis:!!e.offsetParent,text:e.innerText};});
 
-      // 1) 넓은 화면 — 2단: 오른쪽이 청구서, 왼쪽에 사례 선택(+가치형성요인/적용단가)
-      let g=await geo();
-      assert.ok(g.r.x>g.l.x+g.l.w-2,`오른쪽 열이 왼쪽 오른편에 있어야 함 ${JSON.stringify(g)}`);
-      assert.ok(Math.abs(g.r.y-g.l.y)<=40,`두 열의 윗선이 같아야 함 ${g.r.y} vs ${g.l.y}`);
-      assert.ok(g.r.w>=430&&g.r.w<=560,`청구서 폭 ${g.r.w}`);
-      assert.ok(g.l.w>=900,`왼쪽 폭 ${g.l.w}`);
-      assert.ok(g.leftText.includes('사례 선택'));
-      assert.ok(mode==='single'?g.leftText.includes('가치형성요인'):g.leftText.includes('적용단가'));
-      assert.ok(g.rightText.includes('청구서'));
-      assert.ok(!g.leftText.includes('청구서 hwpx 다운로드'),'청구서 카드가 왼쪽에 남음');
-      assert.ok(!g.rightText.includes('사례 선택'),'사례 선택이 오른쪽에 들어감');
+      // 1) 「3. 가격산출 · 위치도」 — 계산 쪽만 보이고 청구서는 숨는다. 단일호수는 넓으면 2단(사례 선택·요인 | 적용단가·감정평가액), 여러호수는 표가 넓어 한 줄
+      await tab('3. 가격산출 · 위치도');await split.locator('.k4-left').waitFor();
+      let L=await box('.k4-left'),R=await box('.k4-right');
+      assert.ok(L.vis&&!R.vis,'3번 탭: 계산만 보임');
+      assert.ok(L.text.includes('사례 선택')&&L.text.includes('적용단가'));
+      assert.ok(!L.text.includes('청구서 hwpx 다운로드'),'청구서가 계산 쪽에 남음');
+      if(mode==='single'){
+        const A=await box('.k4-colA'),B=await box('.k4-colB');
+        assert.ok(B.x>A.x+A.w-2&&Math.abs(A.y-B.y)<=4,`넓으면 2단 ${JSON.stringify({A:[A.x,A.y,A.w],B:[B.x,B.y,B.w]})}`);
+        assert.ok(A.text.includes('사례 선택')&&A.text.includes('가치형성요인')&&!A.text.includes('적용단가'));
+        assert.ok(B.text.includes('적용단가')&&B.text.includes('감정평가액 결정')&&!B.text.includes('사례 선택'));
+      }
+      const cols=()=>split.locator('.k4-left').evaluate(e=>getComputedStyle(e).display==='grid'?getComputedStyle(e).gridTemplateColumns.split(' ').length:1);
+      for(const [w,exp] of (mode==='single'?[[2560,2],[1920,2],[1700,1],[1400,1]]:[[2600,1],[1700,1]])){
+        await page.setViewportSize({width:w,height:900});await page.waitForTimeout(250);
+        assert.equal(await cols(),exp,`${mode} ${w}px 계산 단 수`);
+      }
+      await page.setViewportSize({width:W,height:900});await page.waitForTimeout(250);
+      assert.ok(await scope.getByText('위치도 — 본건',{exact:true}).isVisible(),'3번 탭 아래에 위치도');
 
-      // 2) 스크롤해도 청구서가 따라온다 — 가운데 스크롤 영역을 내린 뒤에도 오른쪽 열이 화면 위에 붙어 있다
-      await page.setViewportSize({width:W,height:520});await page.waitForTimeout(200);   // 창을 낮춰 두면 짧은 건에서도 스크롤 여지가 생긴다
-      const scroller=await split.evaluateHandle(sp=>{let e=sp.parentElement;while(e&&!(getComputedStyle(e).overflowY==='auto'&&e.scrollHeight>e.clientHeight+50))e=e.parentElement;return e||document.scrollingElement;});   // 단일호수는 가운데 영역이, 여러호수는 페이지 전체가 스크롤된다
-      const sc0=await scroller.evaluate(e=>{const pg=e===document.scrollingElement;return{top:pg?0:e.getBoundingClientRect().top,max:e.scrollHeight-e.clientHeight};});
-      assert.ok(sc0.max>200,`스크롤 여지가 있어야 검증 가능: ${sc0.max}`);
-      await scroller.evaluate(e=>{e.scrollTop=400;});await page.waitForTimeout(150);
-      g=await geo();
-      assert.ok(g.l.y<-100,'왼쪽은 같이 올라가야 함');
-      // 단일호수: 가운데 영역이 스크롤되므로 청구서가 위에 붙어 따라온다. 여러호수: 가운데 영역에 높이 제한이 없어(페이지 전체 스크롤) 따라오기(sticky)는 적용되지 않고 같이 스크롤된다 — 2단 배치만 유지
-      if(mode==='single'){assert.ok(g.r.y<sc0.top+40&&g.r.y>=sc0.top-2,`스크롤 후 청구서 위치 ${g.r.y} (스크롤영역 위 ${sc0.top})`);assert.ok(g.r.y+g.r.h<=520+1,`낮은 창에서 청구서 아래가 화면 밖 ${g.r.y+g.r.h}`);}
-      else assert.ok(g.r.x>g.l.x+g.l.w-2,'스크롤 뒤에도 2단 유지');
-      await scroller.evaluate(e=>{e.scrollTop=0;});await page.setViewportSize({width:W,height:900});await page.waitForTimeout(200);
+      // 2) 「4. 청구서 · 내려받기」 — 청구서 쪽만 보인다: 왼쪽 = 내려받기 전 확인 + 서류 버튼, 오른쪽 = 청구서
+      await tab('4. 청구서 · 내려받기');
+      L=await box('.k4-left');R=await box('.k4-right');
+      assert.ok(!L.vis&&R.vis,'4번 탭: 청구서만 보임');
+      assert.ok(R.text.includes('내려받기 전 확인')&&R.text.includes('평가서 내려받기')&&R.text.includes('청구서'));
+      assert.ok(!(await scope.getByText('위치도 — 본건',{exact:true}).isVisible()),'4번 탭엔 위치도 없음');
+      const kids=()=>split.locator('.k4-right').evaluate(e=>[...e.children].map(c=>{const r=c.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};}));
+      let k=await kids();assert.equal(k.length,2);
+      assert.ok(k[1].x>k[0].x+k[0].w-2&&Math.abs(k[0].y-k[1].y)<=4,`확인 카드 | 청구서 카드 2단 ${JSON.stringify(k)}`);
 
-      // 3) 오른쪽 청구서 입력은 그대로 동작 — 기납부착수금 입력 → 정산청구액 반영
-      // 평가수수료는 감정평가액으로 자동 계산되므로(arap_fee.js) 금액 자체가 아니라 「착수금만큼 줄어드는지」를 본다
+      // 3) 청구서 입력은 그대로 동작 — 기납부착수금 입력 → 정산청구액 반영 (평가수수료는 자동 계산이라 「착수금만큼 줄어드는지」를 본다)
       const due=async()=>{const t=await split.locator('.k4-right').innerText();const m=t.match(/정산청구액[^\d]*([\d,]+)/);return m?Number(m[1].replace(/,/g,'')):null;};
       const down=split.locator('.k4-right input').last();
       await down.fill('0');await down.blur();await page.waitForTimeout(300);
@@ -66,28 +69,17 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.waitForTimeout(300);
       assert.equal(await down.inputValue(),'50,000');
       assert.ok(before>50000&&(await due())===before-50000,`기납부착수금을 넣으면 정산청구액이 50,000 줄어야 함 (${before} → ${await due()})`);
+      // 탭을 오가도 청구서 입력이 남는다(Step4를 한 번만 그리므로)
+      await tab('3. 가격산출 · 위치도');await tab('4. 청구서 · 내려받기');
+      assert.equal(await down.inputValue(),'50,000','탭을 오간 뒤에도 착수금 유지');
 
-      // 3-1) 어느 폭에서도 왼쪽 표가 잘리지 않는다(특히 여러호수 적용단가 표 ~980px) — 2단이면 왼쪽 폭이 충분하거나, 모자라면 한 줄로 쌓여 있어야 함
-      const clipped=()=>split.evaluate(sp=>[...sp.querySelectorAll('.k4-left *')].filter(e=>{const o=getComputedStyle(e).overflowX;return(o==='auto'||o==='scroll')&&e.scrollWidth>e.clientWidth+1&&e.offsetParent;}).map(e=>e.scrollWidth+'>'+e.clientWidth));
-      const cols=()=>split.evaluate(sp=>getComputedStyle(sp).gridTemplateColumns.split(' ').length);
-      for(const [w,exp] of (mode==='single'?[[2560,2],[1920,2],[1700,1],[1600,1]]:[[2600,2],[2400,2],[2100,1],[1700,1]])){
-        await page.setViewportSize({width:w,height:900});await page.waitForTimeout(250);
-        assert.equal(await cols(),exp,`${mode} ${w}px 단 수`);
-        // 여러호수 1700px(메모장 펼침, 본문 ~1140px)은 적용단가 표(~1280px)가 좌우 스크롤 — 본건 면적·사례 지번/건물명/호/면적 열 추가로 감수(2026-11-10)
-        if(!(mode==='multi'&&w<2000))assert.deepEqual(await clipped(),[],`${mode} ${w}px 에서 표가 잘림`);
-      }
-      await page.setViewportSize({width:W,height:900});await page.waitForTimeout(250);
-
-      // 4) 좁은 화면(본문 1100px 미만) — 한 줄로 쌓임: 청구서가 왼쪽 내용 아래
-      await page.setViewportSize({width:1400,height:900});await page.waitForTimeout(300);
-      g=await geo();
-      assert.ok(Math.abs(g.r.x-g.l.x)<=2&&Math.abs(g.r.w-g.l.w)<=2,`좁으면 폭이 같아야 함 ${JSON.stringify(g)}`);
-      assert.ok(g.r.y>=g.l.y+g.l.h-2,'좁으면 청구서가 아래에 놓여야 함');
-      const pos=await split.locator('.k4-right').evaluate(e=>getComputedStyle(e).position);assert.equal(pos,'static');
-
+      // 4) 좁은 화면 — 확인 카드 아래에 청구서
+      await page.setViewportSize({width:1100,height:900});await page.waitForTimeout(300);
+      k=await kids();
+      assert.ok(Math.abs(k[0].x-k[1].x)<=2&&k[1].y>=k[0].y+k[0].h-2,`좁으면 위아래 ${JSON.stringify(k)}`);
 
       assert.deepEqual(errors,[]);
-      console.log(mode+': PASS 2단 배치(왼쪽 사례·요인 / 오른쪽 청구서), 스크롤 시 청구서 고정, 입력 동작, 좁은 화면 한 줄, 페이지 오류 없음');
+      console.log(mode+': PASS 3번 탭 계산(단일 2단/여러 한 줄)+위치도, 4번 탭 확인·서류|청구서, 입력 동작·유지, 좁은 화면 위아래, 페이지 오류 없음');
       await ctx.close();
     }
   }finally{await browser.close();server.close();}

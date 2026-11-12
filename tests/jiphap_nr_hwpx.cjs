@@ -20,11 +20,11 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');localStorage.setItem('arap-nrcap-kind','집합상가');localStorage.setItem('arap-nrcap-region','서울');});
     await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
-    await scope.getByText('2. 대상물건개요',{exact:true}).click({timeout:60000});
+    await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
     await scope.locator('button',{hasText:/^비주거용$/}).first().click();
     if(process.env.SHARE){await scope.locator('select').filter({has:page.locator('option[value="share"]')}).first().selectOption('share');
       await scope.locator('input[placeholder="분자"]').fill('1');await scope.locator('input[placeholder="분모"]').fill('4');}
-    await scope.getByText('3. 사례 등 입력',{exact:true}).click();
+    await scope.getByText('2. 사례 등 입력',{exact:true}).click();
     // 선정 사례 행의 시점수정치 칸 → 자본수익률 계산 → 적용
     const idx=await scope.locator('tr').evaluateAll(trs=>trs.findIndex(tr=>{const c=tr.querySelectorAll(':scope > td')[2];const b=c&&c.querySelector('input[type=checkbox]');return !!(b&&b.checked&&/^#\d/.test((tr.querySelectorAll(':scope > td')[3]||{}).textContent||''));}));
     assert.ok(idx>=0,'선정 사례 행');
@@ -33,7 +33,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     await modal.locator('button',{hasText:/^시점수정치 계산$/}).click();
     assert.match(await modal.locator('textarea').inputValue(),/^집합상가\n지역 : 서울/,'자본수익률 산식이 칸에');
     await modal.locator('button',{hasText:/^적용$/}).click();
-    await scope.getByText('4. 가격산출',{exact:true}).click();
+    await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
     const T=x=>(x.match(/<hp:t>[^<]*<\/hp:t>/g)||[]).map(s=>s.slice(6,-7)).join('|');
     // 2026-10-28부터 표지·괄감·의견서가 따로 — 의견서(x)·괄감(x0)을 각각 받는다
     const get=async(name,fname)=>{const btn=scope.getByRole('button',{name,exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
