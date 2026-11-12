@@ -62,7 +62,7 @@
     const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
     try{const q=new URLSearchParams(location.search).get("user");if(q&&window.arapUserAllowed(q))localStorage.setItem("arap-user-name",q);}catch(e){}
     let name=lsGet("arap-user-name")||"";
-    if(!window.arapUserAllowed(name))name="";
+    if(!window.arapUserAllowed(name)){name="wdw";try{localStorage.setItem("arap-user-name",name);}catch(e){}}   // 1인 사용 — 이름 없으면 자동으로 관리자(wdw) 처리, 첫 화면 안 뜸
     const el=document.getElementById("mb-user");if(el)el.textContent=name?"🙋 "+name:"🙋 이름 선택";
     if(forceAsk||!name){try{window.arapShowNameGate&&window.arapShowNameGate(name);}catch(e){console.error('name gate',e);}}
     return name;   // 이름이 없으면 "" — 기록도 보내지 않는다 (arapUsageLog에서 걸러짐)
