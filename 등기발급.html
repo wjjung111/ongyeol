@@ -57,6 +57,8 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-of
 .btn:disabled{opacity:.55;cursor:default}
 .btn:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
 .status{font-size:12px;color:var(--ink2)}
+[hidden]{display:none!important}
+#kindPick{margin-top:10px;padding:10px 12px;border:1px solid var(--line2);border-radius:5px}
 .status.err{color:var(--warn)} .status.ok{color:var(--ok)}
 /* 에이전트 상태 */
 .agent{display:flex;gap:12px;align-items:flex-start;border-radius:8px;padding:12px 14px;background:var(--surface2)}
@@ -107,17 +109,23 @@ footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-
       <label class="f wide"><span>주소 (지번 또는 도로명)</span><input type="text" id="addr" placeholder="서울특별시 강남구 대치동 511" autocomplete="off"></label>
       <label class="f"><span>동 (집합건물)</span><input type="text" id="dong" placeholder="107" autocomplete="off"></label>
       <label class="f"><span>호 (집합건물)</span><input type="text" id="ho" placeholder="107" autocomplete="off"></label>
-      <label class="f"><span>부동산 구분</span>
-        <select id="rtype"><option value="">자동 (호 있으면 집합건물)</option><option>집합건물</option><option>토지</option><option>건물</option><option>전체</option></select></label>
       <label class="f"><span>등기기록</span>
         <select id="recType"><option>전부(말소사항 포함)</option><option>전부(현재 유효사항)</option></select></label>
       <label class="f wide"><span>메모 (선택)</span><input type="text" id="memo" placeholder="예: 대치동 상속 건" autocomplete="off"></label>
     </div>
+    <p class="hint">주소를 치고 Enter → 토지 / 건물 / 토지+건물 중에 고릅니다. 동·호를 넣으면 집합건물(아파트·상가 호)로 바로 요청합니다.</p>
     <p class="hint">열람 수수료가 선불 잔액에서 바로 차감됩니다. 검색 결과가 정확히 1건 맞을 때만 자동 결제하고, 애매하면 PC에서 멈춰 확인합니다.</p>
     <div class="row">
       <button type="button" class="btn primary" id="addBtn">열람 요청</button>
       <button type="button" class="btn" id="refreshBtn">새로고침</button>
       <span class="status" id="formStatus"></span>
+    </div>
+    <div class="row" id="kindPick" hidden>
+      <span class="status" id="kindAsk"></span>
+      <button type="button" class="btn primary" data-kind="토지">토지만</button>
+      <button type="button" class="btn primary" data-kind="건물">건물만</button>
+      <button type="button" class="btn primary" data-kind="토지,건물">토지+건물 (2건)</button>
+      <button type="button" class="btn" id="kindCancel">취소</button>
     </div>
   </section>
 
@@ -241,27 +249,41 @@ if (typeof module !== "undefined") module.exports = DG;
     }
   }
 
-  $("addBtn").onclick = async () => {
+  // 주소 + Enter(또는 [열람 요청]) → 호가 있으면 집합건물로 바로, 없으면 토지/건물/토지+건물 고르기.
+  // 토지+건물은 요청 2건(토지 1건, 건물 1건)으로 보낸다 - 등기부가 따로라 수수료도 2건.
+  function setStatus(cls, text){ $("formStatus").className = "status " + cls; $("formStatus").textContent = text; }
+  function hidePick(){ $("kindPick").hidden = true; }
+  async function send(kinds){
     const address = $("addr").value.trim();
-    if (!address) { $("addr").focus(); $("formStatus").className = "status err"; $("formStatus").textContent = "주소를 입력하세요"; return; }
-    const ho = $("ho").value.trim();
-    const job = {address, dong: $("dong").value.trim(), ho,
-      rtype: $("rtype").value || (ho ? "집합건물" : "전체"), doc_type: "열람", record_type: $("recType").value,
-      memo: $("memo").value.trim(), created: new Date().toLocaleString("ko-KR"), status: "대기"};
+    if (!address) { $("addr").focus(); setStatus("err", "주소를 입력하세요"); return; }
+    const base = {address, dong: $("dong").value.trim(), ho: $("ho").value.trim(), doc_type: "열람",
+      record_type: $("recType").value, memo: $("memo").value.trim(), created: new Date().toLocaleString("ko-KR"), status: "대기"};
     if (window.arapVisitLog) window.arapVisitLog("열람요청", address);
     $("addBtn").disabled = true;
+    const ids = [];
     try {
-      const d = await api({action: "add"}, job);
-      $("formStatus").className = "status ok"; $("formStatus").textContent = "요청됨 " + (d.id || "");
+      for (const rtype of kinds) { const d = await api({action: "add"}, {...base, rtype}); ids.push(rtype + " " + (d.id || "")); }
+      setStatus("ok", "요청됨 " + ids.join(" · "));
       ["addr", "dong", "ho", "memo"].forEach(id => $(id).value = "");
-      refresh();
+      hidePick();
     } catch(e) {
-      $("formStatus").className = "status err";
-      $("formStatus").textContent = "요청 실패: " + (e.message === "OFFLINE" ? "PC 에이전트가 꺼져 있습니다 (3_에이전트.bat 실행)" : e.message);
-    } finally { $("addBtn").disabled = false; }
-  };
-  $("refreshBtn").onclick = refresh;
-  $("addr").addEventListener("keydown", e => { if (e.key === "Enter") $("addBtn").click(); });
+      setStatus("err", (ids.length ? "일부만 요청됨(" + ids.join(" · ") + ") - " : "") + "요청 실패: " +
+        (e.message === "OFFLINE" ? "PC 에이전트가 꺼져 있습니다 (3_에이전트.bat 실행)" : e.message));
+    } finally { $("addBtn").disabled = false; refresh(); }
+  }
+  function ask(){
+    const address = $("addr").value.trim();
+    if (!address) { $("addr").focus(); setStatus("err", "주소를 입력하세요"); return; }
+    if ($("ho").value.trim()) { send(["집합건물"]); return; }
+    $("kindAsk").textContent = "「" + address + "」 어떤 등기를 받을까요?";
+    $("kindPick").hidden = false; setStatus("", "");
+    $("kindPick").querySelector("[data-kind]").focus();
+  }
+  $("addBtn").onclick = ask;
+  $("kindPick").querySelectorAll("[data-kind]").forEach(b => b.onclick = () => send(b.dataset.kind.split(",")));
+  $("kindCancel").onclick = () => { hidePick(); $("addr").focus(); };
+  ["addr", "dong", "ho"].forEach(id => $(id).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); ask(); } }));
+  $("addr").addEventListener("input", hidePick);
 
   $("setUrl").value = conf().url;
   $("setKey").value = conf().key;
