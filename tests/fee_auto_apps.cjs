@@ -18,7 +18,7 @@ const num=s=>Number(String(s).replace(/[^\d]/g,''));
       await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click({timeout:60000});
+      await scope.getByText('3. 위치도 · 청구서',{exact:true}).click({timeout:60000});
       const right=scope.locator('.k4-right');
       const ta=scope.locator('textarea[placeholder*="계산서1"]').first();
       const feeRow=async()=>{const t=await right.innerText();const m=t.match(/평가수수료[^\d]*([\d,]{5,})/);return m?num(m[1]):null;};

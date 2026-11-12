@@ -20,7 +20,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
     await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
-    const road=async()=>{await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
+    const road=async()=>{await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
       const btn=scope.getByRole('button',{name:'요항표',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);
       const f=path.join(require('os').tmpdir(),'yohang_road.hwpx');await dl.saveAs(f);const z=unzip(fs.readFileSync(f));

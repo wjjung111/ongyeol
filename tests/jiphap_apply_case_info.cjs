@@ -26,7 +26,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       },{mode});
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('3. 가격산출 · 위치도',{exact:true}).click();
+      await scope.getByText('2. 사례 · 가격산출',{exact:true}).click();
       const tbl=scope.locator('table').filter({has:page.getByRole('columnheader',{name:'건물명',exact:true})}).last();
       await tbl.waitFor();
       const head=await tbl.locator('thead').innerText();

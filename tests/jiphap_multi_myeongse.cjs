@@ -65,7 +65,7 @@ console.log('PASS 혼합 입력(사정면적·분모 없음·미완료·동 2개
 
 // 실제 화면 버튼으로 내려받기
 await page.evaluate(inp=>{localStorage.setItem('v2:appraisal-case-list',JSON.stringify([{id:'SYNTHETIC',label:'합성 검증'}]));localStorage.setItem('v2:case:SYNTHETIC',JSON.stringify({...inp,propType:'주거용',rnd:{uD:'천원',uM:'round',tD:'백만원',tM:'round'}}));},input);
-await page.reload();const scope=page.locator('#root-multi');await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
+await page.reload();const scope=page.locator('#root-multi');await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
 await page.waitForFunction(()=>Array.from(document.querySelectorAll('#root-multi button')).some(b=>b.textContent==='명세표(excel)'&&!b.disabled));
 await page.evaluate(()=>{const c=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){window.__dlName=this.download;return c.call(this);};});
 const dl=page.waitForEvent('download');await scope.getByRole('button',{name:'명세표(excel)',exact:true}).click();const d=await dl;await d.saveAs(path.join(out,'ui.xlsx'));assert.equal(await page.evaluate(()=>window.__dlName),'4. 명세표_검증용 의뢰인.xlsx');   // 헤드리스 Chromium은 blob 다운로드 이름을 'download'로 주므로 앵커의 파일명을 본다

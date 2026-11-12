@@ -94,7 +94,7 @@
 | 고치는 곳 | 같이 고칠 곳 |
 |---|---|
 | 집건 `s3r86w8a.html` 화면 | 앱이 **두 벌**(`#root` 단일호수 / `#root-multi` 여러호수, babel 블록 2개) — 탭·컴포넌트를 양쪽에 똑같이. DOM id는 갈라 둠(예 `mapBox`/`mapBoxM`) |
-| 집건 탭(4개: 접수·대상물건 / 사례 / 가격산출·위치도 / 청구서·내려받기) | Step4는 한 번만 그리고 `view`(calc/bill)로 `.k4-left`/`.k4-right`를 숨김 — 서류 버튼·청구서는 4번 탭. 「💾 저장」 묶음(`saveCtl`)은 화면에 하나만(1번 탭 = 접수개요 위, 그 밖 = 요약 띠). 검증 `tests/jiphap_layout4.cjs`·`jiphap_k4_layout.cjs` |
+| 집건 탭(3개: 접수·대상물건 / 사례·가격산출 / 위치도·청구서) | Step3·Step4·지도는 한 번만 그리고 `.t23` 그리드 + `display:contents`로 배치(단일), Step4는 `view`(calc/bill)로 `.k4-left`/`.k4-right`를 숨김. 「💾 저장」 묶음(`saveCtl`)은 화면에 하나만(1번 탭 = 접수개요 위, 그 밖 = 요약 띠). `display:contents` 요소엔 `container-type`을 두지 말 것(크기 기준이 안 돼 안쪽 @container가 안 먹음). 검증 `tests/jiphap_layout4.cjs`·`jiphap_k4_layout.cjs` |
 | 집건 청구서 로직 | `arap_cheonggu.js` 재추출(scratchpad `extract_cheonggu.mjs` 방식) |
 | 토건 `parseTradeText` / 집건 `parseKaisRow` | `arap_kais.js` 사본 |
 | `arap_bldrgst.js` 조회 로직 | `건축물대장.html` (같은 로직) |
