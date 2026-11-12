@@ -18,7 +18,7 @@ const FEE=['1  예상평가액  1,775,270,360',
  await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
  await page.goto(base+'/s3r86w8a.html');
  const scope=page.locator(mode==='single'?'#root':'#root-multi');
- await scope.getByText('4. 가격산출',{exact:true}).click({timeout:60000});
+ await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click({timeout:60000});
  const card=scope;
  const ta=card.locator('textarea[placeholder*="계산서1"]').first();await ta.fill(FEE);
  const sel=card.locator('select[title*="상한-기준"]');

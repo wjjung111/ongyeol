@@ -28,9 +28,9 @@ function cellLines(xml){const i=xml.indexOf('>목록표시근거<');assert(i>=0,
                              ['등기사항전부증명서(집합건물), 집합건축물대장, 귀 제시목록 등',['등기사항전부증명서(집합건물),','집합건축물대장, 귀 제시목록 등']]]){
       const {ctx,page,errors}=await open('/s3r86w8a.html?last=1',()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
       const scope=page.locator('#root');
-      await scope.getByText('1. 접수개요',{exact:true}).click({timeout:60000});
+      await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
       await scope.locator('div:has(> span:text-is("목록표시근거")) input').first().fill(val);
-      await scope.getByText('4. 가격산출',{exact:true}).click();
+      await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
       const btn=scope.getByRole('button',{name:'괄감',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const z=await save(page,()=>btn.click(),'jip.hwpx');
       const xml=z['Contents/section0.xml'].toString('utf8');

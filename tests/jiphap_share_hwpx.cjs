@@ -22,7 +22,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
     await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
-    await scope.getByText('2. 대상물건개요',{exact:true}).click({timeout:60000});
+    await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
     if(share){
       await scope.locator('select').filter({has:page.locator('option[value="share"]')}).first().selectOption('share');
       await scope.locator('input[placeholder="분자"]').fill('1');await scope.locator('input[placeholder="분모"]').fill('4');
@@ -33,7 +33,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.match(await ta.inputValue(),/귀 의뢰지분\(1\/4/,'자동 문구 복귀');
       await ta.fill('지분 위치 특정 불가 & 전체 기준 평가');
     }
-    await scope.getByText('4. 가격산출',{exact:true}).click();
+    await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
     // 2026-10-28부터 표지·괄감·의견서가 따로 — 의견서(x)·괄감(x0)을 각각 받는다
     const get=async(name,fname)=>{const btn=scope.getByRole('button',{name,exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||require('os').tmpdir(),fname);await dl.saveAs(file);return unzip(fs.readFileSync(file));};

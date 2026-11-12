@@ -36,7 +36,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         localStorage.setItem(prefix+'case:TEST-ML',JSON.stringify({ov,cases:[c],precs:[],propType:'주거용'}));},mode);
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
-      await scope.getByText('3. 사례 등 입력',{exact:true}).click({timeout:60000});
+      await scope.getByText('2. 사례 등 입력',{exact:true}).click({timeout:60000});
       const cell=scope.getByLabel('거래사례 #1 시점수정 창',{exact:true});await cell.click();   // 시점수정치 칸은 입력칸 — 창은 🧮(2026-11-09)
       assert.equal(await page.locator('[data-region]').getAttribute('data-region'),'강남구');
       const v=await checkModal(page,'2025.03.10','2026.08.01','집건 '+mode+' ③');

@@ -21,7 +21,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         localStorage.setItem(prefix+'case:TEST-RT',JSON.stringify({ov,cases:[c],precs:[],propType:'주거용'}));},mode);
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
-      await scope.getByText('3. 사례 등 입력',{exact:true}).click({timeout:60000});
+      await scope.getByText('2. 사례 등 입력',{exact:true}).click({timeout:60000});
       await scope.getByLabel('거래사례 #1 시점수정 단가').locator('xpath=preceding-sibling::td[1]').click();
       await page.waitForSelector('text=시점수정치 계산');
       const region=()=>page.locator('[data-region]').getAttribute('data-region');

@@ -15,8 +15,8 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await ctx.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});return {ctx,page,errors};};
     // ── 집합건물: 저장건(대표 샘플 압구정 현대)이 있어도 처음 들어오면 빈 화면
     {const {ctx,page,errors}=await mk();const root=page.locator('#root');
-      const ready=async()=>{await root.getByText('1. 접수개요',{exact:true}).first().waitFor();await page.waitForTimeout(800);};
-      const has=async()=>(await root.innerText()).includes('김준희');
+      const ready=async()=>{await root.getByText('1. 접수 · 대상물건',{exact:true}).first().waitFor();await page.waitForTimeout(800);};
+      const has=async()=>(await root.locator('.js-bar').innerText()).includes('현대아파트');   // 요약 띠(지금 연 건) — 왼쪽 「최근 평가서」 목록에는 샘플 의뢰인이 늘 보이므로 화면 전체로 보면 안 된다
       await page.goto(base+'/s3r86w8a.html');await ready();
       assert.equal(await has(),false,'집건 북마크 → 빈 새 평가서');
       await page.goto(base+'/s3r86w8a.html?last=1');await ready();

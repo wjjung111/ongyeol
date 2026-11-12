@@ -50,12 +50,12 @@
 | `arap_filebak.js` | 💾 파일 백업 — 저장건 전체(집건·입주권·토건·메모)를 .json 하나로 내려받기/불러오기 + 「📁 백업 폴더」(구글 드라이브 폴더) 지정 시 저장할 때마다 자동으로 그 폴더에. 토큰·API 키는 안 담음. **새로 만드는 파일 이름은 영문**(한글 이름은 일부 환경에서 깨짐) |
 | `arap_cheonggu.js` | 청구서 hwpx 엔진 — **집건 청구서 코드를 추출한 사본**(토지건물이 사용) |
 | `arap_fee.js` | 감정평가수수료 자동 계산(보수기준 별표). 법 개정 시 `TABLE`만 |
-| `arap_bldrgst.js` | 건축물대장 조회 모듈 + React 패널(집건 ② 「건축물대장 불러오기」) |
-| `arap_map.js` | 위치도 엔진(브이월드 주소→좌표·필지 경계, 카카오맵 기본) — **토지건물 위치도 탭 · p9v3xk2m · 집건 ⑤ 위치도가 같이 씀** |
+| `arap_bldrgst.js` | 건축물대장 조회 모듈 + React 패널(집건 ① 「건축물대장 불러오기」) |
+| `arap_map.js` | 위치도 엔진(브이월드 주소→좌표·필지 경계, 카카오맵 기본) — **토지건물 위치도 탭 · p9v3xk2m · 집건 ③ 위치도가 같이 씀** |
 | `arap_kais.js` | KAIS 복붙 파서 **사본**(원본: 토지건물 `parseTradeText`, 집건 `parseKaisRow`) — 위치도 페이지용 |
 | `arap_gijunsiga.js` | 국세청 건물 기준시가 엔진(기준시가.html + 토지건물 ③ 건물평가 카드) |
 | `arap_jiphap_parcels.js` | 집건 필지 목록(토지이용계획·위치도 공용) |
-| `arap_etc_items.js` | 집건 ② 「의견서 문구 — 6. 그 밖의 사항」 박스 + 의견서 끼우기(대지권미등기 등 문구 버튼). 단일·여러 호수 공용 |
+| `arap_etc_items.js` | 집건 ① 「의견서 문구 — 6. 그 밖의 사항」 박스 + 의견서 끼우기(대지권미등기 등 문구 버튼). 단일·여러 호수 공용 |
 | `arap_multi_hwpx.js` / `arap_multi_myeongse.js` | 집건 여러 호수 한글 평가서 / 명세표(xlsx) |
 | `arap_toji_upload.js` | 토건 공부서류(등기 PDF)·접수 캡처 업로드 → 자동 인식(집건과 같은 API 키) |
 | `arap_toji_opinion.js` / `arap_toji_documents.js` | 토지건물 의견서 엔진 / 요항표·명세표 등 서류 |
@@ -94,10 +94,11 @@
 | 고치는 곳 | 같이 고칠 곳 |
 |---|---|
 | 집건 `s3r86w8a.html` 화면 | 앱이 **두 벌**(`#root` 단일호수 / `#root-multi` 여러호수, babel 블록 2개) — 탭·컴포넌트를 양쪽에 똑같이. DOM id는 갈라 둠(예 `mapBox`/`mapBoxM`) |
+| 집건 탭(4개: 접수·대상물건 / 사례 / 가격산출·위치도 / 청구서·내려받기) | Step4는 한 번만 그리고 `view`(calc/bill)로 `.k4-left`/`.k4-right`를 숨김 — 서류 버튼·청구서는 4번 탭. 「💾 저장」 묶음(`saveCtl`)은 화면에 하나만(1번 탭 = 접수개요 위, 그 밖 = 요약 띠). 검증 `tests/jiphap_layout4.cjs`·`jiphap_k4_layout.cjs` |
 | 집건 청구서 로직 | `arap_cheonggu.js` 재추출(scratchpad `extract_cheonggu.mjs` 방식) |
 | 토건 `parseTradeText` / 집건 `parseKaisRow` | `arap_kais.js` 사본 |
 | `arap_bldrgst.js` 조회 로직 | `건축물대장.html` (같은 로직) |
-| `arap_map.js` | 토건 위치도 탭 · p9v3xk2m · 집건 ⑤ — 셋 다 확인 |
+| `arap_map.js` | 토건 위치도 탭 · p9v3xk2m · 집건 ③ 위치도 — 셋 다 확인 |
 | `arap_gijunsiga.js` 엔진 | `tests/gijunsiga.cjs`(해설서 계산사례 22건 원 단위) 통과. 아티팩트판은 scratchpad `build_artifact.py`가 인라인 |
 | 관리자 화면 | `관리자.html` + `test.html` |
 | 프록시 op 추가 | `문서/클라우드플레어_프록시.js` 판 올리고 사용자에게 재배포 안내, 화면엔 구판 감지 안내 |

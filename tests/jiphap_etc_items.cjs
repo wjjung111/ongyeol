@@ -1,4 +1,4 @@
-// 집합건물 2. 대상물건개요 「의견서 문구 — 6. 그 밖의 사항」 박스 (arap_etc_items.js, 2026-11-05)
+// 집합건물 1. 접수 · 대상물건 「의견서 문구 — 6. 그 밖의 사항」 박스 (arap_etc_items.js, 2026-11-05)
 //  ① 단일호수: 대지권미등기 문구 버튼(지번의 도시개발지구·블럭로트 자동) + 빈 항목 직접 입력 → 의견서 라. 다음 마./바. (지분평가면 지분 문구 마. 다음 바./사.)
 //  ② 여러호수: 같은 박스가 보이고, ArapMultiHwpx 의견서에도 마.·바.로 들어감
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_etc_items.cjs
@@ -39,7 +39,7 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
       await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
       await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
-      await scope.getByText('2. 대상물건개요',{exact:true}).click({timeout:60000});
+      await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
       const card=scope.locator('.etc-card');await card.waitFor();
       assert.ok((await card.innerText()).includes('6. 그 밖의 사항'),'박스 제목');
       assert.equal(await card.locator('.etc-hint').count(),0,'대지권 있는 샘플은 안내 없음');
@@ -64,7 +64,7 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
       assert.equal(await card.locator('.etc-item').count(),3);
       await card.getByLabel('그 밖의 사항 '+(share?'아':'사')+' 삭제').click();
       assert.equal(await card.locator('.etc-item').count(),2);
-      await scope.getByText('4. 가격산출',{exact:true}).click();
+      await scope.getByText('4. 청구서 · 내려받기',{exact:true}).click();
       const btn=scope.getByRole('button',{name:'의견서',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||os.tmpdir(),'etc_items_'+(share?'share':'plain')+'.hwpx');await dl.saveAs(file);
       const x=unzip(fs.readFileSync(file))['Contents/section0.xml'].toString('utf8');
@@ -77,7 +77,7 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
       assert.ok(after.includes('|'+L1+'.| 직접 쓴 문구 &amp; &lt;확인&gt; 둘째 줄|'),'직접 쓴 문구 그대로(줄바꿈은 한 칸) '+after.slice(0,600));
       assert.ok(!after.includes(share?'|아.|':'|사.|'),'지운 항목 없음');
       // 저장 → 새로고침해도 남음
-      await page.reload();await scope.getByText('2. 대상물건개요',{exact:true}).click();
+      await page.reload();await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
       assert.equal(await scope.locator('.etc-card .etc-item').count(),2,'새로고침 후 유지');
       assert.deepEqual(errors,[]);await ctx.close();console.log('단일호수 '+(share?'지분':'일반')+' OK');
     }
@@ -87,7 +87,7 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
       await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','multi');});
       await page.goto(base+'/s3r86w8a.html');await page.waitForFunction(()=>window.multiHelpers,null,{timeout:60000});
-      const scope=page.locator('#root-multi');await scope.getByText('2. 대상물건개요',{exact:true}).click();
+      const scope=page.locator('#root-multi');await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
       const card=scope.locator('.etc-card');await card.waitFor();
       await card.getByRole('button',{name:'+ 대지권미등기',exact:true}).click();
       assert.match(await card.getByLabel('그 밖의 사항 마 문구').inputValue(),/^본건은 기준시점 현재 등기사항전부증명서상 전유부분의 건물의 표시만/);

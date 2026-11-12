@@ -27,7 +27,7 @@ async function gh(route){const req=route.request(),u=new URL(req.url()),m=req.me
   const pc=await browser.newContext({viewport:{width:1300,height:900}});await route(pc);
   await pc.addInitScript(a=>{if(!sessionStorage.getItem('init')){sessionStorage.setItem('init','1');localStorage.setItem('arap-access-ok',a);localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-gh-token','TOK');localStorage.setItem('arap-jiphap-mode','single');}},ACC);
   const p1=await pc.newPage();const e1=[];p1.on('pageerror',e=>e1.push(e.message));p1.on('dialog',d=>d.accept());
-  await p1.goto(base+'/s3r86w8a.html');await p1.locator('#root').getByText('2. 대상물건개요',{exact:true}).waitFor({timeout:60000});
+  await p1.goto(base+'/s3r86w8a.html');await p1.locator('#root').getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});
   await p1.evaluate(()=>{const L=JSON.parse(localStorage.getItem('v2:appraisal-case-list')||'[]');L.unshift({id:'PC-3004',updated:'2099-01-01T00:00:00'});
     localStorage.setItem('v2:appraisal-case-list',JSON.stringify(L));localStorage.setItem('v2:case:PC-3004',JSON.stringify({ov:{caseNo:'PC-3004',client:'김정기'}}));});
   await p1.evaluate(()=>window.ArapSync.syncNow());
@@ -48,7 +48,7 @@ async function gh(route){const req=route.request(),u=new URL(req.url()),m=req.me
   assert.equal(st.name,'wdw');assert.equal(st.tok,'TOK');assert.ok(st.list.includes('PC-3004'),'PC 저장건 목록에 있음');
   const txt=await p2.evaluate(()=>document.body.innerText);
   assert.ok(!/접속코드/.test(txt),'접속코드 화면 없음');assert.ok(!/이름을 선택|사용자를 선택/.test(txt),'이름 선택 화면 없음');
-  assert.ok(/2\. 대상물건개요/.test(txt),'앱 화면이 바로 열림');
+  assert.ok(/1\. 접수 · 대상물건/.test(txt),'앱 화면이 바로 열림');
   assert.deepEqual(e1,[]);assert.deepEqual(e2,[]);
   console.log('PASS');
   }finally{await browser.close();server.close();}
