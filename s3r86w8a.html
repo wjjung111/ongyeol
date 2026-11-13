@@ -1123,7 +1123,7 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   while(qCmp(cur,qb)<=0){
     const first=qCmp(cur,qa)===0,last=qCmp(cur,qb)===0,di=diQ(cur.y,cur.q);
     const isMg=qCmp(cur,latest)>0;
-    const r=rateOf(cur.y,cur.q);if(r==null)return{err:`${cur.y}년 ${cur.q}분기 자본수익률 자료가 없습니다. (이 지역 최근 공표: ${latest.y}.${latest.q}분기)`};
+    const r=rateOf(cur.y,cur.q);if(r==null){const own=Object.keys(ser).filter(k=>/^\d{5}$/.test(k)).sort().pop()||"";const ownQ=own?`${own.slice(0,4)}.${own.slice(4)}분기`:"-";return{err:own&&own<`${cur.y}${cur.q}`&&own<String(T.latest)?`'${region}' 자본수익률은 ${ownQ}까지만 공표되었습니다(${latest.y}.${latest.q}분기 공표분에 이 이름이 없음 — 통계 개편으로 상권 이름이 바뀌었을 수 있음). ② 상권에서 지금 공표되는 지역을 고르세요.`:`${cur.y}년 ${cur.q}분기 자본수익률 자료가 없습니다. (이 지역 최근 공표: ${ownQ})`};}
     if(isMg&&!migosi){migosi={...cur};migosiPrev={...latest};}
     const rStr=(Math.round(r*1e6)/1e6).toString();
     // 미공표 분기 일할 분모 = 최근 공표분기 총일수 (2022-00144: 해당분기 총일수 아님 — 검증사례 71/92의 92=2025Q4 일수)
@@ -5328,7 +5328,7 @@ const buildNrCapText=(kind,region,tradeDate,baseDate)=>{
   while(qCmp(cur,qb)<=0){
     const first=qCmp(cur,qa)===0,last=qCmp(cur,qb)===0,di=diQ(cur.y,cur.q);
     const isMg=qCmp(cur,latest)>0;
-    const r=rateOf(cur.y,cur.q);if(r==null)return{err:`${cur.y}년 ${cur.q}분기 자본수익률 자료가 없습니다. (이 지역 최근 공표: ${latest.y}.${latest.q}분기)`};
+    const r=rateOf(cur.y,cur.q);if(r==null){const own=Object.keys(ser).filter(k=>/^\d{5}$/.test(k)).sort().pop()||"";const ownQ=own?`${own.slice(0,4)}.${own.slice(4)}분기`:"-";return{err:own&&own<`${cur.y}${cur.q}`&&own<String(T.latest)?`'${region}' 자본수익률은 ${ownQ}까지만 공표되었습니다(${latest.y}.${latest.q}분기 공표분에 이 이름이 없음 — 통계 개편으로 상권 이름이 바뀌었을 수 있음). ② 상권에서 지금 공표되는 지역을 고르세요.`:`${cur.y}년 ${cur.q}분기 자본수익률 자료가 없습니다. (이 지역 최근 공표: ${ownQ})`};}
     if(isMg&&!migosi){migosi={...cur};migosiPrev={...latest};}
     const rStr=(Math.round(r*1e6)/1e6).toString();
     // 미공표 분기 일할 분모 = 최근 공표분기 총일수 (2022-00144: 해당분기 총일수 아님 — 검증사례 71/92의 92=2025Q4 일수)

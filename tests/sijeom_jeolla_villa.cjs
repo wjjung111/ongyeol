@@ -28,7 +28,7 @@ const checkText=(t,sido)=>{assert.match(t,/^연립다세대\n/,t);assert.match(t
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
       await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
-      await scope.getByLabel('거래사례 #1 시점수정 단가').locator('xpath=preceding-sibling::td[1]').click();
+      await scope.getByLabel('거래사례 #1 시점수정 창',{exact:true}).click();   // 시점수정치 칸은 입력칸 — 창은 🧮(2026-11-09)
       await page.waitForSelector('text=시점수정치 계산');
       const sel=page.locator('select[aria-label="시점수정 유형"]');
       assert.equal(await sel.nth(0).inputValue(),'연립다세대',mode+' 유형 자동');

@@ -1,3 +1,4 @@
+// 환경 주의: Leaflet을 CDN이 아닌 로컬 폴더(../map-test-vendor 또는 LEAFLET_TEST_DIR)에서 읽음 — 그 폴더가 없으면 'L is not defined'(앱 문제 아님). leaflet@1.9.4의 dist/leaflet.js·leaflet.css를 넣고 실행
 // 위치도 카카오맵 바탕 — 실제 Chromium + 실제 Leaflet, 카카오 SDK와 브이월드는 가짜로 물린다.
 // 확인: 카카오 기본 선택 · 필지 테두리 2개 + 묶음 이름표 1개 · 화살촉이 바깥 경계 · 지적선 → 지적편집도 ·
 //       이름표 끌기 저장 · 브이월드로 전환 · 사용자가 고른 브이월드는 OSM으로 멋대로 안 바뀜 · SDK 실패 시 브이월드로 복귀
