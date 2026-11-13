@@ -206,8 +206,22 @@ $('up_list').addEventListener('click',function(e){var t=e.target.closest('[data-
 $('up_run').onclick=run;
 var card=$('upCard'),depth=0;
 card.addEventListener('dragenter',function(e){if([].indexOf.call(e.dataTransfer.types||[],'Files')<0)return;e.preventDefault();depth++;card.classList.add('drag');$('up_dropHint').textContent='여기에 놓으면 파일이 추가됩니다';});
-card.addEventListener('dragleave',function(e){e.preventDefault();depth=Math.max(0,depth-1);if(!depth){card.classList.remove('drag');$('up_dropHint').textContent='PDF·이미지를 이 칸에 끌어다 놓아도 됩니다';}});
+card.addEventListener('dragleave',function(e){e.preventDefault();depth=Math.max(0,depth-1);if(!depth){card.classList.remove('drag');$('up_dropHint').textContent='PDF·이미지를 이 칸에 끌어다 놓거나 Ctrl+V로 붙여넣어도 됩니다';}});
 card.addEventListener('dragover',function(e){if([].indexOf.call(e.dataTransfer.types||[],'Files')<0)return;e.preventDefault();e.dataTransfer.dropEffect=BUSY?'none':'copy';});
-card.addEventListener('drop',function(e){if(!e.dataTransfer.files||!e.dataTransfer.files.length)return;e.preventDefault();depth=0;card.classList.remove('drag');$('up_dropHint').textContent='PDF·이미지를 이 칸에 끌어다 놓아도 됩니다';addFiles(e.dataTransfer.files);});
+card.addEventListener('drop',function(e){if(!e.dataTransfer.files||!e.dataTransfer.files.length)return;e.preventDefault();depth=0;card.classList.remove('drag');$('up_dropHint').textContent='PDF·이미지를 이 칸에 끌어다 놓거나 Ctrl+V로 붙여넣어도 됩니다';addFiles(e.dataTransfer.files);});
+// Ctrl+V로 캡처 이미지 붙여넣기(2026-11-13, 집건과 같은 규칙) — 업로드 칸이 보일 때만, 다른 입력칸에 커서가 있으면 가로채지 않음
+var pasteSeq=0,pasteTm=null;
+document.addEventListener('paste',function(e){
+  if(!card.offsetParent||BUSY)return;
+  var t=e.target,inBox=!!(t&&card.contains(t));
+  if(t&&!inBox&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable))return;
+  var fs=[].slice.call((e.clipboardData&&e.clipboardData.files)||[]).filter(function(f){return /^image\/(png|jpe?g|webp)$/.test(f.type)||f.type==='application/pdf';});
+  if(!fs.length)return;
+  e.preventDefault();
+  var d=new Date(),hm=('0'+d.getHours()).slice(-2)+('0'+d.getMinutes()).slice(-2)+('0'+d.getSeconds()).slice(-2);
+  addFiles(fs.map(function(f){var ext=f.type==='application/pdf'?'pdf':f.type==='image/jpeg'?'jpg':f.type.split('/')[1];pasteSeq++;return new File([f],'붙여넣은캡처_'+hm+(pasteSeq>1?'_'+pasteSeq:'')+'.'+ext,{type:f.type});}));
+  $('up_dropHint').textContent='📋 붙여넣은 이미지 '+fs.length+'개를 추가했습니다';clearTimeout(pasteTm);
+  pasteTm=setTimeout(function(){$('up_dropHint').textContent='PDF·이미지를 이 칸에 끌어다 놓거나 Ctrl+V로 붙여넣어도 됩니다';},4000);
+});
 API._apply=apply;API._addFiles=addFiles;
 })(typeof window!=='undefined'?window:globalThis);

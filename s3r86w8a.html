@@ -1848,6 +1848,27 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
     addFiles(e.dataTransfer.files);
   };
   const removeFile=i=>setFiles(prev=>prev.filter((_,j)=>j!==i));
+  // Ctrl+V로 캡처 이미지 붙여넣기(2026-11-13) — 접수 글·등기 화면을 캡처해 바로 붙여넣으면 파일로 추가. 이 탭이 보일 때만,
+  // 다른 입력칸(메모장 등)에 커서가 있으면 그 칸 몫이라 가로채지 않는다(업로드 상자 안의 칸은 예외)
+  const upRef=React.useRef(null),addRef=React.useRef(addFiles);addRef.current=addFiles;
+  const [pasteMsg,setPasteMsg]=useState("");
+  React.useEffect(()=>{
+    let seq=0,tm=null;
+    const onPaste=e=>{
+      const box=upRef.current;if(!box||!box.offsetParent)return;
+      const t=e.target,inBox=!!(t&&box.contains(t));
+      if(t&&!inBox&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable))return;
+      const fs=Array.from((e.clipboardData&&e.clipboardData.files)||[]).filter(f=>/^image\/(png|jpe?g|webp)$/.test(f.type)||f.type==="application/pdf");
+      if(!fs.length)return;
+      e.preventDefault();
+      const now=new Date(),hm=String(now.getHours()).padStart(2,"0")+String(now.getMinutes()).padStart(2,"0")+String(now.getSeconds()).padStart(2,"0");
+      const named=fs.map(f=>{const ext=f.type==="application/pdf"?"pdf":f.type==="image/jpeg"?"jpg":f.type.split("/")[1];return new File([f],`붙여넣은캡처_${hm}${++seq>1?"_"+seq:""}.${ext}`,{type:f.type});});
+      addRef.current(named);
+      setPasteMsg(`📋 붙여넣은 이미지 ${named.length}개를 추가했습니다.`);clearTimeout(tm);tm=setTimeout(()=>setPasteMsg(""),4000);
+    };
+    document.addEventListener("paste",onPaste);
+    return()=>{document.removeEventListener("paste",onPaste);clearTimeout(tm);};
+  },[]);
 
   const doRecognize=async()=>{
     if(!files.length){setError("PDF 파일을 먼저 업로드하세요.");return;}
@@ -1924,7 +1945,7 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
 
   return(<div>
     {/* PDF 업로드 영역 */}
-    <div onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
+    <div ref={upRef} className="up-box" onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
       onDragOver={e=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect=loading?"none":"copy";}}
       onDrop={handleDrop}
       style={{...S.card,background:dragging?"#dbeafe":"#f0f7ff",border:dragging?"1px dashed #2563eb":"1px solid #bfdbfe"}}>
@@ -1946,7 +1967,7 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
         </button>
         {recognized&&<span style={{color:"#059669",fontWeight:700,fontSize:12}}>✅ 인식 완료!</span>}
       </div>
-      <div style={{fontSize:12,color:dragging?"#2563eb":"#64748b",marginBottom:8}}>{dragging?"여기에 놓으면 파일이 추가됩니다.":"PDF 또는 이미지를 이 영역에 끌어다 놓아도 추가할 수 있습니다."}</div>
+      <div style={{fontSize:12,color:dragging?"#2563eb":"#64748b",marginBottom:8}}>{dragging?"여기에 놓으면 파일이 추가됩니다.":"PDF 또는 이미지를 이 영역에 끌어다 놓거나, 캡처한 이미지를 Ctrl+V로 붙여넣어도 추가됩니다."}{pasteMsg&&<b role="status" style={{color:"#059669",marginLeft:8}}>{pasteMsg}</b>}</div>
       {files.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {files.map((f,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",background:"#fff",border:"1px solid #ddd",borderRadius:12,fontSize:11}}>
           📎 {f.name} <span style={{cursor:"pointer",color:C.dng,fontWeight:700}} onClick={()=>removeFile(i)}>✕</span>
@@ -6016,6 +6037,27 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
     addFiles(e.dataTransfer.files);
   };
   const removeFile=i=>setFiles(prev=>prev.filter((_,j)=>j!==i));
+  // Ctrl+V로 캡처 이미지 붙여넣기(2026-11-13) — 접수 글·등기 화면을 캡처해 바로 붙여넣으면 파일로 추가. 이 탭이 보일 때만,
+  // 다른 입력칸(메모장 등)에 커서가 있으면 그 칸 몫이라 가로채지 않는다(업로드 상자 안의 칸은 예외)
+  const upRef=React.useRef(null),addRef=React.useRef(addFiles);addRef.current=addFiles;
+  const [pasteMsg,setPasteMsg]=useState("");
+  React.useEffect(()=>{
+    let seq=0,tm=null;
+    const onPaste=e=>{
+      const box=upRef.current;if(!box||!box.offsetParent)return;
+      const t=e.target,inBox=!!(t&&box.contains(t));
+      if(t&&!inBox&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable))return;
+      const fs=Array.from((e.clipboardData&&e.clipboardData.files)||[]).filter(f=>/^image\/(png|jpe?g|webp)$/.test(f.type)||f.type==="application/pdf");
+      if(!fs.length)return;
+      e.preventDefault();
+      const now=new Date(),hm=String(now.getHours()).padStart(2,"0")+String(now.getMinutes()).padStart(2,"0")+String(now.getSeconds()).padStart(2,"0");
+      const named=fs.map(f=>{const ext=f.type==="application/pdf"?"pdf":f.type==="image/jpeg"?"jpg":f.type.split("/")[1];return new File([f],`붙여넣은캡처_${hm}${++seq>1?"_"+seq:""}.${ext}`,{type:f.type});});
+      addRef.current(named);
+      setPasteMsg(`📋 붙여넣은 이미지 ${named.length}개를 추가했습니다.`);clearTimeout(tm);tm=setTimeout(()=>setPasteMsg(""),4000);
+    };
+    document.addEventListener("paste",onPaste);
+    return()=>{document.removeEventListener("paste",onPaste);clearTimeout(tm);};
+  },[]);
 
   const doRecognize=async()=>{
     if(!files.length){setError("PDF 파일을 먼저 업로드하세요.");return;}
@@ -6133,7 +6175,7 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
 
   return(<div>
     {/* PDF 업로드 영역 */}
-    <div onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
+    <div ref={upRef} className="up-box" onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}
       onDragOver={e=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect=loading?"none":"copy";}}
       onDrop={handleDrop}
       style={{...S.card,background:dragging?"#dbeafe":"#f0f7ff",border:dragging?"1px dashed #2563eb":"1px solid #bfdbfe"}}>
@@ -6155,7 +6197,7 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
         </button>
         {recognized&&<span style={{color:"#059669",fontWeight:700,fontSize:12}}>✅ 인식 완료!</span>}
       </div>
-      <div style={{fontSize:12,color:dragging?"#2563eb":"#64748b",marginBottom:8}}>{dragging?"여기에 놓으면 파일이 추가됩니다.":"PDF 또는 이미지를 이 영역에 끌어다 놓아도 추가할 수 있습니다."}</div>
+      <div style={{fontSize:12,color:dragging?"#2563eb":"#64748b",marginBottom:8}}>{dragging?"여기에 놓으면 파일이 추가됩니다.":"PDF 또는 이미지를 이 영역에 끌어다 놓거나, 캡처한 이미지를 Ctrl+V로 붙여넣어도 추가됩니다."}{pasteMsg&&<b role="status" style={{color:"#059669",marginLeft:8}}>{pasteMsg}</b>}</div>
       {files.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {files.map((f,i)=><span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",background:"#fff",border:"1px solid #ddd",borderRadius:12,fontSize:11}}>
           📎 {f.name} <span style={{cursor:"pointer",color:C.dng,fontWeight:700}} onClick={()=>removeFile(i)}>✕</span>
