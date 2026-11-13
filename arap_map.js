@@ -59,20 +59,23 @@ var CSS=[
 '.mkr{position:relative;width:0;height:0;}',
 '.mkr .dot{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);}',
 '.mkr.pick .dot{width:22px;height:22px;left:-11px;top:-11px;border-width:4px;}',
-'.mkr .lab{position:absolute;left:11px;top:-10px;white-space:nowrap;font-size:11.5px;font-weight:700;color:#0f172a;background:rgba(255,255,255,.9);border-radius:3px;padding:1px 5px;box-shadow:0 1px 3px rgba(0,0,0,.25);}',
+'.mkr .lab{position:absolute;left:11px;top:-10px;white-space:nowrap;font-size:calc(11.5px * var(--ls,1));font-weight:700;color:#0f172a;background:rgba(255,255,255,.9);border-radius:3px;padding:1px 5px;box-shadow:0 1px 3px rgba(0,0,0,.25);}',
 '.mkr.pick .lab{left:14px;background:#0f172a;color:#fff;}',
 // 필지형: 이름표를 옆으로 빼고 화살표로 필지를 가리킨다(줌과 무관한 고정 픽셀 위치)
 '.mkr.par .ldr{position:absolute;overflow:visible;pointer-events:none;z-index:1;}',
 // z-index로 이름표를 화살표 위에 올린다 — 안 그러면 선이 글자를 가로지른다
-'.mkr.par .lab{transform:translate(-50%,-50%);border:1.5px solid currentColor;background:#fff;padding:2px 7px;font-size:12px;z-index:2;}',
+'.mkr.par .lab{transform:translate(-50%,-50%);border:1.5px solid currentColor;background:#fff;padding:calc(2px * var(--ls,1)) calc(7px * var(--ls,1));font-size:calc(12px * var(--ls,1));z-index:2;}',
 '.mkr.par.pick .lab{background:#0f172a;color:#fff;border-color:#0f172a;}',
 // 말풍선(lines가 있는 이름표) — 첫 줄 굵게, 다음 줄부터 내용. ✕는 그 말풍선만 끈다
-'.mkr .lab.bub{white-space:nowrap;text-align:left;line-height:1.35;padding:3px 9px 4px 8px;font-weight:600;color:#0f172a;}',
+'.mkr .lab.bub{white-space:nowrap;text-align:left;line-height:1.35;padding:calc(3px * var(--ls,1)) calc(9px * var(--ls,1)) calc(4px * var(--ls,1)) calc(8px * var(--ls,1));font-weight:600;color:#0f172a;}',
 '.mkr .lab.bub{border:1.5px solid;}',
 '.mkr .lab.bub b{display:block;font-weight:800;padding-right:14px;}',
-'.mkr .lab.bub .ln{display:block;font-weight:500;font-size:11.5px;}',
-'.mkr .lab .lx{position:absolute;right:1px;top:0;padding:0 4px;font-size:11px;font-weight:700;color:#94a3b8;cursor:pointer;}',
+'.mkr .lab.bub .ln{display:block;font-weight:500;font-size:.96em;}',
+'.mkr .lab .lx{position:absolute;right:1px;top:0;padding:0 4px;font-size:.92em;font-weight:700;color:#94a3b8;cursor:pointer;}',
 '.mkr .lab .lx:hover{color:#dc2626;}',
+// 크기 조절 손잡이(2026-11-13) — 이름표 오른쪽 아래 모서리. 끌면 글자·말풍선이 같이 커지고 작아진다(it.xy.labScale에 저장)
+'.mkr .lab .lgrip{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;border-radius:2px;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 1px #2563eb;cursor:nwse-resize;opacity:0;transition:opacity .12s;}',
+'.mkr .lab:hover .lgrip,.mkr .lab.resizing .lgrip{opacity:1;}',
 '.arap-lgd{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;}'
 ].join('\n');
 
@@ -430,7 +433,7 @@ function create(opt){
   // 이름표 속 — lines가 있으면 말풍선. ✕(data-lx)는 지도 상자에 건 위임 처리기가 받는다(끌기·설명창보다 먼저)
   var lxReg={},lxN=0;
   function labClass(it){return 'lab'+(it.lines?' bub':'');}
-  function labBorder(it){return it.lines?'border-color:'+it.color+';':'';}   // 말풍선 테두리 = 사례 색
+  function labBorder(it){var sc=it.xy&&+it.xy.labScale;return (it.lines?'border-color:'+it.color+';':'')+(sc&&sc!==1?'--ls:'+sc+';':'');}   // 말풍선 테두리 = 사례 색, --ls = 사용자가 정한 크기 배율
   function labInner(it){
     if(!it.lines)return esc(it.label);
     var x='';
@@ -484,6 +487,42 @@ function create(opt){
       reset:function(){r.marker.closePopup();r.marker.setIcon(parcelIcon(r.it,r.n,r.poly));bindLabelDrag(r);}
     });
   }
+  // 이름표 크기 조절(2026-11-13): 손잡이를 끌면 가로로 늘어난 비율만큼 배율(0.6~3)을 바꾼다
+  function bindResize(box,it,lock,after){
+    if(!box||box._rsBound)return;box._rsBound=true;
+    var grip=box.querySelector('.lgrip');
+    if(!grip){grip=document.createElement('span');grip.className='lgrip';grip.title='끌어서 크기 조절 (두 번 누르면 원래 크기·자리로)';box.appendChild(grip);}
+    var rs=null;
+    function curScale(){return (it.xy&&+it.xy.labScale)||1;}
+    function rsMove(e){
+      var p=evPt(e);if(!p||!rs)return;
+      var d=(p.x-rs.x)+(p.y-rs.y)*0.6,sc=Math.max(0.6,Math.min(3,rs.s*(rs.w+d)/rs.w));
+      sc=Math.round(sc*20)/20;box.style.setProperty('--ls',sc);rs.cur=sc;
+      e.preventDefault();e.stopPropagation();
+    }
+    function rsUp(){
+      document.removeEventListener('mousemove',rsMove,true);document.removeEventListener('mouseup',rsUp,true);
+      document.removeEventListener('touchmove',rsMove,{capture:true});document.removeEventListener('touchend',rsUp,true);
+      lock(false);box.classList.remove('resizing');
+      if(rs&&rs.cur&&rs.cur!==rs.s&&it.xy){
+        if(rs.cur===1)delete it.xy.labScale;else it.xy.labScale=rs.cur;
+        onSave();status('🏷️ '+it.label+' 이름표 크기 '+Math.round(rs.cur*100)+'%(저장됨). 두 번 누르면 원래대로.');
+        if(after)after();
+      }
+      rs=null;
+    }
+    function rsDown(e){
+      var p=evPt(e);if(!p)return;
+      rs={x:p.x,y:p.y,s:curScale(),w:Math.max(30,box.getBoundingClientRect().width)};
+      lock(true);box.classList.add('resizing');
+      document.addEventListener('mousemove',rsMove,true);document.addEventListener('mouseup',rsUp,true);
+      document.addEventListener('touchmove',rsMove,{passive:false,capture:true});document.addEventListener('touchend',rsUp,true);
+      e.preventDefault();e.stopPropagation();
+    }
+    grip.addEventListener('mousedown',rsDown);
+    grip.addEventListener('touchstart',rsDown,{passive:false});
+    grip.addEventListener('click',function(e){e.stopPropagation();});
+  }
   // 지도 종류와 무관한 이름표 끌기. h = {base(), tip(dx,dy), lock(on), click(), reset()}
   function dragLabel(root,it,h){
     var wrap=root.querySelector('.mkr'),box=root.querySelector('.lab');
@@ -516,7 +555,9 @@ function create(opt){
       }
       start=null;
     }
+    bindResize(box,it,h.lock,function(){var svg=wrap.querySelector('svg.ldr');if(svg){var b=h.base();svg.outerHTML=leader(b[0],b[1],it.color,h.tip(b[0],b[1]));}});
     function onDown(e){
+      if(e.target&&e.target.classList&&e.target.classList.contains('lgrip'))return;
       var p=evPt(e);if(!p)return;
       start=p;moved=false;
       base=h.base();
@@ -536,9 +577,9 @@ function create(opt){
     box.addEventListener('dblclick',function(e){
       e.preventDefault();e.stopPropagation();
       // 두 번 누르면 첫 클릭으로 열린 설명이 남으므로 reset에서 닫아 준다
-      if(r.it.xy)delete r.it.xy.labOff;
+      if(r.it.xy){delete r.it.xy.labOff;delete r.it.xy.labScale;}
       onSave();h.reset();
-      status('🏷️ '+r.it.label+' 이름표를 제자리로 되돌렸습니다.');
+      status('🏷️ '+r.it.label+' 이름표를 원래 자리·크기로 되돌렸습니다.');
     });
   }
 
@@ -615,6 +656,7 @@ function create(opt){
         pos=new K.LatLng(it.xy.y,it.xy.x);
         root.innerHTML=dotHtml(it);
         root.addEventListener('click',function(e){e.stopPropagation();info(it,pos);});
+        bindResize(root.querySelector('.lab'),it,function(on){kmap.setDraggable(!on);});
       }
       var ov=new K.CustomOverlay({map:kmap,position:pos,content:root,xAnchor:0,yAnchor:0,zIndex:it.pick?3:2,clickable:true});
       kobjs.push(ov);
@@ -684,6 +726,7 @@ function create(opt){
       if(!myPoly)m.on('dragend',function(){moved(it,m.getLatLng());});
       markers.push(m);
       if(myPoly){var rec={marker:m,it:it,n:myN,poly:myPoly};labeled.push(rec);bindLabelDrag(rec);}
+      else{var de=m.getElement();bindResize(de&&de.querySelector('.lab'),it,function(on){if(m.dragging){if(on)m.dragging.disable();else m.dragging.enable();}if(map.dragging){if(on)map.dragging.disable();else map.dragging.enable();}});}   // 점 핀도 이름표 크기 조절
     });
     if(keepView)return;
     pts.forEach(function(p){bnd=bnd?bnd.extend(p):L.latLngBounds(p,p);});
