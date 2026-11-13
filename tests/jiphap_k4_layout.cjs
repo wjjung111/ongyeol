@@ -1,5 +1,5 @@
 // 집합건물 앱 「2. 사례 · 가격산출」 / 「3. 위치도 · 청구서」 배치 검증(단일·여러호수) — 2026-11-13 탭 3개로 다시 씀
-//  - 2번 탭(단일): 왼쪽 [거래사례·평가전례 표 / 적용단가] | 오른쪽 [가치형성요인], 맨 아래 [시산가액 결정]. 본문 1550px 미만이면 한 줄. 여러호수는 위아래
+//  - 2번 탭: 맨 위 한 줄 [거래사례 붙여넣기 | 평가전례 붙여넣기 | 인근가격수준], 그 아래 위에서 아래로 거래사례 표 → 가치형성요인 → 적용단가 → 시산가액 결정(단일). 여러호수도 위아래
 //  - 3번 탭: [내려받기 전 확인·서류 | 청구서], 그 아래 전체 폭 위치도
 //  - 청구서 칸(착수금)을 고치면 정산청구액이 바뀌고, 탭을 오가도 입력이 남는다
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_k4_layout.cjs
@@ -39,17 +39,12 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       assert.ok(!(await vis('.k4-pick')),'가격산출의 사례 선택 표 숨김');
       if(mode==='single'){
         const C=await bb('.s3-card'),F=await bb('.k4-colA'),A=await bb('.k4-apply'),Z=await bb('.k4-final');
-        assert.ok(F.x>C.x+C.width-2&&Math.abs(F.y-C.y)<4,`거래사례 | 가치형성요인 ${JSON.stringify({C,F})}`);
-        assert.ok(Math.abs(A.x-C.x)<2&&A.y>=C.y+C.height-2,'적용단가는 거래사례 아래');
-        assert.ok(Z.y>=Math.max(F.y+F.height,A.y+A.height)-2,'시산가액 결정은 맨 아래');
+        assert.ok(Math.abs(F.x-C.x)<2&&F.y>=C.y+C.height-2&&A.y>=F.y+F.height-2&&Z.y>=A.y+A.height-2&&Math.abs(F.width-C.width)<2,`거래사례 → 가치형성요인 → 적용단가 → 시산가액, 같은 폭 ${JSON.stringify({C,F,A,Z})}`);
         // 표가 잘리지 않음(2단일 때)
         const clipped=await scope.locator('.t23').evaluate(g=>[...g.querySelectorAll('.s3-card *,.k4-apply *')].filter(e=>{const o=getComputedStyle(e).overflowX;return(o==='auto'||o==='scroll')&&e.scrollWidth>e.clientWidth+4&&e.offsetParent;})   /* 표 테두리 몇 px(+3)은 원래부터 있음 — 열이 잘리는 수준만 본다 */.map(e=>e.scrollWidth+'>'+e.clientWidth));
         assert.deepEqual(clipped,[],'넓은 화면에서 거래사례·적용단가 표가 잘림');
-        // 좁으면 한 줄
-        await page.setViewportSize({width:1400,height:900});await page.waitForTimeout(300);
-        const C2=await bb('.s3-card'),F2=await bb('.k4-colA');
-        assert.ok(Math.abs(C2.x-F2.x)<2&&F2.y>C2.y,'좁으면 가치형성요인이 거래사례 아래');
-        await page.setViewportSize({width:W,height:900});await page.waitForTimeout(300);
+        // 붙여넣기 칸은 한 줄 높이
+        const ta=await scope.locator('.s3-top textarea').first().evaluate(e=>e.getBoundingClientRect().height);assert.ok(ta<=40,'붙여넣기 칸 높이 '+ta);
       }else{
         const C=await bb('.s3-card'),K=await bb('.t23-k4');
         assert.ok(Math.abs(C.x-K.x)<2&&K.y>=C.y+C.height-2,'여러호수: 가격산출은 거래사례 아래');

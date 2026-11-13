@@ -88,13 +88,11 @@ const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치�
         assert(res.includes('50,200,000')&&res.includes('7,900,000,000')&&res.includes('0.00%'),'요약 띠 결과: '+res);
         const row=await sc.locator('.js-row').innerText();
         assert(row.includes('157.36㎡')&&row.includes('2026.07.14'),'요약 띠 물건/접수: '+row);
-        // 2번 탭 배치: 왼쪽 [거래사례 표 / 적용단가] | 오른쪽 [가치형성요인], 맨 아래 전체 폭 [시산가액 결정]
-        await page.setViewportSize({width:1950,height:1000});await page.waitForTimeout(300);   // 2단은 본문 1550px 이상
+        // 2번 탭 배치(2026-11-13 다시): 위에서 아래로 거래사례 표 → 가치형성요인 → 적용단가 → 시산가액 결정, 모두 전체 폭
+        await page.setViewportSize({width:1950,height:1000});await page.waitForTimeout(300);
         const bb=sel=>sc.locator(sel).first().boundingBox();
         const C=await bb('.s3-card'),A=await bb('.k4-apply'),F=await bb('.k4-colA'),Z=await bb('.k4-final');
-        assert(F.x>C.x+C.width-2&&Math.abs(F.y-C.y)<4,'거래사례 | 가치형성요인 나란히');
-        assert(Math.abs(A.x-C.x)<2&&A.y>C.y+C.height-2&&A.y<C.y+C.height+40,'적용단가는 거래사례 표 바로 아래');
-        assert(Z.y>=F.y+F.height-2&&Z.width>C.width+F.width-2,'시산가액 결정은 맨 아래 전체 폭');
+        assert(Math.abs(F.x-C.x)<2&&F.y>=C.y+C.height-2&&A.y>=F.y+F.height-2&&Z.y>=A.y+A.height-2&&Math.abs(F.width-C.width)<2&&Math.abs(A.width-C.width)<2,'위에서 아래로 거래사례 → 가치형성요인 → 적용단가 → 시산가액, 모두 같은 폭');
         assert((await tabs.nth(1).innerText()).includes('✓'),'2번 탭 배지 ✓');
         await page.setViewportSize({width:1700,height:1000});
         await tabs.nth(2).click();
