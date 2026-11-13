@@ -109,6 +109,8 @@
     .jr-item.cur{background:#eff6ff;border-left-color:#2563eb;}
     .jr-no{font-weight:700;display:flex;gap:5px;align-items:center;color:#1e293b;}
     .jr-no em{margin-left:auto;font-style:normal;font-weight:400;font-size:11px;color:#64748b;}
+    .jr-del{display:none;margin-left:4px;font:inherit;font-size:11px;font-weight:600;color:#dc2626;background:#fff;border:1px solid #fecaca;border-radius:4px;padding:0 6px;cursor:pointer;line-height:18px;}
+    .jr-item:hover .jr-del,.jr-item.cur .jr-del,.jr-del:focus{display:inline-block;}
     .jr-kind{font-size:10px;font-weight:700;padding:0 5px;border-radius:4px;background:#f5f6f8;color:#64748b;border:1px solid #e2e5ea;}
     .jr-ad{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1e293b;}
     .jr-cl{color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -1387,7 +1389,7 @@ function railMeta(kind,c){
   }catch(e){}
   return RAIL_META[k]=m;
 }
-function CaseRail({items,curKey,onOpen,onNew,onAll,allOn,collapsed,setCollapsed}){
+function CaseRail({items,curKey,onOpen,onDel,onNew,onAll,allOn,collapsed,setCollapsed}){
   const [q,setQ]=useState("");
   const qq=q.trim().toLowerCase();
   const rows=(qq?items.filter(c=>{const m=railMeta(c.kind,c);return (c.id+" "+(c.label||"")+" "+m.addr+" "+m.client).toLowerCase().indexOf(qq)>=0;}):items).slice(0,qq?40:10);
@@ -1404,7 +1406,7 @@ function CaseRail({items,curKey,onOpen,onNew,onAll,allOn,collapsed,setCollapsed}
       {rows.length===0&&<div style={{color:"#94a3b8",padding:"8px 4px"}}>{qq?"찾는 건이 없습니다.":"저장된 평가서가 없습니다."}</div>}
       {rows.map(c=>{const m=railMeta(c.kind,c);const rest=String(c.label||"").replace(c.id,"").trim();
         return(<div key={c.kind+":"+c.id} className={"jr-item"+(curKey===c.kind+":"+c.id?" cur":"")} title={c.kind==="multi"?"여러 호수 건":"단일 호수 건"} onClick={()=>onOpen(c)}>
-          <div className="jr-no">{c.kind==="multi"&&<span className="jr-kind">여러</span>}<span>{c.id}</span><em>{md(c.updated)}</em></div>
+          <div className="jr-no">{c.kind==="multi"&&<span className="jr-kind">여러</span>}<span>{c.id}</span><em>{md(c.updated)}</em>{onDel&&<button className="jr-del" title="이 건 삭제 — 휴지통으로 (📂 저장된 건 → 🗑 휴지통에서 되살릴 수 있음)" aria-label={"삭제 "+c.id} onClick={e=>{e.stopPropagation();onDel(c);}}>삭제</button>}</div>
           <div className="jr-ad">{[m.addr,rest].filter(Boolean).join(" ")||"-"}</div>
           {m.client&&<div className="jr-cl">{m.client}</div>}
         </div>);})}
@@ -5008,7 +5010,7 @@ function App(){
   if(!loaded)return <div style={{padding:40,textAlign:"center",color:"#888"}}>데이터 불러오는 중...</div>;
 
   return(<div style={{...S.app,display:"flex"}}>
-    <CaseRail items={allCases} curKey={MY+":"+currentId} onOpen={c=>caseOp(c.kind,"open",c.id)} onNew={newCase} onAll={()=>setShowList(!showList)} allOn={showList} collapsed={leftCollapsed} setCollapsed={setLeftCollapsed}/>
+    <CaseRail items={allCases} curKey={MY+":"+currentId} onOpen={c=>caseOp(c.kind,"open",c.id)} onDel={c=>caseOp(c.kind,"del",c.id)} onNew={newCase} onAll={()=>setShowList(!showList)} allOn={showList} collapsed={leftCollapsed} setCollapsed={setLeftCollapsed}/>
     <div ref={centerRef} style={{flex:1,minWidth:0,padding:12,overflowY:"auto"}}>
     {/* 요약 띠 = 지금 건 + 저장 상태 + 되돌리기. 「💾 저장」은 1번 탭에서는 접수번호 칸 위(Step1), 다른 탭에서는 여기 */}
     <SummaryBar ov={ov} step={step} res={result}>
@@ -5535,7 +5537,7 @@ function railMeta(kind,c){
   }catch(e){}
   return RAIL_META[k]=m;
 }
-function CaseRail({items,curKey,onOpen,onNew,onAll,allOn,collapsed,setCollapsed}){
+function CaseRail({items,curKey,onOpen,onDel,onNew,onAll,allOn,collapsed,setCollapsed}){
   const [q,setQ]=useState("");
   const qq=q.trim().toLowerCase();
   const rows=(qq?items.filter(c=>{const m=railMeta(c.kind,c);return (c.id+" "+(c.label||"")+" "+m.addr+" "+m.client).toLowerCase().indexOf(qq)>=0;}):items).slice(0,qq?40:10);
@@ -5552,7 +5554,7 @@ function CaseRail({items,curKey,onOpen,onNew,onAll,allOn,collapsed,setCollapsed}
       {rows.length===0&&<div style={{color:"#94a3b8",padding:"8px 4px"}}>{qq?"찾는 건이 없습니다.":"저장된 평가서가 없습니다."}</div>}
       {rows.map(c=>{const m=railMeta(c.kind,c);const rest=String(c.label||"").replace(c.id,"").trim();
         return(<div key={c.kind+":"+c.id} className={"jr-item"+(curKey===c.kind+":"+c.id?" cur":"")} title={c.kind==="multi"?"여러 호수 건":"단일 호수 건"} onClick={()=>onOpen(c)}>
-          <div className="jr-no">{c.kind==="multi"&&<span className="jr-kind">여러</span>}<span>{c.id}</span><em>{md(c.updated)}</em></div>
+          <div className="jr-no">{c.kind==="multi"&&<span className="jr-kind">여러</span>}<span>{c.id}</span><em>{md(c.updated)}</em>{onDel&&<button className="jr-del" title="이 건 삭제 — 휴지통으로 (📂 저장된 건 → 🗑 휴지통에서 되살릴 수 있음)" aria-label={"삭제 "+c.id} onClick={e=>{e.stopPropagation();onDel(c);}}>삭제</button>}</div>
           <div className="jr-ad">{[m.addr,rest].filter(Boolean).join(" ")||"-"}</div>
           {m.client&&<div className="jr-cl">{m.client}</div>}
         </div>);})}
@@ -8584,7 +8586,7 @@ function App(){
   if(!loaded)return <div style={{padding:40,textAlign:"center",color:"#888"}}>데이터 불러오는 중...</div>;
 
   return(<div style={{...S.app,display:"flex"}}>
-    <CaseRail items={allCases} curKey={MY+":"+currentId} onOpen={c=>caseOp(c.kind,"open",c.id)} onNew={newCase} onAll={()=>setShowList(!showList)} allOn={showList} collapsed={leftCollapsed} setCollapsed={setLeftCollapsed}/>
+    <CaseRail items={allCases} curKey={MY+":"+currentId} onOpen={c=>caseOp(c.kind,"open",c.id)} onDel={c=>caseOp(c.kind,"del",c.id)} onNew={newCase} onAll={()=>setShowList(!showList)} allOn={showList} collapsed={leftCollapsed} setCollapsed={setLeftCollapsed}/>
     <div ref={centerRef} style={{flex:1,minWidth:0,padding:12,overflowY:"auto"}}>
     {/* 요약 띠 = 지금 건 + 저장 상태 + 되돌리기. 「💾 저장」은 1번 탭에서는 접수번호 칸 위(Step1), 다른 탭에서는 여기 */}
     <SummaryBar ov={ov} step={step} res={result}>
@@ -8672,12 +8674,18 @@ ReactDOM.createRoot(document.getElementById('root-multi')).render(React.createEl
       rm.style.display=single?'none':'';
       bs.classList.toggle('active',single);
       bm.classList.toggle('active',!single);
-      try{localStorage.setItem('arap-jiphap-mode',mode);}catch(e){}
+      try{localStorage.setItem('arap-jiphap-mode',mode);sessionStorage.setItem('arap-jiphap-mode',mode);}catch(e){}
       try{window.dispatchEvent(new CustomEvent('arap-case-changed'));}catch(e){}   // 저장된 건 목록(두 방식 합본) 새로고침
     }
     bs.onclick=function(){show('single');};
     bm.onclick=function(){show('multi');};
-    var saved='single';try{saved=localStorage.getItem('arap-jiphap-mode')||'single';}catch(e){}
+    // 처음 들어오면(북마크·새 탭) 단일 호수. 새로고침(F5)·?last=1·같은 탭 안에서는 하던 방식 그대로(2026-11-13 사용자 요청 「기본값을 단일 호수로」)
+    var saved='single';try{
+      var keep=/[?&]last=1(&|$)/.test(location.search);try{var nv=performance.getEntriesByType('navigation')[0];if(nv&&nv.type==='reload')keep=true;}catch(e){}
+      var ss=sessionStorage.getItem('arap-jiphap-mode');
+      if(ss)saved=ss;else if(keep)saved=localStorage.getItem('arap-jiphap-mode')||'single';
+      var qm=(location.search.match(/[?&]mode=(single|multi)(&|$)/)||[])[1];if(qm)saved=qm;
+    }catch(e){}
     show(saved);
   })();
   </script>

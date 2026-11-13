@@ -15,7 +15,7 @@ const FEE=['1  예상평가액  1,775,270,360',
  for(const mode of ['single','multi']){
  const ctx=await browser.newContext();const page=await ctx.newPage();const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message)});page.on('dialog',d=>d.accept());page.setDefaultTimeout(15000);console.log('START',mode);
  await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
- await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
+ await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));},{mode});
  await page.goto(base+'/s3r86w8a.html');
  const scope=page.locator(mode==='single'?'#root':'#root-multi');
  await scope.getByText('3. 위치도 · 청구서',{exact:true}).click({timeout:60000});

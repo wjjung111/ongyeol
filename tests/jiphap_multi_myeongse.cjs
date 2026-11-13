@@ -6,7 +6,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL});
 try{const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.route('**/*',r=>r.request().url().includes('arap_access.js')?r.fulfill({body:''}):r.request().url().startsWith(base)?r.continue():r.abort());
-await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','multi');});
+await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','multi'),sessionStorage.setItem('arap-jiphap-mode','multi'));});
 await page.goto(base+'/s3r86w8a.html');await page.waitForFunction(()=>window.multiHelpers&&window.ArapMultiMyeongse);
 // 사용자 그림(당산동6가 오피스텔 5개호)과 같은 입력
 const input=await page.evaluate(()=>{

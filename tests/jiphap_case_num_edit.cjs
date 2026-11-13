@@ -14,7 +14,7 @@ const DETAIL='아파트\n지역 : 서울 송파구\n거래 2025.12 / 기준 2026
     for(const mode of ['single','multi']){
       const ctx=await browser.newContext({viewport:{width:1600,height:900}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.setDefaultTimeout(20000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-      await page.addInitScript(({m,DETAIL})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',m);
+      await page.addInitScript(({m,DETAIL})=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',m),sessionStorage.setItem('arap-jiphap-mode',m));
         const prefix=m==='multi'?'v2:':'';if(localStorage.getItem(prefix+'case:TEST-NE'))return;
         const c=(id,sym,o)=>({id,symbol:sym,location:'신천동',jibun:'17',aptName:'파크리오',dong:'316',floor:'13',ho:'1303',exclusiveArea:59.86,price:2185000000,unitPrice:36501837,unitPriceOrig:36501837,tradeDate:'2025.12.27',approvalDate:'2008-08-29',timeAdj:null,timeAdjDetail:'',isShown:true,isSelected:false,...o});
         const ov={caseNo:'TEST-NE',jibun:'서울특별시 송파구 신천동 17',area:'59.86',baseDate:'2026.10.26',writeDate:'2026.10.26'};if(m==='multi')ov.units=[{id:1,dong:'301',floor:'5',ho:'501',area:'59.86'}];

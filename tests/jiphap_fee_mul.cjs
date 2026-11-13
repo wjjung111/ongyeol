@@ -12,7 +12,7 @@ const num=s=>Number(String(s).replace(/[^\d]/g,''));
   try{
     const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.setDefaultTimeout(20000);
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)||u.includes('cdn')||u.includes('unpkg')?r.continue():r.abort();});
-    await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
+    await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
     await page.goto(base+'/s3r86w8a.html?last=1');
     global.window={};require(path.join(root,'arap_fee.js'));const F=window.ArapFee;
     const scope=page.locator('#root');
@@ -99,7 +99,7 @@ const num=s=>Number(String(s).replace(/[^\d]/g,''));
     {
       const ctx2=await browser.newContext(),pg=await ctx2.newPage();pg.on('pageerror',e=>errors.push(e.message));pg.on('dialog',d=>d.accept());
       await ctx2.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)||u.includes('cdn')||u.includes('unpkg')?r.continue():r.abort();});
-      await pg.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','multi');});
+      await pg.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','multi'),sessionStorage.setItem('arap-jiphap-mode','multi'));});
       await pg.goto(base+'/s3r86w8a.html?last=1');
       const sc=pg.locator('#root-multi');
       await sc.getByText('3. 위치도 · 청구서',{exact:true}).click({timeout:60000});

@@ -76,7 +76,7 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
     assert.deepEqual(p.errs,[]);await ctx.close();console.log('집건 단일 OK');}
 
   // ── 4) 여러호수·입주권: 화면이 오류 없이 뜨는지
-  for(const [file,init] of [['s3r86w8a.html',{'arap-jiphap-mode':'multi'}],['입주권.html',{}]]){
+  for(const [file,init] of [['s3r86w8a.html?mode=multi',{'arap-jiphap-mode':'multi'}],['입주권.html',{}]]){
     const {ctx,p}=await mk(init);await p.goto(base+'/'+encodeURI(file));await p.waitForTimeout(4000);
     assert.deepEqual(p.errs,[],file);await ctx.close();console.log(file,'로드 OK');}
   console.log('PASS');

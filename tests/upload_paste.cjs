@@ -23,7 +23,7 @@ const paste=(page,sel,kind)=>page.evaluate(({sel,kind})=>{
       const ctx=await browser.newContext({viewport:{width:1700,height:1000}}),page=await ctx.newPage(),errors=[];
       page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
-      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
+      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));},{mode});
       await page.goto(base+'/s3r86w8a.html');
       const sc=page.locator(mode==='single'?'#root':'#root-multi');
       const box=sc.locator('.up-box');await box.waitFor();

@@ -37,7 +37,7 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
     for(const share of [false,true]){
       const ctx=await browser.newContext({acceptDownloads:true,viewport:{width:1300,height:900}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-      await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
+      await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
       await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
       await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
       const card=scope.locator('.etc-card');await card.waitFor();
@@ -85,7 +85,7 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
     // ② 여러호수 — 박스 표시 + 엔진
     { const ctx=await browser.newContext({viewport:{width:1300,height:900}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-      await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','multi');});
+      await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','multi'),sessionStorage.setItem('arap-jiphap-mode','multi'));});
       await page.goto(base+'/s3r86w8a.html');await page.waitForFunction(()=>window.multiHelpers,null,{timeout:60000});
       const scope=page.locator('#root-multi');await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
       const card=scope.locator('.etc-card');await card.waitFor();

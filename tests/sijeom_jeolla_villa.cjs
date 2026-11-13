@@ -19,7 +19,7 @@ const checkText=(t,sido)=>{assert.match(t,/^연립다세대\n/,t);assert.match(t
   try{
     // 집건 단일·여러 호수
     for(const [loc,name,sido,ta] of [['전라북도 전주시 완산구 서신동','서신빌라','전북',1.01234],['전라남도 여수시 웅천동','웅천연립','전남',1.02345]])for(const mode of ['single','multi']){
-      const {ctx,page,errors}=await newPage(([m,loc,name])=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',m);
+      const {ctx,page,errors}=await newPage(([m,loc,name])=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',m),sessionStorage.setItem('arap-jiphap-mode',m));
         const prefix=m==='multi'?'v2:':'';if(localStorage.getItem(prefix+'case:TEST-JV'))return;
         const c={id:'c1',symbol:'1',location:loc,jibun:'1',aptName:name,dong:'',floor:'2',ho:'201',exclusiveArea:59.9,price:150000000,unitPrice:2504174,tradeDate:'2025.03.10',approvalDate:'2005.01.01',timeAdj:null,timeAdjDetail:'',isShown:true,isSelected:false};
         const ov={caseNo:'TEST-JV',jibun:loc+' 1',area:'59.9',baseDate:'2026.08.01',writeDate:'2026.08.01'};if(m==='multi')ov.units=[{id:1,dong:'',floor:'2',ho:'202',area:'59.9'}];

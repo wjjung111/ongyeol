@@ -13,7 +13,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     for(const mode of ['single','multi']){
       const ctx=await browser.newContext({viewport:{width:1500,height:950}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-      await page.addInitScript(m=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',m);
+      await page.addInitScript(m=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',m),sessionStorage.setItem('arap-jiphap-mode',m));
         const prefix=m==='multi'?'v2:':'';if(localStorage.getItem(prefix+'case:TEST-RT'))return;
         const c={id:'c1',symbol:'1',location:'전라북도 전주시 완산구 서신동',jibun:'1',aptName:'서신아파트',dong:'101',floor:'5',ho:'501',exclusiveArea:84.9,price:300000000,unitPrice:3533569,tradeDate:'2025.03.10',approvalDate:'2005.01.01',timeAdj:null,timeAdjDetail:'',isShown:true,isSelected:false};
         const ov={caseNo:'TEST-RT',jibun:'전라북도 전주시 완산구 서신동 1',area:'84.9',baseDate:'2026.08.01',writeDate:'2026.08.01'};if(m==='multi')ov.units=[{id:1,dong:'101',floor:'6',ho:'601',area:'84.9'}];

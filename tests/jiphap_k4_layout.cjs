@@ -17,7 +17,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
       await page.addInitScript(({mode})=>{
-        localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);const pre=mode==='multi'?'v2:':'';
+        localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));const pre=mode==='multi'?'v2:':'';
         const c=(id,sym,ho,price,sel)=>({id,symbol:sym,location:'서울특별시 중구 회현동2가',jibun:'87',aptName:'쌍용남산플라티넘 B-'+ho,dong:'',floor:'4',ho,exclusiveArea:88.5,price,unitPrice:Math.round(price/88.5),tradeDate:'2025.08.21',approvalDate:'2010.08.05',timeAdj:1.08473,timeAdjDetail:'x ≒ 1.08473',isShown:true,isSelected:sel});
         localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'T',label:'t'}]));
         localStorage.setItem(pre+'case:T',JSON.stringify({ov:{caseNo:'T',jibun:'서울특별시 중구 회현동2가 87',units:[{id:1,dong:'7',floor:'7',ho:'702',area:'88.5'}],dong:'7',floor:'7',ho:'702',area:'88.5',baseDate:'2026.09.17',writeDate:'2026.09.17',client:'테스트'},cases:[c('c1','1','702',1141000000,true),c('c2','2','1501',2000000000,true),c('c3','3','801',2050000000,true)],precs:[],propType:'주거용'}));

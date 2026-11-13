@@ -17,7 +17,7 @@ const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치�
       const ctx=await browser.newContext({viewport:{width:1700,height:1000}}),page=await ctx.newPage(),errors=[];
       page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
-      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
+      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));},{mode});
       await page.goto(base+'/s3r86w8a.html');
       const sc=page.locator(mode==='single'?'#root':'#root-multi');
       await sc.locator('.jr-rail').waitFor();
@@ -105,6 +105,23 @@ const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치�
         assert.equal(await sc.locator('.jr-item').count(),0,'찾기: 없는 건');
         await sc.getByLabel('저장된 건 찾기').fill('이유진');
         assert.equal(await sc.locator('.jr-item').count(),1,'찾기: 의뢰인으로');
+      }
+      // 왼쪽 목록에서 바로 삭제(2026-11-13 「삭제 기능이 없다」) — 마우스를 올리면 「삭제」, 확인 후 휴지통으로
+      {
+        await page.evaluate(({mode})=>{const pre=mode==='multi'?'v2:':'';const L=JSON.parse(localStorage.getItem(pre+'appraisal-case-list')||'[]');
+          L.unshift({id:'DEL-TEST',label:'DEL-TEST 지울건물 1동 1호',updated:new Date().toISOString()});localStorage.setItem(pre+'appraisal-case-list',JSON.stringify(L));
+          localStorage.setItem(pre+'case:DEL-TEST',JSON.stringify({ov:{caseNo:'DEL-TEST',jibun:'서울특별시 중구 회현동2가 1',client:'삭제용'},cases:[],precs:[],propType:'주거용'}));},{mode});
+        await page.reload();await sc.locator('.jr-rail').waitFor();
+        const it=sc.locator('.jr-item').filter({hasText:'DEL-TEST'});await it.waitFor();
+        await page.mouse.move(900,500);
+        const other=sc.locator('.jr-item:not(.cur)').first();
+        if(await other.count())assert(!(await other.locator('.jr-del').isVisible()),mode+': 연 건이 아니면 평소엔 삭제 버튼 숨김');
+        await it.hover();assert(await it.locator('.jr-del').isVisible(),mode+': 올리면 삭제 버튼');
+        page.once('dialog',d=>{assert.match(d.message(),/DEL-TEST.*휴지통/);d.accept();});
+        await it.locator('.jr-del').click();await page.waitForTimeout(400);
+        assert.equal(await sc.locator('.jr-item').filter({hasText:'DEL-TEST'}).count(),0,mode+': 목록에서 빠짐');
+        const tr=await page.evaluate(({mode})=>JSON.parse(localStorage.getItem((mode==='multi'?'v2:':'')+'appraisal-trash')||'[]').map(x=>x.id),{mode});
+        assert(tr.includes('DEL-TEST'),mode+': 휴지통에 들어감');
       }
       // 왼쪽 접기 → 새 평가서·저장된 건 버튼이 요약 띠로
       await sc.getByText('◀ 접기',{exact:true}).first().click();

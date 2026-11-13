@@ -17,7 +17,7 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.setDefaultTimeout(20000);
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(({cs,us})=>{if(sessionStorage.getItem('seeded'))return;sessionStorage.setItem('seeded','1');
-      localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','multi');
+      localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','multi'),sessionStorage.setItem('arap-jiphap-mode','multi'));
       localStorage.setItem('v2:appraisal-case-list',JSON.stringify([{id:'GRP',label:'묶기 검증'}]));
       localStorage.setItem('v2:case:GRP',JSON.stringify({ov:{caseNo:'GRP',client:'검증',jibun:'대구광역시 중구 덕산동 96-15',units:us,baseDate:'2026.11.03',writeDate:'2026.11.03'},cases:cs,propType:'주거용',rnd:{uD:'원',uM:'none',tD:'원',tM:'none'}}));
       localStorage.setItem('v2:last-case-id','GRP');},

@@ -28,7 +28,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     return (await page.getByLabel('시점수정치 결과').textContent());};
   try{
     for(const mode of ['single','multi']){
-      const {ctx,page,errors}=await newPage(m=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',m);
+      const {ctx,page,errors}=await newPage(m=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',m),sessionStorage.setItem('arap-jiphap-mode',m));
         const prefix=m==='multi'?'v2:':'';if(localStorage.getItem(prefix+'case:TEST-ML'))return;
         const c={id:'c1',symbol:'1',location:'서울특별시 강남구 대치동',jibun:'1',aptName:'대치아파트',dong:'101',floor:'5',ho:'501',exclusiveArea:84.9,price:2000000000,unitPrice:23557126,tradeDate:'2025.03.10',approvalDate:'2005.01.01',timeAdj:null,timeAdjDetail:'',isShown:true,isSelected:true};
         const ov={caseNo:'TEST-ML',jibun:'서울특별시 강남구 대치동 1',area:'84.9',baseDate:'2026.08.01',writeDate:'2026.08.01'};if(m==='multi')ov.units=[{id:1,dong:'101',floor:'6',ho:'601',area:'84.9'}];

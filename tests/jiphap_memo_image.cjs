@@ -17,7 +17,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>{dialogs.push(d.message());d.accept();});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
       await page.addInitScript(({mode,pre})=>{if(localStorage.getItem('arap-user-name'))return;
-        localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);
+        localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));
         localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'T',label:'t'}]));
         localStorage.setItem(pre+'case:T',JSON.stringify({ov:{caseNo:'T',jibun:'서울 중구 87'},cases:[],precs:[],propType:'주거용'}));},{mode,pre});
       await page.goto(base+'/s3r86w8a.html?last=1');
