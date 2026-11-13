@@ -1,6 +1,6 @@
 // 집합건물 앱 「2. 사례 · 가격산출」 / 「3. 위치도 · 청구서」 배치 검증(단일·여러호수) — 2026-11-13 탭 3개로 다시 씀
 //  - 2번 탭(단일): 왼쪽 [거래사례·평가전례 표 / 적용단가] | 오른쪽 [가치형성요인], 맨 아래 [시산가액 결정]. 본문 1550px 미만이면 한 줄. 여러호수는 위아래
-//  - 3번 탭: [내려받기 전 확인·서류 | 청구서] + 위치도(넓으면 오른쪽, 좁으면 아래)
+//  - 3번 탭: [내려받기 전 확인·서류 | 청구서], 그 아래 전체 폭 위치도
 //  - 청구서 칸(착수금)을 고치면 정산청구액이 바뀌고, 탭을 오가도 입력이 남는다
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_k4_layout.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -65,7 +65,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       let k=await kids();assert.equal(k.length,2);
       assert.ok(k[1].x>k[0].x+k[0].w-2&&Math.abs(k[0].y-k[1].y)<=4,`확인 카드 | 청구서 카드 2단 ${JSON.stringify(k)}`);
       const M=await bb('.t23-map');
-      assert.ok(M.x>k[1].x+k[1].w-2&&Math.abs(M.y-k[0].y)<=4,`넓으면 위치도는 청구서 오른쪽 ${JSON.stringify({M,k})}`);
+      assert.ok(M.y>=Math.max(k[0].y+k[0].h,k[1].y+k[1].h)-2&&M.width>k[0].w+k[1].w,`위치도는 청구서 아래 전체 폭 ${JSON.stringify({M,k})}`);
 
       // 3) 청구서 입력은 그대로 동작 — 기납부착수금 입력 → 정산청구액 반영 (평가수수료는 자동 계산이라 「착수금만큼 줄어드는지」를 본다)
       const due=async()=>{const t=await split.locator('.k4-right').innerText();const m=t.match(/정산청구액[^\d]*([\d,]+)/);return m?Number(m[1].replace(/,/g,'')):null;};
