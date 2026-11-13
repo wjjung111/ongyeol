@@ -25,7 +25,7 @@ async function gh(route){const req=route.request(),u=new URL(req.url()),m=req.me
   const ACC=fs.readFileSync(path.join(root,'arap_access.js'),'utf8').match(/ARAP_ACCESS_HASH="([0-9a-f]+)"/)[1];
   // ── PC: 접속코드 통과·이름·토큰이 있는 상태 + PC에서 만든 저장건
   const pc=await browser.newContext({viewport:{width:1300,height:900}});await route(pc);
-  await pc.addInitScript(a=>{if(!sessionStorage.getItem('init')){sessionStorage.setItem('init','1');localStorage.setItem('arap-access-ok',a);localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-gh-token','TOK');localStorage.setItem('arap-jiphap-mode','single');}},ACC);
+  await pc.addInitScript(a=>{if(!sessionStorage.getItem('init')){sessionStorage.setItem('init','1');localStorage.setItem('arap-access-ok',a);localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-gh-token','TOK');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));}},ACC);
   const p1=await pc.newPage();const e1=[];p1.on('pageerror',e=>e1.push(e.message));p1.on('dialog',d=>d.accept());
   await p1.goto(base+'/s3r86w8a.html');await p1.locator('#root').getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});
   await p1.evaluate(()=>{const L=JSON.parse(localStorage.getItem('v2:appraisal-case-list')||'[]');L.unshift({id:'PC-3004',updated:'2099-01-01T00:00:00'});

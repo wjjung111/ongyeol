@@ -16,7 +16,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
       await page.addInitScript(({mode})=>{
-        localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);const prefix=mode==='multi'?'v2:':'';
+        localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));const prefix=mode==='multi'?'v2:':'';
         if(localStorage.getItem(prefix+'case:TEST-COLW'))return;
         const c=(id,sym,ho,price)=>({id,symbol:sym,location:'서울특별시 성동구 행당동',jibun:'87',aptName:'쌍용남산플라티넘 B-4',dong:'',floor:'4',ho,exclusiveArea:158.97,price,unitPrice:Math.round(price/158.97),tradeDate:'2025.11.27',approvalDate:'2010.08.05',timeAdj:null,timeAdjDetail:'',isShown:true,isSelected:false});
         const p=(id,sel)=>({id,selected:sel,location:'행당동',jibun:'87',buildingName:'검증',exclusiveArea:50,appraiseAmount:300000000,unitPrice:6000000,baseDate:'2026.01.01',purpose:'일반거래',isShown:true});

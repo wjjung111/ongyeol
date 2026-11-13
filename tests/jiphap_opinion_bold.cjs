@@ -18,7 +18,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
   try{
     const ctx=await browser.newContext({acceptDownloads:true}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-    await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
+    await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
     await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');await scope.getByText('3. 위치도 · 청구서',{exact:true}).click({timeout:60000});
     const btn=scope.getByRole('button',{name:'의견서',exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
     const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);

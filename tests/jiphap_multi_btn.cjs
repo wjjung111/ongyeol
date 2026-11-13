@@ -43,7 +43,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
         if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});
         if(u.startsWith('https://api.github.com/'))return r.fulfill({status:200,contentType:'application/json',body:'[]',headers:{'access-control-allow-origin':'*'}});
         return u.startsWith(base)?r.continue():r.abort();});
-      await page.addInitScript(m=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-gh-token','TOK');localStorage.setItem('arap-jiphap-mode',m);},mode);
+      await page.addInitScript(m=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-gh-token','TOK');(localStorage.setItem('arap-jiphap-mode',m),sessionStorage.setItem('arap-jiphap-mode',m));},mode);
       await page.goto(base+'/s3r86w8a.html');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
       await scope.getByText('1. 접수 · 대상물건',{exact:true}).first().waitFor({timeout:60000});

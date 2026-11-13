@@ -80,7 +80,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     const vis=()=>pg.$$eval('.arap-filebak-down',a=>a.filter(x=>x.offsetParent!==null).length);
     const seen={};
     for(const mode of ['single','multi']){
-      await pg.goto(base+'/blank.html');await pg.evaluate(m=>localStorage.setItem('arap-jiphap-mode',m),mode);
+      await pg.goto(base+'/blank.html');await pg.evaluate(m=>(localStorage.setItem('arap-jiphap-mode',m),sessionStorage.setItem('arap-jiphap-mode',m)),mode);
       await pg.goto(base+'/s3r86w8a.html');
       const scope=pg.locator(mode==='single'?'#root':'#root-multi');
       await scope.getByText('저장된 건',{exact:false}).first().waitFor();await pg.waitForTimeout(800);

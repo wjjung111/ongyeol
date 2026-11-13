@@ -34,7 +34,7 @@ const MOCK={
       if(u.includes('workers.dev/bld')){const q=new URL(u).searchParams,op=q.get('op');calls.push(op+':'+(q.get('dongNm')||'')+':'+(q.get('hoNm')||''));const m=MOCK[op];return r.fulfill({json:typeof m==='function'?m(q):m});}
       if(u.startsWith('https://script.google.com')||u.startsWith('https://api.github.com'))return r.fulfill({json:{ok:true}});
       return r.abort();});
-    await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');}catch(e){}});
+    await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));}catch(e){}});
     await page.goto(base+'/s3r86w8a.html',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('#root >> text=1. 접수 · 대상물건',{timeout:60000});
     await page.waitForFunction(()=>window.ArapBldrgst&&window.ArapBldrgst.Panel);

@@ -23,7 +23,7 @@ const txt=(x,r)=>{const m=new RegExp('<c r="'+r+'"[^>]*?(?:/>|>([\\s\\S]*?)</c>)
   const ctx=await browser.newContext({acceptDownloads:true});const page=await ctx.newPage();const errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
   await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
-  await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
+  await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
   await page.goto(base+'/s3r86w8a.html');await page.waitForFunction(()=>window.__dlMS);
   const run=async ov=>{const [dl]=await Promise.all([page.waitForEvent('download'),page.evaluate(o=>window.__dlMS(o,935000000),ov)]);
     const b=fs.readFileSync(await dl.path());if(process.env.SAVE&&!run.saved){fs.writeFileSync(process.env.SAVE,b);run.saved=1;}return unzip(b)['xl/worksheets/sheet1.xml'].toString();};

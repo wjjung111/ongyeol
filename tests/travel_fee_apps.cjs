@@ -42,7 +42,7 @@ try{
   // ── 1. 집합건물 — ② 대상물건개요 소재지(ov.jibun)가 "경기도 성남시 분당구" ──
   for(const [mode,rootSel,api] of [['single','#root','testSingle'],['multi','#root-multi','testMulti']]){
     const {ctx,page,errors}=await mk();
-    await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);
+    await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));
       const pre=mode==='multi'?'v2:':'';
       localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'TRAVEL',label:'여비검증'}]));
       localStorage.setItem(pre+'case:TRAVEL',JSON.stringify({ov:{caseNo:'TRAVEL',client:'검증',

@@ -15,7 +15,7 @@ const REG={jibun:"서울특별시 강남구 신사동 616-2",road:"서울특별�
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});
       if(u.startsWith('https://api.anthropic.com'))return r.fulfill({json:{content:[{type:'text',text:JSON.stringify(REG)}]}});
       return u.startsWith(base)?r.continue():r.abort();});
-    await page.addInitScript(k=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');localStorage.setItem(k,'sk-test');},'v2:appraisal-api-key');
+    await page.addInitScript(k=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));localStorage.setItem(k,'sk-test');},'v2:appraisal-api-key');
     await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
     await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
     const form=scope.locator('xpath=//div[normalize-space(text())="대상물건 정보"]/.. | //div[normalize-space(text())="건물 개요 (의견서용)"]/..');

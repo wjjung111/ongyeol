@@ -63,7 +63,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     // ── 집합건물 단일 호수 ──
     {const ctx=await browser.newContext({viewport:{width:1440,height:900}});const page=await ctx.newPage();const errs=[];page.on('pageerror',e=>errs.push(e.message));page.on('dialog',d=>d.accept());
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
-      await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
+      await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
       await page.goto(base+'/s3r86w8a.html');
       const r=page.locator('#root');
       await r.getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});

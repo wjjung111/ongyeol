@@ -12,7 +12,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
   try{
     const mk=async()=>{const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-      await ctx.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});return {ctx,page,errors};};
+      await ctx.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});return {ctx,page,errors};};
     // ── 집합건물: 저장건(대표 샘플 압구정 현대)이 있어도 처음 들어오면 빈 화면
     {const {ctx,page,errors}=await mk();const root=page.locator('#root');
       const ready=async()=>{await root.getByText('1. 접수 · 대상물건',{exact:true}).first().waitFor();await page.waitForTimeout(800);};

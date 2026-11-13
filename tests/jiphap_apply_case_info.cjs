@@ -16,7 +16,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
       await page.addInitScript(({mode})=>{if(sessionStorage.getItem('seeded'))return;sessionStorage.setItem('seeded','1');
-        localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);const pre=mode==='multi'?'v2:':'';
+        localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));const pre=mode==='multi'?'v2:':'';
         const c=(id,sym,dong,ho,area,price)=>({id,symbol:sym,location:'대구광역시 중구 동성로2가',jibun:'96-15',aptName:sym==='1'?'동성로 하우스디어반':'대구메디스퀘어',dong,floor:ho.slice(0,-2),ho,exclusiveArea:area,price,unitPrice:Math.round(price/area),tradeDate:'2026.08.21',approvalDate:'2020.08.05',timeAdj:1.02,timeAdjDetail:'x ≒ 1.02000',isShown:true,isSelected:true});
         localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'T',label:'t'}]));
         localStorage.setItem(pre+'case:T',JSON.stringify({ov:{caseNo:'T',jibun:'대구광역시 중구 덕산동 96-15',
