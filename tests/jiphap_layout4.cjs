@@ -28,6 +28,15 @@ const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치�
 
       // 빈 새 평가서: 요약 띠는 「새 평가서」 한 줄, 저장 묶음은 접수번호 칸 위에 하나
       assert.equal(await sc.locator('.js-nm').innerText(),'새 평가서');
+      // 탁상은 1번 탭에서도 요약 띠 첫 줄에 보인다(2026-11-13) — 빈 건은 「미입력」
+      assert.match(await sc.locator('.js-desk').innerText(),/탁상[\s\S]*미입력/,mode+': 탁상 칸');
+      if(mode==='multi'){
+        assert(await sc.locator('.desk-jump').isVisible(),'여러 호수: 접수개요에 탁상 「호별 입력 ↓」');
+        await sc.locator('.desk-jump').click();await page.waitForTimeout(700);
+        const top=await page.locator('#unitTableM').evaluate(e=>e.getBoundingClientRect().top);
+        assert(top>=0&&top<800,'호별 입력 ↓ → 상세물건정보 표가 화면 안에 '+top);   /* 빈 건은 아래가 짧아 맨 위까지는 못 올라옴 */
+        assert.match(await page.evaluate(()=>document.activeElement&&document.activeElement.getAttribute('aria-label')||''),/^탁상가격/,'첫 호 탁상가격 칸에 커서');
+      }
       assert.equal(await sc.locator('.js-row').count(),0,mode+': 1번 탭에서는 요약 둘째 줄 없음');
       assert.equal(await sc.locator('.save-btn').count(),1,mode+': 저장 버튼 하나');
       assert.equal(await sc.locator('.s1-save .save-btn').count(),1,mode+': 1번 탭 저장 버튼은 접수개요 안');
@@ -72,12 +81,13 @@ const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치�
         await sc.locator('.js-nm',{hasText:'현대아파트 77동 904호'}).waitFor();
         assert(await sc.locator('.jr-item.cur').count()===1,'연 건이 목록에서 표시됨');
         assert.equal(await sc.locator('.js-row').count(),0,'열면 1번 탭 — 요약 한 줄');
+        { const d=await sc.locator('.js-desk').innerText();assert(d.includes('7,900,000,000원')&&d.includes('50,203,355/㎡'),'1번 탭 요약 띠에 탁상가격·탁상단가: '+d); }
         await tabs.nth(1).click();
         await sc.locator('.js-grp.res').waitFor();
         const res=await sc.locator('.js-grp.res').innerText();
         assert(res.includes('50,200,000')&&res.includes('7,900,000,000')&&res.includes('0.00%'),'요약 띠 결과: '+res);
         const row=await sc.locator('.js-row').innerText();
-        assert(row.includes('157.36㎡')&&row.includes('2026.07.14')&&row.includes('7,900,000,000원'),'요약 띠 물건/접수/탁상: '+row);
+        assert(row.includes('157.36㎡')&&row.includes('2026.07.14'),'요약 띠 물건/접수: '+row);
         // 2번 탭 배치: 왼쪽 [거래사례 표 / 적용단가] | 오른쪽 [가치형성요인], 맨 아래 전체 폭 [시산가액 결정]
         await page.setViewportSize({width:1950,height:1000});await page.waitForTimeout(300);   // 2단은 본문 1550px 이상
         const bb=sel=>sc.locator(sel).first().boundingBox();
