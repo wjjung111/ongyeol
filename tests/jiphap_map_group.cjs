@@ -1,3 +1,4 @@
+// 환경 주의: Leaflet을 CDN이 아닌 로컬 폴더(../map-test-vendor 또는 LEAFLET_TEST_DIR)에서 읽음 — 그 폴더가 없으면 'L is not defined'(앱 문제 아님). leaflet@1.9.4의 dist/leaflet.js·leaflet.css를 넣고 실행
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..'),vendor=process.env.LEAFLET_TEST_DIR||path.join(root,'..','map-test-vendor');

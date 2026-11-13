@@ -22,7 +22,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='multi'?'#root-multi':'#root');
       await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
-      await scope.getByLabel('거래사례 #1 시점수정 단가').locator('xpath=preceding-sibling::td[1]').click();
+      await scope.getByLabel('거래사례 #1 시점수정 창',{exact:true}).click();   // 시점수정치 칸은 입력칸 — 창은 🧮(2026-11-09)
       await page.waitForSelector('text=시점수정치 계산');
       const region=()=>page.locator('[data-region]').getAttribute('data-region');
       // 표 머리 지역1~지역4, 월별 지수표(1월~12월) 없음

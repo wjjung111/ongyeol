@@ -3,6 +3,7 @@
 //            ✕ 지운 뒤 되돌리기 안내 + Ctrl+Z·Ctrl+Y / 이전·다음
 //  집합건물 단일: 현장조사일 라벨 / 평가구분 Tab 채움 / 사례 ✕ → 되돌리기 안내·버튼 / Ctrl+Y / 자동저장 0.4초 / 창 닫힘 즉시 저장
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/ui_unify.cjs
+// 환경 주의: 기본 브라우저가 msedge(사용자 PC) — msedge 없는 클라우드 세션에선 PLAYWRIGHT_CHANNEL=chromium 으로 실행(앱 문제 아님)
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..');
@@ -64,7 +65,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     {const ctx=await browser.newContext({viewport:{width:1440,height:900}});const page=await ctx.newPage();const errs=[];page.on('pageerror',e=>errs.push(e.message));page.on('dialog',d=>d.accept());
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
       await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
-      await page.goto(base+'/s3r86w8a.html');
+      await page.goto(base+'/s3r86w8a.html?last=1');   // 첫 화면은 빈 새 평가서 — 샘플 건은 ?last=1(첫 방문 = 샘플)
       const r=page.locator('#root');
       await r.getByText('1. 접수 · 대상물건',{exact:true}).waitFor({timeout:60000});
       assert.equal(await r.getByText('현장조사일',{exact:true}).count(),1);
@@ -82,7 +83,7 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
       assert.equal(await tag(),before,'Ctrl+Z');
       // 자동저장 0.4초: 의뢰인 고치고 1초 안에 저장소 반영
       await r.getByText('1. 접수 · 대상물건',{exact:true}).click();
-      const client=r.locator('input').nth(1);
+      const client=r.locator('xpath=.//span[normalize-space(text())="의뢰인"]/following-sibling::input[1]').first();   // 왼쪽 최근 평가서 찾기칸이 앞에 생겨 순번(nth) 대신 라벨로(2026-11-12 개편)
       await client.fill('자동저장검증');await page.waitForTimeout(1000);
       assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('case:SAMPLE-압구정현대')).ov.client),'자동저장검증');
       // 창 닫힘(pagehide) 즉시 저장 — 0.4초 기다리지 않고 바로

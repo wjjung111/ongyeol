@@ -11,10 +11,12 @@ const INJECT=`;(function(){var C=window.ARAP_INDEX_DATA.capReturn;var R=["서울
   var M={"강남":"서울","도심":"서울","여의도마포":"서울","기타":"서울","분당역세권":"경기","분당":"경기","구월":"인천","부평":"인천","원도심":"인천"};
   Object.keys(C.types).forEach(function(k){var T=C.types[k],g={};Object.keys(T.regions).forEach(function(r){g[r]=R.indexOf(r)>=0?r:(M[r]||"부산");});
     if(T.regions["서울"]){T.regions["대전 원도심"]=T.regions["서울"];g["대전 원도심"]="대전";}T.group=g;});})();`;
+// 옛 데이터 흉내: 실제 파일엔 2026-10-14부터 group이 들어 있으므로 지워서 시험
+const STRIP=`;(function(){var C=window.ARAP_INDEX_DATA.capReturn;Object.keys(C.types).forEach(function(k){delete C.types[k].group;});})();`;
 const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.split('?')[0]);const f=path.join(root,n.slice(1));
   if(!f.startsWith(root)||!fs.existsSync(f)){res.statusCode=404;return res.end();}
   res.setHeader('Content-Type',f.endsWith('.html')?'text/html; charset=utf-8':'text/javascript; charset=utf-8');
-  let body=fs.readFileSync(f);if(n==='/arap_index_data.js'&&withGroup)body=body.toString()+INJECT;res.end(body);});
+  let body=fs.readFileSync(f);if(n==='/arap_index_data.js')body=body.toString()+(withGroup?INJECT:STRIP);res.end(body);});
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});try{
   const mk=async init=>{const ctx=await browser.newContext({viewport:{width:1300,height:900}});
@@ -36,7 +38,11 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
     await p.selectOption('#r1','서울');s=await st();
     assert.equal(s.o2[0],'서울 전체');assert.ok(s.o2.includes('강남')&&!s.o2.includes('분당역세권'),'서울 상권만: '+s.o2.join(','));
     await p.selectOption('#r2','강남');s=await st();assert.equal(s.region,'강남');
+    // 2026.3분기 상권 개편 — 옛 이름 「강남」은 2026.2분기까지만(새 이름 「강남지역」). 개편 뒤 기준시점이면 그 사실을 알리는 오류
     await p.fill('#tradeDate','2025.03.10');await p.fill('#baseDate','2026.08.01');await p.click('#btn-calc');
+    {const lt=await p.evaluate(()=>window.ARAP_INDEX_DATA.capReturn.types[document.getElementById('kind').value].regions['강남']);
+      if(!lt['20263'])assert.match(await p.textContent('#err'),/'강남' 자본수익률은 2026\.2분기까지만 공표되었습니다.*상권 이름이 바뀌었을 수 있음/);}
+    await p.fill('#baseDate','2026.06.30');await p.click('#btn-calc');   // 공표된 분기 안 — 실제 지수 갱신과 무관하게
     assert.match(await p.inputValue('#resultText'),/지역 : 강남\n/);
     await p.reload();await p.click('#tab-nr');s=await st();assert.deepEqual([s.r1,s.r2],['서울','강남'],'새로고침 뒤 복원');
     await p.selectOption('#r1','경기');s=await st();assert.equal(s.region,'경기');assert.equal(s.l2,'경기 전체');
@@ -52,13 +58,17 @@ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGH
     const o1=await p.evaluate(()=>[...document.getElementById('r1').options].map(x=>x.value));
     assert.ok(o1.includes('서울')&&o1.includes('상권(구분 전)'),'옛 데이터 묶음: '+o1.join(','));
     await p.selectOption('#r1','상권(구분 전)');await p.selectOption('#r2','강남');
-    await p.fill('#tradeDate','2025.03.10');await p.fill('#baseDate','2026.08.01');await p.click('#btn-calc');
+    await p.fill('#tradeDate','2025.03.10');await p.fill('#baseDate','2026.06.30');await p.click('#btn-calc');
     assert.match(await p.inputValue('#resultText'),/지역 : 강남\n/);
     assert.deepEqual(p.errs,[]);await ctx.close();console.log('옛 데이터 OK');}
   withGroup=true;
 
   // ── 3) 집합건물 앱 단일호수: 비주거용 → ③ 사례 시점수정치 창
-  {const {ctx,p}=await mk({'arap-jiphap-mode':'single','arap-nrcap-region':'도심'});await p.goto(base+'/s3r86w8a.html');
+  //    첫 화면은 빈 새 평가서(거래사례 없음 → 🧮 없음) → 사례 1건 저장해 두고 ?last=1
+  {const nrCase={ov:{caseNo:'TEST-NR',jibun:'서울특별시 중구 명동2가 1',area:'50',baseDate:'2026.06.30',writeDate:'2026.06.30'},precs:[],propType:'비주거용',
+     cases:[{id:'c1',symbol:'1',location:'서울특별시 중구 명동2가',jibun:'2',aptName:'명동상가',dong:'',floor:'1',ho:'101',exclusiveArea:50,price:500000000,unitPrice:10000000,tradeDate:'2025.03.10',approvalDate:'2005.01.01',timeAdj:null,timeAdjDetail:'',isShown:true,isSelected:false}]};
+   const {ctx,p}=await mk({'arap-jiphap-mode':'single','arap-nrcap-region':'도심','appraisal-case-list':JSON.stringify([{id:'TEST-NR',label:'비주거'}]),'case:TEST-NR':JSON.stringify(nrCase)});
+   await p.addInitScript(()=>sessionStorage.setItem('arap-jiphap-mode','single'));await p.goto(base+'/s3r86w8a.html?last=1');
     const scope=p.locator('#root');
     await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
     await scope.locator('button',{hasText:/^비주거용$/}).first().click();
