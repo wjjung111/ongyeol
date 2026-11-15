@@ -410,6 +410,7 @@
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
 <script src="arap_cheonggu.js"></script>
 <script src="arap_fee.js"></script><!-- 감정평가수수료 자동 계산(보수에 관한 기준 별표) — 수수료 사이트 대신 --><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
+<script src="arap_addr.js"></script><!-- 도로명주소(갯벌로 72)도 지번·PNU로 찾기 -->
 <script src="arap_map.js"></script>
 <script src="arap_filebak.js"></script><!-- 💾 백업 파일 내려받기/불러오기 -->
 <script src="arap_sync.js"></script><!-- 저장건 GitHub 자동 백업(집합건물과 같은 토큰·Gist) --><!-- 위치도 공용 엔진 — 거래사례 지도 페이지와 같은 코드 -->
@@ -1151,6 +1152,14 @@ function latestRecord(fields){var best=null;fields.forEach(function(f){
   if((f.stdrYear||'')===(best.stdrYear||'')&&(f.lastUpdtDt||'')>(best.lastUpdtDt||''))best=f;
 });return best;}
 function searchPnu(query,key){
+  // 도로명주소(「갯벌로 72」)도 받는다 — arap_addr.js가 도로명 → 지번 → PNU로 바꿔 줌(2026-11-15)
+  if(window.ArapAddr)return ArapAddr.resolve(query,function(q,cat){
+    return callApi(API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(q)+'&type=address&category='+cat+'&format=json&errorformat=json&key='+key)
+      .then(function(d){var r=d&&d.response;return (r&&r.status==='OK'&&r.result&&r.result.items)||[];});
+  }).then(function(h){
+    if(!h.length)throw new Error('주소를 찾지 못했습니다: '+query+' (지번은 「송도동 7-14」, 도로명은 「연수구 갯벌로 72」처럼)');
+    return {pnu:h[0].id,addr:h[0].addr,road:h[0].road||''};
+  });
   var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(query)+'&type=address&category=parcel&format=json&errorformat=json&key='+key;
   return callApi(url).then(function(d){
     var resp=d&&d.response;
@@ -1163,7 +1172,7 @@ function searchPnu(query,key){
 function nedUrl(op,pnu,key){return API_BASE+'/ned/data/'+op+'?key='+key+'&pnu='+pnu+'&format=json&numOfRows=100&pageNo=1';}
 function queryParcel(query,key){
   var out={};
-  return searchPnu(query,key).then(function(s){out.pnu=s.pnu;out.addr=s.addr;
+  return searchPnu(query,key).then(function(s){out.pnu=s.pnu;out.addr=s.addr;out.road=s.road||'';
     return callApi(nedUrl('getLandCharacteristics',s.pnu,key));
   }).then(function(d){
     var fields=(d&&d.landCharacteristicss&&d.landCharacteristicss.field)||[];
@@ -1851,9 +1860,9 @@ function calcSijeom(){
 function bindQuery(btnId,queryId,statusId,onDone){
   document.getElementById(btnId).onclick=function(){
     var key=getKey();
-    var q=document.getElementById(queryId).value.trim();if(!q){alert('지번을 입력하세요');return;}
+    var q=document.getElementById(queryId).value.trim();if(!q){alert('지번 또는 도로명주소를 입력하세요');return;}
     var btn=this,st=document.getElementById(statusId);btn.disabled=true;st.className='status';st.textContent='조회 중… '+q;
-    queryParcel(q,key).then(function(out){onDone(extract(out),out);st.textContent='✅ 조회 완료: '+out.addr;saveForm();calcGongsi();})
+    queryParcel(q,key).then(function(out){onDone(extract(out),out);st.textContent='✅ 조회 완료: '+out.addr+(window.ArapAddr&&ArapAddr.looksRoad(q)&&out.road?'  (도로명 '+out.road+')':'');saveForm();calcGongsi();})
       .catch(function(e){console.error('조회 실패',e);st.className='status err';st.textContent='실패: '+e.message;})
       .then(function(){btn.disabled=false;});
   };

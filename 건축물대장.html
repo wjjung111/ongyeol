@@ -46,6 +46,7 @@
 </head>
 <body>
 <script>window.ARAP_NAME_ICON='🏢';window.ARAP_NAME_SUB='건축물대장 간편조회';</script><script src="arap_name.js"></script><!-- 접속코드 없이 사용자 이름만 최초 1회 입력 (이름 없으면 화면 안 열림) -->
+<script src="arap_addr.js"></script><!-- 도로명주소(갯벌로 72)도 지번·PNU로 찾기 -->
 <script>window.ARAP_VISIT_PAGE='건축물대장';</script><script src="arap_visit.js"></script><!-- 접속·조회 기록 → 관리자 「건축물대장」 탭 -->
 <header class="ttop">
   <span class="tb-title"><span class="tb-ico">🏢</span>건축물대장 조회</span>
@@ -57,7 +58,7 @@
     <div class="row" style="gap:14px">
       <span class="row" style="gap:6px">
         <span style="font-weight:700;color:#475569;white-space:nowrap">지번</span>
-        <input type="text" id="q" size="34" list="qHist" autocomplete="off" placeholder="예: 안산시 단원구 선부동 1017-11" onkeydown="if(event.key==='Enter')go()">
+        <input type="text" id="q" size="34" list="qHist" autocomplete="off" placeholder="예: 선부동 1017-11 (도로명도 됨)" onkeydown="if(event.key==='Enter')go()">
         <datalist id="qHist"></datalist>
         <button class="btn" id="btnGo" onclick="go()">조회</button>
       </span>
@@ -69,7 +70,7 @@
         <button class="btn" id="btnGoRoad" onclick="goRoad()">조회</button>
       </span>
     </div>
-    <div class="hint" style="margin-top:5px">시·구·동까지 쓰면 정확합니다. (예: 안양시 동안구 관양동 1443-5) · 도로명주소는 건물번호까지 쓰세요. 도로명으로 찾으면 그 건물의 지번으로 바꿔서 대장을 조회합니다.</div>
+    <div class="hint" style="margin-top:5px">시·구·동까지 쓰면 정확합니다. (예: 안양시 동안구 관양동 1443-5) · 지번 칸에 도로명주소(예: 연수구 갯벌로 72)를 넣어도 됩니다. 도로명주소는 건물번호까지 쓰세요. 도로명으로 찾으면 그 건물의 지번으로 바꿔서 대장을 조회합니다.</div>
     <div class="status" id="status"></div>
     <!-- 같은 지번이 여러 동네에 있을 때(예: 홍제동 = 서울 서대문구·강원 강릉시) 고르는 목록 -->
     <div id="pick" style="display:none;margin-top:8px;">
@@ -318,12 +319,16 @@ histRender();
 async function go(){
   var q=document.getElementById('q').value.trim();
   if(!q){alert('지번을 입력하세요');return;}
+  // 지번 칸에 도로명주소(「갯벌로 72」)를 넣어도 도로명 조회로 넘긴다 (2026-11-15)
+  if(window.ArapAddr&&ArapAddr.looksRoad(q)){document.getElementById('qRoad').value=q;return goRoad();}
   busy(true);
   document.getElementById('result').style.display='none';hidePick();
   setStatus('주소 확인 중… '+q);
   try{
     // 1) V-World로 PNU — 같은 지번이 여러 동네에 있으면(홍제동: 서울 서대문구·강원 강릉시) 고르게 한다
-    var cands=parcelCands(await vworldSearch(q,'parcel'),q);
+    var cands=parcelCands(await vworldSearch(q,'parcel').catch(function(e){
+      if(/(로|길)\s*\d+/.test(q))return [];throw e;}),q);   // 지번 검색에 없으면 도로명으로 한 번 더
+    if(!cands.length&&/(로|길)\s*\d+/.test(q)){busy(false);document.getElementById('qRoad').value=q;return goRoad();}
     if(!cands.length)throw new Error('주소는 찾았지만 필지 번호(PNU)를 받지 못했습니다: '+q);
     await offerPick(cands,function(c){return lookup(c.id,c.addr);},
       '같은 지번이 '+cands.length+'곳에 있습니다 — 아래에서 고르세요. (시·구까지 쓰면 바로 조회됩니다)');
