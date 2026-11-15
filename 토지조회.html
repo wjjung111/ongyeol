@@ -30,6 +30,7 @@
 </head>
 <body>
 <script src="arap_access.js"></script>
+<script src="arap_addr.js"></script><!-- 도로명주소(갯벌로 72)도 지번·PNU로 찾기 -->
 <h1>토지 조회 <small>지번 입력 → 토지특성·용도지역·공시지가 (브이월드 API)</small></h1>
 
 <div class="card" id="keyCard">
@@ -138,6 +139,14 @@ function latestRecord(fields){ // 같은 연도 중복 레코드 → 기준연�
   });return best;
 }
 function searchPnu(query,key){
+  // 도로명주소도 받는다 — arap_addr.js (2026-11-15)
+  if(window.ArapAddr)return ArapAddr.resolve(query,function(q,cat){
+    return callApi(API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(q)+'&type=address&category='+cat+'&format=json&errorformat=json&key='+key)
+      .then(function(d){var r=d&&d.response;return (r&&r.status==='OK'&&r.result&&r.result.items)||[];});
+  }).then(function(h){
+    if(!h.length)throw new Error('주소를 찾지 못했습니다: '+query+' (지번 또는 도로명주소+건물번호)');
+    return {pnu:h[0].id,addr:h[0].addr};
+  });
   var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(query)+'&type=address&category=parcel&format=json&errorformat=json&key='+key;
   return callApi(url).then(function(d){
     var resp=d&&d.response;

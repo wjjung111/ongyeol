@@ -63,9 +63,11 @@
   $('address').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();$('search').click();}});
   $('address').addEventListener('input',()=>{revision++;resetProperty();$('candidatesPanel').hidden=true;setStatus('새 주소를 조회하세요. 이전 대상의 입력값을 비웠습니다.');});
   $('search').onclick=async()=>{
-    const q=$('address').value.trim();if(!q){setStatus('지번주소를 입력하세요.');return;}
+    const q=$('address').value.trim();if(!q){setStatus('주소(지번 또는 도로명)를 입력하세요.');return;}
     const rev=++revision;resetProperty();$('search').disabled=true;setStatus('주소 조회 중…');
-    try{const url=VW+'/req/search?'+new URLSearchParams({service:'search',request:'search',version:'2.0',size:'10',page:'1',query:q,type:'address',category:'parcel',format:'json',errorformat:'json',key:apiKey()});const d=await vworld(url);if(rev!==revision)return;const a=d.response?.result?.items||[];if(!a.length)throw new Error('해당 지번주소를 찾지 못했습니다.');$('candidates').innerHTML='<option value="">주소를 선택하세요</option>'+a.map(x=>`<option value="${esc(x.id)}">${esc(x.address?.parcel||x.title)}</option>`).join('');$('candidatesPanel').hidden=false;setStatus('조회된 주소를 선택하세요.');if(a.length===1){$('candidates').value=a[0].id;await chooseParcel(a[0].id,rev);}}catch(e){if(rev===revision)setStatus(e.message+' 직접 입력도 가능합니다.');}finally{$('search').disabled=false;}
+    try{const vw=(qq,cat)=>vworld(VW+'/req/search?'+new URLSearchParams({service:'search',request:'search',version:'2.0',size:'10',page:'1',query:qq,type:'address',category:cat,format:'json',errorformat:'json',key:apiKey()})).then(d=>d.response?.result?.items||[]);
+      // 도로명주소(「갯벌로 72」)도 받는다 — arap_addr.js가 도로명 → 지번 → PNU (2026-11-15). 없으면 예전처럼 지번만
+      const a=window.ArapAddr?(await ArapAddr.resolve(q,vw)).map(h=>({id:h.id,address:{parcel:h.addr}})):await vw(q,'parcel');if(rev!==revision)return;if(!a.length)throw new Error('해당 주소를 찾지 못했습니다. (지번 또는 도로명+건물번호)');$('candidates').innerHTML='<option value="">주소를 선택하세요</option>'+a.map(x=>`<option value="${esc(x.id)}">${esc(x.address?.parcel||x.title)}</option>`).join('');$('candidatesPanel').hidden=false;setStatus('조회된 주소를 선택하세요.');if(a.length===1){$('candidates').value=a[0].id;await chooseParcel(a[0].id,rev);}}catch(e){if(rev===revision)setStatus(e.message+' 직접 입력도 가능합니다.');}finally{$('search').disabled=false;}
   };
   $('candidates').onchange=()=>{const value=$('candidates').value;const rev=++revision;resetProperty();if(value)chooseParcel(value,rev);};
   async function chooseParcel(value,rev){
