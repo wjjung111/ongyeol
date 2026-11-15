@@ -84,8 +84,8 @@
   .card h3{font-size:12px;font-weight:700;color:#334155;margin:9px 0 4px;}
   .lr{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:42%;}
   @media(min-width:1380px){.lr{grid-template-columns:minmax(0,42fr) minmax(0,58fr);}}
-  .cols2{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:330px;}
-  @media(min-width:1280px){.cols2{grid-template-columns:330px minmax(0,1fr);}}
+  .cols2{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:340px;}
+  @media(min-width:1280px){.cols2{grid-template-columns:340px minmax(0,1fr);}}
   .cols5050{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;--sl:calc(50% - 5px);}
   @media(min-width:1280px){.cols5050{grid-template-columns:1fr 1fr;}}
   /* 좌/우 너비 조절 손잡이 — 2단 레이아웃 가운데를 드래그. 너비는 --sl(왼쪽 열)로 정하고 localStorage에 저장 */
@@ -389,6 +389,12 @@
   .evalkind-bar .ek-label{font-weight:700;font-size:13px;color:#1e293b;margin-right:4px;}
   .evalkind-bar .btn{font-size:13px;padding:7px 18px;}
   .evalkind-bar .ek-hint{font-size:11px;color:#94a3b8;margin-left:6px;}
+  /* 2026-11-15 감정평가 개요 카드 안으로(집건 「물건 유형」 자리) — 테두리 없이, 버튼 3개 한 줄 */
+  .ov-col .evalkind-bar{border:0;padding:0 0 8px;margin:0 0 8px;border-bottom:1px solid #eef0f3;border-radius:0;gap:4px;}
+  .ov-col .evalkind-bar{flex-wrap:wrap;}
+  .ov-col .evalkind-bar .btn{padding:5px 8px;font-size:12px;white-space:nowrap;}
+  .ov-col .evalkind-bar .ek-label{margin-right:2px;}
+  .ov-col .evalkind-bar .ek-hint{flex-basis:100%;margin:2px 0 0;}
   /* 자동 인식으로 채운 칸 — 확인 전까지 연노랑(손으로 고치면 사라짐) */
   input.up-auto,textarea.up-auto,select.up-auto{background:#fef9c3 !important;}
   #upCard.drag{background:#dbeafe !important;border:1px dashed #2563eb !important;}
@@ -480,38 +486,20 @@
 
     <!-- ═══════════ 1. 대상물건 개요 ═══════════ -->
     <div id="tab-daesang" class="tab active">
-     <!-- 평가유형 — 첫 화면 맨 위에서 고른다(2026-10-13 사용자 요청). 건별 저장, 바꿔도 입력값은 지우지 않는다 -->
-     <div class="evalkind-bar" role="group" aria-label="평가유형">
-       <span class="ek-label">평가유형</span>
-       <button type="button" class="btn gh" id="ek_bld" onclick="setEvalKind('bld')" title="토지평가를 숨기고 건물(원가법)만으로 감정평가액을 결정합니다(의견서는 건물 전용 양식)">🏠 건물만</button>
-       <button type="button" class="btn" id="ek_tb" onclick="setEvalKind('tb')" title="토지와 건물을 함께 평가합니다">🏞️ 토지건물</button>
-       <button type="button" class="btn gh" id="ek_land" onclick="setEvalKind('land')" title="건물평가를 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)">🌾 토지만</button>
-       <span class="ek-hint">바꿔도 입력한 값은 그대로 남아요</span>
-     </div>
      <div class="cols2">
 
-      <!-- 좌: 공부서류 업로드(arap_toji_upload.js, 집건과 같은 API 키) + 접수개요 -->
-      <div>
-      <div class="card" id="upCard" style="background:#f0f7ff;border-color:#bfdbfe">
-        <h2>📄 공부서류·접수 캡처 업로드</h2>
-        <div class="hint" style="margin:-2px 0 6px">토지·건물 등기 PDF, 접수 캡처 → 접수번호·의뢰인·기준시점·소유자·본건 토지·건물내역 자동 입력</div>
-        <div class="row" style="flex-wrap:nowrap;margin-bottom:6px">
-          <span style="font-size:12px;font-weight:600;color:#555;white-space:nowrap">🔑 API 키</span>
-          <input type="password" id="up_apiKey" style="flex:1;min-width:0;font-size:12px" placeholder="sk-ant-... (집건 키 자동)">
-          <button type="button" class="btn gh sm" id="up_keyShow">보기</button>
-          <span id="up_keyState" style="font-size:11px;white-space:nowrap"></span>
-        </div>
-        <div class="row">
-          <label class="btn gh sm" style="cursor:pointer">+ 파일 추가<input type="file" id="up_files" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple style="display:none"></label>
-          <button type="button" class="btn sm" id="up_run" disabled>🤖 자동 인식</button>
-        </div>
-        <div class="hint" id="up_dropHint" style="margin-top:4px">PDF·이미지를 이 칸에 끌어다 놓거나 Ctrl+V로 붙여넣어도 됩니다</div>
-        <div id="up_list" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
-        <div class="status" id="up_status" style="min-height:0"></div>
-        <div id="up_result" style="font-size:12px;line-height:1.6;margin-top:4px"></div>
-      </div>
+      <!-- 좌: 접수개요 세로 한 줄 + 평가유형 (2026-11-15 집건 1번 탭과 같은 배치) -->
+      <div class="ov-col">
       <div class="card">
         <h2>감정평가 개요</h2>
+        <!-- 평가유형 — 감정평가 개요 맨 위(2026-11-15, 집건 「물건 유형」과 같은 자리. 처음엔 2026-10-13 탭 맨 위). 건별 저장, 바꿔도 입력값은 지우지 않는다 -->
+        <div class="evalkind-bar" role="group" aria-label="평가유형">
+          <span class="ek-label">평가유형</span>
+          <button type="button" class="btn gh" id="ek_bld" onclick="setEvalKind('bld')" title="토지평가를 숨기고 건물(원가법)만으로 감정평가액을 결정합니다(의견서는 건물 전용 양식)">🏠 건물만</button>
+          <button type="button" class="btn" id="ek_tb" onclick="setEvalKind('tb')" title="토지와 건물을 함께 평가합니다">🏞️ 토지건물</button>
+          <button type="button" class="btn gh" id="ek_land" onclick="setEvalKind('land')" title="건물평가를 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)">🌾 토지만</button>
+          <span class="ek-hint">바꿔도 입력한 값은 그대로 남아요</span>
+        </div>
         <div class="grid2">
           <span class="fld"><label>접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
           <span class="fld"><label>의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
@@ -535,8 +523,26 @@
       </div>
       </div>
 
-      <!-- 우: 대상물건(토지+건물) -->
+      <!-- 우: 공부서류 업로드(arap_toji_upload.js, 집건과 같은 API 키) + 대상물건(토지+건물) + 그 밖의 사항 -->
       <div>
+        <div class="card" id="upCard" style="background:#f0f7ff;border-color:#bfdbfe">
+          <h2>📄 공부서류·접수 캡처 업로드</h2>
+          <div class="hint" style="margin:-2px 0 6px">토지·건물 등기 PDF, 접수 캡처 → 접수번호·의뢰인·기준시점·소유자·본건 토지·건물내역 자동 입력</div>
+          <div class="row" style="flex-wrap:nowrap;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:#555;white-space:nowrap">🔑 API 키</span>
+            <input type="password" id="up_apiKey" style="flex:1;min-width:0;font-size:12px" placeholder="sk-ant-... (집건 키 자동)">
+            <button type="button" class="btn gh sm" id="up_keyShow">보기</button>
+            <span id="up_keyState" style="font-size:11px;white-space:nowrap"></span>
+          </div>
+          <div class="row">
+            <label class="btn gh sm" style="cursor:pointer">+ 파일 추가<input type="file" id="up_files" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple style="display:none"></label>
+            <button type="button" class="btn sm" id="up_run" disabled>🤖 자동 인식</button>
+          </div>
+          <div class="hint" id="up_dropHint" style="margin-top:4px">PDF·이미지를 이 칸에 끌어다 놓거나 Ctrl+V로 붙여넣어도 됩니다</div>
+          <div id="up_list" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          <div class="status" id="up_status" style="min-height:0"></div>
+          <div id="up_result" style="font-size:12px;line-height:1.6;margin-top:4px"></div>
+        </div>
         <div class="card">
           <h2>본건 토지</h2>
           <div class="row">
@@ -594,19 +600,19 @@
             <span class="hint" id="bldCopyMsg" style="margin-left:auto"></span>
           </div>
         </div>
+        <!-- 그 밖의 사항 — 의견서 「Ⅰ. 6. 그 밖의 사항」의 가·나·다 문단. 양식의 고정 문구를 여기서 보여 주고, 항목을 끼워 넣거나 고치면 순서대로 가나다… 다시 매겨 의견서에 그대로 내보낸다 -->
+        <div class="card" id="etcItemsCard">
+          <h2>그 밖의 사항</h2>
+          <div id="etcItemsBox"></div>
+          <div class="row" style="margin-top:6px">
+            <button class="btn gh sm" onclick="etcItemAdd()">＋ 항목 추가</button>
+            <button class="btn gh sm" onclick="etcItemsReset()">↺ 기본 문구로 되돌리기</button>
+          </div>
+        </div>
       </div>
 
      </div>
 
-     <!-- 그 밖의 사항 — 의견서 「Ⅰ. 6. 그 밖의 사항」의 가·나·다 문단. 양식의 고정 문구를 여기서 보여 주고, 항목을 끼워 넣거나 고치면 순서대로 가나다… 다시 매겨 의견서에 그대로 내보낸다 -->
-     <div class="card" id="etcItemsCard">
-       <h2>그 밖의 사항</h2>
-       <div id="etcItemsBox"></div>
-       <div class="row" style="margin-top:6px">
-         <button class="btn gh sm" onclick="etcItemAdd()">＋ 항목 추가</button>
-         <button class="btn gh sm" onclick="etcItemsReset()">↺ 기본 문구로 되돌리기</button>
-       </div>
-     </div>
     </div>
 
     <!-- ═══════════ 2-1. 공시지가기준법 ═══════════ -->
