@@ -59,11 +59,19 @@ function insertXml(xml,n,tokenOf){
   return xml.slice(0,at)+p+xml.slice(at);
 }
 
+// 라. 문구의 「담보나 소송 등 다른 목적」 — 평가목적이 담보·소송이면 그 말을 빼고 일반거래로 바꾼다(2026-11-15 「담보목적인데 담보나 소송 등」)
+function otherUse(purpose){
+  var p=String(purpose||'');
+  if(/담보/.test(p))return '일반거래나 소송 등';
+  if(/소송/.test(p))return '담보나 일반거래 등';
+  return '담보나 소송 등';
+}
+
 var FIXED=function(ov,kind){return [
   '본건 집합건물'+(kind?'('+kind+')':'')+'은 등기사항전부증명서 및 집합건축물대장상 구조, 전유면적 및 이용상황 등을 종합적으로 검토한 결과 물적동일성이 인정됨.',
   '본건의 위치확인은 외관 탐문 및 출입구 표시부분으로 확인하였음.',
   '본건의 소재지, 지번, 지목, 면적 및 이용상황등은 귀 제시자료 및 관련 공부자료에 의거하였음.',
-  '본건은 '+(ov.purpose||'일반거래(시가참고)')+' 목적의 감정평가로서, 담보나 소송 등 다른 목적으로 사용될 수 없으므로 업무진행 시 참고 바람'];};
+  '본건은 '+(ov.purpose||'일반거래(시가참고)')+' 목적의 감정평가로서, '+otherUse(ov.purpose)+' 다른 목적으로 사용될 수 없으므로 업무진행 시 참고 바람'];};
 
 function Card(props){
   var R=g.React,h=R.createElement,ov=props.ov||{},S=props.S||{},C=props.C||{};
@@ -99,5 +107,5 @@ function Card(props){
   return h('div',{style:S.card,className:'etc-card'},kids);
 }
 
-g.ArapEtcItems={texts:texts,presets:presets,hint:hint,devZone:devZone,insertXml:insertXml,Card:Card,list:list};
+g.ArapEtcItems={otherUse:otherUse,texts:texts,presets:presets,hint:hint,devZone:devZone,insertXml:insertXml,Card:Card,list:list};
 })(typeof window!=='undefined'?window:globalThis);

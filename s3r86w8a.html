@@ -1299,7 +1299,7 @@ function DateF({label,value,onChange,w,placeholder,auto,sep}){
       {calOpen?<CalPop value={value} sep={sp} onPick={v=>{onChange(v);setCalOpen(false);}}/>:null}
     </div>
   </div>);}
-function CommaF({label,value,onChange,w,placeholder}){return(<div style={S.row}><span style={S.lbl}>{label}</span><input style={{...S.inp,width:w||"100%"}} value={fmtComma(value)} onChange={e=>onChange(stripComma(e.target.value))} placeholder={placeholder}/></div>);}
+function CommaF({label,value,onChange,w,placeholder,auto}){return(<div style={S.row}><span style={S.lbl}>{label}{auto?<AutoTag/>:null}</span><input style={{...S.inp,width:w||"100%",...(auto?AUTO_HL:{})}} value={fmtComma(value)} onChange={e=>onChange(stripComma(e.target.value))} placeholder={placeholder}/></div>);}
 function RndSel({dU,setDU,mth,setMth,label}){return(<div style={S.rnd}><span style={{fontWeight:600}}>{label}:</span><select style={{...S.sel2,opacity:mth==="none"?0.4:1}} value={dU} onChange={e=>setDU(e.target.value)} disabled={mth==="none"}>{dUnits.map(o=><option key={o.k} value={o.k}>{o.k}</option>)}</select><span style={{opacity:mth==="none"?0.4:1}}>단위에서</span><select style={S.sel2} value={mth} onChange={e=>setMth(e.target.value)}>{mOpts.map(o=><option key={o.k} value={o.k}>{o.l}</option>)}</select></div>);}
 
 function FactorInput({value,onChange}){
@@ -1682,8 +1682,8 @@ function Step1({ov,setOv,saveCtl,propType,setPropType}){
       <F label="접수번호" value={ov.caseNo} onChange={ua("caseNo")} placeholder="HI260305-2601" auto={af.caseNo}/>
       <F label="의뢰인" value={ov.client} onChange={ua("client")} auto={af.client}/>
       <DateF label="의뢰일(청구서용)" value={ov.requestDate} onChange={ua("requestDate")} placeholder="2026/06/08" sep="/" auto={af.requestDate}/>
-      <F label="평가목적" value={ov.purpose} onChange={v=>u("purpose",v)}/>
-      <F label="제출처" value={ov.submitTo} onChange={v=>u("submitTo",v)}/>
+      <F label="평가목적" value={ov.purpose} onChange={ua("purpose")} auto={af.purpose}/>
+      <F label="제출처" value={ov.submitTo} onChange={ua("submitTo")} auto={af.submitTo}/>
       <F label="평가구분" value={ov.evalCategory} onChange={ua("evalCategory")} placeholder="상속(증여)" tabFill auto={af.evalCategory}/>
       <DateF label="기준시점" value={ov.baseDate} onChange={ua("baseDate")} placeholder="20260310 → 자동변환" auto={af.baseDate}/>
       <div style={S.row}><span style={S.lbl}>기준시점근거</span><select style={{...S.sel2,width:"100%",...(!ov.baseDateBasis?{background:"#fffbeb",border:"1.5px solid #f59e0b",color:"#92400e",fontWeight:700}:{})}} value={ov.baseDateBasis||""} onChange={e=>u("baseDateBasis",e.target.value)}><option value="" disabled>선택</option><option value="의뢰일인">의뢰일인</option><option value="현장조사완료일인">현장조사완료일인</option><option value="귀 제시일인">귀 제시일인</option></select></div>
@@ -1693,7 +1693,7 @@ function Step1({ov,setOv,saveCtl,propType,setPropType}){
       <F label="소유자" value={ov.owner} onChange={v=>u("owner",v)}/>
       <F label="감정평가조건" value={ov.condition} onChange={v=>u("condition",v)}/>
       <F label="목록표시근거" value={ov.listBasis} onChange={v=>u("listBasis",v)}/>
-      <CommaF label="탁상가격" value={ov.deskPrice} onChange={v=>u("deskPrice",v)} w="200px" placeholder="직접입력"/>
+      <CommaF label="탁상가격" value={ov.deskPrice} onChange={ua("deskPrice")} w="200px" placeholder="직접입력" auto={af.deskPrice}/>
     </div>
   </div>);
 }
@@ -1755,6 +1755,9 @@ async function recognizePDFs(files){
   "feeSpecial": "특별용역비(특용비) (원 단위 숫자만, '특용비 없음'이면 0). 접수내용 이미지에만 있음 — 없으면 null",
   "feeBasis": "수수료 요율 기준 — '하한요율'이면 '하한', '기준요율'이면 '기준', '상한요율'이면 '상한'. 접수내용 이미지에만 있음 — 없으면 null",
   "caseNo": "감정서번호/접수번호 (예: HI260305-2601) — 접수내용 캡처 이미지에만 있음. 없으면 null",
+  "purpose": "평가목적 — 접수내용 캡처 이미지의 '평가목적' 표현 그대로, 끝의 '목적'만 뗀다 (예: '담보목적'→'담보', '일반거래(시가참고)'→그대로). 이미지에 없으면 null",
+  "submitTo": "제출처 — 접수내용 캡처 이미지의 '제출처'를 그대로 (예: '삼성전자', 'OO은행 OO지점'). 이미지에 없으면 null",
+  "deskPrice": "탁상가격(가평가) — 접수내용 캡처 이미지의 '가평가 9억 희망'·'탁상 8.5억'·'예상가액 9억' 같은 금액을 원 단위 숫자만 (9억→900000000, 8억5천→850000000). 이미지에 없으면 null",
   "client": "의뢰인 성명 — 접수내용 캡처 이미지 기준. 없으면 null",
   "requestDate": "의뢰일 — 감정서번호(접수번호)의 날짜 6자리를 YYYY/MM/DD로 변환 (예: HI260305-2601 → 2026/03/05). 접수번호가 없으면 null",
   "baseDate": "기준시점(가격시점) — 접수내용 캡처 이미지에 날짜가 명시된 경우만 YYYY.MM.DD로. 없으면 null",
@@ -1781,7 +1784,7 @@ async function recognizePDFs(files){
 - mainUse는 총괄표제부 또는 표제부의 주용도에서 추출 (예: "공동주택(아파트)")
 - mainUseJeonyu는 전유부의 주용도에서 추출 (예: "다세대주택", "아파트"). 전유부 건물명세 혹은 부동산 표시란에 기재된 용도
 - feeDownPayment/feeSpecial/feeBasis는 접수내용 캡처 이미지(첨부된 경우)에서만 추출 — '하감 바름 각각 착수금 100만원'처럼 병기되면 이 건의 착수금은 1000000. 금액은 만원→원 환산한 숫자만
-- caseNo/client/requestDate/baseDate/evalCategory도 접수내용 캡처 이미지에서만 추출 (공부서류 PDF에서 추측 금지). 탁상가격(예상가액·탁상금액)은 이미지에 있어도 절대 추출하지 말 것 — 평가사가 직접 입력
+- caseNo/client/requestDate/baseDate/evalCategory/purpose/submitTo/deskPrice도 접수내용 캡처 이미지에서만 추출 (공부서류 PDF에서 추측 금지). 제출처는 '담당자'(중개사 등)·의뢰인과 혼동하지 말 것
 - evalCategory는 '상속'/'증여' 중 하나가 확실할 때만. 조금이라도 애매하면 null`});
 
   let resp;
@@ -1911,6 +1914,9 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          if(!autoF.requestDate){const dm=String(next.caseNo||"").match(/[A-Za-z]+(\d{6})/);if(dm){const d=dm[1];next.requestDate=`20${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4,6)}`;autoF.requestDate=true;}}
          // 평가구분은 상속/증여가 확실할 때만 자동 반영 — 특수관계자간 매매 등은 공란 유지
          {const ec=String(result.evalCategory||"").trim();if(/^(상속|증여)$/.test(ec)){next.evalCategory=ec;autoF.evalCategory=true;}}
+         // 평가목적·제출처·탁상가격(가평가)도 접수 이미지에서 — 주황 표시로 검토 유도 (2026-11-15 「제출처 등 잘 캐치 못함」)
+         for(const k of ["purpose","submitTo"]){const v=result[k];if(v!=null&&String(v).trim()){next[k]=String(v).trim();autoF[k]=true;}}
+         {const dp=String(result.deskPrice??"").replace(/[^0-9]/g,"");if(dp&&+dp>0){next.deskPrice=dp;autoF.deskPrice=true;}}
          next.autoFields=autoF;}
         // landParcels는 배열이라 위 문자열 루프에서 제외 — 별도 처리 (명세표 다중 필지용)
         if(Array.isArray(result.landParcels)&&result.landParcels.length){
@@ -3136,6 +3142,7 @@ async function buildEvalHwpxV2(tokenMap,tplB64,opt){
       for(const[b,k]of Object.entries(V2_IDS.b2b))xml=xml.split('charPrIDRef="'+b+'"').join('charPrIDRef="'+k+'"');
       xml=xml.replace(/charPrIDRef="TW:([bu]+):(\d+)"/g,(m,f,id)=>'charPrIDRef="TW:'+f+':'+(V2_IDS.b2b[id]||id)+'"');   // 파랑 → 검정 쌍둥이 기준으로
       if(headE){const r=v2ColorTokens(xml,new TextDecoder("utf-8").decode(headE.data));xml=r.xml;headE.data=new TextEncoder().encode(r.header);}   // 표 밖 값만 파랑(치환 직전 — 토큰 자리로 찾음)
+      {const ou=window.ArapEtcItems&&window.ArapEtcItems.otherUse;if(ou)xml=xml.split(" 목적의 감정평가로서, 담보나 소송 등 다른 목적으로").join(" 목적의 감정평가로서, "+ou(tokenMap["평가목적"])+" 다른 목적으로");}   // 6-라: 평가목적이 담보면 「일반거래나 소송 등」
       for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
       const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
       if(left.length)console.warn("v2 감정평가서 미치환 토큰",e.name,left);
@@ -4596,7 +4603,7 @@ function StepMap({ov,sfx,active}){
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
       <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건</div>
-      <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} defaultChecked onChange={onOv}/> 지적선</label>
+      <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} onChange={onOv}/> 지적선</label>
       <label style={chk}><input type="checkbox" id={"mapZoning"+sfx} onChange={onOv}/> 용도지역</label>
       <select id={"mapBaseSel"+sfx} style={S.sel2} onChange={onBase}>
         <option value="kakao">카카오맵</option>
@@ -5433,7 +5440,7 @@ function DateF({label,value,onChange,w,placeholder,auto,sep}){
       {calOpen?<CalPop value={value} sep={sp} onPick={v=>{onChange(v);setCalOpen(false);}}/>:null}
     </div>
   </div>);}
-function CommaF({label,value,onChange,w,placeholder}){return(<div style={S.row}><span style={S.lbl}>{label}</span><input style={{...S.inp,width:w||"100%"}} value={fmtComma(value)} onChange={e=>onChange(stripComma(e.target.value))} placeholder={placeholder}/></div>);}
+function CommaF({label,value,onChange,w,placeholder,auto}){return(<div style={S.row}><span style={S.lbl}>{label}{auto?<AutoTag/>:null}</span><input style={{...S.inp,width:w||"100%",...(auto?AUTO_HL:{})}} value={fmtComma(value)} onChange={e=>onChange(stripComma(e.target.value))} placeholder={placeholder}/></div>);}
 function RndSel({dU,setDU,mth,setMth,label}){return(<div style={S.rnd}><span style={{fontWeight:600}}>{label}:</span><select style={{...S.sel2,opacity:mth==="none"?0.4:1}} value={dU} onChange={e=>setDU(e.target.value)} disabled={mth==="none"}>{dUnits.map(o=><option key={o.k} value={o.k}>{o.k}</option>)}</select><span style={{opacity:mth==="none"?0.4:1}}>단위에서</span><select style={S.sel2} value={mth} onChange={e=>setMth(e.target.value)}>{mOpts.map(o=><option key={o.k} value={o.k}>{o.l}</option>)}</select></div>);}
 
 function FactorInput({value,onChange}){
@@ -5836,8 +5843,8 @@ function Step1({ov,setOv,saveCtl,propType,setPropType}){
     <div className="s1-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
       <F label="접수번호" value={ov.caseNo} onChange={ua("caseNo")} placeholder="HI260305-2601" auto={af.caseNo}/>
       <F label="의뢰인" value={ov.client} onChange={ua("client")} auto={af.client}/>
-      <F label="평가목적" value={ov.purpose} onChange={v=>u("purpose",v)}/>
-      <F label="제출처" value={ov.submitTo} onChange={v=>u("submitTo",v)}/>
+      <F label="평가목적" value={ov.purpose} onChange={ua("purpose")} auto={af.purpose}/>
+      <F label="제출처" value={ov.submitTo} onChange={ua("submitTo")} auto={af.submitTo}/>
       <F label="평가구분" value={ov.evalCategory} onChange={ua("evalCategory")} placeholder="상속 / 증여 등" auto={af.evalCategory}/>
       <DateF label="기준시점" value={ov.baseDate} onChange={ua("baseDate")} placeholder="20260310 → 자동변환" auto={af.baseDate}/>
       <div style={S.row}><span style={S.lbl}>기준시점근거</span><select style={{...S.sel2,width:"100%",...(!ov.baseDateBasis?{background:"#fffbeb",border:"1.5px solid #f59e0b",color:"#92400e",fontWeight:700}:{})}} value={ov.baseDateBasis||""} onChange={e=>u("baseDateBasis",e.target.value)}><option value="" disabled>선택</option><option value="의뢰일인">의뢰일인</option><option value="현장조사완료일인">현장조사완료일인</option><option value="귀 제시일인">귀 제시일인</option></select></div>
@@ -5906,6 +5913,9 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
   "owner": "소유자 성명 (호별 다르면 콤마로 모두 나열)",
   "mainUse": "주용도 - 표제부 기준 (예: 공동주택(다세대주택))",
   "caseNo": "감정서번호/접수번호 (예: HI260305-2601) — 접수내용 캡처 이미지에만 있음. 없으면 null",
+  "purpose": "평가목적 — 접수내용 캡처 이미지의 '평가목적' 표현 그대로, 끝의 '목적'만 뗀다 (예: '담보목적'→'담보', '일반거래(시가참고)'→그대로). 이미지에 없으면 null",
+  "submitTo": "제출처 — 접수내용 캡처 이미지의 '제출처'를 그대로 (예: '삼성전자', 'OO은행 OO지점'). 이미지에 없으면 null",
+  "deskPrice": "탁상가격(가평가) — 접수내용 캡처 이미지의 '가평가 9억 희망'·'탁상 8.5억'·'예상가액 9억' 같은 금액을 원 단위 숫자만 (9억→900000000, 8억5천→850000000). 이미지에 없으면 null",
   "client": "의뢰인 성명 — 접수내용 캡처 이미지 기준. 없으면 null",
   "feeBasis": "수수료 요율 기준 — '하한요율'이면 '하한', '기준요율'이면 '기준', '상한요율'이면 '상한'. 접수내용 이미지에만 있음 — 없으면 null",
   "feeSpecial": "특별용역비(특용비) (원 단위 숫자만, '특용비 없음'이면 0). 접수내용 이미지에만 있음 — 없으면 null",
@@ -5939,7 +5949,8 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
 - regStructure·floorDetail(명세표용 구조·층별면적)은 반드시 등기 표제부(1동의 건물의 표시) '건물내역' 기준 — 건축물대장과 값이 다르면 등기가 정답. 호수들이 같은 동이면 건물 공통 칸에만 넣고 호별 칸은 빈 문자열
 - 연면적, 대지면적, 사용승인일은 표제부/총괄표제부에서 (모든 호 공통)
 - mainUse는 표제부의 주용도, mainUseJeonyu는 각 호 전유부의 주용도
-- PDF가 단일 호만 포함되어 있으면 units 배열에 1개 객체만 넣기`});
+- PDF가 단일 호만 포함되어 있으면 units 배열에 1개 객체만 넣기
+- caseNo/client/requestDate/baseDate/evalCategory/purpose/submitTo/deskPrice는 접수내용 캡처 이미지에서만 추출 (공부서류 PDF에서 추측 금지). 제출처는 '담당자'(중개사 등)·의뢰인과 혼동하지 말 것`});
 
   let resp;
   for(let attempt=1;attempt<=4;attempt++){
@@ -6104,6 +6115,8 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          }
          // 평가구분은 상속/증여가 확실할 때만 자동 반영 — 특수관계자간 매매 등은 공란 유지
          {const ec=String(result.evalCategory||"").trim();if(/^(상속|증여)$/.test(ec)){next.evalCategory=ec;autoF.evalCategory=true;}}
+         // 평가목적·제출처도 접수 이미지에서 (탁상가격은 호별 — 아래 units 처리에서 호가 하나일 때만)
+         for(const k of ["purpose","submitTo"]){const v=result[k];if(v!=null&&String(v).trim()){next[k]=String(v).trim();autoF[k]=true;}}
          next.autoFields=autoF;}
         // landParcels는 배열이라 위 문자열 루프에서 제외 — 별도 처리 (명세표 다중 필지용)
         if(Array.isArray(result.landParcels)&&result.landParcels.length){
@@ -6156,6 +6169,8 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
           }
           merged.sort((a,b)=>String(a.dong||"").localeCompare(String(b.dong||""),"ko",{numeric:true})||String(a.ho||"").localeCompare(String(b.ho||""),"ko",{numeric:true}));
           unitsArr=merged;next.units=merged;
+          // 접수 이미지의 가평가(탁상가격)는 호가 하나일 때만 그 호에 — 여러 호면 호별 금액을 알 수 없어 비워 둔다
+          {const dp=String(result.deskPrice??"").replace(/[^0-9]/g,"");if(dp&&+dp>0&&merged.length===1&&!merged[0].deskPrice){const ea=parseFloat(merged[0].assessedArea||merged[0].evalArea||merged[0].area)||0;merged[0]={...merged[0],deskPrice:dp,deskUnitPrice:ea>0?String(Math.round(+dp/ea)):"",deskPriceBasis:"amount"};next.units=merged;}}
           for(const k of unitFields)next[k]=merged[0][k]||"";
         }
         // kind(종류)를 units[0].mainUseJeonyu 또는 mainUseJeonyu에서 자동 파생
@@ -8253,7 +8268,7 @@ function StepMap({ov,sfx,active}){
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
       <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건</div>
-      <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} defaultChecked onChange={onOv}/> 지적선</label>
+      <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} onChange={onOv}/> 지적선</label>
       <label style={chk}><input type="checkbox" id={"mapZoning"+sfx} onChange={onOv}/> 용도지역</label>
       <select id={"mapBaseSel"+sfx} style={S.sel2} onChange={onBase}>
         <option value="kakao">카카오맵</option>
