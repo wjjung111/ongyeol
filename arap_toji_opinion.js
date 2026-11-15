@@ -818,7 +818,7 @@ function opinionXml(xml,data){
   if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,val('ov_purpose'));   // 자산재평가 → 외부감사법 문구 (arap_purpose_law.js, 2026-11-15)
   var doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.getElementsByTagName('parsererror').length)throw new Error('의견서 템플릿 XML을 읽을 수 없습니다.');
-  var state={seq:0,map:Object.assign({},data.global)};
+  var state={seq:0,map:Object.assign({},window.arapPurposeLaw?window.arapPurposeLaw.VALUES:{},data.global)};
   // 필지별 사례로 그 밖의 요인 「사례 × 표준지」 쌍이 둘 이상이면 「다. 그 밖의 요인 보정치 산정」(산정 표 ~ 개별요인 표)을 쌍마다 반복하고
   // 앞에 「■ 거래사례 #1 ↔ 표준지 A (기호 1, 2)」 한 줄을 붙인다. 표 행·열은 손대지 않고 양식 문단을 복제만 한다(양식 디자인 그대로).
   if(data.etcBlocks&&data.etcBlocks.length>1){

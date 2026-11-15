@@ -78,7 +78,9 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       assert(r.text.includes('「상속세 및 증여세법」상'),'기본 목적 문장 = 상증세법');
       if(mode==='road'){   // 평가목적 자산재평가 → 외부감사법 문구 (arap_purpose_law.js, 2026-11-15)
         await page.evaluate(()=>{document.getElementById('ov_purpose').value='자산재평가';});
-        const ra=await check(page,await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data()))));
+        const rab=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data())));
+        fs.writeFileSync(path.join(out,'건물만_의견서_자산재평가.hwpx'),Buffer.from(rab));
+        const ra=await check(page,rab);
         assert.deepEqual(ra.bad,[],'자산재평가 표 구조');
         assert(ra.text.includes('부동산(건물)으로서, 「주식회사 등의 외부감사에 관한 법률」상 유형자산에 대한 자산재평가 목적의 감정평가임'),'자산재평가 목적 문장');
         assert(!ra.text.includes('「상속세 및 증여세법」상'),'상증세법 문구 없음');

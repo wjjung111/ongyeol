@@ -5,7 +5,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict'),{exe
 const root=path.resolve(__dirname,'..');
 require(path.join(root,'arap_purpose_law.js'));const law=globalThis.arapPurposeLaw;
 const tpls=['템플릿/토건 의견서(산출근거) 템플릿.hwpx','템플릿/토지 의견서(산출근거) 템플릿.hwpx','템플릿/건물 의견서(산출근거) 템플릿.hwpx','templates/jiphap_multi_res.hwpx'];
-const text=x=>x.replace(/<[^>]+>/g,'');
+const text=x=>x.replace(/<[^>]+>/g,'').replace(/\{\{(근거법령|재평가대상)\}\}/g,(m,k)=>law.VALUES[k]);
 for(const t of tpls){
   const xml=execFileSync('unzip',['-p',path.join(root,t),'Contents/section*.xml'],{maxBuffer:1<<28}).toString('utf8');
   assert.ok(xml.includes('「상속세 및 증여세법」상'),t+' 원문 문구');
@@ -13,7 +13,9 @@ for(const t of tpls){
   const out=law(xml,'자산재평가(IFRS)'),s=text(out);
   assert.ok(!out.includes('「상속세 및 증여세법」상'),t+' 상증세법 문구 빠짐');
   assert.match(s,/으로서, 「주식회사 등의 외부감사에 관한 법률」상 유형자산에 대한 \{\{평가목적\}\} 목적의 감정평가임/,t);
-  assert.equal((out.match(/<hp:run\b/g)||[]).length+0>0,true);
+  // 바꾼 두 값은 원래 {{평가구분}} 런 글자모양(검토 색) — 런이 나뉜 양식
+  const tok=(xml.match(/<hp:run([^>]*)><hp:t>\{\{평가구분\}\}/)||[])[1];
+  if(tok){assert.ok(out.includes('<hp:run'+tok+'><hp:t>{{근거법령}}</hp:t>'),t+' 근거법령 = 값 글자모양');assert.ok(out.includes('<hp:run'+tok+'><hp:t>{{재평가대상}}</hp:t>'),t+' 유형자산 = 값 글자모양');}
   assert.equal((out.match(/<hp:t>/g)||[]).length,(out.match(/<\/hp:t>/g)||[]).length,t+' 태그 짝');
 }
 // 집건 단일호수 템플릿은 s3r86w8a.html 안 base64 — 한 런 안 문구 형태
