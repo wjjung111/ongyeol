@@ -517,6 +517,9 @@ function children(el,name){return Array.from(el.children).filter(function(n){ret
 function josaEul(w){
   var c=String(w).replace(/[\s)\]"'’”]+$/,'').slice(-1);if(!c)return null;
   if(/[0-9]/.test(c))return '013678'.indexOf(c)>=0?'을':'를';
+  // 영문 기호는 읽는 소리 — 받침 있는 건 F(에프)·L(엘)·M(엠)·N(엔)·R(알)뿐, 나머지(A 에이·B 비·C 씨 …)는 를 (2026-11-15 「평가사례 a을」 → 를)
+  if(/[A-Za-z]/.test(c))return 'flmnr'.indexOf(c.toLowerCase())>=0?'을':'를';
+  if(/[\u3260-\u327B]/.test(c))return '을';   // ㉠㉡㉢… 기역·니은·디귿… 모두 받침
   var k=c.charCodeAt(0)-0xAC00;if(k<0||k>11171)return null;
   return k%28?'을':'를';
 }
@@ -812,6 +815,7 @@ function factorTables(tbl,maps,state){
     resizeRows(t,1,2,2,g.maps,state);factorCols(t,g.d,2);});
 }
 function opinionXml(xml,data){
+  if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,val('ov_purpose'));   // 자산재평가 → 외부감사법 문구 (arap_purpose_law.js, 2026-11-15)
   var doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.getElementsByTagName('parsererror').length)throw new Error('의견서 템플릿 XML을 읽을 수 없습니다.');
   var state={seq:0,map:Object.assign({},data.global)};
@@ -1010,7 +1014,7 @@ function opinionXml(xml,data){
     if(old!==t.textContent){var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;if(p)children(p,'linesegarray').forEach(function(n){n.remove();});}
   });
   if(missing.size)throw new Error('연결되지 않은 의견서 항목: '+Array.from(missing).join(', '));
-  // 조사 을/를 — 채운 값 바로 뒤 '을'·'를'을 끝 글자 받침대로(거래사례#1 → 을, #2 → 를). 한글·숫자만 판단, 그 밖(영문 기호 등)은 양식 그대로.
+  // 조사 을/를 — 채운 값 바로 뒤 '을'·'를'을 끝 글자 받침대로(거래사례#1 → 을, #2 → 를). 한글·숫자·영문·원문자 기호를 판단, 그 밖은 양식 그대로.
   descendants(doc,'p').forEach(function(p){
     var ts=descendants(p,'t');
     ts.forEach(function(t,i){

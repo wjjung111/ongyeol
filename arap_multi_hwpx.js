@@ -96,7 +96,9 @@ function render(entries,m,h,mode){
 let templatePromise;
 async function build(input,h,mode='opinion'){
  const m=model(input,h);if(!templatePromise)templatePromise=fetch('templates/jiphap_multi_res.hwpx').then(r=>{if(!r.ok)throw Error('여러 호수 한글 템플릿을 불러오지 못했습니다.');return r.arrayBuffer();}).catch(e=>{templatePromise=null;throw e;});
- const entries=await h.parseZip((await templatePromise).slice(0)),r=render(entries,m,h,mode);
+ const entries=await h.parseZip((await templatePromise).slice(0));
+ if(g.arapPurposeLaw)entries.forEach(e=>{if(/^Contents\/section\d+\.xml$/.test(e.name))e.data=new TextEncoder().encode(g.arapPurposeLaw(new TextDecoder().decode(e.data),(input.ov||{}).purpose));});   // 자산재평가 → 외부감사법 문구 (2026-11-15)
+ const r=render(entries,m,h,mode);
  const bytes=h.createZipStored(r.entries);return {bytes,model:m};
 }
 function appendImages(r,m){
