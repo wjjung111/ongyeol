@@ -3115,6 +3115,7 @@ function v2ColorTokens(xml,header){
 // tplB64: 템플릿(없으면 주거용 통합본) · opt.ids: 엔진 고정 번호(V2_IDS_OLD/SPLIT) · opt.keep: 통합본에서 한 부분만("pyoji"/"opinion")
 async function buildEvalHwpxV2(tokenMap,tplB64,opt){
   opt=opt||{};V2_IDS=opt.ids||V2_IDS_OLD;
+  if(window.arapPurposeLaw)tokenMap={...window.arapPurposeLaw.VALUES,...tokenMap};   // 자산재평가 목적 문장 토큰 {{근거법령}}·{{재평가대상}} 값
   const bin=atob(tplB64||V2EVAL_TPL_B64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
   const entries=await parseZip(arr.buffer);
   if(!entries.length)throw new Error("v2 감정평가서 템플릿 파싱 실패");
