@@ -64,6 +64,7 @@
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
   <script src="arap_jiphap_parcels.js"></script>
   <script src="arap_multi_hwpx.js"></script>
+  <script src="arap_purpose_law.js"></script><!-- 의견서 목적 문장: 자산재평가면 외부감사법 문구 -->
   <script src="arap_etc_items.js"></script><!-- 의견서 「6. 그 밖의 사항」 추가 문구 박스·끼우기(단일·여러 호수 공용) -->
   <script src="arap_multi_myeongse.js"></script><!-- 여러 호수 명세표(xlsx, 시트 1개 한 장) — 단일호수 명세표 템플릿 서식을 빌려 씀 -->
   <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
@@ -3124,6 +3125,7 @@ async function buildEvalHwpxV2(tokenMap,tplB64,opt){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=v2OverviewBuildingName(xml);        // 대상물건 개요 건물명: 동 번호를 붙이지 않음
+      if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,tokenMap["평가목적"]);   // 자산재평가 → 「주식회사 등의 외부감사에 관한 법률」 (arap_purpose_law.js, 치환 전)
       xml=v2ShareLayout(xml,tokenMap);          // 지분평가: 개요 「× 1/4」·결정표 지분 열 (치환 전, 줄배치 제거 전)
       xml=v2EtcExtraItem(xml,tokenMap);         // 지분평가: 6. 그 밖의 사항 마지막에 앱 「그 밖의 사항 문구」 항목 (치환 전)
       xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)

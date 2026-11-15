@@ -75,6 +75,15 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       // 토지 관련 절·문단 없음
       ['토지가액 산출근거','공시지가기준법에 의한 시산가액','평가대상 토지','비교표준지','본건 토지는','"공시지가기준법','토지 및 건물'].forEach(w=>assert(!r.text.includes(w),mode+' 없어야 함: '+w));
       assert(r.text.includes('부동산(건물)으로서'),'목적 문장');
+      assert(r.text.includes('「상속세 및 증여세법」상'),'기본 목적 문장 = 상증세법');
+      if(mode==='road'){   // 평가목적 자산재평가 → 외부감사법 문구 (arap_purpose_law.js, 2026-11-15)
+        await page.evaluate(()=>{document.getElementById('ov_purpose').value='자산재평가';});
+        const ra=await check(page,await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data()))));
+        assert.deepEqual(ra.bad,[],'자산재평가 표 구조');
+        assert(ra.text.includes('부동산(건물)으로서, 「주식회사 등의 외부감사에 관한 법률」상 유형자산에 대한 자산재평가 목적의 감정평가임'),'자산재평가 목적 문장');
+        assert(!ra.text.includes('「상속세 및 증여세법」상'),'상증세법 문구 없음');
+        await page.evaluate(()=>{document.getElementById('ov_purpose').value='일반거래(시가참고)';});
+      }
       assert(r.top.some(t=>t.startsWith('Ⅲ. 건물가액 산출근거'))&&r.top.some(t=>t.startsWith('Ⅳ. 감정평가액의 결정')),'절 번호 Ⅲ·Ⅳ');
       assert(r.top.some(t=>t.startsWith('② 대상물건과'))&&r.top.some(t=>t.startsWith('③ 대상물건이')),'방법 목록 번호');
       assert(r.top.some(t=>t.startsWith('나.')&&t.includes('본건 건물은')&&t.includes('원가법을 적용')),'나. 원가법');
