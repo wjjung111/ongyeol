@@ -55,6 +55,8 @@ const LAND={landCharacteristicss:{field:[{pnu:PNU,stdrYear:'2026',stdrMt:'01',la
       assert.match(st,/조회 완료: 인천광역시 연수구 송도동 7-14/,st);assert.match(st,/도로명 인천광역시 연수구 갯벌로 72/);
       assert.ok(seen.includes('land:'+PNU),'PNU로 토지특성 조회 '+seen.join(' | '));
       assert.ok(seen[0].startsWith('road:'),'도로명이면 도로명 검색부터');
+      await pg.waitForFunction(()=>/송도동/.test(document.getElementById('sd_addr').textContent));
+      assert.equal((await pg.textContent('#sd_addr')).trim(),'인천광역시 연수구 송도동 7-14','왼쪽 띠 소재지 = 시·도부터 전체 지명');
       // 지번은 예전처럼 지번 검색 한 번
       seen.length=0;await pg.fill('#landQuery','송도동 7-14');await pg.click('#btnLand');
       await pg.waitForFunction(()=>!document.getElementById('btnLand').disabled&&/조회 완료/.test(document.getElementById('landStatus').textContent));
