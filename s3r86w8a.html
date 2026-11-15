@@ -4334,6 +4334,17 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       window.arapUsageLog&&window.arapUsageLog("감정평가서",{caseNo:ov.caseNo,addr:`${ov.buildingName||""} ${ov.dong?ov.dong+"동":""} ${ov.ho?ov.ho+"호":""} · ${ov.jibun||""}`.trim(),kind:propType+" "+nm,amount:fT||""});
     }catch(e){console.error('v2 감정평가서 hwpx 생성 실패',e);alert("감정평가서(한글) 생성 실패: "+e.message);}
   };
+  // 📦 일괄 받기(2026-11-15, 토건 「1~5 일괄 받기」와 같은 방식) — 표지·괄감·의견서·요항표·명세표를 차례로 받는다.
+  // 파일마다 0.6초 간격(브라우저가 둘째 파일부터 막는 일 줄이기 — 「여러 파일 다운로드 허용」은 처음 한 번 눌러야 함). 각 문서의 확인창·오류창은 그대로.
+  const doExportAll=async()=>{
+    setDownloading(true);
+    const gap=()=>new Promise(r=>setTimeout(r,600));
+    try{
+      for(const k of ["pyoji","gwal","opinion"]){await doExportHwpxV2(k);await gap();}
+      await downloadYohangHwpx(ov,propType);await gap();
+      await downloadMyeongseXlsx(ov,fT);
+    }finally{setDownloading(false);}
+  };
 
   const togSel=(id)=>{setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,isSelected:!c.isSelected};if(!c.isSelected)nv.isShown=true;return nv;}));};
   const allCases=cases.filter(c=>c.isShown);
@@ -4450,6 +4461,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       <button style={{...S.btn,...(saved?BTN.s:BTN.off),fontSize:13,padding:"9px 16px"}} disabled={!saved} onClick={()=>downloadMyeongseXlsx(ov,fT)} title="감정평가명세표 엑셀(.xlsx) — 층·필지 동적 처리(정확)">
         명세표(excel)
       </button>
+      <button className="dl-all" style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading} onClick={doExportAll} title="표지·괄감·의견서·요항표·명세표 5개를 한 번에 차례로 받기">📦 일괄 받기</button>
+      {downloading&&<span role="status" style={{fontSize:12,color:"#64748b"}}>파일 만드는 중…</span>}
     </div>
     </div>
     {/* 표지·청구서·회보서 — 사례 없이도 사용 가능. 수수료 계산서 붙여넣으면 위 엑셀 버튼이 활성 */}
@@ -7919,6 +7932,11 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       triggerDownload(result.bytes,`4. 명세표_${ov.client||"의뢰인"}.xlsx`);
     }catch(e){console.error(e);alert("명세표 생성 실패: "+e.message);}finally{setDownloading(false);}
   };
+  // 📦 일괄 받기(2026-11-15) — 감정평가서(표지/괄감/의견서) + 명세표. 비주거용은 한글 템플릿이 없어 명세표만
+  const doMultiAll=async()=>{
+    if(propType==="주거용"){await doMultiHwpx("full");await new Promise(r=>setTimeout(r,600));}
+    await doMultiMyeongse();
+  };
   const doMultiHwpx=async(mode)=>{
     if(propType!=="주거용"){alert("이 한글 템플릿은 주거용입니다. 비주거용은 워드 의견서를 이용하세요.");return;}
     setDownloading(true);
@@ -8142,6 +8160,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     <div style={{display:"flex",justifyContent:"flex-start",gap:8,marginBottom:0,alignItems:"center",flexWrap:"wrap"}}>
       <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("full")}>표지/괄감/의견서</button>
       <button style={{...S.btn,background:saved?"#64748b":"#cbd5e1",color:"#fff",fontSize:13,padding:"9px 16px"}} disabled={!saved||downloading} onClick={doMultiMyeongse} title="시트 1개 · 가·나·다… 호수 블록이 아래로 이어지는 한 장 명세표">명세표(excel)</button>
+      <button className="dl-all" style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading} onClick={doMultiAll} title="감정평가서(표지/괄감/의견서)와 명세표를 한 번에 차례로 받기">📦 일괄 받기</button>
       {downloading&&<span role="status">파일 생성 중…</span>}
     </div>
     </div>
