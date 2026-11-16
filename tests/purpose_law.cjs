@@ -34,7 +34,7 @@ assert.equal(text(law(one,'자산재평가')),'부동산(구분건물)으로서,
 const src=f=>fs.readFileSync(path.join(root,f),'utf8');
 assert.match(src('arap_toji_opinion.js'),/arapPurposeLaw\(xml,tojiPurpose\(\),val\('ov_kind'\)\)/);
 assert.match(src('s3r86w8a.html'),/arapPurposeLaw\(xml,tokenMap\["평가목적"\],tokenMap\["평가구분"\]\)/);
-assert.match(src('arap_multi_hwpx.js'),/arapPurposeLaw\([^;]*evalCategory\)/);
+assert.match(src('arap_multi_hwpx.js'),/L=g\.arapPurposeLaw;x=L\(x,o\.purpose,o\.evalCategory\)/);   // 2026-11-16 담보 문장 추가 때 엔진이 L(...)로 부름
 assert.ok(src('토지건물.html').includes('<script src="arap_purpose_law.js">')&&src('s3r86w8a.html').includes('<script src="arap_purpose_law.js">'));
 // 서류에 찍을 평가목적 — 평가구분 담보 + 평가목적 비었거나 기본값 → 담보 (2026-11-16)
 const pd=globalThis.arapPurposeDoc;
