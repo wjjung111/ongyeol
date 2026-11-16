@@ -5318,6 +5318,11 @@ const nameNrGuess=c=>/근생|근린생활|상가|점포/.test(String((c&&c.aptNa
 const caseGroup=c=>useGroup(c&&c.useKind)||nameNrGuess(c);
 const caseNr=(c,propType)=>{const g=caseGroup(c);return g?g==="비주거":propType==="비주거용";};
 const caseSjKind=(c,ov)=>(c&&c.useKind&&detectSjKind(c.useKind))||detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);
+// 인근가격수준 행 목록 ↔ 저장 칸(1행 nearKind…, 2행 nearKind2…·nearRow2, 3행부터 nearMore[]) — 2026-11-16
+const nearRowsOf=ov=>{const r=[{kind:ov.nearKind||"",base:ov.nearAreaBase||"",low:ov.nearPriceLow||"",high:ov.nearPriceHigh||""}];
+  if(ov.nearRow2){r.push({kind:ov.nearKind2||"",base:ov.nearAreaBase2||"",low:ov.nearPriceLow2||"",high:ov.nearPriceHigh2||""});(Array.isArray(ov.nearMore)?ov.nearMore:[]).forEach(x=>r.push({kind:(x&&x.kind)||"",base:(x&&x.base)||"",low:(x&&x.low)||"",high:(x&&x.high)||""}));}
+  return r;};
+const nearRowsPatch=rows=>{const a=rows[0]||{},b=rows[1];return{nearKind:a.kind||"",nearAreaBase:a.base||"",nearPriceLow:a.low||"",nearPriceHigh:a.high||"",nearRow2:!!b,nearKind2:b?b.kind||"":"",nearAreaBase2:b?b.base||"":"",nearPriceLow2:b?b.low||"":"",nearPriceHigh2:b?b.high||"":"",nearMore:rows.slice(2)};};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
@@ -6592,7 +6597,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   };
 
   return(<div className="s3-root">
-    {/* 인근가격수준 구조화 입력 — 최대 2행. 2행 활성화 여부는 ov.nearRow2 플래그로 토글 */}
     {/* 맨 위 한 줄: 거래사례 붙여넣기 | 평가전례 붙여넣기 | 인근가격수준 (2026-11-12 — 표가 스크롤 없이 보이게) */}
     <div className="s3-top">
     <div style={S.paste}><div style={{fontSize:12,fontWeight:600,marginBottom:4}}>📋 거래사례 — 카이스에서 복사 → Ctrl+V (자동 추가)</div>
@@ -6637,45 +6641,40 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
         </div>}
       </div>}
     </div>
-    <div style={{...S.card,background:"#f8fafc"}}>
+    {/* 인근가격수준 여러 행(2026-11-16): 「+ 행 추가」로 계속 늘리고 ▲▼로 순서 바꿈. 저장은 예전 칸 그대로 — 1행 = nearKind…(의견서·워드가 읽음), 2행 = nearKind2…(nearRow2), 3행부터 ov.nearMore[] */}
+    {(()=>{const kind0=ov.mainUseJeonyu||ov.mainUse||"";const rows=nearRowsOf(ov);
+      const put=nr=>setOv(p=>({...p,...nearRowsPatch(nr)}));
+      const upd=(i,k,v)=>put(rows.map((r,j)=>j===i?{...r,[k]:v}:r));
+      const move=(i,d)=>{const j=i+d;if(j<0||j>=rows.length)return;const nr=rows.map(r=>({...r}));if(!nr[0].kind)nr[0].kind=kind0;[nr[i],nr[j]]=[nr[j],nr[i]];put(nr);};   // 1행의 자동 용도(전유부 주용도)는 옮기기 전에 글자로 굳힘
+      const del=i=>{const nr=rows.filter((_,j)=>j!==i);put(nr.length?nr:[{kind:"",base:"",low:"",high:""}]);};
+      const arw={...S.btn,background:"#fff",color:"#334155",border:"1px solid #cbd5e1",padding:"0 5px",fontSize:10,lineHeight:"14px"};
+      return(<div style={{...S.card,background:"#f8fafc"}}>
       <div style={{fontSize:13,fontWeight:700,marginBottom:8,color:C.pri}}>인근가격수준</div>
-      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12}}>
+      {rows.map((r,i)=><div key={i} className="near-row" style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12,marginTop:i?6:0}}>
+        {rows.length>1&&<span style={{display:"inline-flex",flexDirection:"column",gap:1}}>
+          <button type="button" aria-label={`인근가격 ${i+1}행 위로`} title="위로" disabled={i===0} style={{...arw,opacity:i===0?.35:1}} onClick={()=>move(i,-1)}>▲</button>
+          <button type="button" aria-label={`인근가격 ${i+1}행 아래로`} title="아래로" disabled={i===rows.length-1} style={{...arw,opacity:i===rows.length-1?.35:1}} onClick={()=>move(i,1)}>▼</button>
+        </span>}
         <span>인근 유사</span>
-        <input style={{...S.inp,width:140,fontWeight:600,background:"#e0f2fe",borderRadius:4,textAlign:"center"}} value={ov.nearKind||ov.mainUseJeonyu||ov.mainUse||""} onChange={e=>uu("nearKind",e.target.value)}/>
+        <input aria-label={`인근가격 ${i+1}행 유사 물건`} style={{...S.inp,width:140,fontWeight:600,background:"#e0f2fe",borderRadius:4,textAlign:"center"}} value={i===0?(r.kind||kind0):r.kind} onChange={e=>upd(i,"kind",e.target.value)} placeholder={i?(rows[0].kind||kind0):""}/>
         <span>(</span>
-        <select style={{...S.sel2,width:90}} value={ov.nearAreaBase||"전유면적"} onChange={e=>uu("nearAreaBase",e.target.value)}>
+        <select aria-label={`인근가격 ${i+1}행 기준`} style={{...S.sel2,width:90}} value={r.base||"전유면적"} onChange={e=>upd(i,"base",e.target.value)}>
           {areaBaseOpts.map(o=><option key={o} value={o}>{o}</option>)}
         </select>
         <span>기준)</span>
         <span>@</span>
-        <input style={{...S.inp,width:110,textAlign:"right"}} value={fmtComma(ov.nearPriceLow||"")} onChange={e=>uu("nearPriceLow",stripComma(e.target.value))} placeholder="12,000,000"/>
+        <input aria-label={`인근가격 ${i+1}행 최저`} style={{...S.inp,width:110,textAlign:"right"}} value={fmtComma(r.low||"")} onChange={e=>upd(i,"low",stripComma(e.target.value))} placeholder="12,000,000"/>
         <span>~</span>
         <span>@</span>
-        <input style={{...S.inp,width:110,textAlign:"right"}} value={fmtComma(ov.nearPriceHigh||"")} onChange={e=>uu("nearPriceHigh",stripComma(e.target.value))} placeholder="13,000,000"/>
+        <input aria-label={`인근가격 ${i+1}행 최고`} style={{...S.inp,width:110,textAlign:"right"}} value={fmtComma(r.high||"")} onChange={e=>upd(i,"high",stripComma(e.target.value))} placeholder="13,000,000"/>
         <span>원/㎡ 내외 수준</span>
-        {!ov.nearRow2&&<button style={{...S.btn,background:"#1d4ed8",color:"#fff",padding:"3px 10px",fontSize:11,marginLeft:6}} onClick={()=>setOv(p=>({...p,nearRow2:true}))}>+ 행 추가</button>}
-      </div>
-      {ov.nearRow2&&<div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",fontSize:12,marginTop:6}}>
-        <span>인근 유사</span>
-        <input style={{...S.inp,width:140,fontWeight:600,background:"#e0f2fe",borderRadius:4,textAlign:"center"}} value={ov.nearKind2||""} onChange={e=>uu("nearKind2",e.target.value)} placeholder={ov.nearKind||ov.mainUseJeonyu||""}/>
-        <span>(</span>
-        <select style={{...S.sel2,width:90}} value={ov.nearAreaBase2||"전유면적"} onChange={e=>uu("nearAreaBase2",e.target.value)}>
-          {areaBaseOpts.map(o=><option key={o} value={o}>{o}</option>)}
-        </select>
-        <span>기준)</span>
-        <span>@</span>
-        <input style={{...S.inp,width:110,textAlign:"right"}} value={fmtComma(ov.nearPriceLow2||"")} onChange={e=>uu("nearPriceLow2",stripComma(e.target.value))} placeholder="12,000,000"/>
-        <span>~</span>
-        <span>@</span>
-        <input style={{...S.inp,width:110,textAlign:"right"}} value={fmtComma(ov.nearPriceHigh2||"")} onChange={e=>uu("nearPriceHigh2",stripComma(e.target.value))} placeholder="13,000,000"/>
-        <span>원/㎡ 내외 수준</span>
-        <button style={{...S.btn,background:"#fef2f2",color:C.dng,padding:"2px 8px",fontSize:11,marginLeft:6}} onClick={()=>setOv(p=>({...p,nearRow2:false,nearKind2:"",nearAreaBase2:"",nearPriceLow2:"",nearPriceHigh2:""}))} title="2행 삭제">✕</button>
+        {rows.length>1&&<button type="button" aria-label={`인근가격 ${i+1}행 삭제`} style={{...S.btn,background:"#fef2f2",color:C.dng,padding:"2px 8px",fontSize:11,marginLeft:6}} onClick={()=>del(i)} title={`${i+1}행 삭제`}>✕</button>}
+      </div>)}
+      <div style={{marginTop:6}}><button type="button" style={{...S.btn,background:"#1d4ed8",color:"#fff",padding:"3px 10px",fontSize:11}} onClick={()=>put([...rows,{kind:"",base:"",low:"",high:""}])}>+ 행 추가</button></div>
+      {rows.some(r=>r.low||r.high)&&<div style={{marginTop:6,fontSize:11,color:"#555",background:"#fff",padding:"4px 8px",borderRadius:4,border:"1px solid #e2e5ea"}}>
+        → 인근 유사 {rows.filter(r=>r.low||r.high).map(r=>`${r===rows[0]?(r.kind||kind0):(r.kind||rows[0].kind||kind0)} (${r.base||"전유면적"}기준) @${fmtComma(r.low||"0")} ~ @${fmtComma(r.high||"0")} 원/㎡ 내외 수준`).join(", ")}
       </div>}
-      {(ov.nearPriceLow||ov.nearPriceHigh||ov.nearPriceLow2||ov.nearPriceHigh2)&&<div style={{marginTop:6,fontSize:11,color:"#555",background:"#fff",padding:"4px 8px",borderRadius:4,border:"1px solid #e2e5ea"}}>
-        → 인근 유사 {ov.nearKind||ov.mainUseJeonyu||ov.mainUse||""} ({ov.nearAreaBase||"전유면적"}기준) @{fmtComma(ov.nearPriceLow||"0")} ~ @{fmtComma(ov.nearPriceHigh||"0")} 원/㎡ 내외 수준
-        {ov.nearRow2&&(ov.nearPriceLow2||ov.nearPriceHigh2)&&<>{", "}{ov.nearKind2||ov.nearKind||ov.mainUseJeonyu||""} ({ov.nearAreaBase2||"전유면적"}기준) @{fmtComma(ov.nearPriceLow2||"0")} ~ @{fmtComma(ov.nearPriceHigh2||"0")} 원/㎡ 내외 수준</>}
-      </div>}
-    </div>
+    </div>);})()}
     </div>
     <div className="s3-card" style={S.card}>
     <div style={S.h2}>거래사례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{cases.length}건 · 선정 {cases.filter(c=>c.isSelected).length}건{cases.filter(c=>c.isShown!==false&&!c.timeAdj).length?<b style={{color:"#b45309"}}> · 시점수정치 미입력 {cases.filter(c=>c.isShown!==false&&!c.timeAdj).length}건</b>:null}</span></div>
