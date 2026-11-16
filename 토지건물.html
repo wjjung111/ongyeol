@@ -128,6 +128,17 @@
   .hint{color:#94a3b8;font-size:11px;}
   .status{margin:6px 0 0;color:#555;min-height:14px;font-size:11px;}
   .status.err{color:#dc2626;font-weight:600;}
+  /* 지가변동률 지역 표(시점수정 계산기·집건 시점수정 창과 같은 모양) */
+  .jb-rt{margin-top:8px;}
+  .jb-rt-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;font-size:12px;}
+  .jb-rt-head input{font:inherit;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:3px;width:170px;}
+  .jb-rt-sel{color:#334155;} .jb-rt-sel b{color:#1e3a8a;}
+  .jb-rt-box{max-height:220px;overflow-y:auto;border:1px solid #cbd5e1;border-radius:4px;background:#fff;}
+  .jb-rt-box table{width:100%;border-collapse:collapse;font-size:12px;}
+  .jb-rt-box th{position:sticky;top:0;z-index:1;background:#e2e8f0;padding:4px 6px;text-align:left;font-size:12px;font-weight:600;color:#1a2744;border:none;border-bottom:1px solid #cbd5e1;}
+  .jb-rt-box td{padding:3px 6px;border:none;border-bottom:1px solid #f1f5f9;color:#0f172a;text-align:left;}
+  .jb-rt-box tbody tr[data-key]{cursor:pointer;} .jb-rt-box tbody tr[data-key]:hover{background:#f1f5f9;}
+  .jb-rt-box tbody tr.on{background:#dbeafe;font-weight:700;} .jb-rt-box td.agg{color:#64748b;} .jb-rt-box td.msg{color:#94a3b8;cursor:default;}
   .tablewrap,.tw{overflow-x:auto;}
 
   /* 값의 성격은 색 두 가지로만 구분한다 —
@@ -638,8 +649,15 @@
             <h2>시점수정 (지가변동률)</h2>
             <div class="row">
               <button class="btn" id="btnJb">📈 지가변동률 자동조회</button>
-              <select id="jb_selRegion" title="대상지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:180px;max-width:280px"></select>
-              <select id="jb_selUse" title="용도지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:100px"></select>
+              <!-- 지역은 아래 표(jbRegTable)에서 고름 — 이 select는 숨은 값 저장용(다른 코드가 .value를 읽음) -->
+              <select id="jb_selRegion" title="대상지역" style="display:none"></select>
+              <label id="jb_useWrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:#475569">용도지역
+                <select id="jb_selUse" title="용도지역" style="font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:100px"></select></label>
+            </div>
+            <!-- 시점수정 계산기(arm_시점수정.html 토지 탭)·집건 시점수정 창과 같은 지역 표: 검색칸 + 지역1~지역3 줄 클릭 선택 -->
+            <div class="jb-rt" id="jbRegTable" style="display:none">
+              <div class="jb-rt-head"><input type="text" id="jbRegQ" placeholder="지역 검색 (예: 완산, 수원)" autocomplete="off" aria-label="지가변동률 지역 검색"><span class="jb-rt-sel" id="jbRegSel"></span></div>
+              <div class="jb-rt-box" id="jbRegBox"><table><thead><tr id="jbRegHead"></tr></thead><tbody id="jbRegBody"></tbody></table></div>
             </div>
             <div class="status" id="jbStatus"></div>
             <div class="tw" style="margin-top:8px">
@@ -2140,9 +2158,10 @@ function jbPrepare(st,endYm){
     var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
     selR.innerHTML=regs.map(function(x){return '<option>'+x.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
     selU.innerHTML=uses.map(function(x){return '<option>'+x.replace(/</g,'&lt;')+'</option>';}).join('');
-    selR.style.display='';selU.style.display='';
     var ri=jbPickRegion(regs,document.getElementById('jb_region').value);if(ri>=0)selR.selectedIndex=ri;
     var ui=jbPickUse(uses,document.getElementById('jb_use').value||'주거');if(ui>=0)selU.selectedIndex=ui;
+    document.getElementById('jb_useWrap').style.display='inline-flex';document.getElementById('jbRegTable').style.display='';
+    renderJbRegTable(true);
   })();
   return jbPrepPromise.catch(function(e){jbState.tbl=null;throw e;}).finally(function(){jbPrepPromise=null;});
 }
@@ -2309,7 +2328,41 @@ function refreshTradeTime(){
     td.textContent=tradeTimeText(c);td.classList.toggle('sel',!!usedCases().t[i]);td.classList.toggle('busy',!!c.timeBusy);});
   gaTimeNote();
 }
-document.getElementById('jb_selRegion').onchange=jbCompute;
+// 지가변동률 지역 표(2026-11-16): 긴 드롭다운 대신 시점수정 계산기 토지 탭(arm_시점수정.html renderLandTable)과 같은 표 —
+// 지역(시도 > 시 > 구)을 지역1~지역3 칸으로 한 번에, 줄 클릭 = 선택(숨은 #jb_selRegion에 값) → 바로 다시 계산. 검색칸은 낱말 모두 포함.
+// 순서: 전국 → 수도권 → 지방 → 서울 → 경기…, 시도 바로 아래 「시지역·군지역」 묶음 줄(회색). 정렬 규칙을 바꾸면 계산기 쪽도 함께
+var JB_ROOT_ORDER=['전국','수도권','지방','서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'];
+function jbRegRows(){
+  var rank=function(x){var i=JB_ROOT_ORDER.findIndex(function(k){return x.indexOf(k)===0;});return i<0?99:i;},agg=function(x){return /[시군]지역$/.test(x)?0:1;};
+  return (jbState.regs||[]).map(function(k){return {k:k,p:String(k).split('>').map(function(x){return x.trim();}).filter(Boolean)};}).sort(function(a,b){
+    var r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+    for(var i=0;i<Math.min(a.p.length,b.p.length);i++)if(a.p[i]!==b.p[i])return agg(a.p[i])-agg(b.p[i])||a.p[i].localeCompare(b.p[i],'ko');
+    return a.p.length-b.p.length;});
+}
+function renderJbRegTable(scroll){
+  var body=document.getElementById('jbRegBody'),head=document.getElementById('jbRegHead'),selEl=document.getElementById('jbRegSel');
+  var rows=jbRegRows(),cols=Math.max(1,Math.max.apply(null,rows.map(function(r){return r.p.length;}).concat([1])));
+  head.innerHTML='';body.innerHTML='';selEl.innerHTML='';
+  for(var i=0;i<cols;i++){var th=document.createElement('th');th.textContent='지역'+(i+1);head.appendChild(th);}
+  var q=document.getElementById('jbRegQ').value.trim().split(/\s+/).filter(Boolean),cur=document.getElementById('jb_selRegion').value;
+  var shown=q.length?rows.filter(function(r){return q.every(function(w){return r.p.some(function(x){return x.indexOf(w)>=0;});});}):rows;
+  var onRow=null;
+  shown.forEach(function(r){var tr=document.createElement('tr');tr.dataset.key=r.k;if(r.k===cur){tr.className='on';onRow=tr;}
+    for(var i=0;i<cols;i++){var td=document.createElement('td');td.textContent=r.p[i]||'';if(r.p[i]&&/[시군]지역$/.test(r.p[i]))td.className='agg';tr.appendChild(td);}
+    body.appendChild(tr);});
+  if(!shown.length){var tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=cols;td.className='msg';td.textContent='찾는 지역이 없습니다';tr.appendChild(td);body.appendChild(tr);}
+  var sel=rows.find(function(r){return r.k===cur;});
+  if(sel){selEl.appendChild(document.createTextNode('선택: '));var b=document.createElement('b');b.textContent=sel.p.join(' > ');selEl.appendChild(b);}
+  if(scroll&&onRow){var box=document.getElementById('jbRegBox');box.scrollTop=onRow.offsetTop-box.clientHeight/2;}
+}
+document.getElementById('jbRegBody').addEventListener('click',function(e){
+  var tr=e.target.closest('tr[data-key]');if(!tr)return;
+  var selR=document.getElementById('jb_selRegion'),k=tr.dataset.key;
+  if(![].some.call(selR.options,function(o){return o.value===k;}))return;
+  selR.value=k;renderJbRegTable();jbCompute();
+});
+document.getElementById('jbRegQ').addEventListener('input',function(){renderJbRegTable(!this.value.trim());});   // 검색칸을 비우면 고른 줄로 다시 스크롤
+document.getElementById('jb_selRegion').onchange=function(){renderJbRegTable();jbCompute();};
 document.getElementById('jb_selUse').onchange=jbCompute;
 document.getElementById('btnJb').onclick=async function(){
   var st=document.getElementById('jbStatus'),btn=this;
