@@ -15,8 +15,13 @@ assert.equal(pick({aptName:'검증 오피스텔'},{kind:''}),'오피스텔');
 assert.equal(pick({aptName:'○○오피스텔'},{kind:'아파트'}),'아파트');  // 본건 종류가 우선
 assert.equal(pick({aptName:'래미안'},{kind:'',mainUseJeonyu:'오피스텔'}),'오피스텔');
 assert.equal(pick({aptName:'래미안'},{kind:'아파트'}),'아파트');
-// 호출 4곳(단일·여러 호수 × 버튼·창) 모두 같은 순서
-assert.equal(html.split('detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName)').length-1,4);
+// 사례 「용도」 칸(2026-11-16)이 있으면 그게 먼저, 없으면 위 순서. 정의(caseSjKind)는 단일·여러 호수 2벌, 호출 4곳(버튼·창)
+assert.equal(html.split('const caseSjKind=(c,ov)=>(c&&c.useKind&&detectSjKind(c.useKind))||detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);').length-1,2);
+assert.equal(html.split('caseSjKind(c,ov)').length-1,4);
+const pickU=(c,ov)=>(c&&c.useKind&&detectSjKind(c.useKind))||pick(c,ov);
+assert.equal(pickU({aptName:'래미안',useKind:'오피스텔'},{kind:'아파트'}),'오피스텔');
+assert.equal(pickU({aptName:'래미안',useKind:'다세대'},{kind:'아파트'}),'연립다세대');
+assert.equal(pickU({aptName:'래미안',useKind:'근린생활시설'},{kind:'아파트'}),'아파트');
 assert.equal((html.match(/const detectSjKindLoose=/g)||[]).length,2);
 assert.ok(html.includes('v["유형"]=ov.kind||d["시점수정_용도"]'),'의견서 유형은 본건 종류 먼저');
 console.log('PASS jiphap_sj_kind');
