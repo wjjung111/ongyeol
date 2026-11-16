@@ -3654,19 +3654,32 @@ function expandYohangPara(xml,token,value){
   const clones=(lines.length?lines:[""]).map(ln=>tpl.split(token).join(hwpxEsc(ln))).join("");
   return xml.slice(0,ps)+clones+xml.slice(pe);
 }
-async function downloadYohangHwpx(ov,propType){
+// 받침 보고 조사 고르기 — 「다세대주택으로」「아파트로」(템플릿 「로 이용중임.」 고정이라 「다세대주택로」가 되던 것, 2026-11-17)
+const yohangLastJong=s=>{const m=String(s||"").match(/[가-힣](?=[^가-힣]*$)/);return m?(m[0].charCodeAt(0)-0xAC00)%28:0;};
+const yohangJosaRo=s=>{const j=yohangLastJong(s);return j===0||j===8?"로":"으로";};
+const yohangJosaNeun=s=>yohangLastJong(s)===0?"는":"은";
+// opt.map = 토큰 덮어쓰기(여러 호수: 층호·이용용도), opt.toice = 토지이용계획 글(여러 호수는 자기 assembleToice로 만들어 넘김)
+async function downloadYohangHwpx(ov,propType,opt={}){
   if(!ov.client){alert("1. 접수 · 대상물건에서 '의뢰인'을 먼저 입력하세요.");return;}
   try{
     const bin=atob(YOHANG_TPL_B64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     const entries=await parseZip(arr.buffer);
     if(!entries.length)throw new Error("요항표 템플릿 파싱 실패");
     const mi=entries.findIndex(e=>e.name==="mimetype");if(mi>0){const[m]=entries.splice(mi,1);entries.unshift(m);}
-    const map=buildYohangTokenMap(ov,propType);
-    const toice=(typeof assembleToice==="function")?assembleToice(ov):"";
+    const map={...buildYohangTokenMap(ov,propType),...(opt.map||{})};
+    const toice=opt.toice!=null?opt.toice:(typeof assembleToice==="function")?assembleToice(ov):"";
     for(const e of entries){
       if(/^Contents\/section\d+\.xml$/.test(e.name)){
         let xml=new TextDecoder("utf-8").decode(e.data);
         xml=expandYohangPara(xml,"{{요항_토지이용계획}}",toice);
+        if(yohangJosaRo(map["요항_이용용도"])==="으로")xml=xml.split("<hp:t>로 이용중임.</hp:t>").join("<hp:t>으로 이용중임.</hp:t>");
+        // 토큰 든 문단은 줄배치 캐시를 지워 한글이 다시 배치(여러 호수 층호·이용상태처럼 길어지면 한 줄에 눌려 찍힘, 2026-11-17)
+        for(let ti=xml.indexOf("{{요항_");ti>=0;ti=xml.indexOf("{{요항_",ti+1)){
+          const ps=xml.lastIndexOf("<hp:p ",ti),pe=xml.indexOf("</hp:p>",ti);if(ps<0||pe<0)continue;
+          const seg=xml.slice(ps,pe),cut=seg.replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/,"");
+          if(cut!==seg){xml=xml.slice(0,ps)+cut+xml.slice(pe);ti=ps;}}
+        // 끝의 빈 문단 2개 — 글이 몇 줄 늘면 이것만 다음 쪽으로 넘어가 빈 쪽이 생김(여러 호수 7개호 확인 2026-11-17)
+        xml=xml.replace(/(?:<hp:p [^>]*><hp:run charPrIDRef="\d+"\/>(?:<hp:linesegarray>(?:<hp:lineseg [^>]*\/>)*<\/hp:linesegarray>)?<\/hp:p>)+(<\/hs:sec>)$/,"$1");
         for(const[tok,val]of Object.entries(map))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
         {const near=yohangNearRes(ov,propType);if(near)xml=xml.split(YOHANG_NEAR_APT).join(hwpxEsc(near));}
         const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
@@ -3677,6 +3690,8 @@ async function downloadYohangHwpx(ov,propType){
     triggerDownload(createZipStored(entries),`5. 요항표_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('요항표 hwpx 생성 실패',e);alert("요항표 생성 실패: "+e.message);}
 }
+// 여러 호수 화면(#root-multi, 다른 babel 블록)이 같은 요항표 엔진·접면도로 문장 규칙을 쓴다(2026-11-17)
+window.ArapYohang={download:downloadYohangHwpx,roadByInput:yohangRoadByInput,roadCnt:yohangRoadCnt,ROAD_RES:YOHANG_ROAD_RES,josaRo:yohangJosaRo,josaNeun:yohangJosaNeun};
 window.ArapSingleDocuments={MYEONGSE_TPL_B64};  // 여러호수 명세표(arap_multi_myeongse.js)가 같은 xlsx 템플릿을 쓴다
 try{window.buildEvalHwpxV2=buildEvalHwpxV2;window.V2NROPIN_TPL_B64=V2NROPIN_TPL_B64;window.V2_IDS_NR=V2_IDS_NR;window.buildV2TokenMap=buildV2TokenMap;window.buildCheongguTokenMap=buildCheongguTokenMap;window.buildTokenHwpx=buildTokenHwpx;window.V2CHEONGGU_TPL_B64=V2CHEONGGU_TPL_B64;window.V2CHEONGGU_BLUE2BLACK=V2CHEONGGU_BLUE2BLACK;}catch(e){console.error('v2 엔진 전역 노출 실패',e);}
 
@@ -6395,6 +6410,24 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
         </div>
       ))}
     </div>
+    {/* 요항표 4. 접면도로 상황 — 단일호수와 같은 칸·규칙(window.ArapYohang). 여러 호수 요항표 2026-11-17 */}
+    {window.ArapYohang&&<div style={S.card}>
+      <div style={S.h2}>접면도로 상황 (요항표)</div>
+      {window.ArapYohang.roadByInput(ov,propType)?(()=>{const n=window.ArapYohang.roadCnt(ov);const sfx=i=>i?String(i+1):"";
+        return (<div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,fontSize:13}}>
+        <select aria-label="접면도로 수" style={{...S.inp,width:"auto",marginRight:6}} value={n} onChange={e=>u("roadCnt",e.target.value)}>
+          {[1,2,3,4].map(k=><option key={k} value={k}>{k===1?"한 면 접함":k+"면 접함"}</option>)}
+        </select>
+        <span style={{color:"#9ca3af"}}>본건</span>
+        {Array.from({length:n},(_,i)=>(<React.Fragment key={i}>
+          {i>0&&<span style={{color:"#9ca3af"}}>,</span>}
+          <input aria-label={"접면도로 방향"+(i?" "+(i+1):"")} style={{...S.inp,width:90,textAlign:"center"}} value={ov["roadDir"+sfx(i)]||""} onChange={e=>u("roadDir"+sfx(i),e.target.value)} placeholder={["북측","동측","남측","서측"][i]}/>
+          <span style={{color:"#9ca3af"}}>으로 노폭 약</span>
+          <input aria-label={"접면도로 노폭"+(i?" "+(i+1):"")} style={{...S.inp,width:80,textAlign:"center"}} value={ov["roadWidth"+sfx(i)]||""} onChange={e=>u("roadWidth"+sfx(i),e.target.value)} placeholder={i?"8m":"40m"}/>
+        </React.Fragment>))}
+        <span style={{color:"#9ca3af"}}>{n>1?"내외의 포장도로에 각각 접함.":"내외의 포장도로에 접함."}</span>
+      </div>);})():(<div style={{fontSize:13,color:"#9ca3af"}}>{window.ArapYohang.ROAD_RES}<div style={{fontSize:11,marginTop:4}}>아파트용 문장 — 「종류」가 다세대주택·연립주택·오피스텔이면 방향·노폭 입력으로 바뀝니다.</div></div>)}
+    </div>}
     {/* 상세물건정보 - 호 단위 (다중) */}
     <div id="unitTableM" style={S.card}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingBottom:6,borderBottom:`2px solid ${C.pri}`}}>
@@ -8024,8 +8057,23 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
     }catch(e){console.error(e);alert("명세표 생성 실패: "+e.message);}finally{setDownloading(false);}
   };
   // 📦 일괄 받기(2026-11-15) — 감정평가서(표지/괄감/의견서) + 명세표. 비주거용은 한글 템플릿이 없어 명세표만
+  // 여러 호수 요항표(2026-11-17) — 단일호수 요항표 엔진 그대로, 1. 건물의 구조 「… 중 제1층 제101호, 제2층 제201호…로서」,
+  // 2. 이용상태는 호수 주용도(전유부)가 하나면 그 용도, 섞이면 「제1층 제101호는 근린생활시설로, 제3층 제301호, …는 다세대주택으로 이용중임.」
+  const doMultiYohang=async()=>{
+    const Y=window.ArapYohang;if(!Y){alert("요항표 엔진을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.");return;}
+    const us=(ov.units||[]).filter(x=>x&&(x.dong||x.floor||x.ho||pNum(x.area)>0));
+    if(!us.length){alert("상세물건정보에 호수를 먼저 입력하세요.");return;}
+    const nm=x=>{const d=String(x.dong||"").replace(/^제|동$/g,"").trim(),f=String(x.floor||"").replace(/^제|층$/g,"").trim(),h=String(x.ho||"").replace(/^제|호$/g,"").trim();
+      return [d?`제${d}동`:"",f?`제${f}층`:"",h?`제${h}호`:""].filter(Boolean).join(" ");};
+    const base=String(ov.mainUseJeonyu||ov.mainUse||ov.kind||"").trim();
+    const grps=[];us.forEach(x=>{const k=String(x.mainUseJeonyu||"").trim()||base;let g=grps.find(g=>g.use===k);if(!g)grps.push(g={use:k,names:[]});g.names.push(nm(x));});
+    const use=grps.length<2?(grps[0]?.use||base):grps.map((g,i)=>{const who=g.names.join(", ");return `${who}${Y.josaNeun(who)} ${g.use}${i<grps.length-1?Y.josaRo(g.use)+",":""}`;}).join(" ");
+    await Y.download(ov,propType,{map:{"요항_층호":us.map(nm).join(", "),"요항_이용용도":use},toice:assembleToice(ov)});
+  };
   const doMultiAll=async()=>{
-    if(propType==="주거용"){await doMultiHwpx("full");await new Promise(r=>setTimeout(r,600));}
+    const gap=()=>new Promise(r=>setTimeout(r,600));
+    if(propType==="주거용"){await doMultiHwpx("full");await gap();}
+    await doMultiYohang();await gap();
     await doMultiMyeongse();
   };
   const doMultiHwpx=async(mode)=>{
@@ -8252,8 +8300,9 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       <div style={S.h3}>평가서 내려받기</div>
     <div style={{display:"flex",justifyContent:"flex-start",gap:8,marginBottom:0,alignItems:"center",flexWrap:"wrap"}}>
       <button style={{...S.btn,background:saved?"#7c3aed":"#cbd5e1",color:"#fff",fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading||propType!=="주거용"} onClick={()=>doMultiHwpx("full")}>표지/괄감/의견서</button>
+      <button style={{...S.btn,...(saved?BTN.s:BTN.off),fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading} onClick={doMultiYohang} title="감정평가요항표(입지조건·건물상황) 한글파일(.hwpx) — 호수 전부를 한 장에">요항표</button>
       <button style={{...S.btn,background:saved?"#64748b":"#cbd5e1",color:"#fff",fontSize:13,padding:"9px 16px"}} disabled={!saved||downloading} onClick={doMultiMyeongse} title="시트 1개 · 가·나·다… 호수 블록이 아래로 이어지는 한 장 명세표">명세표(excel)</button>
-      <button className="dl-all" style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading} onClick={doMultiAll} title="감정평가서(표지/괄감/의견서)와 명세표를 한 번에 차례로 받기">📦 일괄 받기</button>
+      <button className="dl-all" style={{...S.btn,...(saved?BTN.p:BTN.off),fontSize:14,fontWeight:700,padding:"9px 20px"}} disabled={!saved||downloading} onClick={doMultiAll} title="감정평가서(표지/괄감/의견서)·요항표·명세표를 한 번에 차례로 받기">📦 일괄 받기</button>
       {downloading&&<span role="status">파일 생성 중…</span>}
     </div>
     </div>
