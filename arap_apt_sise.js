@@ -4,13 +4,13 @@
  *  - 기준월 = 작성일 현재 공표된 최신월 (익월 15일 공표, 주말이나 공휴일이면 다음 영업일)
  *  - 지수 지역 = 구 → 시 → 시도 순으로 계약월, 기준월 둘 다 있는 첫 지역
  *  - 기준시점 거래가격 = 시점수정 ㎡단가 × 본건 전용면적, 표기는 만원 반올림
- *  - 집계 = 본건 면적 ±3% 사례(없으면 ±15%, 없으면 전체), 해제, 2년 초과, 이상치(같은 시기 ±6개월 중위 대비 -20% 이하) 제외
+ *  - 집계 = 본건 면적 ±3% 사례(없으면 ±15%, 없으면 전체), 해제, 조회 기간(기본 3년, 체크 시 5년) 초과, 이상치(같은 시기 ±6개월 중위 대비 -20% 이하) 제외
  * 원본: 로컬 파이썬판 C:\Users\wjjun\AptSise\aptsise.py 와 같은 규칙. 검증: tests/apt_sise.cjs
  */
 (function (g) {
   'use strict';
 
-  const SAME_BAND = 0.03, NEAR_BAND = 0.15, OUTLIER_CUT = 0.80, OUTLIER_WINDOW = 6, LOOKBACK = 24;
+  const SAME_BAND = 0.03, NEAR_BAND = 0.15, OUTLIER_CUT = 0.80, OUTLIER_WINDOW = 6, LOOKBACK = 36, LOOKBACK_LONG = 60; // 기본 3년, 「5년까지」 체크 시 5년
 
   /* ── 날짜, 표기 ── */
   const pad = (n, w) => String(n).padStart(w || 2, '0');
@@ -324,7 +324,8 @@
     const same = (opts.sameAreas || []).map(Number).filter(a => isFinite(a) && a > 0);
     const isSame = a => same.some(x => Math.abs(x - +a) < 1e-9);
     const sf = opts.subjectFloor != null && opts.subjectFloor !== '' && isFinite(+opts.subjectFloor) ? +opts.subjectFloor : null;
-    const firstYm = ymAdd(ymOf(writeIso), -LOOKBACK);
+    const lookback = +opts.lookback > 0 ? +opts.lookback : LOOKBACK;
+    const firstYm = ymAdd(ymOf(writeIso), -lookback);
     const rows = trades.map((t, i) => {
       const r = Object.assign({}, t, { no: i + 1, ym: ymOf(t.date), notes: [] });
       let used = null;
@@ -355,7 +356,7 @@
         if (sf <= 2 && r.floor <= 2) r.notes.push('본건과 같은 저층');
         else if (sf > 2 && r.floor > 2 && Math.abs(r.floor - sf) <= 2) r.notes.push('본건 층 ±2');
       }
-      if (r.ym < firstYm) r.notes.push('2년 초과');
+      if (r.ym < firstYm) r.notes.push(`${lookback / 12}년 초과`);
       return r;
     });
     const usable = rows.filter(r => r.subjectPrice && !r.cancelled && r.ym >= firstYm);
@@ -377,7 +378,7 @@
       r.include = pool.includes(r) && !r.outlier;
       if (subjectArea && usable.includes(r) && !pool.includes(r)) r.notes.push(`면적대 ${r.band}, 집계 제외`);
     }
-    return { rows, bandUsed, subjectArea, subjectFloor: sf, sameAreas: subjectArea ? same : [], writeDate: writeIso, baseYm, chain };
+    return { rows, bandUsed, subjectArea, subjectFloor: sf, sameAreas: subjectArea ? same : [], writeDate: writeIso, baseYm, chain, lookback };
   }
 
   function summarize(rows) {
@@ -385,7 +386,7 @@
     return v.length ? { n: v.length, total: rows.length, min: v[0], mid: median(v), max: v[v.length - 1] } : { n: 0, total: rows.length, min: null, mid: null, max: null };
   }
 
-  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, LOOKBACK };
+  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, LOOKBACK, LOOKBACK_LONG };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   g.ArapAptSise = api;
 })(typeof window !== 'undefined' ? window : globalThis);
