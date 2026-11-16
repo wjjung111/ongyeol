@@ -21,7 +21,7 @@
   h1{font-size:19px;font-weight:700;margin-bottom:4px}
   .lede{color:var(--ink-2);font-size:13px;margin-bottom:12px}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--t-radius);padding:14px 16px;margin-bottom:12px}
-  .grid{display:grid;grid-template-columns:3fr .6fr .6fr .6fr 1fr 1.1fr auto;gap:8px;align-items:end}
+  .grid{display:grid;grid-template-columns:3fr .6fr .6fr .6fr 1fr 1.1fr auto auto;gap:8px;align-items:end}
   @media (max-width:820px){.grid{grid-template-columns:1fr 1fr}.grid .addr{grid-column:1/-1}}
   label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:3px}
   input,textarea{width:100%;border:1px solid var(--line-strong);border-radius:7px;padding:8px 10px;font:inherit;color:var(--ink);background:#fff}
@@ -110,7 +110,7 @@
 </aside>
 <main class="page">
   <h1>아파트 실거래 시점수정</h1>
-  <p class="lede">단지 주소와 본건 면적만 넣으면 최근 2년 실거래를 부동산원 월간 아파트 매매가격지수로 시점수정해 본건 최저, 중간, 최고 가격을 보여줍니다. <a href="apt_nearby.html" style="color:var(--accent)">인근 유사 신축 실거래 →</a></p>
+  <p class="lede">단지 주소와 본건 면적만 넣으면 작성일 기준 최근 3년(체크하면 5년) 실거래를 부동산원 월간 아파트 매매가격지수로 시점수정해 본건 최저, 중간, 최고 가격을 보여줍니다. <a href="apt_nearby.html" style="color:var(--accent)">인근 유사 신축 실거래 →</a></p>
 
   <div class="card">
     <div class="grid">
@@ -121,6 +121,7 @@
       <div><label>층</label><input id="floor" inputmode="numeric" placeholder="12"></div>
       <div><label>본건 전용면적(㎡)</label><input id="area" inputmode="decimal" placeholder="비우면 고르기"></div>
       <div><label>작성일 <span class="hint" id="baseHint"></span></label><input id="wdate" data-date placeholder="2026.11.11" autocomplete="off"></div>
+      <div><label>조회 기간</label><label class="bandonly" style="height:36px;margin:0;color:var(--ink);white-space:nowrap"><input type="checkbox" id="long5"> 5년까지 (기본 3년)</label></div>
       <div><button class="primary" id="go" type="button">계산</button></div>
     </div>
 
@@ -130,7 +131,7 @@
     </div>
 
     <div id="apiPane">
-      <div class="hint">국토교통부 아파트 매매 실거래가 자료, 최근 2년. 해제 거래는 표시만 하고 집계에서 뺍니다. 주소에 지번이나 단지명이 없으면 단지 후보를 보여줍니다.</div>
+      <div class="hint">국토교통부 아파트 매매 실거래가 자료, 작성일 기준 최근 3년(「5년까지」 체크 시 5년). 해제 거래는 표시만 하고 집계에서 뺍니다. 주소에 지번이나 단지명이 없으면 단지 후보를 보여줍니다.</div>
     </div>
 
     <div id="pastePane" class="hidden">
@@ -307,9 +308,10 @@ async function calc(aptPick, parcel, keepSort){
     const chain = A.roneChain(addr.sido, addr.sgg, baseTbl.list);
 
     let trades, warns = [], complexes = [];
+    const lookback = $('long5').checked ? A.LOOKBACK_LONG : A.LOOKBACK; // 기본 3년, 체크 시 5년(개월)
     if (mode === 'api'){
       const endYm = writeIso.slice(0, 4) + writeIso.slice(5, 7);
-      const months = Array.from({length: A.LOOKBACK + 1}, (_, i) => A.ymAdd(endYm, -i));
+      const months = Array.from({length: lookback + 1}, (_, i) => A.ymAdd(endYm, -i));
       const lists = await pool(months, 6, ym => rtmsMonth(addr.code, ym));
       const f = A.filterRtms(lists.flat(), addr, aptPick);
       if (f.message){ showPick(f.message, f.complexes); return; }
@@ -328,7 +330,7 @@ async function calc(aptPick, parcel, keepSort){
     const idx = (cls, ym) => { const t = tbls[ym]; const v = t && t.vals.get(Number(cls)); return v || null; };
     const ats = A.areaTypes(trades);
     selAreas = selAreas.filter(a => ats.some(t => Math.abs(t.area - a) < 1e-9)); // 이 단지에 없는 면적은 버림
-    const res = A.calculate(trades, area, writeIso, chain, baseYm, idx, {subjectFloor, sameAreas: selAreas});
+    const res = A.calculate(trades, area, writeIso, chain, baseYm, idx, {subjectFloor, sameAreas: selAreas, lookback});
     res.areaTypes = ats;
     res.parcel = curParcel;
     res.ruleYm = ruleYm; res.addr = addr; res.complexes = complexes; res.aptPick = aptPick || null;
@@ -338,7 +340,7 @@ async function calc(aptPick, parcel, keepSort){
     if (warns.length) showMsg(warns.join(' / '), 'warn');
     render();
     histRecord(histInput);
-    try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, mode})); } catch (e) {}
+    try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, mode, long5: $('long5').checked})); } catch (e) {}
   } catch (e){
     if (e && e.candidates){ showRegionPick(e.message, e.candidates); return; }
     showMsg(e && e.name === 'AbortError' ? '응답이 늦어 중단했어요. 다시 눌러주세요.' : (e.message || String(e)));
@@ -366,12 +368,12 @@ function histSave(list){
 function inputNow(){
   return {address: $('address').value.trim(), dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: $('floor').value.trim(),
     area: $('area').value.trim(), wdate: $('wdate').value.trim(), mode, paste: mode === 'paste' ? $('paste').value : '',
-    caseArea: $('caseArea').value.trim(), baseOverride: $('baseOverride').value.trim()};
+    caseArea: $('caseArea').value.trim(), baseOverride: $('baseOverride').value.trim(), long5: $('long5').checked};
 }
 const histKeyOf = (i, pick) => {
   const area = parseFloat(String(i.area || '').replace(/,/g, '')) || '';
   const fl = parseInt(i.floor, 10) || A.floorFromHo(i.ho) || '';
-  return [i.address.replace(/\s+/g, ' '), String(i.dong || '').replace(/동$/, ''), String(i.ho || '').replace(/\D/g, ''), fl, area, i.wdate, pick || ''].join('|');
+  return [i.address.replace(/\s+/g, ' '), String(i.dong || '').replace(/동$/, ''), String(i.ho || '').replace(/\D/g, ''), fl, area, i.wdate, pick || '', i.long5 ? '5y' : ''].join('|');
 };
 const ROW_KEYS = ['date', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled'];
 function compactRes(r){
@@ -422,6 +424,7 @@ function histOpen(id){
   if (!h) return;
   const i = h.input || {};
   ['address', 'dong', 'ho', 'floor', 'area', 'wdate', 'caseArea', 'baseOverride'].forEach(k => { $(k).value = i[k] || ''; });
+  $('long5').checked = !!i.long5;
   $('floor').dataset.auto = '1';
   if (i.mode === 'paste') $('paste').value = i.paste || '';
   document.querySelector(`[data-mode=${i.mode === 'paste' ? 'paste' : 'api'}]`).click();
@@ -609,7 +612,7 @@ async function exportXlsx(){
   });
   ws.getCell(sr + 4, 1).value = s.mid != null ? safeRange(s.mid) + ' (중간값의 80% ~ 120%)' : '본건 전용면적 미정';
   ws.getCell(sr + 4, 1).alignment = nowrap;
-  ws.getCell(sr + 5, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, 2년 초과 제외`;
+  ws.getCell(sr + 5, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, ${(r.lookback || 24) / 12}년 초과 제외`;
   ws.getCell(sr + 5, 1).alignment = nowrap;
   const tr = sr + 7;
   const heads = ['번호', '계약일', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '기준시점 거래가격(원)', '면적대', '집계', '비고'];
@@ -681,7 +684,7 @@ $('histToggle').onclick = () => $('histPanel').classList.toggle('open');
 paintHist();
 try {
   const l = JSON.parse(localStorage.getItem('arap-apt-sise-last') || 'null');
-  if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); $('floor').dataset.auto = '1'; /* 불러온 층은 자동값(호수를 새로 치면 바뀜) */ if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
+  if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); $('long5').checked = !!l.long5; $('floor').dataset.auto = '1'; /* 불러온 층은 자동값(호수를 새로 치면 바뀜) */ if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
 } catch (e) {}
 })();
 </script>
