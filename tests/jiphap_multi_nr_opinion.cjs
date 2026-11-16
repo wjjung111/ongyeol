@@ -30,7 +30,8 @@ const run=variant=>page.evaluate(async variant=>{
   const hd=new DOMParser().parseFromString(header,'application/xml'),blue=new Set(Array.from(hd.getElementsByTagNameNS('*','charPr')).filter(c=>/^#?0000FF$/i.test(c.getAttribute('textColor')||'')).map(c=>c.getAttribute('id')));
   const blueRuns=Array.from(d.getElementsByTagNameNS(HP,'run')).filter(r=>blue.has(r.getAttribute('charPrIDRef'))&&vis(r).trim()).length;
   const tables=d.getElementsByTagNameNS(HP,'tbl').length;
-  return {sec:all.slice(i,j),paras,left:(all.match(/\{\{[^}]+\}\}/g)||[]),blueRuns,tables,bytes:Array.from(r.bytes)};
+  const k6=all.indexOf('6. 개별요인'),k7=all.indexOf('7. 전유면적당');
+  return {fac:all.slice(k6,k7),sec:all.slice(i,j),paras,left:(all.match(/\{\{[^}]+\}\}/g)||[]),blueRuns,tables,bytes:Array.from(r.bytes)};
 },variant);
 // 섞인 건
 const mix=await run('mix');
@@ -47,15 +48,17 @@ assert.ok(mix.sec.includes('3.532(1.03532)'),'주거 사례 표 '+mix.sec);
 assert.ok(!mix.sec.includes('##'),'기호 # 두 번 '+mix.sec);assert.ok(mix.sec.includes('거래사례#1')&&mix.sec.includes('거래사례#2'),mix.sec);
 assert.ok(!/자본수익률[^]*#1[^]*기준시점/.test(mix.sec.slice(mix.sec.indexOf('나. 자본'))),'주거 사례는 자본수익률 표에 없음');
 assert.equal(mix.blueRuns,0,'파란 글씨 남음');
-assert.equal(mix.tables,11);
+assert.equal(mix.tables,13);
+// 6. 개별요인 비교항목: 주거 호수 → 주거용, 근생 호수 → 상업용(둘 다)
+assert.ok(mix.fac.includes('개별요인 비교항목(주거용)')&&mix.fac.includes('개별요인 비교항목(상업용)')&&mix.fac.includes('상권의 특성')&&mix.fac.includes('공실률 및 입점업체 구성')&&mix.fac.includes('교육환경'),mix.fac.slice(0,400));
 // 분기내역 줄마다 문단
 assert.ok(mix.paras.length>0);
 // 주거만
 const res=await run('res');
-assert.deepEqual(res.left,[]);assert.ok(!res.sec.includes('자본수익률')&&res.sec.includes('나. 시점수정치의 결정')&&res.sec.includes('본건은 주거용부동산으로서'),res.sec);assert.equal(res.tables,10);
+assert.deepEqual(res.left,[]);assert.ok(!res.sec.includes('자본수익률')&&res.sec.includes('나. 시점수정치의 결정')&&res.sec.includes('본건은 주거용부동산으로서'),res.sec);assert.equal(res.tables,10);assert.ok(res.fac.includes('(주거용)')&&!res.fac.includes('(상업용)'));
 // 근생만
 const nr=await run('nr');
-assert.deepEqual(nr.left,[]);assert.ok(!nr.sec.includes('매매가격지수')&&nr.sec.includes('가. 자본수익률(집합 상가)')&&nr.sec.includes('나. 시점수정치의 결정')&&nr.sec.includes('본건은 상업용부동산으로서'),nr.sec);assert.equal(nr.tables,10);
+assert.deepEqual(nr.left,[]);assert.ok(!nr.sec.includes('매매가격지수')&&nr.sec.includes('가. 자본수익률(집합 상가)')&&nr.sec.includes('나. 시점수정치의 결정')&&nr.sec.includes('본건은 상업용부동산으로서'),nr.sec);assert.equal(nr.tables,10);assert.ok(nr.fac.includes('(상업용)')&&!nr.fac.includes('(주거용)')&&nr.fac.includes('상권의 특성'),nr.fac.slice(0,300));
 if(process.env.OUT_DIR)fs.writeFileSync(path.join(process.env.OUT_DIR,'multi_mixed_opinion.hwpx'),Buffer.from(mix.bytes));
 assert.deepEqual(errors,[]);console.log('PASS jiphap_multi_nr_opinion');
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});
