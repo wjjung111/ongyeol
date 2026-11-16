@@ -12,7 +12,12 @@ async function fixture(page,stds,picks){return page.evaluate(({stds,picks})=>{
   const set=(k,v)=>document.getElementById(k).value=String(v);
   LANDS=picks.map((si,i)=>({소재지:'검증동',지번:(10+i)+'-1',지목:'대',면적:'100',용도지역:'일반상업',공시지가:'800000',도로교통:'광대한면',형상:'정방형',지세:'평지',stdIdx:si,gf:[1,1,1,1,1,1],gaf:[1,1,1,1,1,1]}));
   STDS=Array.from({length:stds},(_,i)=>({소재지:'표준동',지번:(20+i)+'-1',지목:'대',면적:'150',공시지가:String(1000000+i*100000),용도지역:'일반상업',etcDecide:String(2+i)}));
-  TRADES=[{loc:'거래동 30-1',use:'일반상업',jimok:'대',landA:'100',bldA:'0',total:'200000000',date:'2025.01.01',landUnit:'2000000'}];
+  // 결정 보정치는 표준지(etcDecide, 패널에 띄운 쌍)와 사례 × 표준지 기억(etcMemBy[표준지].dec) 두 곳에 — 지금 앱이 저장하는 모양.
+  // 표준지를 둘 이상 쓰면 필지가 사례에 고정되고 블록 화면이 기억값만 읽는다(#336, 2026-10-21) → 기억이 없으면 B는 자동 비교치로 계산됨
+  // timeMeta: 블록 화면은 시점수정치 없는 사례를 자동 계산(외부 조회)하는데 이 검증은 외부 통신을 막으므로, 계산해 둔 값을 넣어 둔다
+  TRADES=[{loc:'거래동 30-1',use:'일반상업',jimok:'대',landA:'100',bldA:'0',total:'200000000',date:'2025.01.01',landUnit:'2000000',
+    timeMeta:{reg:'검증시',use:'상업지역',from:'25.01.01',to:'26.01.01',factor:'1.02000'},
+    etcMemBy:Object.fromEntries(Array.from({length:stds},(_,i)=>[i,{f:{},dec:String(2+i)}]))}];
   APPRS=[];ETC={type:'t',idx:0};GA={idx:0};renderStds();renderLands();
   for(const [k,v] of Object.entries({ov_client:'표준지 검증',ov_caseNo:'STD-TEST',base_gijun:'2026.01.01',base_gongsi:'2026.01.01',base_josa:'2026.01.02',bt_useApr:'2018.01.01',bt_strct:'철근콘크리트',bt_purps:'근린생활시설',bt_flrs:'지상 1층',jb_factor:'1.02',jb_region:'검증시',jb_use:'상업',eTime:'1.02',eArea:'1',eSaj1:'1',eSaj2:'1',eArea2:'1',eInd2:'1',ga_time:'1.03',ga_area:'1',ga_sajeong:'1',op_location:'검증초 북측',op_costSource:'검증 단가표, 2026년',op_costRows:'검증분류\t점포\t철근콘크리트\t3\t1,500,000\t50\t(45~55)'}))set(k,v);
   for(let i=1;i<=6;i++)set('e_f'+i,1);
