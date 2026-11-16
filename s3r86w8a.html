@@ -91,6 +91,9 @@
     .k4-colA,.k4-colB{min-width:0;}
     @container (max-width:1299px){.k4-left{grid-template-columns:minmax(0,1fr);gap:0;}}
     .k4-multi .k4-left{display:block;}
+    /* 여러 호수 적용단가 표: 마우스 올린 행 강조(2026-11-16) — 묶음 파스텔 바탕 위에서도 보이게 노란 바탕 + 위아래 진한 선 */
+    .u-row:hover>td{background:#fef08a !important;box-shadow:inset 0 2px 0 #ca8a04,inset 0 -2px 0 #ca8a04;}
+    .u-row:hover>td:first-child{box-shadow:inset 4px 0 0 var(--gc,#ca8a04),inset 0 2px 0 #ca8a04,inset 0 -2px 0 #ca8a04 !important;}
     .k4-right{display:grid;grid-template-columns:minmax(0,480px) minmax(0,600px);gap:12px;align-items:start;min-width:0;}
     @container (max-width:899px){.k4-right{grid-template-columns:minmax(0,1fr);gap:0;}}
     .k4-view-calc .k4-right{display:none;}
@@ -925,7 +928,7 @@ const fmtDec=(n,d=5)=>n==null||isNaN(n)?"-":Number(n).toFixed(d);
 const caseJibun=c=>{if(!c)return"";const loc=String(c.location||"").trim().split(/\s+/).filter(Boolean);return[loc[loc.length-1]||"",c.jibun||""].filter(Boolean).join(" ");};
 const caseHoText=c=>!c?"":c.ho?`${c.dong?c.dong+"동 ":""}${c.ho}호`:(c.floor?`${c.floor}층`:"");
 const caseAreaText=c=>{const n=Number(String(c?.exclusiveArea??"").replace(/,/g,""));return c&&String(c.exclusiveArea??"").trim()!==""&&isFinite(n)?n.toFixed(2):"";};
-const caseOptLabel=c=>["#"+c.symbol,caseJibun(c),c.aptName,caseHoText(c),caseAreaText(c)?caseAreaText(c)+"㎡":""].filter(Boolean).join(" · ");
+const caseOptLabel=c=>["#"+c.symbol,caseJibun(c),c.aptName,caseHoText(c),caseAreaText(c)?caseAreaText(c)+"㎡":"",c.useKind?"["+c.useKind+"]":""].filter(Boolean).join(" · ");
 function CaseInfoCells({c}){
   const td={...S.td,whiteSpace:"nowrap"};
   return <>
@@ -1034,6 +1037,12 @@ const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
 // 시점수정 유형은 본건 종류 칸(건축물대장 값: 아파트·다세대주택·오피스텔)을 먼저 본다. 건물명(한보미도맨션 = 아파트)은 종류 칸이 비었을 때만, 맨션·빌라는 맨 마지막(2026-11-03)
 const detectSjKindLoose=(...texts)=>/빌라|맨션/.test(texts.map(t=>String(t||"")).join(" "))?"연립다세대":null;
+// 거래사례 「용도」(2026-11-16): 사례마다 고르거나 직접 입력(c.useKind). 근생 등 비주거면 시점수정 = 자본수익률, 아파트·연립·다세대·오피스텔(주거용 오피스텔 지수)이면 매매가격지수.
+//   비어 있으면 예전처럼 건 전체의 주거용/비주거용(propType)을 따른다. 여러 호수는 호수 주용도(전유부)와 같은 갈래의 사례를 기본으로 씀
+const CASE_USE_OPTS=["아파트","연립","다세대","오피스텔","근린생활시설"];
+const useGroup=v=>{const s=String(v||"").trim();if(!s)return null;if(/오피스텔|아파트|연립|다세대|다가구|단독|주택|빌라|맨션|주거/.test(s))return"주거";if(/근린|근생|상가|점포|사무|업무|판매|숙박|창고|공장|의료|교육|비주거/.test(s))return"비주거";return null;};
+const caseNr=(c,propType)=>{const g=useGroup(c&&c.useKind);return g?g==="비주거":propType==="비주거용";};
+const caseSjKind=(c,ov)=>(c&&c.useKind&&detectSjKind(c.useKind))||detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
@@ -2170,7 +2179,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   // ── 정렬 ──
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
-  const crC=useColResize("cases",15),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
+  const crC=useColResize("cases",16),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
   // 날짜(2025.11.03·2025-11-03·25.11.03)는 YYYYMMDD 숫자로 바꿔 비교 — parseFloat로 읽으면 2025.11 / 2025 로 잘려 같은 해 안에서 순서가 안 맞았음(2026-10-19). 빈 값은 항상 맨 뒤
   const sortAndApply=(arr,setArr,sort,isPrec)=>{const dk=v=>{const m=String(v).trim().match(/^(\d{2}|\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(!m)return null;const y=m[1].length===2?2000+ +m[1]:+m[1];return y*10000+ +m[2]*100+ +m[3];};
     const key=v=>{if(v==null||String(v).trim()==="")return null;const d=dk(v);if(d!=null)return d;const t=String(v).replace(/,/g,"").trim();return /^-?\d+(\.\d+)?$/.test(t)?parseFloat(t):String(v);};
@@ -2209,9 +2218,9 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
     setCases(p=>p.map(c=>{if(c.id!==id)return c;const t=pStr(c.timeAdjDetail),bare=!t||/^\d+(?:\.\d+)?$/.test(t);   // 숫자만 키인한 건 근거도 같이 바꿈(창에서 숫자 키인과 같음)
       return{...c,timeAdj:v===""?null:v,...(bare?{timeAdjDetail:v===""?"":String(v)}:{})};}));
     // 비주거: 선정 사례면 자본수익률 칸(의견서 「자본수익률」 값)도 같이
-    if(propType==="비주거용"&&c0&&c0.isSelected&&Number(v)>0)setOv(p=>({...p,nrCapVal:fmtDec(Number(v),5),nrCapPct:String(Math.round((Number(v)-1)*100*1000)/1000)}));};
+    if(propType==="비주거용"&&c0&&c0.isSelected&&caseNr(c0,propType)&&Number(v)>0)setOv(p=>({...p,nrCapVal:fmtDec(Number(v),5),nrCapPct:String(Math.round((Number(v)-1)*100*1000)/1000)}));};
   const resetCaseTA=id=>{const c0=cases.find(c=>c.id===id);const k=c0&&taCalc(c0);if(k!=null)setCaseTA(id,k);};
-  const resetAllCaseUnits=()=>{cases.filter(taEd).forEach(c=>{const k=taCalc(c);if(k!=null&&propType==="비주거용"&&c.isSelected)setOv(p=>({...p,nrCapVal:fmtDec(k,5),nrCapPct:String(Math.round((k-1)*100*1000)/1000)}));});
+  const resetAllCaseUnits=()=>{cases.filter(taEd).forEach(c=>{const k=taCalc(c);if(k!=null&&propType==="비주거용"&&c.isSelected&&caseNr(c,propType))setOv(p=>({...p,nrCapVal:fmtDec(k,5),nrCapPct:String(Math.round((k-1)*100*1000)/1000)}));});
     setCases(p=>p.map(c=>{let n=c.unitPriceOrig==null?c:{...c,unitPrice:c.unitPriceOrig};if(c.orig)n={...n,...c.orig};if(taEd(c))n={...n,timeAdj:taCalc(c)};return n;}));};
   const delP=id=>{pushUndo&&pushUndo("평가전례 삭제됨");setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
   const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?updatePrecPricing(x,key,val):x));};
@@ -2233,8 +2242,8 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
       if(targetInputs[idx]){e.preventDefault();focusSel(targetInputs[idx]);}}
   };
   const applyTm=(id,text=tmpTime)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));}
-    // 비주거용: 붙여넣은 시점수정치 상세를 자본수익률 패널로 자동 반영 (빈 값은 기존값 유지)
-    if(propType==="비주거용"){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}
+    // 비주거용: 붙여넣은 시점수정치 상세를 자본수익률 패널로 자동 반영 (빈 값은 기존값 유지). 용도가 주거인 사례는 제외(2026-11-16)
+    if(propType==="비주거용"&&caseNr(cases.find(x=>x.id===id),propType)){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}
     setEditTimeId(null);setTmpTime("");};
 
   return(<div className="s3-root">
@@ -2304,20 +2313,21 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
     <div className="s3-card" style={S.card}>
     <div style={S.h2}>거래사례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{cases.length}건 · 선정 {cases.filter(c=>c.isSelected).length}건{cases.filter(c=>c.isShown!==false&&!c.timeAdj).length?<b style={{color:"#b45309"}}> · 시점수정치 미입력 {cases.filter(c=>c.isShown!==false&&!c.timeAdj).length}건</b>:null}</span></div>
     {cases.length>0&&(<div style={{overflowX:"auto",marginBottom:16}}>{cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 거래사례 {cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length}건 — 시점수정 불가, 거래시점을 확인하세요</div>}
-      <table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
+      <datalist id="case-use-opts">{CASE_USE_OPTS.map(o=><option key={o} value={o}/>)}</datalist><table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
         <th style={{...S.th,width:24}}>{crC.grip(0)}</th><th style={{...S.th,width:28}}>표시{crC.grip(1)}</th><th style={{...S.th,width:28}}>선정{crC.grip(2)}</th>
         <th style={{...S.th,width:36}}>기호{crC.grip(3)}</th>
         <CSortTh i={4} label="소재지" sortKey="location"/>
         <th style={S.th}>동/층/호{crC.grip(5)}</th>
         <CSortTh i={6} label="건물명" sortKey="aptName"/>
-        <CSortTh i={7} label="전유면적" sortKey="exclusiveArea"/>
-        <CSortTh i={8} label="사례가격" sortKey="price"/>
-        <CSortTh i={9} label="단가" sortKey="unitPrice"/>
-        <CSortTh i={10} label="거래시점" sortKey="tradeDate"/>
-        <CSortTh i={11} label="사용승인일" sortKey="approvalDate"/>
-        <CSortTh i={12} label="시점수정치" sortKey="timeAdj" style={{width:110}}/>
-        <th style={{...S.th,width:95}} title="단가 × 시점수정치 (화면 참고용, 원 단위 반올림 — 한글 파일엔 안 나감)">시점수정 단가{crC.grip(13)}</th>
-        <th style={{...S.th,width:24}}>{crC.grip(14)}</th>
+        <th style={{...S.th,width:96}} title="사례 용도 — 고르거나 직접 입력. 근린생활시설 등 비주거면 시점수정이 자본수익률로 계산됨">용도{crC.grip(7)}</th>
+        <CSortTh i={8} label="전유면적" sortKey="exclusiveArea"/>
+        <CSortTh i={9} label="사례가격" sortKey="price"/>
+        <CSortTh i={10} label="단가" sortKey="unitPrice"/>
+        <CSortTh i={11} label="거래시점" sortKey="tradeDate"/>
+        <CSortTh i={12} label="사용승인일" sortKey="approvalDate"/>
+        <CSortTh i={13} label="시점수정치" sortKey="timeAdj" style={{width:110}}/>
+        <th style={{...S.th,width:95}} title="단가 × 시점수정치 (화면 참고용, 원 단위 반올림 — 한글 파일엔 안 나감)">시점수정 단가{crC.grip(14)}</th>
+        <th style={{...S.th,width:24}}>{crC.grip(15)}</th>
       </tr></thead><tbody>
         {cases.map((c,i)=>(<DragRow key={c.id} index={i} onDrop={dropC} style={{background:dateAfterWarn(c.tradeDate,ov)?"#fee2e2":c.isSelected?C.sel:c.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={c.isShown} onChange={()=>togC(c.id,"isShown")}/></td>
@@ -2326,14 +2336,14 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           {/* 소재지 수정 시 입력값 전체를 location에 저장하고 jibun은 비움 — 하위 로직이 전부 `location+jibun` 결합값을 쓰므로 안전 */}
           <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={`${c.location||""}${c.jibun?" "+c.jibun:""}`} onChange={e=>{updC(c.id,"location",e.target.value);if(c.jibun)updC(c.id,"jibun","");}} onKeyDown={gridArrowNav}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center",border:"none",background:"transparent",fontSize:12}} value={`${c.dong||""}/${c.floor||""}/${c.ho||""}`} onChange={e=>{const pts=e.target.value.split("/");updC(c.id,"dong",pts[0]||"");updC(c.id,"floor",pts[1]||"");updC(c.id,"ho",pts[2]||"");}} onKeyDown={gridArrowNav}/></td>
-          <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={c.aptName||""} onChange={e=>updC(c.id,"aptName",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={{...S.tdR,padding:"2px 4px"}} title={caseEd(c,"exclusiveArea")?`복붙 원래값 ${fmtDec(c.orig.exclusiveArea,2)}`:"전유면적 — 직접 고칠 수 있음(고치면 단가 다시 계산)"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 전유면적`} frac={2} value={c.exclusiveArea??""} onChange={v=>setCaseField(c.id,"exclusiveArea",v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:58,minWidth:0,color:caseEd(c,"exclusiveArea")?C.acc:undefined,fontWeight:caseEd(c,"exclusiveArea")?700:undefined}}/>{caseEd(c,"exclusiveArea")?<span role="button" title={`복붙 원래값(${fmtDec(c.orig.exclusiveArea,2)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"exclusiveArea")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
+          <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={c.aptName||""} onChange={e=>updC(c.id,"aptName",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={{...S.td,padding:"2px 4px"}}><input list="case-use-opts" aria-label={`거래사례 #${c.symbol} 용도`} title={c.useKind?(caseNr(c,propType)?"비주거 — 시점수정 자본수익률":"주거 — 시점수정 매매가격지수"):"비우면 건 전체 주거용/비주거용을 따름"} placeholder="선택" style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12,textAlign:"center",color:useGroup(c.useKind)==="비주거"?"#b45309":undefined,fontWeight:useGroup(c.useKind)==="비주거"?700:undefined}} value={c.useKind||""} onChange={e=>updC(c.id,"useKind",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={{...S.tdR,padding:"2px 4px"}} title={caseEd(c,"exclusiveArea")?`복붙 원래값 ${fmtDec(c.orig.exclusiveArea,2)}`:"전유면적 — 직접 고칠 수 있음(고치면 단가 다시 계산)"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 전유면적`} frac={2} value={c.exclusiveArea??""} onChange={v=>setCaseField(c.id,"exclusiveArea",v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:58,minWidth:0,color:caseEd(c,"exclusiveArea")?C.acc:undefined,fontWeight:caseEd(c,"exclusiveArea")?700:undefined}}/>{caseEd(c,"exclusiveArea")?<span role="button" title={`복붙 원래값(${fmtDec(c.orig.exclusiveArea,2)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"exclusiveArea")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={{...S.tdR,padding:"2px 4px"}} title={caseEd(c,"price")?`복붙 원래값 ${fmt(c.orig.price)}`:"사례가격 — 직접 고칠 수 있음(고치면 단가 다시 계산)"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 사례가격`} value={c.price??""} onChange={v=>setCaseField(c.id,"price",v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:96,minWidth:0,color:caseEd(c,"price")?C.acc:undefined,fontWeight:caseEd(c,"price")?700:undefined}}/>{caseEd(c,"price")?<span role="button" title={`복붙 원래값(${fmt(c.orig.price)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"price")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td><td style={{...S.tdR,padding:"2px 4px"}} title={c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?`복붙 원래값 ${fmt(c.unitPriceOrig)}`:"단가 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 단가`} value={c.unitPrice??""} onChange={v=>setCaseUnit(c.id,v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:80,minWidth:0,color:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?C.acc:undefined,fontWeight:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?700:undefined}}/>{c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?<span role="button" title={`복붙 원래값(${fmt(c.unitPriceOrig)})으로 되돌리기`} onClick={()=>resetCaseUnit(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={{...S.td,padding:"2px 4px"}} title={caseEd(c,"tradeDate")?`복붙 원래값 ${fmtDate(c.orig.tradeDate)}`:"거래시점 — 직접 고칠 수 있음(20260501 → 2026.05.01)"}><div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:2}}><input aria-label={`거래사례 #${c.symbol} 거래시점`} style={{...S.inp,width:76,border:"none",background:"transparent",fontSize:12,textAlign:"center",color:caseEd(c,"tradeDate")?C.acc:undefined,fontWeight:caseEd(c,"tradeDate")?700:undefined}} value={fmtDate(c.tradeDate)} onChange={e=>setCaseField(c.id,"tradeDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/>{caseEd(c,"tradeDate")?<span role="button" title={`복붙 원래값(${fmtDate(c.orig.tradeDate)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"tradeDate")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:2,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</div></td><td style={{...S.td,padding:"2px 4px"}} title={caseEd(c,"approvalDate")?`복붙 원래값 ${c.orig.approvalDate||""}`:"사용승인일 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:2}}><input aria-label={`거래사례 #${c.symbol} 사용승인일`} style={{...S.inp,width:78,border:"none",background:"transparent",fontSize:11,textAlign:"center",color:caseEd(c,"approvalDate")?C.acc:undefined,fontWeight:caseEd(c,"approvalDate")?700:undefined}} value={c.approvalDate||""} onChange={e=>setCaseField(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/>{caseEd(c,"approvalDate")?<span role="button" title={`복붙 원래값(${c.orig.approvalDate||""})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"approvalDate")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={{...S.td,padding:"2px 4px"}} title={taEd(c)?`시점수정 창 계산값 ${fmtDec(taCalc(c),5)} — 직접 고친 값`:"시점수정치 — 🧮 창에서 계산하면 자동으로 들어오고, 칸에서 직접 고칠 수도 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}>
             <PrecNumberInput label={`거래사례 #${c.symbol} 시점수정치`} frac={5} placeholder="입력" value={c.timeAdj??""} onChange={v=>setCaseTA(c.id,v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:62,minWidth:0,color:taEd(c)?C.acc:undefined,fontWeight:taEd(c)?700:undefined}}/>
             {taEd(c)?<span role="button" title={`시점수정 창 계산값(${fmtDec(taCalc(c),5)})으로 되돌리기`} onClick={()=>resetCaseTA(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}
             <span role="button" aria-label={`거래사례 #${c.symbol} 시점수정 창`} title="시점수정 창 열기(지수 자동계산·산식 붙여넣기)" style={{cursor:"pointer",fontSize:13,userSelect:"none"}}
-            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);if(k)setSjIdxKind(k);}}>🧮</span></div></td>
+            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=caseSjKind(c,ov);if(k)setSjIdxKind(k);}}>🧮</span></div></td>
           {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
             return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
@@ -4176,10 +4186,11 @@ function SjRegionTable({kind,value,onChange}){
 function SijeomModal({c,ov,onApply,onClose,propType}){
   const [tmpTime,setTmpTime]=useState(c.timeAdjDetail||"");
   const [warns,setWarns]=useState([]);
-  const [kind,setKind]=useState(()=>detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName)||localStorage.getItem("arap-sjidx-kind")||"아파트");
+  const [kind,setKind]=useState(()=>caseSjKind(c,ov)||localStorage.getItem("arap-sjidx-kind")||"아파트");
   const [region,setRegion]=useState(()=>detectSjRegion(c.location,c.address,ov.jibun)||localStorage.getItem("arap-sjidx-region")||(idxRegionList()[0]||""));
-  const [nrCapKind,setNrCapKind]=useState(()=>{try{return localStorage.getItem("arap-nrcap-kind")||(capTypeList()[0]||"집합상가");}catch(e){console.error('nrcap kind load',e);return capTypeList()[0]||"집합상가";}});
-  const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return localStorage.getItem("arap-nrcap-region")||capPickRegion(localStorage.getItem("arap-nrcap-kind")||capTypeList()[0]||"","서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
+  const [nrCapKind,setNrCapKind]=useState(()=>{try{const u=String(c.useKind||""),tl=capTypeList(),byUse=/근린|근생|상가|점포|판매/.test(u)?tl.find(t=>/집합\s*상가/.test(t)):/사무|업무/.test(u)?tl.find(t=>/오피스/.test(t)):null;if(byUse)return byUse;   // 사례 용도 먼저(근생 → 집합상가, 2026-11-16)
+    return localStorage.getItem("arap-nrcap-kind")||(tl[0]||"집합상가");}catch(e){console.error('nrcap kind load',e);return capTypeList()[0]||"집합상가";}});
+  const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return capPickRegion(nrCapKind,localStorage.getItem("arap-nrcap-region")||"서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
   const normD=d=>{if(!d)return"";return String(d).replace(/-/g,".").replace(/\s/g,"").replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,(_,y,m,dd)=>`${y}.${m.padStart(2,"0")}.${dd.padStart(2,"0")}`);};
   const check=text=>{const ws=[];const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm){const cd=normD(fmtDate(c.tradeDate)),td=normD(tm[1]);if(cd&&td&&cd!==td)ws.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}
     const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm&&ov.baseDate){const ob=normD(ov.baseDate),tb=normD(bm[1]);if(ob&&tb&&ob!==tb)ws.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setWarns(ws);};
@@ -4187,7 +4198,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
   // 계산기(arm_시점수정.html) 화면처럼 왼쪽 입력(유형·지역 표·거래/기준시점) / 오른쪽 결과(시점수정치 크게·산식). 날짜 칸은 이 창에서만 쓰는 값(사례·개요는 안 바꿈)
   const [td,setTd]=useState(()=>fmtDate(c.tradeDate)||"");
   const [bd,setBd]=useState(()=>ov.baseDate||"");
-  const D=idxData(),CD=capData(),nr=propType==="비주거용";
+  const D=idxData(),CD=capData(),nr=caseNr(c,propType);
   const B={p:{background:C.acc,color:"#fff",border:`1px solid ${C.acc}`},s:{background:"#fff",color:"#1e293b",border:"1px solid #cbd5e1"},off:{background:"#cbd5e1",color:"#fff",border:"1px solid #cbd5e1"}};
   const lab={display:"block",fontSize:12,fontWeight:600,color:"#64748b",margin:"10px 0 4px"};
   const sec={fontSize:12,fontWeight:700,color:"#64748b",paddingBottom:8,marginBottom:4,borderBottom:"1px solid #e2e8f0"};
@@ -4195,7 +4206,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
   const calc=()=>{const r=nr?buildNrCapText(nrCapKind,nrCapRegion,td,bd):buildSjIdxText(kind,region,td,bd);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}};
   return(<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}>
     <div style={{background:"#fff",borderRadius:8,padding:20,width:"94%",maxWidth:1000,maxHeight:"94vh",overflowY:"auto",boxSizing:"border-box"}} onClick={e=>e.stopPropagation()}>
-      <div style={S.h3}>시점수정치 — 사례 #{c.symbol}</div>
+      <div style={S.h3}>시점수정치 — 사례 #{c.symbol}{c.useKind?<span style={{fontSize:12,fontWeight:600,color:nr?"#b45309":"#64748b",marginLeft:8}}>용도 {c.useKind} → {nr?"자본수익률":"매매가격지수"}</span>:null}</div>
       <div style={{display:"flex",gap:24,flexWrap:"wrap",marginTop:8}}>
         <div style={{flex:"1 1 440px",minWidth:0}}>
           <div style={sec}>입력 · {nr?"자본수익률 (상업용부동산 임대동향조사)":"매매가격지수 (한국부동산원)"}</div>
@@ -4366,7 +4377,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   // ④탭에서도 시점수정치 입력 가능 — ③탭 모달과 동일 적용 로직
   const [editTimeId,setEditTimeId]=useState(null);
   const applySijeom=(id,text)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));
-    if(propType==="비주거용"){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}}
+    if(propType==="비주거용"&&caseNr(cases.find(x=>x.id===id),propType)){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}}
     setEditTimeId(null);};
 
   // 사례 0건이어도 화면·다운로드 버튼은 표시 (명세표·괄호감정표는 사례 없이도 받게)
@@ -5151,7 +5162,7 @@ const fmtDec=(n,d=5)=>n==null||isNaN(n)?"-":Number(n).toFixed(d);
 const caseJibun=c=>{if(!c)return"";const loc=String(c.location||"").trim().split(/\s+/).filter(Boolean);return[loc[loc.length-1]||"",c.jibun||""].filter(Boolean).join(" ");};
 const caseHoText=c=>!c?"":c.ho?`${c.dong?c.dong+"동 ":""}${c.ho}호`:(c.floor?`${c.floor}층`:"");
 const caseAreaText=c=>{const n=Number(String(c?.exclusiveArea??"").replace(/,/g,""));return c&&String(c.exclusiveArea??"").trim()!==""&&isFinite(n)?n.toFixed(2):"";};
-const caseOptLabel=c=>["#"+c.symbol,caseJibun(c),c.aptName,caseHoText(c),caseAreaText(c)?caseAreaText(c)+"㎡":""].filter(Boolean).join(" · ");
+const caseOptLabel=c=>["#"+c.symbol,caseJibun(c),c.aptName,caseHoText(c),caseAreaText(c)?caseAreaText(c)+"㎡":"",c.useKind?"["+c.useKind+"]":""].filter(Boolean).join(" · ");
 function CaseInfoCells({c}){
   const td={...S.td,whiteSpace:"nowrap"};
   return <>
@@ -5248,6 +5259,12 @@ const detectSjKind=(...texts)=>{const s=texts.map(t=>String(t||"")).join(" ");
   if(/오피스텔/.test(s))return"오피스텔";if(/연립|다세대/.test(s))return"연립다세대";if(/아파트/.test(s))return"아파트";return null;};
 // 시점수정 유형은 본건 종류 칸(건축물대장 값: 아파트·다세대주택·오피스텔)을 먼저 본다. 건물명(한보미도맨션 = 아파트)은 종류 칸이 비었을 때만, 맨션·빌라는 맨 마지막(2026-11-03)
 const detectSjKindLoose=(...texts)=>/빌라|맨션/.test(texts.map(t=>String(t||"")).join(" "))?"연립다세대":null;
+// 거래사례 「용도」(2026-11-16): 사례마다 고르거나 직접 입력(c.useKind). 근생 등 비주거면 시점수정 = 자본수익률, 아파트·연립·다세대·오피스텔(주거용 오피스텔 지수)이면 매매가격지수.
+//   비어 있으면 예전처럼 건 전체의 주거용/비주거용(propType)을 따른다. 여러 호수는 호수 주용도(전유부)와 같은 갈래의 사례를 기본으로 씀
+const CASE_USE_OPTS=["아파트","연립","다세대","오피스텔","근린생활시설"];
+const useGroup=v=>{const s=String(v||"").trim();if(!s)return null;if(/오피스텔|아파트|연립|다세대|다가구|단독|주택|빌라|맨션|주거/.test(s))return"주거";if(/근린|근생|상가|점포|사무|업무|판매|숙박|창고|공장|의료|교육|비주거/.test(s))return"비주거";return null;};
+const caseNr=(c,propType)=>{const g=useGroup(c&&c.useKind);return g?g==="비주거":propType==="비주거용";};
+const caseSjKind=(c,ov)=>(c&&c.useKind&&detectSjKind(c.useKind))||detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
@@ -5551,6 +5568,7 @@ function DragRow({children,index,onDrop,style}){
 const SYM=i=>"가나다라마바사아자차카타파하".charAt(i)||String(i+1);
 const FACTOR_NOTE_DEFAULT="- 외부요인:\n- 내부요인:\n- 호별요인:\n- 기타요인:";
 const UNIT_GRP_COLOR={A:"#dc2626",B:"#2563eb",C:"#16a34a",D:"#ea580c",E:"#7c3aed"};   // 여러 호수 본건 묶음 색(토건 건물 묶음과 같은 색)
+const UNIT_GRP_BG={A:"#fef2f2",B:"#eff6ff",C:"#f0fdf4",D:"#fff7ed",E:"#f5f3ff"};   // 적용단가 표 묶음 행 바탕(같은 계열 연한 파스텔, 2026-11-16)
 // 호별 탁상가격 합산 (② 상세물건정보 표의 units[].deskPrice 우선 → 옛 deskPrices → 단일 deskPrice 호환)
 const unitDeskList=(ov)=>(ov.units||[]).map((u,i)=>({symbol:SYM(i),price:u&&u.deskPrice,idx:i})).filter(d=>pNum(d.price));
 const getTotalDeskPrice=(ov)=>{
@@ -6438,7 +6456,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   // ── 정렬 ──
   const [cSort,setCSort]=useState({key:null,asc:true});
   const [pSort,setPSort]=useState({key:null,asc:true});
-  const crC=useColResize("cases",15),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
+  const crC=useColResize("cases",16),crP=useColResize("precs",12);   // 거래사례·평가전례 표 열 너비
   // 날짜(2025.11.03·2025-11-03·25.11.03)는 YYYYMMDD 숫자로 바꿔 비교 — parseFloat로 읽으면 2025.11 / 2025 로 잘려 같은 해 안에서 순서가 안 맞았음(2026-10-19). 빈 값은 항상 맨 뒤
   const sortAndApply=(arr,setArr,sort,isPrec)=>{const dk=v=>{const m=String(v).trim().match(/^(\d{2}|\d{4})[.\-\/년]\s*(\d{1,2})[.\-\/월]\s*(\d{1,2})/);if(!m)return null;const y=m[1].length===2?2000+ +m[1]:+m[1];return y*10000+ +m[2]*100+ +m[3];};
     const key=v=>{if(v==null||String(v).trim()==="")return null;const d=dk(v);if(d!=null)return d;const t=String(v).replace(/,/g,"").trim();return /^-?\d+(\.\d+)?$/.test(t)?parseFloat(t):String(v);};
@@ -6477,9 +6495,9 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
     setCases(p=>p.map(c=>{if(c.id!==id)return c;const t=pStr(c.timeAdjDetail),bare=!t||/^\d+(?:\.\d+)?$/.test(t);   // 숫자만 키인한 건 근거도 같이 바꿈(창에서 숫자 키인과 같음)
       return{...c,timeAdj:v===""?null:v,...(bare?{timeAdjDetail:v===""?"":String(v)}:{})};}));
     // 비주거: 선정 사례면 자본수익률 칸(의견서 「자본수익률」 값)도 같이
-    if(propType==="비주거용"&&c0&&c0.isSelected&&Number(v)>0)setOv(p=>({...p,nrCapVal:fmtDec(Number(v),5),nrCapPct:String(Math.round((Number(v)-1)*100*1000)/1000)}));};
+    if(propType==="비주거용"&&c0&&c0.isSelected&&caseNr(c0,propType)&&Number(v)>0)setOv(p=>({...p,nrCapVal:fmtDec(Number(v),5),nrCapPct:String(Math.round((Number(v)-1)*100*1000)/1000)}));};
   const resetCaseTA=id=>{const c0=cases.find(c=>c.id===id);const k=c0&&taCalc(c0);if(k!=null)setCaseTA(id,k);};
-  const resetAllCaseUnits=()=>{cases.filter(taEd).forEach(c=>{const k=taCalc(c);if(k!=null&&propType==="비주거용"&&c.isSelected)setOv(p=>({...p,nrCapVal:fmtDec(k,5),nrCapPct:String(Math.round((k-1)*100*1000)/1000)}));});
+  const resetAllCaseUnits=()=>{cases.filter(taEd).forEach(c=>{const k=taCalc(c);if(k!=null&&propType==="비주거용"&&c.isSelected&&caseNr(c,propType))setOv(p=>({...p,nrCapVal:fmtDec(k,5),nrCapPct:String(Math.round((k-1)*100*1000)/1000)}));});
     setCases(p=>p.map(c=>{let n=c.unitPriceOrig==null?c:{...c,unitPrice:c.unitPriceOrig};if(c.orig)n={...n,...c.orig};if(taEd(c))n={...n,timeAdj:taCalc(c)};return n;}));};
   const delP=id=>{setPrecs(p=>reIdx(p.filter(x=>x.id!==id),true));};
   const updP=(id,key,val)=>{setPrecs(p=>p.map(x=>x.id===id?updatePrecPricing(x,key,val):x));};
@@ -6505,12 +6523,14 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
     if(v){
       setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));
       // 자본수익률 형식 감지 시 비주거용 모드로 자동 전환 (분기·복리산식 시그널)
-      const isCom=/분기/.test(text)||/\(1\+/.test(text);
-      if(setPropType&&propType!=="비주거용"&&isCom){
+      // 사례 용도를 고른 건(2026-11-16, 주거·비주거 섞인 건)은 건 전체 전환을 하지 않고 그 사례만 따름
+      const c0=cases.find(x=>x.id===id),useSet=!!useGroup(c0&&c0.useKind);
+      const isCom=useSet?caseNr(c0,propType):(/분기/.test(text)||/\(1\+/.test(text));
+      if(setPropType&&propType!=="비주거용"&&isCom&&!useSet){
         setPropType("비주거용");
       }
       // 비주거용 신호면 시점수정치 상세를 자본수익률 패널 필드로 자동 반영 (패널이 숨겨져 있어 유일한 입력 경로)
-      if(isCom||propType==="비주거용"){
+      if(isCom||(propType==="비주거용"&&!useSet)){
         const nd=parseNrCapDetail(text);
         setOv(p=>({...p,nrType:nd.유형||p.nrType,nrRegion:nd.지역||p.nrRegion,nrPeriod:nd.기간||p.nrPeriod,nrCapVal:nd.소수||p.nrCapVal,nrCapPct:nd.퍼센트||p.nrCapPct,nrMigosi:nd.미고시||p.nrMigosi,nrMigosiPrev:nd.미고시직전||p.nrMigosiPrev,nrCapFormula:nd.산식||p.nrCapFormula}));
       }
@@ -6607,20 +6627,21 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
     <div className="s3-card" style={S.card}>
     <div style={S.h2}>거래사례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{cases.length}건 · 선정 {cases.filter(c=>c.isSelected).length}건{cases.filter(c=>c.isShown!==false&&!c.timeAdj).length?<b style={{color:"#b45309"}}> · 시점수정치 미입력 {cases.filter(c=>c.isShown!==false&&!c.timeAdj).length}건</b>:null}</span></div>
     {cases.length>0&&(<div style={{overflowX:"auto",marginBottom:16}}>{cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 거래사례 {cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length}건 — 시점수정 불가, 거래시점을 확인하세요</div>}
-      <table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
+      <datalist id="case-use-optsM">{CASE_USE_OPTS.map(o=><option key={o} value={o}/>)}</datalist><table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
         <th style={{...S.th,width:24}}>{crC.grip(0)}</th><th style={{...S.th,width:28}}>표시{crC.grip(1)}</th><th style={{...S.th,width:28}}>선정{crC.grip(2)}</th>
         <th style={{...S.th,width:36}}>기호{crC.grip(3)}</th>
         <CSortTh i={4} label="소재지" sortKey="location"/>
         <th style={S.th}>동/층/호{crC.grip(5)}</th>
         <CSortTh i={6} label="건물명" sortKey="aptName"/>
-        <CSortTh i={7} label="전유면적" sortKey="exclusiveArea"/>
-        <CSortTh i={8} label="사례가격" sortKey="price"/>
-        <CSortTh i={9} label="단가" sortKey="unitPrice"/>
-        <CSortTh i={10} label="거래시점" sortKey="tradeDate"/>
-        <CSortTh i={11} label="사용승인일" sortKey="approvalDate"/>
-        <CSortTh i={12} label="시점수정치" sortKey="timeAdj" style={{width:110}}/>
-        <th style={{...S.th,width:95}} title="단가 × 시점수정치 (화면 참고용, 원 단위 반올림 — 한글 파일엔 안 나감)">시점수정 단가{crC.grip(13)}</th>
-        <th style={{...S.th,width:24}}>{crC.grip(14)}</th>
+        <th style={{...S.th,width:96}} title="사례 용도 — 고르거나 직접 입력. 근린생활시설 등 비주거면 시점수정이 자본수익률로 계산됨">용도{crC.grip(7)}</th>
+        <CSortTh i={8} label="전유면적" sortKey="exclusiveArea"/>
+        <CSortTh i={9} label="사례가격" sortKey="price"/>
+        <CSortTh i={10} label="단가" sortKey="unitPrice"/>
+        <CSortTh i={11} label="거래시점" sortKey="tradeDate"/>
+        <CSortTh i={12} label="사용승인일" sortKey="approvalDate"/>
+        <CSortTh i={13} label="시점수정치" sortKey="timeAdj" style={{width:110}}/>
+        <th style={{...S.th,width:95}} title="단가 × 시점수정치 (화면 참고용, 원 단위 반올림 — 한글 파일엔 안 나감)">시점수정 단가{crC.grip(14)}</th>
+        <th style={{...S.th,width:24}}>{crC.grip(15)}</th>
       </tr></thead><tbody>
         {cases.map((c,i)=>(<DragRow key={c.id} index={i} onDrop={dropC} style={{background:dateAfterWarn(c.tradeDate,ov)?"#fee2e2":c.isSelected?C.sel:c.isShown?"#fffde7":"#fff"}}>
           <td style={S.td}><input type="checkbox" checked={c.isShown} onChange={()=>togC(c.id,"isShown")}/></td>
@@ -6629,14 +6650,14 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
           {/* 소재지 수정 시 입력값 전체를 location에 저장하고 jibun은 비움 — 하위 로직이 전부 `location+jibun` 결합값을 쓰므로 안전 */}
           <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={`${c.location||""}${c.jibun?" "+c.jibun:""}`} onChange={e=>{updC(c.id,"location",e.target.value);if(c.jibun)updC(c.id,"jibun","");}} onKeyDown={gridArrowNav}/></td>
           <td style={S.td}><input style={{...S.inp,width:"100%",textAlign:"center",border:"none",background:"transparent",fontSize:12}} value={`${c.dong||""}/${c.floor||""}/${c.ho||""}`} onChange={e=>{const pts=e.target.value.split("/");updC(c.id,"dong",pts[0]||"");updC(c.id,"floor",pts[1]||"");updC(c.id,"ho",pts[2]||"");}} onKeyDown={gridArrowNav}/></td>
-          <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={c.aptName||""} onChange={e=>updC(c.id,"aptName",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={{...S.tdR,padding:"2px 4px"}} title={caseEd(c,"exclusiveArea")?`복붙 원래값 ${fmtDec(c.orig.exclusiveArea,2)}`:"전유면적 — 직접 고칠 수 있음(고치면 단가 다시 계산)"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 전유면적`} frac={2} value={c.exclusiveArea??""} onChange={v=>setCaseField(c.id,"exclusiveArea",v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:58,minWidth:0,color:caseEd(c,"exclusiveArea")?C.acc:undefined,fontWeight:caseEd(c,"exclusiveArea")?700:undefined}}/>{caseEd(c,"exclusiveArea")?<span role="button" title={`복붙 원래값(${fmtDec(c.orig.exclusiveArea,2)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"exclusiveArea")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
+          <td style={S.tdL}><input style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12}} value={c.aptName||""} onChange={e=>updC(c.id,"aptName",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={{...S.td,padding:"2px 4px"}}><input list="case-use-optsM" aria-label={`거래사례 #${c.symbol} 용도`} title={c.useKind?(caseNr(c,propType)?"비주거 — 시점수정 자본수익률":"주거 — 시점수정 매매가격지수"):"비우면 건 전체 주거용/비주거용을 따름"} placeholder="선택" style={{...S.inp,width:"100%",border:"none",background:"transparent",fontSize:12,textAlign:"center",color:useGroup(c.useKind)==="비주거"?"#b45309":undefined,fontWeight:useGroup(c.useKind)==="비주거"?700:undefined}} value={c.useKind||""} onChange={e=>updC(c.id,"useKind",e.target.value)} onKeyDown={gridArrowNav}/></td><td style={{...S.tdR,padding:"2px 4px"}} title={caseEd(c,"exclusiveArea")?`복붙 원래값 ${fmtDec(c.orig.exclusiveArea,2)}`:"전유면적 — 직접 고칠 수 있음(고치면 단가 다시 계산)"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 전유면적`} frac={2} value={c.exclusiveArea??""} onChange={v=>setCaseField(c.id,"exclusiveArea",v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:58,minWidth:0,color:caseEd(c,"exclusiveArea")?C.acc:undefined,fontWeight:caseEd(c,"exclusiveArea")?700:undefined}}/>{caseEd(c,"exclusiveArea")?<span role="button" title={`복붙 원래값(${fmtDec(c.orig.exclusiveArea,2)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"exclusiveArea")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={{...S.tdR,padding:"2px 4px"}} title={caseEd(c,"price")?`복붙 원래값 ${fmt(c.orig.price)}`:"사례가격 — 직접 고칠 수 있음(고치면 단가 다시 계산)"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 사례가격`} value={c.price??""} onChange={v=>setCaseField(c.id,"price",v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:96,minWidth:0,color:caseEd(c,"price")?C.acc:undefined,fontWeight:caseEd(c,"price")?700:undefined}}/>{caseEd(c,"price")?<span role="button" title={`복붙 원래값(${fmt(c.orig.price)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"price")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td><td style={{...S.tdR,padding:"2px 4px"}} title={c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?`복붙 원래값 ${fmt(c.unitPriceOrig)}`:"단가 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}><PrecNumberInput label={`거래사례 #${c.symbol} 단가`} value={c.unitPrice??""} onChange={v=>setCaseUnit(c.id,v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:80,minWidth:0,color:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?C.acc:undefined,fontWeight:c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?700:undefined}}/>{c.unitPriceOrig!=null&&c.unitPrice!==c.unitPriceOrig?<span role="button" title={`복붙 원래값(${fmt(c.unitPriceOrig)})으로 되돌리기`} onClick={()=>resetCaseUnit(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={{...S.td,padding:"2px 4px"}} title={caseEd(c,"tradeDate")?`복붙 원래값 ${fmtDate(c.orig.tradeDate)}`:"거래시점 — 직접 고칠 수 있음(20260501 → 2026.05.01)"}><div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:2}}><input aria-label={`거래사례 #${c.symbol} 거래시점`} style={{...S.inp,width:76,border:"none",background:"transparent",fontSize:12,textAlign:"center",color:caseEd(c,"tradeDate")?C.acc:undefined,fontWeight:caseEd(c,"tradeDate")?700:undefined}} value={fmtDate(c.tradeDate)} onChange={e=>setCaseField(c.id,"tradeDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/>{caseEd(c,"tradeDate")?<span role="button" title={`복붙 원래값(${fmtDate(c.orig.tradeDate)})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"tradeDate")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}{dateAfterWarn(c.tradeDate,ov)?<span title={dateAfterWarn(c.tradeDate,ov)} style={{marginLeft:2,color:"#dc2626",fontWeight:700,cursor:"help"}}>⚠️</span>:null}</div></td><td style={{...S.td,padding:"2px 4px"}} title={caseEd(c,"approvalDate")?`복붙 원래값 ${c.orig.approvalDate||""}`:"사용승인일 — 직접 고칠 수 있음"}><div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:2}}><input aria-label={`거래사례 #${c.symbol} 사용승인일`} style={{...S.inp,width:78,border:"none",background:"transparent",fontSize:11,textAlign:"center",color:caseEd(c,"approvalDate")?C.acc:undefined,fontWeight:caseEd(c,"approvalDate")?700:undefined}} value={c.approvalDate||""} onChange={e=>setCaseField(c.id,"approvalDate",autoDateFmt(e.target.value))} onKeyDown={gridArrowNav}/>{caseEd(c,"approvalDate")?<span role="button" title={`복붙 원래값(${c.orig.approvalDate||""})으로 되돌리기`} onClick={()=>resetCaseField(c.id,"approvalDate")} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}</div></td>
           <td style={{...S.td,padding:"2px 4px"}} title={taEd(c)?`시점수정 창 계산값 ${fmtDec(taCalc(c),5)} — 직접 고친 값`:"시점수정치 — 🧮 창에서 계산하면 자동으로 들어오고, 칸에서 직접 고칠 수도 있음"}><div style={{display:"flex",alignItems:"center",gap:2}}>
             <PrecNumberInput label={`거래사례 #${c.symbol} 시점수정치`} frac={5} placeholder="입력" value={c.timeAdj??""} onChange={v=>setCaseTA(c.id,v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:62,minWidth:0,color:taEd(c)?C.acc:undefined,fontWeight:taEd(c)?700:undefined}}/>
             {taEd(c)?<span role="button" title={`시점수정 창 계산값(${fmtDec(taCalc(c),5)})으로 되돌리기`} onClick={()=>resetCaseTA(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}
             <span role="button" aria-label={`거래사례 #${c.symbol} 시점수정 창`} title="시점수정 창 열기(지수 자동계산·산식 붙여넣기)" style={{cursor:"pointer",fontSize:13,userSelect:"none"}}
-            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);if(k)setSjIdxKind(k);}}>🧮</span></div></td>
+            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=caseSjKind(c,ov);if(k)setSjIdxKind(k);}}>🧮</span></div></td>
           {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
             return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
@@ -7669,10 +7690,11 @@ function SjRegionTable({kind,value,onChange}){
 function SijeomModal({c,ov,onApply,onClose,propType}){
   const [tmpTime,setTmpTime]=useState(c.timeAdjDetail||"");
   const [warns,setWarns]=useState([]);
-  const [kind,setKind]=useState(()=>detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName)||localStorage.getItem("arap-sjidx-kind")||"아파트");
+  const [kind,setKind]=useState(()=>caseSjKind(c,ov)||localStorage.getItem("arap-sjidx-kind")||"아파트");
   const [region,setRegion]=useState(()=>detectSjRegion(c.location,c.address,ov.jibun)||localStorage.getItem("arap-sjidx-region")||(idxRegionList()[0]||""));
-  const [nrCapKind,setNrCapKind]=useState(()=>{try{return localStorage.getItem("arap-nrcap-kind")||(capTypeList()[0]||"집합상가");}catch(e){console.error('nrcap kind load',e);return capTypeList()[0]||"집합상가";}});
-  const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return localStorage.getItem("arap-nrcap-region")||capPickRegion(localStorage.getItem("arap-nrcap-kind")||capTypeList()[0]||"","서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
+  const [nrCapKind,setNrCapKind]=useState(()=>{try{const u=String(c.useKind||""),tl=capTypeList(),byUse=/근린|근생|상가|점포|판매/.test(u)?tl.find(t=>/집합\s*상가/.test(t)):/사무|업무/.test(u)?tl.find(t=>/오피스/.test(t)):null;if(byUse)return byUse;   // 사례 용도 먼저(근생 → 집합상가, 2026-11-16)
+    return localStorage.getItem("arap-nrcap-kind")||(tl[0]||"집합상가");}catch(e){console.error('nrcap kind load',e);return capTypeList()[0]||"집합상가";}});
+  const [nrCapRegion,setNrCapRegion]=useState(()=>{try{return capPickRegion(nrCapKind,localStorage.getItem("arap-nrcap-region")||"서울");}catch(e){console.error('nrcap region load',e);return"서울";}});
   const normD=d=>{if(!d)return"";return String(d).replace(/-/g,".").replace(/\s/g,"").replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,(_,y,m,dd)=>`${y}.${m.padStart(2,"0")}.${dd.padStart(2,"0")}`);};
   const check=text=>{const ws=[];const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm){const cd=normD(fmtDate(c.tradeDate)),td=normD(tm[1]);if(cd&&td&&cd!==td)ws.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}
     const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm&&ov.baseDate){const ob=normD(ov.baseDate),tb=normD(bm[1]);if(ob&&tb&&ob!==tb)ws.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setWarns(ws);};
@@ -7680,7 +7702,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
   // 계산기(arm_시점수정.html) 화면처럼 왼쪽 입력(유형·지역 표·거래/기준시점) / 오른쪽 결과(시점수정치 크게·산식). 날짜 칸은 이 창에서만 쓰는 값(사례·개요는 안 바꿈)
   const [td,setTd]=useState(()=>fmtDate(c.tradeDate)||"");
   const [bd,setBd]=useState(()=>ov.baseDate||"");
-  const D=idxData(),CD=capData(),nr=propType==="비주거용";
+  const D=idxData(),CD=capData(),nr=caseNr(c,propType);
   const B={p:{background:C.acc,color:"#fff",border:`1px solid ${C.acc}`},s:{background:"#fff",color:"#1e293b",border:"1px solid #cbd5e1"},off:{background:"#cbd5e1",color:"#fff",border:"1px solid #cbd5e1"}};
   const lab={display:"block",fontSize:12,fontWeight:600,color:"#64748b",margin:"10px 0 4px"};
   const sec={fontSize:12,fontWeight:700,color:"#64748b",paddingBottom:8,marginBottom:4,borderBottom:"1px solid #e2e8f0"};
@@ -7688,7 +7710,7 @@ function SijeomModal({c,ov,onApply,onClose,propType}){
   const calc=()=>{const r=nr?buildNrCapText(nrCapKind,nrCapRegion,td,bd):buildSjIdxText(kind,region,td,bd);if(r.err){setWarns(["⚠️ "+r.err]);}else{setTmpTime(r.text);check(r.text);}};
   return(<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}>
     <div style={{background:"#fff",borderRadius:8,padding:20,width:"94%",maxWidth:1000,maxHeight:"94vh",overflowY:"auto",boxSizing:"border-box"}} onClick={e=>e.stopPropagation()}>
-      <div style={S.h3}>시점수정치 — 사례 #{c.symbol}</div>
+      <div style={S.h3}>시점수정치 — 사례 #{c.symbol}{c.useKind?<span style={{fontSize:12,fontWeight:600,color:nr?"#b45309":"#64748b",marginLeft:8}}>용도 {c.useKind} → {nr?"자본수익률":"매매가격지수"}</span>:null}</div>
       <div style={{display:"flex",gap:24,flexWrap:"wrap",marginTop:8}}>
         <div style={{flex:"1 1 440px",minWidth:0}}>
           <div style={sec}>입력 · {nr?"자본수익률 (상업용부동산 임대동향조사)":"매매가격지수 (한국부동산원)"}</div>
@@ -7953,6 +7975,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   };
   const doMultiHwpx=async(mode)=>{
     if(propType!=="주거용"){alert("이 한글 템플릿은 주거용입니다. 비주거용은 워드 의견서를 이용하세요.");return;}
+    {const nrUsed=(ov.units||[]).map(u=>ArapMultiHwpx.resolveCase(u,cases)).filter(c=>c&&useGroup(c.useKind)==="비주거");   // 주거·비주거 섞인 건(2026-11-16): 근생 사례 시점수정 표는 아직 양식 없음
+      if(nrUsed.length&&!confirm(`비주거 용도 사례(${[...new Set(nrUsed.map(c=>"#"+c.symbol))].join(", ")})가 적용된 호수가 있습니다.\n이 사례의 자본수익률 시점수정은 아직 의견서 양식에 전용 표가 없어, 시점수정 표의 지수 칸이 비고 산식·적용치만 들어갑니다.\n그래도 내려받을까요?`))return;}
     setDownloading(true);
     try{
       const result=await ArapMultiHwpx.build({ov,cases,uD,uM,tD,tM},{applyR,getUV,parseTimeAdjDetail,numberToKoreanMoney,assembleToice,parseZip,createZipStored},mode);
@@ -7983,9 +8007,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   // ④탭에서도 시점수정치 입력 가능 — ③탭 applyTm과 동일 적용 로직(비주거 자동전환 포함)
   const [editTimeId,setEditTimeId]=useState(null);
   const applySijeom=(id,text)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));
-    const isCom=/분기/.test(text)||/\(1\+/.test(text);
-    if(setPropType&&propType!=="비주거용"&&isCom)setPropType("비주거용");
-    if(isCom||propType==="비주거용"){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}}
+    const c0=cases.find(x=>x.id===id),useSet=!!useGroup(c0&&c0.useKind);   // 사례 용도를 고른 건은 그 사례만 따름(2026-11-16)
+    const isCom=useSet?caseNr(c0,propType):(/분기/.test(text)||/\(1\+/.test(text));
+    if(setPropType&&propType!=="비주거용"&&isCom&&!useSet)setPropType("비주거용");
+    if(isCom||(propType==="비주거용"&&!useSet)){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}}
     setEditTimeId(null);};
 
 
@@ -8084,7 +8109,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             const r=calcRow(u);
             const curCaseId=r.appC?.id??"";
             const gc=UNIT_GRP_COLOR[u.grp];
-            return(<tr key={u.id}>
+            return(<tr key={u.id} className="u-row" style={gc?{background:UNIT_GRP_BG[u.grp],"--gc":gc}:undefined}>
               <td style={{...S.td,...(gc?{boxShadow:`inset 4px 0 0 ${gc}`}:{})}}>{i+1}</td>
               <td style={{...S.td,fontWeight:700,whiteSpace:"nowrap"}}>({sym})<span style={{marginLeft:6,fontWeight:500,fontSize:11,color:"#475569"}}>{u.ho?`${u.dong?u.dong+"동 ":""}${u.ho}호`:(u.floor?`${u.floor}층`:"")}</span></td>
               <td style={{...S.tdR,whiteSpace:"nowrap"}} title={r.ua!=null&&pNum(u.area)!==r.ua?`전유 ${u.area}㎡ → 사정 ${r.ua}㎡`:undefined}>{r.ua!=null?fmtDec(r.ua,2):"-"}</td>
@@ -8097,7 +8122,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
               <td style={S.td}>
                 {/* 닫힌 칸엔 「#17」만, 펼치면 지번·건물명·호·면적까지 — 보이는 글자 위에 투명한 select를 겹침 */}
                 <div style={{position:"relative",display:"inline-flex",alignItems:"center",gap:4,...S.sel2,padding:"2px 6px",fontSize:12,fontWeight:700,minWidth:48,justifyContent:"space-between"}} title="눌러서 사례 바꾸기 — 지번·건물명·호·면적은 오른쪽 칸에">
-                  <span>{r.appC?`#${r.appC.symbol}`:"선택"}</span><span style={{fontSize:9,color:"#64748b"}}>▼</span>
+                  <span>{r.appC?`#${r.appC.symbol}`:"선택"}</span>{(()=>{const ug=useGroup(u.mainUseJeonyu),cg=useGroup(r.appC&&r.appC.useKind);   // 호수 주용도와 사례 용도 갈래가 다르면 표시(2026-11-16)
+                    return ug&&cg&&ug!==cg?<span style={{color:"#b45309"}} title={`호수 주용도(${u.mainUseJeonyu})는 ${ug}, 사례 #${r.appC.symbol} 용도(${r.appC.useKind})는 ${cg} — 같은 갈래 사례를 고르세요`}>⚠</span>:null;})()}<span style={{fontSize:9,color:"#64748b"}}>▼</span>
                   <select aria-label={`적용 사례 ${sym}`} value={String(curCaseId)} onChange={e=>selectUnitCase(u.id,e.target.value)} style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0,cursor:"pointer",fontSize:12}}>
                     <option value="" disabled>사례 선택</option>
                     {cases.map(c=><option key={c.id} value={String(c.id)}>{caseOptLabel(c)}</option>)}
