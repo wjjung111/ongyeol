@@ -8030,8 +8030,6 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
   };
   const doMultiHwpx=async(mode)=>{
     if(propType!=="주거용"){alert("이 한글 템플릿은 주거용입니다. 비주거용은 워드 의견서를 이용하세요.");return;}
-    {const nrUsed=(ov.units||[]).map(u=>ArapMultiHwpx.resolveCase(u,cases)).filter(c=>c&&caseGroup(c)==="비주거");   // 주거·비주거 섞인 건(2026-11-16): 근생 사례 시점수정 표는 아직 양식 없음
-      if(nrUsed.length&&!confirm(`비주거 용도 사례(${[...new Set(nrUsed.map(c=>"#"+c.symbol))].join(", ")})가 적용된 호수가 있습니다.\n이 사례의 자본수익률 시점수정은 아직 의견서 양식에 전용 표가 없어, 시점수정 표의 지수 칸이 비고 산식·적용치만 들어갑니다.\n그래도 내려받을까요?`))return;}
     setDownloading(true);
     try{
       const result=await ArapMultiHwpx.build({ov,cases,uD,uM,tD,tM},{applyR,getUV,parseTimeAdjDetail,numberToKoreanMoney,assembleToice,parseZip,createZipStored},mode);
