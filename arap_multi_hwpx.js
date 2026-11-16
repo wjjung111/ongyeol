@@ -5,12 +5,13 @@ const num=v=>{if(v==null||String(v).trim()==='')return null;const n=Number(Strin
 const blank=v=>v==null||String(v).trim()==='';
 // 주거·비주거 갈래(2026-11-16) — 화면 s3r86w8a.html useGroup과 같은 규칙
 const useGroup=v=>{const s=String(v||'').trim();if(!s)return null;if(/오피스텔|아파트|연립|다세대|다가구|단독|주택|빌라|맨션|주거/.test(s))return'주거';if(/근린|근생|상가|점포|사무|업무|판매|숙박|창고|공장|의료|교육|비주거/.test(s))return'비주거';return null;};
+const caseGroup=c=>useGroup(c&&c.useKind)||(/근생|근린생활|상가|점포/.test(String((c&&c.aptName)||'')+' '+String((c&&c.buildingName)||''))?'비주거':null);   // 용도 칸 비면 건물명 「(근생)」 등
 function resolveCase(u,cases){
  const selected=cases.filter(c=>c.isSelected);
  if(u?.appliedCaseId!=null)return selected.find(c=>String(c.id)===String(u.appliedCaseId))||null;
  if(u?.appliedSymbol)return selected.find(c=>String(c.symbol)===String(u.appliedSymbol))||null;
  // 사례를 안 고른 호수: 호수 주용도(전유부)와 같은 갈래(주거/비주거) 사례를 먼저 — 근생 호수엔 근생 사례
- const ug=useGroup(u?.mainUseJeonyu),same=ug?selected.filter(c=>{const g=useGroup(c.useKind);return !g||g===ug;}):selected,pool=same.length?same:selected;
+ const ug=useGroup(u?.mainUseJeonyu),same=ug?selected.filter(c=>{const g=caseGroup(c);return !g||g===ug;}):selected,pool=same.length?same:selected;
  return pool.find(c=>c.timeAdj)||pool[0]||null;
 }
 const effectiveArea=u=>num([u.assessedArea,u.evalArea,u.area].find(v=>!blank(v)));
