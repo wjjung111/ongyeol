@@ -68,7 +68,7 @@ p = A.parsePaste([
   '2026-07-11\t43,500\t124.985\t8',
   '2026.06.02 3억 1,000 3층 직거래',
   '2025.12.08 4억 1,000 9층 해제',
-  '2024.09.01 3억 9,000 7층',
+  '2023.09.01 3억 9,000 7층',
   '2025.11.21 4억 800 99.84㎡ 10층',
 ].join('\n'), 124.985);
 assert.equal(p.trades.length, 7); assert.deepEqual(p.warns, []);
@@ -81,7 +81,18 @@ assert.deepEqual(inc, [true, true, true, false, false, false, false]);
 assert.ok(r.rows[0].notes.some(n => /이후 계약/.test(n)));
 assert.ok(r.rows[3].outlier, '3.1억 = 이상치');
 assert.ok(r.rows[4].notes.includes('해제'));
-assert.ok(r.rows[5].notes.includes('2년 초과'));
+assert.ok(r.rows[5].notes.includes('3년 초과'));
+// 조회 기간: 기본 3년(36개월), 「5년까지」 체크 = lookback 60
+assert.equal(A.LOOKBACK, 36); assert.equal(A.LOOKBACK_LONG, 60); assert.equal(r.lookback, 36);
+{
+  const r5 = A.calculate(p.trades, 124.985, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat, {lookback: A.LOOKBACK_LONG});
+  assert.equal(r5.lookback, 60);
+  assert.ok(!r5.rows[5].notes.some(n => /년 초과/.test(n)), '5년이면 2023.09 거래도 기간 안');
+  assert.ok(!r5.rows[5].notes.includes('5년 초과'));
+  const old = A.calculate([{date: '2021-10-01', price: 4e8, area: 124.985, floor: 5}], 124.985, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat, {lookback: 60});
+  assert.ok(old.rows[0].notes.includes('5년 초과'), '5년 넘은 거래 = 5년 초과');
+  assert.equal(old.rows[0].include, false);
+}
 assert.ok(r.rows[6].notes.some(n => /면적대 상이/.test(n)));
 assert.equal(r.bandUsed, '동일');
 const s = A.summarize(r.rows);
