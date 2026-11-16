@@ -189,6 +189,9 @@
   /* 평가사례 표의 kapa hub 칸 — '선정' 열만큼만 차지하게 좁힌다(붙여넣기 전용이라 넓을 필요가 없음) */
   td.kp-c.kp-narrow{width:38px;min-width:0;}
   td.kp-c.kp-narrow .kp{min-width:0;box-sizing:border-box;padding:2px 1px;}
+  /* 평가사례 표 — 기호·지목은 한두 글자라 좁게, 남는 폭은 소재지(지번까지 보이게)로 */
+  #tblAppr .ac-no,#tblAppr .ac-jimok{width:26px;min-width:26px;padding-left:2px;padding-right:2px;}
+  #tblAppr td.ac-loc{min-width:118px;}
   /* 사례 소재지 「외」 옆 — 함께 거래·평가된 지번 입력 버튼(누르면 창) */
   .loc-w{display:flex;align-items:center;gap:3px;}
   .loc-w input{flex:1;min-width:0;}
@@ -2613,7 +2616,7 @@ function apprHasData(a){return a&&['loc','use','jimok','cond','road','unit','bas
 function renderAppr(){
   while(APPRS.length<3)APPRS.push({});   // 기본 화면은 항상 빈 3행(거래사례와 같은 규격)
   var usedA=opUsedSafe().a;opClearUsed('a',usedA);var hidA=opHiddenList('a');
-  var h='<tr><th style="width:22px"></th><th>선정</th><th title="끄면 이 사례는 의견서 평가사례 표와 위치도에 나가지 않습니다. 기호가 기본 순서(a·b·c…)면 의견서에서는 남은 사례끼리 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다." style="font-size:11px;line-height:1.15">의견서<br>표시</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
+  var h='<tr><th style="width:22px"></th><th>선정</th><th title="끄면 이 사례는 의견서 평가사례 표와 위치도에 나가지 않습니다. 기호가 기본 순서(a·b·c…)면 의견서에서는 남은 사례끼리 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다." style="font-size:11px;line-height:1.15">의견서<br>표시</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th class="ac-'+c[1]+'">'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
     h+='<tr'+(hidA[i]?' class="op-off"':'')+' ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
       +'<td class="grip-c" draggable="true" title="끌어서 위아래로 옮기기 — 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다"'
@@ -2623,7 +2626,7 @@ function renderAppr(){
     h+='<td class="kp-c kp-narrow"><textarea class="kp" rows="1" cols="3" placeholder="" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
     APPR_COLS.forEach(function(c){
       var inp='<input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;'+(c[1]==='loc'?'relBtnSync(\'a\','+i+');':'')+'syncPick();calcGongsi();saveForm();">';
-      h+='<td>'+(c[1]==='loc'?'<div class="loc-w">'+inp+relBtn('a',i,a)+'</div>':inp)+'</td>';});
+      h+='<td class="ac-'+c[1]+'">'+(c[1]==='loc'?'<div class="loc-w">'+inp+relBtn('a',i,a)+'</div>':inp)+'</td>';});
     h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
   document.getElementById('tblAppr').innerHTML=h;
