@@ -86,7 +86,7 @@ function render(entries,m,h,mode){
  function repair(t){const rows=children(t,'tr');t.setAttribute('rowCnt',rows.length);t.setAttribute('pageBreak','CELL');t.setAttribute('repeatHeader','1');t.setAttribute('noAdjust','0');const pos=children(t,'pos')[0];if(pos){pos.setAttribute('treatAsChar','0');pos.setAttribute('horzRelTo','COLUMN');pos.setAttribute('vertRelTo','PARA');}let height=0;rows.forEach((r,i)=>{let rh=0;children(r,'tc').forEach(c=>{const a=children(c,'cellAddr')[0];if(a)a.setAttribute('rowAddr',i);const sz=children(c,'cellSz')[0];if(sz)rh=Math.max(rh,+sz.getAttribute('height')/(+children(c,'cellSpan')[0]?.getAttribute('rowSpan')||1));});height+=rh;});const sz=children(t,'sz')[0];if(sz)sz.setAttribute('height',Math.ceil(height));reset(t);}
  function expand(t,start,count,maps,mutate){const old=children(t,'tr').slice(start,start+count),anchor=old[0];maps.forEach((map,i)=>{old.forEach((r,j)=>{const clone=r.cloneNode(true);if(mutate)mutate(clone,map,i,j);fill(clone,{...m.common,...map});t.insertBefore(clone,anchor);});});old.forEach(r=>r.remove());children(t,'tr').forEach((r,i)=>children(r,'tc').forEach(c=>c.setAttribute('header',i<start?'1':'0')));repair(t);}
  const full=mode==='full',doc=xml(m.etcCount&&g.ArapEtcItems?g.ArapEtcItems.insertXml(read('Contents/section1.xml'),m.etcCount,etcTok):read('Contents/section1.xml')),tables=all(doc,'tbl');
- if(tables.length!==11||[1,7,5,2,3,3,14,9,3,2,2].some((n,i)=>children(tables[i],'tr').length!==n))throw Error('여러 호수 템플릿의 표 구조가 변경되었습니다. 템플릿 버전을 확인하세요.');
+ if(tables.length!==13||[1,7,5,2,3,3,14,9,9,7,3,2,2].some((n,i)=>children(tables[i],'tr').length!==n))throw Error('여러 호수 템플릿의 표 구조가 변경되었습니다. 템플릿 버전을 확인하세요.');
  // 템플릿의 빈 문단과 페이지 여백은 고정 머리말과 본문 사이의 실제 간격이다.
  // 이를 제거하거나 재계산하면 한글에서 장 제목이 본문과 겹치므로 원형을 보존한다.
 
@@ -115,11 +115,16 @@ function render(entries,m,h,mode){
  if(!hasNr){[nrHead,nrSrc,nrTbl,nrSent].forEach(n=>n&&n.remove());relabel(decide,'다. ','나. ');}
  else if(!hasRes){[resHead,resSrc,resTbl,resSent].forEach(n=>n&&n.remove());relabel(nrHead,'나. ','가. ');relabel(decide,'다. ','나. ');relabel(nrSent,'본건 중 상업용부동산은','본건은 상업용부동산으로서');}
  else relabel(resSent,'본건은 주거용부동산으로서','본건 중 주거용부동산은');
- expand(tables[8],1,2,m.rows.map(r=>r.values),(r,v,i,j)=>{if(!j)setText(children(r,'tc')[0],v['일련번호']);});
- expand(tables[9],1,1,m.rows.map(r=>r.values),(r,v)=>{setText(children(r,'tc')[0],v['일련번호']);setText(children(r,'tc').at(-1),v['적용_결정단가']);});
- setText(children(children(tables[10],'tr')[0],'tc')[1],'동/층/호수');if(m.adjusted)setText(children(children(tables[10],'tr')[0],'tc')[2],'사정면적\n(㎡)');
- expand(tables[10],1,1,m.rows.map(r=>r.values),(r,v)=>{const cs=children(r,'tc');setText(cs[0],v['일련번호']);setText(cs[1],v['동층호']);setText(cs[2],v['평가면적']);});
- const totalRow=children(tables[10],'tr').at(-1).cloneNode(true);["합계","",fmt(m.rows.reduce((n,r)=>n+(r.area||0),0)),"",fmt(m.total)].forEach((v,i)=>setText(children(totalRow,'tc')[i],v));tables[10].appendChild(totalRow);repair(tables[10]);
+ // 6. 개별요인 비교항목: 주거 호수 → 주거용 표, 근생 등 비주거 호수 → 상업용 표(2026-11-16). 호수 갈래 = 전유부 주용도, 없으면 적용 사례 용도
+ const rowGrp=m.rows.map(r=>useGroup(r.u.mainUseJeonyu)||caseGroup(r.c)||'주거'),facRes=rowGrp.includes('주거')||!rowGrp.length,facCom=rowGrp.includes('비주거');
+ const facHead=k=>findP(v=>v.trim()==='- 개별요인 비교항목('+k+')');
+ if(!facCom)[facHead('상업용'),top(tables[8]),top(tables[9])].forEach(n=>n&&n.remove());
+ if(!facRes)[facHead('주거용'),top(tables[6]),top(tables[7])].forEach(n=>n&&n.remove());
+ expand(tables[10],1,2,m.rows.map(r=>r.values),(r,v,i,j)=>{if(!j)setText(children(r,'tc')[0],v['일련번호']);});
+ expand(tables[11],1,1,m.rows.map(r=>r.values),(r,v)=>{setText(children(r,'tc')[0],v['일련번호']);setText(children(r,'tc').at(-1),v['적용_결정단가']);});
+ setText(children(children(tables[12],'tr')[0],'tc')[1],'동/층/호수');if(m.adjusted)setText(children(children(tables[12],'tr')[0],'tc')[2],'사정면적\n(㎡)');
+ expand(tables[12],1,1,m.rows.map(r=>r.values),(r,v)=>{const cs=children(r,'tc');setText(cs[0],v['일련번호']);setText(cs[1],v['동층호']);setText(cs[2],v['평가면적']);});
+ const totalRow=children(tables[12],'tr').at(-1).cloneNode(true);["합계","",fmt(m.rows.reduce((n,r)=>n+(r.area||0),0)),"",fmt(m.total)].forEach((v,i)=>setText(children(totalRow,'tc')[i],v));tables[12].appendChild(totalRow);repair(tables[12]);
  // 감정평가 목적 문단은 사용자 템플릿의 고정 문구와 서식을 유지하고 입력 필드만 치환한다.
  // Source bases differ by series; never reuse the apartment base month for officetels.
  all(doc,'p').filter(p=>!all(p,'tbl').length&&visible(p).includes('{{지수출처}}')).forEach(p=>setText(p,'[출처: '+[...new Set((resMaps.length?resMaps:selectedMaps).map(v=>v['지수출처']))].join(', ')+']'));
