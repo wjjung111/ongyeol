@@ -5,7 +5,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict'),{exe
 const root=path.resolve(__dirname,'..');
 require(path.join(root,'arap_purpose_law.js'));const law=globalThis.arapPurposeLaw;
 const tpls=['템플릿/토건 의견서(산출근거) 템플릿.hwpx','템플릿/토지 의견서(산출근거) 템플릿.hwpx','템플릿/건물 의견서(산출근거) 템플릿.hwpx','templates/jiphap_multi_res.hwpx'];
-const text=x=>x.replace(/<[^>]+>/g,'').replace(/\{\{(근거법령|재평가대상)\}\}/g,(m,k)=>law.VALUES[k]);
+const text=x=>x.replace(/<[^>]+>/g,'').replace(/\{\{(근거법령|재평가대상|담보목적)\}\}/g,(m,k)=>law.VALUES[k]);
 for(const t of tpls){
   const xml=execFileSync('unzip',['-p',path.join(root,t),'Contents/section*.xml'],{maxBuffer:1<<28}).toString('utf8');
   assert.ok(xml.includes('「상속세 및 증여세법」상'),t+' 원문 문구');
@@ -17,14 +17,28 @@ for(const t of tpls){
   const tok=(xml.match(/<hp:run([^>]*)><hp:t>\{\{평가구분\}\}/)||[])[1];
   if(tok){assert.ok(out.includes('<hp:run'+tok+'><hp:t>{{근거법령}}</hp:t>'),t+' 근거법령 = 값 글자모양');assert.ok(out.includes('<hp:run'+tok+'><hp:t>{{재평가대상}}</hp:t>'),t+' 유형자산 = 값 글자모양');}
   assert.equal((out.match(/<hp:t>/g)||[]).length,(out.match(/<\/hp:t>/g)||[]).length,t+' 태그 짝');
+  // 담보(평가목적 또는 평가구분) → 「…으로서, 담보 목적의 감정평가임.」 (2026-11-16)
+  for(const [pp,cc] of [['담보',''],['일반거래(시가참고)','담보'],['','담보']]){
+    const lo=law(xml,pp,cc),ls=text(lo);
+    assert.ok(!lo.includes('「상속세 및 증여세법」상')&&!lo.includes('{{평가구분}}'),t+' 담보 상증세법 빠짐 '+pp+'/'+cc);
+    assert.match(ls,/으로서, 담보 목적의 감정평가임/,t+' 담보 문장');
+    const pr=(xml.match(/재산에 대한 <\/hp:t><\/hp:run><hp:run([^>]*)><hp:t>\{\{평가목적\}\}/)||[])[1];if(pr)assert.ok(lo.includes('<hp:run'+pr+'><hp:t>{{담보목적}}</hp:t>'),t+' 담보 = 값 글자모양');
+    assert.equal((lo.match(/<hp:t>/g)||[]).length,(lo.match(/<\/hp:t>/g)||[]).length,t+' 담보 태그 짝');}
+  assert.equal(law(xml,'자산재평가','담보'),out,t+' 자산재평가가 먼저');
 }
 // 집건 단일호수 템플릿은 s3r86w8a.html 안 base64 — 한 런 안 문구 형태
 const one='<hp:run charPrIDRef="1"><hp:t>부동산(구분건물)으로서, 「상속세 및 증여세법」상 {{평가구분}}재산에 대한 {{평가목적}} 목적의 감정평가임. </hp:t></hp:run>';
+assert.equal(text(law(one,'일반거래(시가참고)','담보')),'부동산(구분건물)으로서, 담보 목적의 감정평가임. ');
 assert.equal(text(law(one,'자산재평가')),'부동산(구분건물)으로서, 「주식회사 등의 외부감사에 관한 법률」상 유형자산에 대한 {{평가목적}} 목적의 감정평가임. ');
 // 연결 확인
 const src=f=>fs.readFileSync(path.join(root,f),'utf8');
-assert.match(src('arap_toji_opinion.js'),/arapPurposeLaw\(xml,val\('ov_purpose'\)\)/);
-assert.match(src('s3r86w8a.html'),/arapPurposeLaw\(xml,tokenMap\["평가목적"\]\)/);
-assert.match(src('arap_multi_hwpx.js'),/arapPurposeLaw\(/);
+assert.match(src('arap_toji_opinion.js'),/arapPurposeLaw\(xml,tojiPurpose\(\),val\('ov_kind'\)\)/);
+assert.match(src('s3r86w8a.html'),/arapPurposeLaw\(xml,tokenMap\["평가목적"\],tokenMap\["평가구분"\]\)/);
+assert.match(src('arap_multi_hwpx.js'),/arapPurposeLaw\([^;]*evalCategory\)/);
 assert.ok(src('토지건물.html').includes('<script src="arap_purpose_law.js">')&&src('s3r86w8a.html').includes('<script src="arap_purpose_law.js">'));
+// 서류에 찍을 평가목적 — 평가구분 담보 + 평가목적 비었거나 기본값 → 담보 (2026-11-16)
+const pd=globalThis.arapPurposeDoc;
+assert.equal(pd('','담보'),'담보');assert.equal(pd('일반거래(시가참고)','담보'),'담보');assert.equal(pd('경매','담보'),'경매');
+assert.equal(pd('','증여'),'일반거래(시가참고)');assert.equal(pd('','증여',''),'');assert.equal(pd('담보',''),'담보');
+assert.equal(law.otherUse('담보'),'일반거래나 소송 등');assert.equal(law.otherUse('일반거래(시가참고)'),'담보나 소송 등');
 console.log('purpose_law OK');

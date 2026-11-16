@@ -67,11 +67,13 @@ function otherUse(purpose){
   return '담보나 소송 등';
 }
 
+// 평가구분 담보 + 평가목적 기본값 → 담보 (arap_purpose_law.js arapPurposeDoc, 2026-11-16)
+function purposeOf(ov){return g.arapPurposeDoc?g.arapPurposeDoc(ov.purpose,ov.evalCategory):(ov.purpose||'일반거래(시가참고)');}
 var FIXED=function(ov,kind){return [
   '본건 집합건물'+(kind?'('+kind+')':'')+'은 등기사항전부증명서 및 집합건축물대장상 구조, 전유면적 및 이용상황 등을 종합적으로 검토한 결과 물적동일성이 인정됨.',
   '본건의 위치확인은 외관 탐문 및 출입구 표시부분으로 확인하였음.',
   '본건의 소재지, 지번, 지목, 면적 및 이용상황등은 귀 제시자료 및 관련 공부자료에 의거하였음.',
-  '본건은 '+(ov.purpose||'일반거래(시가참고)')+' 목적의 감정평가로서, '+otherUse(ov.purpose)+' 다른 목적으로 사용될 수 없으므로 업무진행 시 참고 바람'];};
+  '본건은 '+purposeOf(ov)+' 목적의 감정평가로서, '+otherUse(purposeOf(ov))+' 다른 목적으로 사용될 수 없으므로 업무진행 시 참고 바람'];};
 
 function Card(props){
   var R=g.React,h=R.createElement,ov=props.ov||{},S=props.S||{},C=props.C||{};

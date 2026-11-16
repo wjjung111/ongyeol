@@ -2060,10 +2060,10 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
         </div>
       ))}
     </div>
-    {/* 요항표 4. 접면도로 상황 — 주거용은 고정 문장, 비주거용은 방향·노폭만 입력(나머지 글자는 연한 회색, 2026-10-14 사용자 요청) */}
+    {/* 요항표 4. 접면도로 상황 — 아파트는 고정 문장, 비주거용·다세대·연립·오피스텔은 방향·노폭만 입력(나머지 글자는 연한 회색, 2026-10-14 사용자 요청 / 다세대 2026-11-16) */}
     <div style={S.card}>
       <div style={S.h2}>접면도로 상황 (요항표)</div>
-      {propType==="비주거용"?(()=>{const n=yohangRoadCnt(ov);const sfx=i=>i?String(i+1):"";
+      {yohangRoadByInput(ov,propType)?(()=>{const n=yohangRoadCnt(ov);const sfx=i=>i?String(i+1):"";
         return (<div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,fontSize:13}}>
         <select aria-label="접면도로 수" style={{...S.inp,width:"auto",marginRight:6}} value={n} onChange={e=>u("roadCnt",e.target.value)}>
           {[1,2,3,4].map(k=><option key={k} value={k}>{k===1?"한 면 접함":k+"면 접함"}</option>)}
@@ -2076,7 +2076,7 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
           <input aria-label={"접면도로 노폭"+(i?" "+(i+1):"")} style={{...S.inp,width:80,textAlign:"center"}} value={ov["roadWidth"+sfx(i)]||""} onChange={e=>u("roadWidth"+sfx(i),e.target.value)} placeholder={i?"8m":"40m"}/>
         </React.Fragment>))}
         <span style={{color:"#9ca3af"}}>{n>1?"내외의 포장도로에 각각 접함.":"내외의 포장도로에 접함."}</span>
-      </div>);})():(<div style={{fontSize:13,color:"#9ca3af"}}>{YOHANG_ROAD_RES}</div>)}
+      </div>);})():(<div style={{fontSize:13,color:"#9ca3af"}}>{YOHANG_ROAD_RES}<div style={{fontSize:11,marginTop:4}}>아파트용 문장 — 「종류」가 다세대주택·연립주택·오피스텔이면 방향·노폭 입력으로 바뀝니다.</div></div>)}
     </div>
     {/* 평가면적 옵션 */}
     <div style={{...S.card,background:ov.areaOption!=="none"?"#fffbeb":"#fff",border:ov.areaOption!=="none"?"1px solid #fde68a":`1px solid ${C.bdr}`}}>
@@ -2439,7 +2439,7 @@ td{border:0.5pt solid #000;padding:1mm 1mm;text-align:center;vertical-align:midd
       <col style="width:13.6%"/><col style="width:3.45%"/><col style="width:12.7%"/><col style="width:6.0%"/><col style="width:13.35%"/>
     </colgroup>
     <tr style="height:11mm;"><td class="lb" colspan="2">감정평가액</td><td class="amt" colspan="8">금 ${korAmt}원整 (￦${fmtMoney(totalAmount)})</td></tr>
-    <tr style="height:10mm;"><td class="lb" colspan="2">의뢰인</td><td colspan="3">${esc(ov.client)}</td><td class="lb">평가목적</td><td colspan="4">${esc(ov.purpose||"일반거래(시가참고)")}</td></tr>
+    <tr style="height:10mm;"><td class="lb" colspan="2">의뢰인</td><td colspan="3">${esc(ov.client)}</td><td class="lb">평가목적</td><td colspan="4">${esc(window.arapPurposeDoc(ov.purpose,ov.evalCategory))}</td></tr>
     <tr style="height:10mm;"><td class="lb" colspan="2">제출처</td><td colspan="3">국세청 및 관할세무서</td><td class="lb">기준가치</td><td colspan="4">시장가치</td></tr>
     <tr style="height:10mm;"><td class="lb" colspan="2">소유자<br/>(대상업체명)</td><td colspan="3">${esc(ov.owner||ov.client)}</td><td class="lb">감정평가조건</td><td colspan="4">${esc(ov.condition||"-")}</td></tr>
     <tr style="height:10mm;"><td class="lb" colspan="2">목록표시근거</td><td colspan="3" style="line-height:1.7;">${ov.listBasis?esc(ov.listBasis):"등기사항전부증명서,<br/>귀 제시목록 등"}</td><td class="lb">기준시점</td><td class="lb" colspan="3">조사기간</td><td class="lb">작성일자</td></tr>
@@ -3025,7 +3025,7 @@ async function downloadGwalhoHwpx(ov,totalAmount){
     const now=new Date();const today=(ov.writeDate||"").trim()||`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}.`; // 작성일자: 1. 접수 · 대상물건 입력값 우선
     const fmtMoney=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
     const num=fmtMoney(totalAmount);
-    const bytes=await buildHwpx(GWALHO_TPL_B64,{"금액한글":numberToKoreanMoney(totalAmount),"금액숫자":num,"의뢰인":ov.client,"소유자":ov.owner||ov.client,"평가목적":ov.purpose||"일반거래(시가참고)","기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"","작성일자":today},xml=>hwpxListBasisCell(gwalhoShareCell(xml,ov,"<hp:t>","</hp:t>"),ov.listBasis));
+    const bytes=await buildHwpx(GWALHO_TPL_B64,{"금액한글":numberToKoreanMoney(totalAmount),"금액숫자":num,"의뢰인":ov.client,"소유자":ov.owner||ov.client,"평가목적":window.arapPurposeDoc(ov.purpose,ov.evalCategory),"기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"","작성일자":today},xml=>hwpxListBasisCell(gwalhoShareCell(xml,ov,"<hp:t>","</hp:t>"),ov.listBasis));
     triggerDownload(bytes,`2.괄호감정표_${ov.client||"의뢰인"}.hwpx`);
   }catch(e){console.error('괄호감정표 hwpx 생성 실패',e);alert("괄호감정표 생성 실패: "+e.message);}
 }
@@ -3038,7 +3038,7 @@ async function downloadGwalhoHml(ov,totalAmount){
     const fmtMoney=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
     const bin=atob(GWALHO_HML_B64);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     let xml=new TextDecoder("utf-8").decode(arr); // BOM은 TextDecoder가 제거 — 저장 시 다시 붙임
-    const tokenMap={"금액한글":numberToKoreanMoney(totalAmount),"금액숫자":fmtMoney(totalAmount),"의뢰인":ov.client,"소유자":ov.owner||ov.client,"평가목적":ov.purpose||"일반거래(시가참고)","기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"","작성일자":today};
+    const tokenMap={"금액한글":numberToKoreanMoney(totalAmount),"금액숫자":fmtMoney(totalAmount),"의뢰인":ov.client,"소유자":ov.owner||ov.client,"평가목적":window.arapPurposeDoc(ov.purpose,ov.evalCategory),"기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"","작성일자":today};
     for(const[tok,val]of Object.entries(tokenMap))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
     xml=gwalhoShareCell(xml,ov,"<CHAR>","</CHAR>");  // 지분평가면 사정 칸 '1세대 × 1/2'
     triggerDownload(new TextEncoder().encode("\uFEFF"+xml),`2.괄호감정표_${ov.client||"의뢰인"}_한글2010용.hml`);
@@ -3126,7 +3126,7 @@ async function buildEvalHwpxV2(tokenMap,tplB64,opt){
     if(/^Contents\/section\d+\.xml$/.test(e.name)){
       let xml=new TextDecoder("utf-8").decode(e.data);
       xml=v2OverviewBuildingName(xml);        // 대상물건 개요 건물명: 동 번호를 붙이지 않음
-      if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,tokenMap["평가목적"]);   // 자산재평가 → 「주식회사 등의 외부감사에 관한 법률」 (arap_purpose_law.js, 치환 전)
+      if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,tokenMap["평가목적"],tokenMap["평가구분"]);   // 자산재평가 → 「주식회사 등의 외부감사에 관한 법률」 / 담보 → 「담보 목적의 감정평가임」 (arap_purpose_law.js, 치환 전)
       xml=v2ShareLayout(xml,tokenMap);          // 지분평가: 개요 「× 1/4」·결정표 지분 열 (치환 전, 줄배치 제거 전)
       xml=v2EtcExtraItem(xml,tokenMap);         // 지분평가: 6. 그 밖의 사항 마지막에 앱 「그 밖의 사항 문구」 항목 (치환 전)
       xml=v2PruneEmptyCaseRows(xml,tokenMap);   // 거래사례 표: 빈 사례행 자동 삭제 (치환 전)
@@ -3561,6 +3561,16 @@ const YOHANG_TPL_B64="UEsDBBQAAAAAABkJBl2C8EFHEwAAABMAAAAIAAAAbWltZXR5cGVhcHBsaW
 const YOHANG_ROAD_RES="아파트단지 내 포장도로가 개설되어 있으며, 이를 통해 외곽 공도와 연계됨.";
 // 비주거용 접면도로 문장 — 1. 접수 · 대상물건 「접면도로 상황」의 방향·노폭. 노폭에 숫자만 넣으면 m을 붙인다.
 // 두 면 이상 접하면(roadCnt 2~4, 둘째부터 roadDir2·roadWidth2 …) 「…40m, 동측으로 노폭 약 8m 내외의 포장도로에 각각 접함.」(2026-10-19)
+// 주거용이라도 아파트가 아니면(종류·주용도에 다세대·연립·오피스텔 / 건물명에 빌라·맨션) 단지 문장 대신 방향·노폭 문장(2026-11-16, 다세대인데 「아파트단지 내」로 나온 사고)
+const yohangRoadByInput=(ov,propType)=>{if(propType==="비주거용")return true;
+  const k=detectSjKind(ov.kind,ov.mainUseJeonyu,ov.mainUse)||detectSjKindLoose(ov.buildingName,ov.aptName);return !!k&&k!=="아파트";};
+// 2. 부근상황은 템플릿 고정 글자(아파트단지 …) — 주거용 다세대·연립이면 받을 때 바꿔 끼움(2026-11-16)
+const YOHANG_NEAR_APT="본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.";
+const yohangNearRes=(ov,propType)=>{if(propType==="비주거용")return "";
+  const s=[ov.kind,ov.mainUseJeonyu,ov.mainUse].map(t=>String(t||"")).join(" ");
+  if(detectSjKind(s)!=="연립다세대"&&!(!detectSjKind(s)&&detectSjKindLoose(ov.buildingName)))return "";
+  const w=/연립/.test(s)&&!/다세대/.test(s)?"연립주택, 다세대주택":"다세대주택, 단독주택";
+  return `본건 주위는 ${w} 및 근린생활시설 등이 혼재하는 주거지대로서, 제반 입지여건 무난한 편임.`;};
 const yohangRoadCnt=ov=>Math.min(4,Math.max(1,parseInt(ov.roadCnt,10)||1));
 const yohangRoadNr=ov=>{const n=yohangRoadCnt(ov),parts=[];
   for(let i=0;i<n;i++){const k=i?String(i+1):"";const d=String(ov["roadDir"+k]||"").trim(),w0=String(ov["roadWidth"+k]||"").trim();const w=/^\d+(\.\d+)?$/.test(w0)?w0+"m":w0;
@@ -3576,7 +3586,7 @@ function buildYohangTokenMap(ov,propType){
   return {
     "요항_시군구동":toks.slice(0,di+1).join(" "),
     "요항_인근":ov.nearDesc||"",
-    "요항_접면도로":propType==="비주거용"?yohangRoadNr(ov):YOHANG_ROAD_RES,
+    "요항_접면도로":yohangRoadByInput(ov,propType)?yohangRoadNr(ov):YOHANG_ROAD_RES,
     "요항_구조":(ov.structure||"").trim(),
     "요항_지상층":`지상${up}층`,
     "요항_층호":`제${ov.floor||""}층 제${ho}호`,
@@ -3611,6 +3621,7 @@ async function downloadYohangHwpx(ov,propType){
         let xml=new TextDecoder("utf-8").decode(e.data);
         xml=expandYohangPara(xml,"{{요항_토지이용계획}}",toice);
         for(const[tok,val]of Object.entries(map))xml=xml.split("{{"+tok+"}}").join(hwpxEsc(val));
+        {const near=yohangNearRes(ov,propType);if(near)xml=xml.split(YOHANG_NEAR_APT).join(hwpxEsc(near));}
         const left=[...new Set(xml.match(/\{\{[^}]+\}\}/g)||[])];
         if(left.length)console.warn("요항표 미치환 토큰",left);
         e.data=new TextEncoder().encode(xml);
@@ -3924,7 +3935,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
     "건축물명칭_표제부":`'${bldgDongHo}'`,
     "평가구분":ov.evalCategory||"","사용자입력":ov.evalCategory||"",
     "감정평가조건":ov.condition||"별도의 감정평가조건은 없음.",
-    "평가목적":ov.purpose||"일반거래(시가참고)","이용상황":ov.kind||ov.mainUseJeonyu||ov.mainUse||"",
+    "평가목적":window.arapPurposeDoc(ov.purpose,ov.evalCategory),"이용상황":ov.kind||ov.mainUseJeonyu||ov.mainUse||"",
     "본건_기호":"가",
     "인근물건유형":ov.nearKind||ov.mainUseJeonyu||"부동산",
     "인근면적기준":ov.nearAreaBase||"전유면적",
@@ -6986,7 +6997,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
     "건축물명칭_표제부":`'${bldgDongHo}'`,
     "평가구분":ov.evalCategory||"","사용자입력":ov.evalCategory||"",
     "감정평가조건":ov.condition||"별도의 감정평가조건은 없음.",
-    "평가목적":ov.purpose||"일반거래(시가참고)","이용상황":ov.kind||ov.mainUseJeonyu||ov.mainUse||"",
+    "평가목적":window.arapPurposeDoc(ov.purpose,ov.evalCategory),"이용상황":ov.kind||ov.mainUseJeonyu||ov.mainUse||"",
     "본건_기호":"가",
     "인근물건유형":ov.nearKind||ov.mainUseJeonyu||"부동산",
     "인근면적기준":ov.nearAreaBase||"전유면적",
