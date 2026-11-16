@@ -198,6 +198,8 @@ function buildingMaps(rows){
   });
 }
 function bldRoad(){return text(val('bt_roadAddr')).trim()||text((LANDS[0]||{}).roadAddr).trim();}
+// 서류에 찍을 평가목적 — 평가구분 담보 + 평가목적 기본값이면 담보(arap_purpose_law.js, 2026-11-16)
+function tojiPurpose(){return window.arapPurposeDoc?window.arapPurposeDoc(val('ov_purpose'),val('ov_kind'),''):val('ov_purpose');}
 function bldOnly(){return typeof BLD_ONLY!=='undefined'&&!!BLD_ONLY;}
 // 건물만 평가(토지건물.html BLD_ONLY) — 토지 계산(공시지가·거래사례·그 밖의 요인) 없이 건물 원가법만으로 의견서 자료를 만든다.
 // 양식(템플릿/건물 의견서(산출근거) 템플릿.hwpx)에는 토지 토큰이 없다. 감정평가액 = 건물가액.
@@ -205,7 +207,7 @@ function bldOnlyData(br){
   if(!(br.rows||[]).length)throw new Error('건물평가 탭에서 건물 층별 목록(건축물대장)과 재조달원가를 먼저 입력해 주세요.');
   var m={
     '소재지_동':dongAddr(),'인근위치설명':val('op_location')||'[인근 위치 기입]','지대':val('g_daegu'),
-    '평가구분':val('ov_kind'),'평가목적':val('ov_purpose'),'기준시점':docDot(val('base_gijun')),'조사기간':docDot(val('base_josa')),
+    '평가구분':val('ov_kind'),'평가목적':tojiPurpose(),'기준시점':docDot(val('base_gijun')),'조사기간':docDot(val('base_josa')),
     '건물_합계면적':area(br.size),'건물가액':money(br.total),'감정평가액':money(br.total)
   };
   return {global:m,detail:m,parcels:[],subject:[],landGroup:false,landOnly:false,bldOnly:true,bldRoad:bldRoad(),standards:[],
@@ -237,7 +239,7 @@ function opinionData(){
   var date=docDot(val('base_gongsi'));
   var m={
     '소재지_동':dongAddr(),'인근위치설명':val('op_location')||'[인근 위치 기입]','지대':val('g_daegu'),
-    '평가구분':val('ov_kind'),'평가목적':val('ov_purpose'),'기준시점':docDot(val('base_gijun')),'조사기간':docDot(val('base_josa')),
+    '평가구분':val('ov_kind'),'평가목적':tojiPurpose(),'기준시점':docDot(val('base_gijun')),'조사기간':docDot(val('base_josa')),
     '공시기준일':date,'공시지가_연도':date.slice(0,4),
     '공시시점_설명':[val('jb_region'),'('+date+'~'+docDot(val('base_gijun'))+')',val('jb_use')].filter(Boolean).join(' '),
     '공시시점_치':fixed(gs.rows[0].time,5),'공시시점_률':fixed((gs.rows[0].time-1)*100,3)+'%',
@@ -815,7 +817,7 @@ function factorTables(tbl,maps,state){
     resizeRows(t,1,2,2,g.maps,state);factorCols(t,g.d,2);});
 }
 function opinionXml(xml,data){
-  if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,val('ov_purpose'));   // 자산재평가 → 외부감사법 문구 (arap_purpose_law.js, 2026-11-15)
+  if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,tojiPurpose(),val('ov_kind'));   // 자산재평가 → 외부감사법 문구 / 담보 → 「담보 목적의 감정평가임」 (arap_purpose_law.js, 2026-11-15)
   var doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.getElementsByTagName('parsererror').length)throw new Error('의견서 템플릿 XML을 읽을 수 없습니다.');
   var state={seq:0,map:Object.assign({},window.arapPurposeLaw?window.arapPurposeLaw.VALUES:{},data.global)};
@@ -998,13 +1000,15 @@ function opinionXml(xml,data){
   // 원본의 고정 샘플 문구 중 이미 앱에서 입력받는 항목을 연결한다. 법령·방법론 본문은 유지.
   // 기준시점근거 — 집합건물 감정평가서와 같은 문구(현장조사완료일인 → 대상물건의 가격조사를 완료한 날짜인, 미선택이면 의뢰일인)
   replacePlain(doc,'귀 제시일인',(function(b){return b==='현장조사완료일인'?'대상물건의 가격조사를 완료한 날짜인':(b||'의뢰일인');})(val('ov_gijunBasis')));
-  replacePlain(doc,'일반거래(시가참고)',val('ov_purpose'));
+  replacePlain(doc,'일반거래(시가참고)',tojiPurpose());
+  if(window.arapPurposeLaw&&window.arapPurposeLaw.otherUse)replacePlain(doc,' 목적의 감정평가로서, 담보나 소송 등 다른 목적',' 목적의 감정평가로서, '+window.arapPurposeLaw.otherUse(tojiPurpose())+' 다른 목적');   // 담보 목적인데 「담보나 소송 등」(2026-11-16)
   replacePlain(doc,'한국부동산원, 2025년',val('op_costSource')||'[건물신축단가표 출처·연도 기입]');
   replacePlain(doc,'헙계','합계');
   if(ETC.type==='a')replacePlain(doc,'상기와 같이 거래사례를 기준한','상기와 같이 평가사례를 기준한');
   descendants(doc,'p').filter(function(p){return p.parentNode===doc.documentElement;}).forEach(function(p){
     if(p.textContent.indexOf('본건은 ')===0&&/(토지( 및 건물의|의)?|건물의) 특성/.test(p.textContent)&&val('fn_opinion')){   // 토지 전용 양식은 '토지의 특성', 건물만 양식은 '건물의 특성'
-      var ts=descendants(p,'t');if(ts.length){ts[0].textContent=val('fn_opinion');ts.slice(1).forEach(function(t){t.textContent='';});clearLines(p);}
+      var ts=descendants(p,'t');if(ts.length){var fo=val('fn_opinion'),pu=tojiPurpose();if(pu)fo=fo.split('일반거래(시가참고) 목적으로서').join(pu+' 목적으로서');   // 기본 문구의 목적도 평가목적대로(담보 등, 2026-11-16)
+      ts[0].textContent=fo;ts.slice(1).forEach(function(t){t.textContent='';});clearLines(p);}
     }
   });
   var missing=new Set();

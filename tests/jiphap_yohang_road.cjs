@@ -30,7 +30,16 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const card=scope.getByText('접면도로 상황 (요항표)',{exact:true}).locator('xpath=..');
     assert.ok((await card.innerText()).includes('아파트단지 내 포장도로가 개설되어'),'주거용 화면 문장');
     assert.ok((await road()).includes('아파트단지 내 포장도로가 개설되어 있으며, 이를 통해 외곽 공도와 연계됨.'),'주거용 요항표');
+    // 주거용이라도 종류가 다세대주택이면 아파트 단지 문장 대신 방향·노폭 입력(2026-11-16)
     await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
+    const kindInp=scope.locator('xpath=.//span[normalize-space()="종류"]/following-sibling::input').first();const kind0=await kindInp.inputValue();
+    await kindInp.fill('다세대주택');
+    await scope.locator('input[aria-label="접면도로 방향"]').fill('남측');await scope.locator('input[aria-label="접면도로 노폭"]').fill('6');
+    assert.ok(!(await card.innerText()).includes('아파트단지'),'다세대 화면엔 아파트 문장 없음');
+    const xd=await road();assert.ok(xd.includes('본건 남측으로 노폭 약 6m 내외의 포장도로에 접함.'),'다세대 요항표');assert.ok(!xd.includes('아파트단지'),'다세대 요항표에 아파트 문장 없음');
+    assert.ok(xd.includes('본건 주위는 다세대주택, 단독주택 및 근린생활시설 등이 혼재하는 주거지대로서'),'다세대 부근상황');
+    await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();await kindInp.fill(kind0);
+    assert.ok((await card.innerText()).includes('아파트단지 내 포장도로가 개설되어'),'종류 되돌리면 아파트 문장');
     await scope.locator('button',{hasText:/^비주거용$/}).first().click();
     await scope.locator('input[aria-label="접면도로 방향"]').fill('북측');await scope.locator('input[aria-label="접면도로 노폭"]').fill('40');
     const gray=await scope.locator('span',{hasText:'으로 노폭 약'}).evaluate(e=>getComputedStyle(e).color);assert.equal(gray,'rgb(156, 163, 175)','연한 회색');

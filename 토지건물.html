@@ -4345,7 +4345,7 @@ function gwalMap(){
   var landOut=LAND_ONLY&&outA;
   return Object.assign(outRow,{
     '의뢰인':cgVal('ov_client'),'소유자':cgVal('ov_owner'),
-    '평가목적':cgVal('ov_purpose')||'일반거래(시가참고)','제출처':cgVal('ov_submit')||'-',
+    '평가목적':(window.arapPurposeDoc?window.arapPurposeDoc(cgVal('ov_purpose'),cgVal('ov_kind')):(cgVal('ov_purpose')||'일반거래(시가참고)')),'제출처':cgVal('ov_submit')||'-',
     '기준가치':cgVal('ov_value')||'시장가치','평가조건':cgVal('ov_cond')||'-',
     '기준시점':docDot(cgVal('base_gijun')),'조사기간':docDot(cgVal('base_josa')),'작성일자':docDot(cgVal('ov_writeDay')||A.today()),
     '기타참고사항':'-',

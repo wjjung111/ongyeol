@@ -85,6 +85,15 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
         assert(ra.text.includes('부동산(건물)으로서, 「주식회사 등의 외부감사에 관한 법률」상 유형자산에 대한 자산재평가 목적의 감정평가임'),'자산재평가 목적 문장');
         assert(!ra.text.includes('「상속세 및 증여세법」상'),'상증세법 문구 없음');
         await page.evaluate(()=>{document.getElementById('ov_purpose').value='일반거래(시가참고)';});
+        // 평가구분 담보(평가목적 기본값) → 「담보 목적의 감정평가임」, 6. 그 밖의 사항도 담보 (2026-11-16)
+        const kind0=await page.evaluate(()=>{const e=document.getElementById('ov_kind'),v=e.value;e.value='담보';return v;});
+        const lb=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data())));
+        fs.writeFileSync(path.join(out,'건물만_의견서_담보.hwpx'),Buffer.from(lb));
+        const la=await check(page,lb);assert.deepEqual(la.bad,[],'담보 표 구조');assert.deepEqual(la.left,[],'담보 남은 토큰');
+        assert(la.text.includes('부동산(건물)으로서, 담보 목적의 감정평가임'),'담보 목적 문장');
+        assert(!la.text.includes('「상속세 및 증여세법」상')&&!la.text.includes('일반거래(시가참고)'),'담보 — 상증세법·일반거래 문구 없음');
+        assert(la.text.includes('담보 목적의 감정평가로서, 일반거래나 소송 등 다른 목적'),'담보 6. 그 밖의 사항');
+        await page.evaluate(v=>{document.getElementById('ov_kind').value=v;},kind0);
       }
       assert(r.top.some(t=>t.startsWith('Ⅲ. 건물가액 산출근거'))&&r.top.some(t=>t.startsWith('Ⅳ. 감정평가액의 결정')),'절 번호 Ⅲ·Ⅳ');
       assert(r.top.some(t=>t.startsWith('② 대상물건과'))&&r.top.some(t=>t.startsWith('③ 대상물건이')),'방법 목록 번호');
