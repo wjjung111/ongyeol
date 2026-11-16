@@ -197,12 +197,47 @@
   (function(){
     'use strict';
     var KEY='arap-jiphap-map-v1', VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';
-    var store={},views={};
+    var store={},views={},last={};
+    var CIRC='㉠㉡㉢㉣㉤㉥㉦㉧㉨㉩㉪㉫㉬㉭';
+    function sv(x){return x==null?'':String(x).trim();}
+    function won(n){n=Number(String(n==null?'':n).replace(/,/g,''));return n>0?Math.round(n).toLocaleString('ko-KR'):'';}
+    function dongJibun(loc){var t=sv(loc),m=t.match(/^(.*?[동읍면리가])\s+((?:산\s*)?\d.*)$/);return m?(m[1].split(/\s+/).pop()+' '+m[2]):t;}
+    function hoTxt(x){var d=sv(x.dong),f=sv(x.floor).replace(/층$/,''),h=sv(x.ho).replace(/호$/,'');return [d?d+'동':'',f?f+'층':'',h?h+'호':''].filter(Boolean).join(' ');}
+    // 같은 주소끼리 묶은 사례·전례 목록 [{kind,key,loc,list:[{x,sym}]}]
+    function groups(sfx){
+      var L=last[sfx]||{},out=[],multi=sfx==='M';
+      function add(kind,arr,symOf){var by={};(arr||[]).forEach(function(x,i){var loc=(sv(x.location)+(sv(x.jibun)?' '+sv(x.jibun):'')).trim();if(!loc)return;var key=kind+'|'+loc;
+        if(!by[key]){by[key]={kind:kind,key:key,loc:loc,list:[]};out.push(by[key]);if(!store[key])store[key]={};}by[key].list.push({x:x,sym:symOf(i)});});}
+      add('거래사례',(L.cases||[]).filter(function(c){return c&&c.isShown;}),function(i){return multi?'#'+(i+1):(CIRC.charAt(i)||'#'+(i+1));});
+      add('평가전례',(L.precs||[]).filter(function(p){return p&&p.isShown!==false;}),function(i){return 'abcdefghij'.charAt(i)||String(i+1);});
+      return out;
+    }
+    function items(sfx){
+      var L=last[sfx]||{},ov=L.ov||{};
+      var region=(window.ArapMap&&ArapMap.sggOfAddr)?ArapMap.sggOfAddr(ov.jibun||''):'';
+      var out=ArapJiphapParcels(ov).map(function(p){
+        var loc=p.address;if(!store[loc])store[loc]={};
+        return {o:store[loc],kind:'본건',label:'[본건]',labelGroup:'subject',boundaryLeader:true,color:'#dc2626',loc:loc,region:'',pick:true,poly:true};
+      });
+      groups(sfx).forEach(function(g){
+        var tr=g.kind==='거래사례',o=store[g.key],name=sv(tr?g.list[0].x.aptName:g.list[0].x.buildingName);
+        var lines=[dongJibun(g.loc)+(name&&g.list.length===1?' '+name:'')].concat(g.list.map(function(e){var x=e.x;
+          return [e.sym,g.list.length>1&&sv(tr?x.aptName:x.buildingName)?sv(tr?x.aptName:x.buildingName):'',hoTxt(x),sv(tr?x.tradeDate:x.baseDate),won(x.unitPrice)?'@'+won(x.unitPrice):''].filter(Boolean).join(' · ');}));
+        out.push({o:o,kind:g.kind,label:(tr?'거래 ':'전례 ')+g.list.map(function(e){return e.sym;}).join('·'),color:tr?'#16a34a':'#ea580c',loc:g.loc,region:region,
+          pick:tr&&g.list.some(function(e){return e.x.isSelected;}),poly:false,lines:lines,labelHidden:!!o.labOff,
+          info:g.list.map(function(e){return e.sym+' '+hoTxt(e.x);}).join(', '),
+          onCloseLabel:function(){o.labOff=true;save();window.ArapJiphapMap.restyle(sfx);}});
+      });
+      return out;
+    }
     try{store=JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch(e){store={};}
     function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){console.error('위치도 저장',e);}}
     function vkey(){try{return localStorage.getItem('exact-vworld-key')||VKEY;}catch(e){return VKEY;}}
     window.ArapJiphapMap={
-      show:function(sfx,ov){
+      // 2026-11-16: 본건 + 거래사례(초록)·평가전례(주황) — 토건 위치도처럼. 표시(✔) 켠 것만, 이름표 번호 = 의견서 기호(표시 순서).
+      //   같은 지번(같은 단지)의 사례는 점 하나·말풍선 하나에 호마다 한 줄. 선정 사례가 있으면 점을 채움(pick).
+      //   좌표·말풍선 끔(labOff)은 이 페이지 전용 키에 「분류|주소」로 — 건 저장 형식은 그대로
+      show:function(sfx,ov,cases,precs){
         sfx=sfx||'';
         if(!window.ArapMap||!document.getElementById('mapBox'+sfx))return null;
         var v=views[sfx];
@@ -212,13 +247,12 @@
           key:vkey,onSave:save,
           emptyMsg:'② 대상물건개요의 「지번주소」를 먼저 넣어 주세요.'
         });
-        var items=ArapJiphapParcels(ov).map(function(p,i,all){
-          var loc=p.address;if(!store[loc])store[loc]={};
-          return {o:store[loc],kind:'본건',label:'[본건]',labelGroup:'subject',boundaryLeader:true,color:'#dc2626',loc:loc,region:'',pick:true,poly:true};
-        });
-        v.open(items);
+        last[sfx]={ov:ov,cases:cases,precs:precs};
+        v.open(items(sfx));
         return v;
       },
+      restyle:function(sfx){sfx=sfx||'';var v=views[sfx];if(v&&last[sfx])v.restyle(items(sfx));},
+      bubbles:function(sfx,on){sfx=sfx||'';if(!last[sfx])return;groups(sfx).forEach(function(g){store[g.key].labOff=!on;});save();window.ArapJiphapMap.restyle(sfx);},
       view:function(sfx){return views[sfx||''];}
     };
   })();
@@ -4634,19 +4668,29 @@ function SyncPanel(){
 // ── Main ──
 // 2. 사례 · 가격산출 — 본건의 각 필지를 지도에 찍는다(대지 필지 테두리 + 화살표 이름표). 엔진은 공용 arap_map.js,
 // 실제 생성은 React 밖 어댑터(ArapJiphapMap)가 맡고 여기서는 자리와 조작 버튼만 그린다.
-function StepMap({ov,sfx,active}){
+function StepMap({ov,sfx,active,cases,precs}){
+  // 사례·전례 중 지도에 영향 주는 칸만 비교(표시·선정·주소·호·시점·단가) — 다른 칸을 고칠 땐 다시 그리지 않음
+  const mapSig=JSON.stringify([(cases||[]).map(c=>[c.id,c.isShown,c.isSelected,c.location,c.jibun,c.aptName,c.dong,c.floor,c.ho,c.tradeDate,c.unitPrice]),(precs||[]).map(p=>[p.id,p.isShown,p.location,p.jibun,p.buildingName,p.dong,p.floor,p.ho,p.baseDate,p.unitPrice])]);
   useEffect(()=>{
     if(!active)return;
-    const t=setTimeout(()=>{if(window.ArapJiphapMap)ArapJiphapMap.show(sfx,ov);},60);
+    const t=setTimeout(()=>{if(window.ArapJiphapMap)ArapJiphapMap.show(sfx,ov,cases,precs);},60);
     return ()=>clearTimeout(t);
-  },[active,sfx,ov.jibun,JSON.stringify(ov.landParcels||[])]);
+  },[active,sfx,ov.jibun,JSON.stringify(ov.landParcels||[]),mapSig]);
   const view=()=>(window.ArapJiphapMap&&ArapJiphapMap.view(sfx))||null;
+  const [vis,setVis]=useState({"거래사례":true,"평가전례":true});
+  const togKind=k=>{const nv={...vis,[k]:!vis[k]};setVis(nv);const v=view();if(v)v.setVisible(nv);};
   const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
-      <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건</div>
+      <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건 · 사례 · 전례</div>
+      <span style={{fontSize:12,color:"#475569",display:"inline-flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <span><span style={{color:"#dc2626"}}>■</span> 본건</span>
+        {[["거래사례","#16a34a"],["평가전례","#ea580c"]].map(([k,col])=><label key={k} style={chk}><input type="checkbox" aria-label={"위치도 "+k+" 보이기"} checked={vis[k]} onChange={()=>togKind(k)}/> <span style={{color:col}}>●</span> {k}</label>)}
+        <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155",fontSize:12,padding:"3px 8px"}} onClick={()=>window.ArapJiphapMap&&ArapJiphapMap.bubbles(sfx,true)} title="✕로 끈 말풍선을 모두 다시 켬">💬 모두 켜기</button>
+        <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155",fontSize:12,padding:"3px 8px"}} onClick={()=>window.ArapJiphapMap&&ArapJiphapMap.bubbles(sfx,false)}>💬 모두 끄기</button>
+      </span>
       <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} onChange={onOv}/> 지적선</label>
       <label style={chk}><input type="checkbox" id={"mapZoning"+sfx} onChange={onOv}/> 용도지역</label>
       <select id={"mapBaseSel"+sfx} style={S.sel2} onChange={onBase}>
@@ -5137,7 +5181,7 @@ function App(){
     <div className={"t23-wrap"} style={{display:step>=1?"block":"none"}}><div className={"t23 t23s v"+step}>
       <div className="t23-cases"><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType}/></div>
       <div className="t23-k4"><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} saved={!!(currentId&&saveStatus==="✅")} view={step===2?"bill":"calc"} onResult={onResult} goStep={setStep} hasId={!!currentId}/></div>
-      <div className="t23-map"><StepMap ov={ov} sfx="" active={step===2}/></div>
+      <div className="t23-map"><StepMap ov={ov} sfx="" active={step===2} cases={cases} precs={precs}/></div>
     </div></div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
       {step>0?<button style={{...S.btn,...BTN.s}} onClick={()=>setStep(step-1)}>← 이전</button>:<div/>}
@@ -7191,7 +7235,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
     return found?_applySym(found):null;
   };
   const _calcUnit=unit=>unit?ArapMultiHwpx.calculateUnit(unit,_getAppliedC(unit),{uD,uM,tD,tM},{applyR,getUV}):null;
-  const _note=u=>[u?.factorNote,(![null,undefined,"",1,"1","1.0","1.000"].includes(u?.etcFactor)?`기타요인 비교치: ${u.etcFactor}`:"")].filter(Boolean).join(" / ");
+  const _note=u=>[u?ArapMultiHwpx.fillEqualNote(u.factorNote,u):"",(![null,undefined,"",1,"1","1.0","1.000"].includes(u?.etcFactor)?`기타요인 비교치: ${u.etcFactor}`:"")].filter(Boolean).join(" / ");
   const _ucs=_u4.map(_calcUnit);
   const _u0c=_ucs[0],_u1c=_ucs[1],_u2c=_ucs[2],_u3c=_ucs[3];
   const _setMulti=(firstKey,restKeys,value)=>{d[firstKey]=value??"";for(const k of restKeys)d[k]="";};
@@ -8161,7 +8205,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           if(u.grp&&units.findIndex(x=>x.grp===u.grp)!==i)return null;
           const lbl=u.grp?units.map((x,j)=>x.grp===u.grp?(HANGUL_SYMBOLS.charAt(j)||j+1):null).filter(v=>v!=null).join("·"):(HANGUL_SYMBOLS.charAt(i)||i+1);
           const gc=UNIT_GRP_COLOR[u.grp];
-          return <label key={u.id} style={{display:"flex",gap:8,marginTop:6,alignItems:"flex-start"}}><span style={{paddingTop:8,fontWeight:700,width:units.some(x=>x.grp)?58:18,flexShrink:0,wordBreak:"keep-all",lineHeight:1.3,color:gc||undefined}}>{lbl}{u.grp&&<span style={{display:"block",fontSize:10,fontWeight:600}}>묶음 {u.grp}</span>}</span><textarea aria-label={`호별 비교 의견 ${i+1}`} style={{...S.ta,minHeight:92,flex:1,lineHeight:1.55}} value={u.factorNote||FACTOR_NOTE_DEFAULT} onChange={e=>updUnit(u.id,'factorNote',e.target.value)} placeholder={FACTOR_NOTE_DEFAULT}/></label>;})}</div>
+          return <label key={u.id} style={{display:"flex",gap:8,marginTop:6,alignItems:"flex-start"}}><span style={{paddingTop:8,fontWeight:700,width:units.some(x=>x.grp)?58:18,flexShrink:0,wordBreak:"keep-all",lineHeight:1.3,color:gc||undefined}}>{lbl}{u.grp&&<span style={{display:"block",fontSize:10,fontWeight:600}}>묶음 {u.grp}</span>}</span><textarea aria-label={`호별 비교 의견 ${i+1}`} style={{...S.ta,minHeight:92,flex:1,lineHeight:1.55}} value={ArapMultiHwpx.fillEqualNote(u.factorNote,u)} title="비교치가 1인 요인은 빈 줄에 「대체로 대등함」이 기본으로 들어갑니다(고쳐 쓰면 그대로)" onChange={e=>updUnit(u.id,'factorNote',e.target.value)} placeholder={FACTOR_NOTE_DEFAULT}/></label>;})}</div>
         {!allReady&&<div style={{color:C.dng,marginTop:8}}>미입력 또는 0 이하인 면적·단가·시점수정치·비교치가 있어 전체 합계를 확정할 수 없습니다.</div>}
         {!hasAdj&&<div style={{marginTop:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산출단가/결정단가/총액이 계산되지 않습니다. 2. 사례 · 가격산출 탭에서 시점수정치를 입력하세요.</div>}
         <div style={{marginTop:6,fontSize:11,color:"#666"}}>
@@ -8326,19 +8370,29 @@ function SyncPanel(){
 // ── Main ──
 // 2. 사례 · 가격산출 — 본건의 각 필지를 지도에 찍는다(대지 필지 테두리 + 화살표 이름표). 엔진은 공용 arap_map.js,
 // 실제 생성은 React 밖 어댑터(ArapJiphapMap)가 맡고 여기서는 자리와 조작 버튼만 그린다.
-function StepMap({ov,sfx,active}){
+function StepMap({ov,sfx,active,cases,precs}){
+  // 사례·전례 중 지도에 영향 주는 칸만 비교(표시·선정·주소·호·시점·단가) — 다른 칸을 고칠 땐 다시 그리지 않음
+  const mapSig=JSON.stringify([(cases||[]).map(c=>[c.id,c.isShown,c.isSelected,c.location,c.jibun,c.aptName,c.dong,c.floor,c.ho,c.tradeDate,c.unitPrice]),(precs||[]).map(p=>[p.id,p.isShown,p.location,p.jibun,p.buildingName,p.dong,p.floor,p.ho,p.baseDate,p.unitPrice])]);
   useEffect(()=>{
     if(!active)return;
-    const t=setTimeout(()=>{if(window.ArapJiphapMap)ArapJiphapMap.show(sfx,ov);},60);
+    const t=setTimeout(()=>{if(window.ArapJiphapMap)ArapJiphapMap.show(sfx,ov,cases,precs);},60);
     return ()=>clearTimeout(t);
-  },[active,sfx,ov.jibun,JSON.stringify(ov.landParcels||[])]);
+  },[active,sfx,ov.jibun,JSON.stringify(ov.landParcels||[]),mapSig]);
   const view=()=>(window.ArapJiphapMap&&ArapJiphapMap.view(sfx))||null;
+  const [vis,setVis]=useState({"거래사례":true,"평가전례":true});
+  const togKind=k=>{const nv={...vis,[k]:!vis[k]};setVis(nv);const v=view();if(v)v.setVisible(nv);};
   const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
-      <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건</div>
+      <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건 · 사례 · 전례</div>
+      <span style={{fontSize:12,color:"#475569",display:"inline-flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <span><span style={{color:"#dc2626"}}>■</span> 본건</span>
+        {[["거래사례","#16a34a"],["평가전례","#ea580c"]].map(([k,col])=><label key={k} style={chk}><input type="checkbox" aria-label={"위치도 "+k+" 보이기"} checked={vis[k]} onChange={()=>togKind(k)}/> <span style={{color:col}}>●</span> {k}</label>)}
+        <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155",fontSize:12,padding:"3px 8px"}} onClick={()=>window.ArapJiphapMap&&ArapJiphapMap.bubbles(sfx,true)} title="✕로 끈 말풍선을 모두 다시 켬">💬 모두 켜기</button>
+        <button style={{...S.btn,background:"#fff",border:`1px solid ${C.bdr}`,color:"#334155",fontSize:12,padding:"3px 8px"}} onClick={()=>window.ArapJiphapMap&&ArapJiphapMap.bubbles(sfx,false)}>💬 모두 끄기</button>
+      </span>
       <label style={chk}><input type="checkbox" id={"mapCadastre"+sfx} onChange={onOv}/> 지적선</label>
       <label style={chk}><input type="checkbox" id={"mapZoning"+sfx} onChange={onOv}/> 용도지역</label>
       <select id={"mapBaseSel"+sfx} style={S.sel2} onChange={onBase}>
@@ -8740,7 +8794,7 @@ function App(){
     <div className={"t23-wrap t23-multi"} style={{display:step>=1?"block":"none"}}><div className={"t23 v"+step}>
       <div className="t23-cases"><Step3 cases={cases} setCases={setC} precs={precs} setPrecs={setPrecs} pushUndo={pushUndo} ov={ov} setOv={setOv} propType={propType} setPropType={setPropType}/></div>
       <div className="t23-k4"><Step4 cases={cases} setCases={setC} propType={propType} setPropType={setPropType} pushUndo={pushUndo} ov={ov} setOv={setOv} precs={precs} uD={uD} setUD={setUD} uM={uM} setUM={setUM} tD={tD} setTD={setTD} tM={tM} setTM={setTM} manU={manU} setManU={setManU} tplLoaded={tplLoaded} tplB64={tplB64} handleTplUpload={handleTplUpload} deleteTpl={deleteTpl} tplError={tplError} tplFromUser={tplFromUser} saved={!!(currentId&&saveStatus==="✅")} view={step===2?"bill":"calc"} onResult={onResult} goStep={setStep} hasId={!!currentId}/></div>
-      <div className="t23-map"><StepMap ov={ov} sfx="M" active={step===2}/></div>
+      <div className="t23-map"><StepMap ov={ov} sfx="M" active={step===2} cases={cases} precs={precs}/></div>
     </div></div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
       {step>0?<button style={{...S.btn,background:"#e2e8f0",color:"#555"}} onClick={()=>setStep(step-1)}>← 이전</button>:<div/>}

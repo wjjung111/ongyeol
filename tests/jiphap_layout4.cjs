@@ -56,14 +56,14 @@ const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치�
       assert(await sc.locator('.s3-card').isVisible(),mode+': 2번 탭에 거래사례 표');
       if(mode==='multi')assert(await vis('적용단가'),mode+': 2번 탭에 적용단가(여러 호수는 빈 건에도 표가 있음)');
       assert(!(await sc.locator('.pf-list').isVisible()),mode+': 2번 탭엔 내려받기 전 확인 없음');
-      assert(!(await vis('위치도 — 본건')),mode+': 2번 탭엔 위치도 없음');
+      assert(!(await vis('위치도 — 본건 · 사례 · 전례')),mode+': 2번 탭엔 위치도 없음');
       assert(!(await sc.locator('.k4-pick').isVisible()),mode+': 가격산출의 사례 선택 표는 숨김(왼쪽 거래사례 표와 겹침)');
       await tabs.nth(2).click();
       assert(!(await sc.locator('.s3-card').isVisible()),mode+': 3번 탭엔 거래사례 표 없음');
       if(mode==='multi')assert(!(await vis('적용단가')),mode+': 3번 탭엔 계산 없음');
       assert(!(await sc.getByPlaceholder('카이스에서 복사 후 여기에 Ctrl+V').isVisible()),mode+': 3번 탭엔 사례 없음');
       assert(await sc.locator('.pf-list').isVisible(),mode+': 3번 탭 내려받기 전 확인');
-      assert(await vis('위치도 — 본건'),mode+': 3번 탭에 위치도');
+      assert(await vis('위치도 — 본건 · 사례 · 전례'),mode+': 3번 탭에 위치도');
       assert(await sc.locator('.k4-right .pf-item').count()>=6,mode+': 내려받기 전 확인 목록');
       assert(await sc.locator('.k4-right .pf-item.todo').count()>=3,mode+': 빈 건은 남은 일이 있다');
       assert(await sc.locator('.k4-right').getByRole('button',{name:'명세표(excel)'}).isVisible(),mode+': 서류 버튼은 3번 탭');

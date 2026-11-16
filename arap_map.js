@@ -69,6 +69,7 @@ var CSS=[
 // 말풍선(lines가 있는 이름표) — 첫 줄 굵게, 다음 줄부터 내용. ✕는 그 말풍선만 끈다
 '.mkr .lab.bub{white-space:nowrap;text-align:left;line-height:1.35;padding:calc(3px * var(--ls,1)) calc(9px * var(--ls,1)) calc(4px * var(--ls,1)) calc(8px * var(--ls,1));font-weight:600;color:#0f172a;}',
 '.mkr .lab.bub{border:1.5px solid;}',
+'.mkr.pick .lab.bub{color:#fff;}',   // 선정(채운 점) 말풍선 = 진한 바탕 흰 글씨(필지 말풍선 .par.pick과 같게, 2026-11-16 집건 사례)
 '.mkr .lab.bub b{display:block;font-weight:800;padding-right:14px;}',
 '.mkr .lab.bub .ln{display:block;font-weight:500;font-size:.96em;}',
 '.mkr .lab .lx{position:absolute;right:1px;top:0;padding:0 4px;font-size:.92em;font-weight:700;color:#94a3b8;cursor:pointer;}',
