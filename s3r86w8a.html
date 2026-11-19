@@ -1206,7 +1206,7 @@ const shareEtcAuto=(ov)=>{const sl=shareLabel(ov);if(!sl)return"";const ea=getEf
 const shareEtcText=(ov)=>ov.shareEtc==null?shareEtcAuto(ov):String(ov.shareEtc);
 
 function preTSV(text){let r="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')q=!q;else if(c==='\n'&&q)r+=" ";else r+=c;}return r;}
-function parseTSV(text){const clean=preTSV(text);const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
+function parseTSV(text){const clean=preTSV(String(text||"").replace(/\r/g,""));const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").replace(/\s+/g," ").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
 
 function parseKaisRow(text,idx){
   const{rows}=parseTSV(text);
@@ -1256,7 +1256,7 @@ function parseKapaRow(text,idx){
     jv=jv.replace(/\s/g,"");
 
     // 평가액·단가 컬럼명이 케이스별로 다양 → 순서대로 폴백
-    const ta=pNum(r["평가액(개별)"])||pNum(r["평가액 (개별)"])||pNum(r["감정평가총액"]);
+    const up0=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]),ar0=pNum(r["전용면적"]);const ta=pNum(r["평가액(개별)"])||pNum(r["평가액 (개별)"])||(up0&&ar0?Math.round(up0*ar0):null)||pNum(r["감정평가총액"]);
     const up=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]);
 
     return{
@@ -5546,11 +5546,11 @@ const roundArea=(v,dp,m)=>{const f=Math.pow(10,dp);const x=v*f+1e-7;return (m===
 const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;const dp=parseInt(ov.areaDecimal)||2,m=ov.areaRound||"round";if(ov.areaOption==="share"){const sn=pNum(ov.shareNumer),sd=pNum(ov.shareDenom);if(!sn||!sd)return a;return roundArea(a*sn/sd,dp,m);}if(ov.areaOption==="areaAdj"){const ex=pNum(ov.excludeArea);if(!ex)return a;return roundArea(a-ex,dp,m);}return a;};
 
 function preTSV(text){let r="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')q=!q;else if(c==='\n'&&q)r+=" ";else r+=c;}return r;}
-function parseTSV(text){const clean=preTSV(text);const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
+function parseTSV(text){const clean=preTSV(String(text||"").replace(/\r/g,""));const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").replace(/\s+/g," ").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
 
 function parseKaisRow(text,idx){const{rows}=parseTSV(text);return rows.map((r,i)=>{const addr=r["기타주소"]||"";let dn="",fl="",ho="",apt=addr;const m1=addr.match(/(\d+)동/);if(m1)dn=m1[1];const m2=addr.match(/(\d+)호/);if(m2)ho=m2[1];if(ho&&ho.length>=3)fl=ho.substring(0,ho.length-2);apt=apt.replace(/\d+동.*/,"").replace(/외\s*\d+필지\s*/,"").trim();const area=pNum(r["전용면적"]);const price=pNum(r["물건금액"]);const unitTsv=pNum(r["단가"]);const unitPrice=unitTsv||(price&&area?Math.round(price/area):null);return{id:Date.now()+Math.random()*9999+i,symbol:String(idx+i+1),location:pStr(r["소재지"]),jibun:pStr(r["지번"]),address:addr,aptName:apt,dong:dn,floor:fl,ho,tradeDate:pStr(r["거래시점"]),exclusiveArea:area,price,unitPrice,unitPriceOrig:unitPrice,approvalDate:pStr(r["사용승인일자"]),timeAdj:null,timeAdjDetail:"",isShown:true,isSelected:false};});}
 
-function parseKapaRow(text,idx){const{h,rows}=parseTSV(text);return rows.map((r,i)=>{const dflh=pStr(r["동층호"]);let dn="",fl="",ho="";const pts=dflh.split(/\s+/);if(pts.length>=3){dn=pts[0];fl=pts[1];ho=pts[2];}else if(pts.length===2){fl=pts[0];ho=pts[1];}const loc=pStr(r["소재지"]).replace(/서울특별시\s*\S+구\s*/,"").trim();let jv="";const j1=h.indexOf("지번");const j2=h.indexOf("지번",j1+1);if(j2>=0){const line=preTSV(text).split("\n").filter(l=>l.trim())[i+1];if(line){const cs=line.split("\t");jv=pStr(cs[j2]);}}if(!jv)jv=pStr(r["지번"]||"");jv=jv.replace(/\s/g,"");const ta=pNum(r["평가액(개별)"])||pNum(r["평가액 (개별)"])||pNum(r["감정평가총액"]);const up=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]);return{id:Date.now()+200+Math.random()*9999+i,selected:String.fromCharCode(97+idx+i),purpose:pStr(r["평가목적"]),location:loc,jibun:jv,exclusiveArea:pNum(r["전용면적"]),buildingName:pStr(r["건물명"]),dong:dn,floor:fl,ho,unitPrice:up,baseDate:pStr(r["기준시점"]),appraiseAmount:ta,note:pStr(r["비고"]),isShown:true};});}
+function parseKapaRow(text,idx){const{h,rows}=parseTSV(text);return rows.map((r,i)=>{const dflh=pStr(r["동층호"]);let dn="",fl="",ho="";const pts=dflh.split(/\s+/);if(pts.length>=3){dn=pts[0];fl=pts[1];ho=pts[2];}else if(pts.length===2){fl=pts[0];ho=pts[1];}const loc=pStr(r["소재지"]).replace(/서울특별시\s*\S+구\s*/,"").trim();let jv="";const j1=h.indexOf("지번");const j2=h.indexOf("지번",j1+1);if(j2>=0){const line=preTSV(text).split("\n").filter(l=>l.trim())[i+1];if(line){const cs=line.split("\t");jv=pStr(cs[j2]);}}if(!jv)jv=pStr(r["지번"]||"");jv=jv.replace(/\s/g,"");const up0=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]),ar0=pNum(r["전용면적"]);const ta=pNum(r["평가액(개별)"])||pNum(r["평가액 (개별)"])||(up0&&ar0?Math.round(up0*ar0):null)||pNum(r["감정평가총액"]);const up=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]);return{id:Date.now()+200+Math.random()*9999+i,selected:String.fromCharCode(97+idx+i),purpose:pStr(r["평가목적"]),location:loc,jibun:jv,exclusiveArea:pNum(r["전용면적"]),buildingName:pStr(r["건물명"]),dong:dn,floor:fl,ho,unitPrice:up,baseDate:pStr(r["기준시점"]),appraiseAmount:ta,note:pStr(r["비고"]),isShown:true};});}
 
 // ── Styles ──
 const C={pri:"#1a2744",acc:"#2563eb",dng:"#dc2626",bg:"#f5f6f8",card:"#fff",bdr:"#e2e5ea",hdr:"#f0f2f5",sel:"#eff6ff",lb:"#f0f7ff"};
