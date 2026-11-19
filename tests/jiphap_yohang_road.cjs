@@ -48,13 +48,34 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     // 두 면 이상 접함 — 둘째 칸이 생기고 「…, 동측으로 노폭 약 8m 내외의 포장도로에 각각 접함.」
     await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();await scope.locator('select[aria-label="접면도로 수"]').selectOption('2');
     await scope.locator('input[aria-label="접면도로 방향 2"]').fill('동측');await scope.locator('input[aria-label="접면도로 노폭 2"]').fill('8');
-    assert.ok((await card.innerText()).includes('각각 접함'),'화면 각각');
+    assert.ok((await scope.locator('textarea[aria-label="접면도로 문장"]').inputValue()).includes('각각 접함'),'화면 각각');
     if(process.env.SHOT)await card.screenshot({path:process.env.SHOT.replace(/\.png$/,'_2.png')});
     const x2=await road();assert.ok(x2.includes('본건 북측으로 노폭 약 40m, 동측으로 노폭 약 8m 내외의 포장도로에 각각 접함.'),'두 면 요항표');
     await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
     // 새로고침 뒤에도 입력 유지(건 저장)
     await page.waitForTimeout(1500);await page.reload();await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
     assert.equal(await scope.locator('input[aria-label="접면도로 방향"]').inputValue(),'북측','저장 유지');assert.equal(await scope.locator('input[aria-label="접면도로 방향 2"]').inputValue(),'동측','둘째 저장 유지');
+    // 2026-11-19 아파트도 직접 입력 · 도로명(광대로인 신반포로) · 주차장 · 문장 직접 고치기
+    await scope.locator('button',{hasText:/^주거용$/}).first().click();
+    assert.ok((await card.innerText()).includes('아파트단지 내 포장도로가 개설되어'),'주거용 되돌리면 고정 문장');
+    await scope.locator('select[aria-label="접면도로 문장 방식"]').selectOption('input');
+    await scope.locator('select[aria-label="접면도로 수"]').selectOption('4');
+    const row=async(i,dir,kind,a,b)=>{const lb=i?' '+(i+1):'';await scope.locator(`select[aria-label="접면도로 종류${lb}"]`).selectOption(kind);
+      await scope.locator(`input[aria-label="접면도로 방향${lb}"]`).fill(dir);
+      if(kind==='name'){await scope.locator(`input[aria-label="접면도로 등급${lb}"]`).fill(a);await scope.locator(`input[aria-label="접면도로 도로명${lb}"]`).fill(b);}
+      else await scope.locator(`input[aria-label="접면도로 노폭${lb}"]`).fill(a);};
+    await row(0,'북서측','name','광대로','신반포로');await row(1,'북동측','name','광대로','잠원로');await row(2,'남서측','','8');await row(3,'남동측','','6');
+    await scope.locator('select[aria-label="주차장 문구"]').selectOption('apt');
+    const want='본건은 북서측 및 북동측으로 각각 광대로인 신반포로 및 잠원로와 접하며, 남서측 및 남동측으로 각각 노폭 약 8m 및 6m의 포장도로와 접하고, 동단지 내 주차장 구비되어 있음.';
+    const ta=scope.locator('textarea[aria-label="접면도로 문장"]');assert.equal(await ta.inputValue(),want,'화면 문장(도로명+노폭+주차장)');
+    if(process.env.SHOT)await card.screenshot({path:process.env.SHOT.replace(/\.png$/,'_apt.png')});
+    const x3=await road();assert.ok(x3.includes(want),'요항표 도로명+주차장');assert.ok(!x3.includes('아파트단지 내 포장도로'),'고정 문장 없음');
+    await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
+    await ta.fill(want.replace('8m 및 6m','8미터 및 6미터'));
+    assert.ok((await card.innerText()).includes('자동 문장으로'),'직접 고침 표시');
+    const x4=await road();assert.ok(x4.includes('노폭 약 8미터 및 6미터의 포장도로'),'직접 고친 문장 그대로');
+    await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();await card.getByRole('button',{name:'↺ 자동 문장으로'}).click();
+    assert.equal(await ta.inputValue(),want,'자동 문장 복귀');
     assert.deepEqual(errors,[]);console.log('PASS');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1);});
