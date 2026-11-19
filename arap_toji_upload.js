@@ -1,8 +1,8 @@
 // arap_toji_upload.js — 토지건물: 공부서류(토지·건물 등기 PDF)·접수내용 캡처 업로드 → 자동 인식 (2026-11-03)
 // 집합건물 ② 「공부서류 PDF 업로드」와 같은 방식: 브라우저에서 Anthropic API를 직접 부르고, 키는 집건과 같은 저장키(v2:appraisal-api-key)를 쓴다.
-// 읽는 것: 접수번호·의뢰인·의뢰일·기준시점·평가구분(상속/증여만)·착수금·특용비·요율 / 소유자 / 토지 등기 필지 / 건물 등기 건물내역·도로명주소.
+// 읽는 것: 접수번호·의뢰인·의뢰일·기준시점·평가목적(→평가구분, 2026-11-19)·제출처·가평가(탁상가격)·착수금·특용비(금액/방식)·요율 / 소유자 / 토지 등기 필지 / 건물 등기 건물내역·도로명주소.
 // 토지 필지는 읽은 주소로 「본건 토지 조회」(브이월드)를 그대로 돌려 공시지가·용도지역 등까지 채운다(조회 실패 시 등기 지목·면적만).
-// 평가사 판단(탁상가격·기준시점근거·지분 사정면적)은 채우지 않고 결과 요약에 메모로만 보여 준다.
+// 평가사 판단(기준시점근거·지분 사정면적)은 채우지 않고 결과 요약에 메모로만 보여 준다.
 (function(root){
 'use strict';
 var KEY_STORAGE='v2:appraisal-api-key';   // 집건과 같은 키 — 개명 금지
@@ -16,9 +16,12 @@ var PROMPT=[
 '  "caseNo": "감정서번호/접수번호 (예: HI260305-2601) — 접수내용 캡처 이미지에만 있음",',
 '  "client": "의뢰인 성명 — 접수내용 캡처 이미지 기준",',
 '  "baseDate": "기준시점(가격시점) — 접수내용 이미지에 날짜가 명시된 경우만 YYYY.MM.DD",',
-'  "evalCategory": "평가구분 — 접수내용에서 \'상속\' 또는 \'증여\'가 명확할 때만 그 한 단어. 매매·담보 등이거나 애매하면 null",',
+'  "purpose": "평가목적 — 접수내용 캡처 이미지의 \'평가 목적\' 표현을 줄임말까지 원문 그대로, 끝의 \'목적\'만 뗀다 (예: \'상속\', \'증여\', \'특관매\', \'담보목적\'→\'담보\', \'자산재평가\'). 이미지에 없으면 null",',
+'  "submitTo": "제출처 — 접수내용 캡처 이미지의 \'제출처\'를 원문 그대로 (예: \'세무서 및 국세청\', \'OO은행 OO지점\'). 이미지에 없으면 null",',
+'  "deskPrice": "가평가(탁상가격) — 접수내용 이미지의 \'가평가\'·\'가평가 픽스 금액\'·\'탁상\'·\'예상가액\' 금액을 원 단위 숫자만 (20.7억→2070000000, 8억5천→850000000). 우리 회사 금액만 — 괄호 안 \'타업체 ○억\'은 제외. 이미지에 없으면 null",',
 '  "feeDownPayment": "기납부 착수금 (원 단위 숫자만, 예: 착수금 100만원 → 1000000). 접수내용 이미지에만 있음",',
-'  "feeSpecial": "특별용역비(특용비) (원 단위 숫자만, \'특용비 없음\'이면 0). 접수내용 이미지에만 있음",',
+'  "feeSpecial": "특별용역비(특용비) 금액 (원 단위 숫자만, \'특용비 없음\'이면 0). \'특용 기준-하한\'처럼 금액 대신 방식만 적혀 있으면 null. 접수내용 이미지에만 있음",',
+'  "feeSpecialMode": "특용비 계산 방식 — 접수내용에 \'특용 기준-하한\'·\'상한-하한\'·\'상한-기준\'처럼 적혀 있으면 그 표현(\'기준-하한\' 등), 아니면 null",',
 '  "feeBasis": "수수료 요율 — 하한요율이면 \'하한\', 기준요율이면 \'기준\', 상한요율이면 \'상한\'. 접수내용 이미지에만 있음",',
 '  "ownerLand": "토지 등기 갑구의 현재 소유자 성명(최종 소유권이전 기준, 말소된 사람 제외). 공유면 콤마로 (예: 홍길동, 김철수)",',
 '  "ownerBld": "건물 등기 갑구의 현재 소유자 성명(같은 방식)",',
@@ -30,7 +33,7 @@ var PROMPT=[
 '}',
 '',
 '주의사항:',
-'- 접수번호·의뢰인·기준시점·평가구분·착수금·특용비·요율은 접수내용 캡처 이미지에서만 추출하고, 등기에서 추측하지 말 것. 탁상가격(예상가액)은 이미지에 있어도 절대 추출하지 말 것',
+'- 접수번호·의뢰인·기준시점·평가목적·제출처·가평가·착수금·특용비·요율은 접수내용 캡처 이미지에서만 추출하고, 등기에서 추측하지 말 것. 기준시점이 \'26.11.13\'처럼 두 자리 연도면 2026.11.13으로',
 '- landParcels는 토지 등기(토지의 표시)가 여러 통이면 통마다 한 원소씩, 빠짐없이. 토지 등기가 없으면 []',
 '- 등기 표제부·갑구에 밑줄(말소) 처리된 옛 내용은 쓰지 말고 현재 유효한 내용만',
 '- 소유자는 \'소유자\'·\'공유자\' 기재의 성명만(주소·주민번호 제외). 소유권이 여러 번 이전됐으면 마지막 소유자',
@@ -40,7 +43,22 @@ var PROMPT=[
 // ── 순수 함수(테스트용) ──
 function s(v){return v==null?'':String(v).trim();}
 function digits(v){var n=String(v==null?'':v).replace(/[^0-9.]/g,'');return n;}
-function dotDate(v){var m=s(v).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?m[1]+'.'+('0'+m[2]).slice(-2)+'.'+('0'+m[3]).slice(-2):'';}
+function dotDate(v){var t=s(v),m=t.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/)||t.match(/^(\d{2})\D+(\d{1,2})\D+(\d{1,2})/);
+  if(!m)return '';var y=m[1].length===2?'20'+m[1]:m[1];return y+'.'+('0'+m[2]).slice(-2)+'.'+('0'+m[3]).slice(-2);}
+// 금액 → 원(숫자). 2070000000 / '20.7억' / '8억5천' / '8억 5,000만원' / '3,000만원'
+function moneyWon(v){var t=s(v).replace(/[,\s원]/g,'');if(!t)return null;
+  if(/^\d+(\.\d+)?$/.test(t))return Math.round(Number(t));
+  var m=t.match(/^(?:(\d+(?:\.\d+)?)억)?(?:(\d+(?:\.\d+)?)천만?)?(?:(\d+(?:\.\d+)?)만)?$/);
+  if(!m||!(m[1]||m[2]||m[3]))return null;
+  return Math.round((Number(m[1]||0)*1e8)+(Number(m[2]||0)*1e7)+(Number(m[3]||0)*1e4));}
+// 접수 「평가 목적」 → 화면 칸. 토건은 평가구분(ov_kind)에 상속·증여·담보 등을 넣고 평가목적(ov_purpose)은 일반거래(시가참고) 기본값을 쓰는 습관
+//   — 자산재평가만 평가목적 칸으로(arap_purpose_law.js가 평가목적에서 찾음), 일반거래·시가참고면 그대로 둠. 줄임말 「특관매」는 풀어 씀.
+function purposeFields(raw){var p=s(raw).replace(/\s*목적$/,'').trim(),o={};
+  if(!p)return o;
+  if(/자산\s*재평가/.test(p)){o.ov_purpose='자산재평가';return o;}
+  if(/^(일반거래|시가참고|일반거래\s*\(시가참고\))$/.test(p))return o;
+  if(/^특관매$|특수관계/.test(p)){o.ov_kind='특수관계자간 매매';return o;}
+  o.ov_kind=p;return o;}
 // 접수번호 날짜 6자리 → 의뢰일(청구서용, 2026/03/05)
 function orderDayFromCaseNo(no){var m=s(no).match(/[A-Za-z]+(\d{2})(\d{2})(\d{2})/);return m?('20'+m[1]+'/'+m[2]+'/'+m[3]):'';}
 function uniqNames(list){var out=[];list.forEach(function(x){s(x).split(/\s*[,，、]\s*/).forEach(function(n){n=n.trim();if(n&&out.indexOf(n)<0)out.push(n);});});return out;}
@@ -62,14 +80,18 @@ function normalize(r){
   if(s(r.client))ov.ov_client=s(r.client);
   var od=orderDayFromCaseNo(r.caseNo);if(od)ov.ov_orderDay=od;
   var bd=dotDate(r.baseDate);if(bd)ov.base_gijun=bd;
-  var ec=s(r.evalCategory);if(/^(상속|증여)$/.test(ec))ov.ov_kind=ec;
+  var pf=purposeFields(r.purpose!=null?r.purpose:r.evalCategory);Object.keys(pf).forEach(function(k){ov[k]=pf[k];});
+  if(s(r.submitTo))ov.ov_submit=s(r.submitTo);
+  var dk=moneyWon(r.deskPrice);if(dk)ov.ov_deskPrice=dk.toLocaleString('ko-KR');
   var oL=uniqNames([r.ownerLand]),oB=uniqNames([r.ownerBld]),owners=uniqNames([r.ownerLand,r.ownerBld]);
   if(owners.length)ov.ov_owner=owners.join(', ');
   if(oL.length&&oB.length&&oL.slice().sort().join()!==oB.slice().sort().join())notes.push('⚠️ 토지 소유자('+oL.join(', ')+')와 건물 소유자('+oB.join(', ')+')가 다릅니다 — 소유자 칸에 둘 다 넣었으니 확인하세요.');
   if(s(r.ownerShares))notes.push('ℹ️ 공유 지분: '+s(r.ownerShares)+' — 지분 평가면 본건 토지·건물 표의 사정면적 「지분입력」으로 넣으세요(자동 반영 안 함).');
   var cg={};
   var dp=digits(r.feeDownPayment);if(dp!=='')cg.cg_downPayment=Number(dp).toLocaleString('ko-KR');
-  var sp=digits(r.feeSpecial);if(sp!==''){cg.cg_specialMode='직접입력';cg.cg_special=Number(sp).toLocaleString('ko-KR');}
+  var sm=s(r.feeSpecialMode).replace(/\s+/g,'').replace(/요율/g,'').match(/(상한|기준)[-~∼]?(하한|기준)/);
+  if(sm&&sm[1]!==sm[2])cg.cg_specialMode=sm[1]+'-'+sm[2];
+  var sp=digits(r.feeSpecial);if(sp!==''&&!cg.cg_specialMode){cg.cg_specialMode='직접입력';cg.cg_special=Number(sp).toLocaleString('ko-KR');}
   var fb=s(r.feeBasis).replace(/요율$/,'');if(/^(하한|기준|상한)$/.test(fb))cg.cg_feeBasis=fb;
   var parcels=[],seen={};
   (Array.isArray(r.landParcels)?r.landParcels:[]).forEach(function(p){if(!p)return;var a=splitAddr(p.addr);if(!a.jibun)return;var k=parcelKey(a.dong,a.jibun);if(seen[k])return;seen[k]=1;
@@ -90,7 +112,7 @@ function planParcels(lands,parcels){
   return {mode:mode,add:mode==='replace'?parcels.slice():missing,existing:have.length};
 }
 
-var API={PROMPT:PROMPT,normalize:normalize,planParcels:planParcels,splitAddr:splitAddr,orderDayFromCaseNo:orderDayFromCaseNo,KEY_STORAGE:KEY_STORAGE};
+var API={PROMPT:PROMPT,normalize:normalize,purposeFields:purposeFields,moneyWon:moneyWon,dotDate:dotDate,planParcels:planParcels,splitAddr:splitAddr,orderDayFromCaseNo:orderDayFromCaseNo,KEY_STORAGE:KEY_STORAGE};
 root.ArapTojiUpload=API;
 if(typeof module!=='undefined'&&module.exports)module.exports=API;
 if(typeof document==='undefined'||!document.getElementById('upCard'))return;
@@ -144,13 +166,14 @@ function setField(id,v){var el=$(id);if(!el)return false;
 // 손으로 고치면 연노랑 표시를 지운다
 document.addEventListener('input',function(e){if(e.isTrusted&&e.target&&e.target.classList)e.target.classList.remove('up-auto');},true);
 
-var LABEL={ov_caseNo:'접수번호',ov_client:'의뢰인',ov_orderDay:'의뢰일',base_gijun:'기준시점',ov_kind:'평가구분',ov_owner:'소유자',
+var LABEL={ov_caseNo:'접수번호',ov_client:'의뢰인',ov_orderDay:'의뢰일',base_gijun:'기준시점',ov_kind:'평가구분',ov_purpose:'평가목적',ov_submit:'제출처',ov_deskPrice:'탁상가격',ov_owner:'소유자',
   cg_downPayment:'기납부착수금',cg_special:'특별용역비',cg_feeBasis:'수수료 요율',cg_specialMode:null,bt_regText:'건물등기 건물내역',bt_roadAddr:'도로명주소'};
 
 async function apply(n){
   var done=[],notes=n.notes.slice();
   Object.keys(n.ov).forEach(function(id){if(setField(id,n.ov[id]))done.push(LABEL[id]+' '+n.ov[id]);});
-  ['cg_specialMode','cg_special','cg_downPayment','cg_feeBasis'].forEach(function(id){if(n.cg[id]==null)return;if(setField(id,n.cg[id])&&LABEL[id])done.push(LABEL[id]+' '+n.cg[id]+(id==='cg_feeBasis'?'요율':''));});
+  ['cg_specialMode','cg_special','cg_downPayment','cg_feeBasis'].forEach(function(id){if(n.cg[id]==null)return;if(setField(id,n.cg[id])&&(LABEL[id]||(id==='cg_specialMode'&&n.cg[id]!=='직접입력')))done.push(id==='cg_specialMode'?'특용비 '+n.cg[id]:LABEL[id]+' '+n.cg[id]+(id==='cg_feeBasis'?'요율':''));});
+  if(n.ov.ov_deskPrice)try{sd();}catch(e){}
   if(typeof CG_SPECIAL_MANUAL!=='undefined'&&n.cg.cg_special!=null)try{CG_SPECIAL_MANUAL=false;}catch(e){}
   if(n.bt.bt_regText){setField('bt_regText',n.bt.bt_regText);done.push('건물등기 건물내역');}
   if(n.bt.bt_roadAddr){setField('bt_roadAddr',n.bt.bt_roadAddr);done.push('도로명주소 '+n.bt.bt_roadAddr);}

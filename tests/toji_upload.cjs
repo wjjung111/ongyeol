@@ -13,7 +13,17 @@ const U=require('../arap_toji_upload.js');
     landParcels:[{addr:'경기도 안양시 동안구 관양동 1443-5',jimok:'대',area:'330.5'},{addr:'경기도 안양시 동안구 관양동 1443-5',jimok:'대',area:'330.5'}],
     bldSiteAddrs:['경기도 안양시 동안구 관양동 1443-5'],roadAddr:'[도로명주소] 경기도 안양시 동안구 관악대로 1',bldRegText:'철근콘크리트구조\\n1층 100.5㎡'});
   assert.equal(n.ov.ov_orderDay,'2026/11/03');assert.equal(n.ov.base_gijun,'2026.09.25');
-  assert.equal(n.ov.ov_kind,undefined,'상속·증여가 아니면 평가구분 비움');
+  assert.equal(n.ov.ov_kind,'특수관계자간 매매','옛 evalCategory 키도 읽음');
+  // 2026-11-19 접수글(ON261113-210101): 평가목적 특관매·제출처·가평가 20.7억(타업체 제외)·기준시점 26.11.13·특용 기준-하한
+  const r2=U.normalize({caseNo:'ON261113-210101',client:'주식회사 만만한부동산닷컴',baseDate:'26.11.13',purpose:'특관매',submitTo:'세무서 및 국세청',
+    deskPrice:'20.7억',feeBasis:'하한',feeSpecialMode:'기준-하한',feeSpecial:null,feeDownPayment:'300000'});
+  assert.equal(r2.ov.ov_kind,'특수관계자간 매매');assert.equal(r2.ov.ov_purpose,undefined,'평가목적 칸은 기본값 유지');
+  assert.equal(r2.ov.ov_submit,'세무서 및 국세청');assert.equal(r2.ov.ov_deskPrice,'2,070,000,000');
+  assert.equal(r2.ov.base_gijun,'2026.11.13');assert.equal(r2.ov.ov_orderDay,'2026/11/13');
+  assert.equal(r2.cg.cg_specialMode,'기준-하한');assert.equal(r2.cg.cg_special,undefined);assert.equal(r2.cg.cg_downPayment,'300,000');
+  assert.deepEqual(U.purposeFields('담보목적'),{ov_kind:'담보'});assert.deepEqual(U.purposeFields('증여'),{ov_kind:'증여'});
+  assert.deepEqual(U.purposeFields('자산재평가 목적'),{ov_purpose:'자산재평가'});assert.deepEqual(U.purposeFields('일반거래(시가참고)'),{});
+  assert.equal(U.moneyWon(2070000000),2070000000);assert.equal(U.moneyWon('8억5천'),850000000);assert.equal(U.moneyWon('8억 5,000만원'),850000000);assert.equal(U.moneyWon('없음'),null);
   assert.equal(n.ov.ov_owner,'김철수, 이영희');
   assert.equal(n.cg.cg_downPayment,'1,000,000');assert.equal(n.cg.cg_special,'0');assert.equal(n.cg.cg_feeBasis,'하한');
   assert.equal(n.parcels.length,1,'같은 필지 중복 제거');
@@ -32,7 +42,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=path.resolve(__dirname,'..');
 const server=http.createServer((req,res)=>{const f=path.join(root,decodeURIComponent(req.url.split('?')[0]));if(!f.startsWith(root)||!fs.existsSync(f)){res.statusCode=404;return res.end();}
   res.setHeader('Content-Type',f.endsWith('.html')?'text/html; charset=utf-8':'text/javascript; charset=utf-8');fs.createReadStream(f).pipe(res);});
-const AI={caseNo:'HI261103-1001',client:'홍길동',baseDate:'2026.09.25',evalCategory:'상속',feeDownPayment:'1000000',feeSpecial:'0',feeBasis:'하한',
+const AI={caseNo:'HI261103-1001',client:'홍길동',baseDate:'2026.09.25',purpose:'상속',submitTo:'세무서 및 국세청',deskPrice:'2070000000',feeDownPayment:'1000000',feeSpecial:null,feeSpecialMode:'기준-하한',feeBasis:'하한',
   ownerLand:'홍길순',ownerBld:'홍길순',landParcels:[{addr:'경기도 안양시 동안구 관양동 1443-5',jimok:'대',area:'330.6'},{addr:'경기도 안양시 동안구 관양동 1443-6',jimok:'대',area:'50'}],
   roadAddr:'경기도 안양시 동안구 관악대로 1',bldRegText:'철근콘크리트구조\n(철근)콘크리트지붕 3층\n근린생활시설\n1층 100.5㎡\n2층 100.5㎡'};
 (async()=>{
@@ -62,6 +72,8 @@ const AI={caseNo:'HI261103-1001',client:'홍길동',baseDate:'2026.09.25',evalCa
     assert.equal(await v('ov_caseNo'),'HI261103-1001');assert.equal(await v('ov_client'),'홍길동');assert.equal(await v('ov_orderDay'),'2026/11/03');
     assert.equal(await v('base_gijun'),'2026.09.25');assert.equal(await v('ov_kind'),'상속');assert.equal(await v('ov_owner'),'홍길순');
     assert.equal(await v('cg_downPayment'),'1,000,000');assert.equal(await v('cg_feeBasis'),'하한');
+    assert.equal(await v('ov_submit'),'세무서 및 국세청');assert.equal(await v('ov_deskPrice'),'2,070,000,000');assert.equal(await v('cg_specialMode'),'기준-하한');
+    assert.equal(await page.textContent('#sd_desk'),'2,070,000,000','왼쪽 요약 탁상가격');
     assert.match(await v('bt_regText'),/2층 100.5㎡/);assert.equal(await v('bt_roadAddr'),'경기도 안양시 동안구 관악대로 1');
     assert.ok(await page.$eval('#ov_client',e=>e.classList.contains('up-auto')),'자동 칸 연노랑');
     const lands=await page.evaluate(()=>LANDS.map(L=>[L['소재지'],L['지번'],L['면적'],L['공시지가']||'']));
