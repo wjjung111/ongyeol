@@ -2106,24 +2106,8 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
         </div>
       ))}
     </div>
-    {/* 요항표 4. 접면도로 상황 — 아파트는 고정 문장, 비주거용·다세대·연립·오피스텔은 방향·노폭만 입력(나머지 글자는 연한 회색, 2026-10-14 사용자 요청 / 다세대 2026-11-16) */}
-    <div style={S.card}>
-      <div style={S.h2}>접면도로 상황 (요항표)</div>
-      {yohangRoadByInput(ov,propType)?(()=>{const n=yohangRoadCnt(ov);const sfx=i=>i?String(i+1):"";
-        return (<div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,fontSize:13}}>
-        <select aria-label="접면도로 수" style={{...S.inp,width:"auto",marginRight:6}} value={n} onChange={e=>u("roadCnt",e.target.value)}>
-          {[1,2,3,4].map(k=><option key={k} value={k}>{k===1?"한 면 접함":k+"면 접함"}</option>)}
-        </select>
-        <span style={{color:"#9ca3af"}}>본건</span>
-        {Array.from({length:n},(_,i)=>(<React.Fragment key={i}>
-          {i>0&&<span style={{color:"#9ca3af"}}>,</span>}
-          <input aria-label={"접면도로 방향"+(i?" "+(i+1):"")} style={{...S.inp,width:90,textAlign:"center"}} value={ov["roadDir"+sfx(i)]||""} onChange={e=>u("roadDir"+sfx(i),e.target.value)} placeholder={["북측","동측","남측","서측"][i]}/>
-          <span style={{color:"#9ca3af"}}>으로 노폭 약</span>
-          <input aria-label={"접면도로 노폭"+(i?" "+(i+1):"")} style={{...S.inp,width:80,textAlign:"center"}} value={ov["roadWidth"+sfx(i)]||""} onChange={e=>u("roadWidth"+sfx(i),e.target.value)} placeholder={i?"8m":"40m"}/>
-        </React.Fragment>))}
-        <span style={{color:"#9ca3af"}}>{n>1?"내외의 포장도로에 각각 접함.":"내외의 포장도로에 접함."}</span>
-      </div>);})():(<div style={{fontSize:13,color:"#9ca3af"}}>{YOHANG_ROAD_RES}<div style={{fontSize:11,marginTop:4}}>아파트용 문장 — 「종류」가 다세대주택·연립주택·오피스텔이면 방향·노폭 입력으로 바뀝니다.</div></div>)}
-    </div>
+    {/* 요항표 4. 접면도로 상황 — 아파트는 고정 문장(직접 입력 선택 가능), 비주거용·다세대·연립·오피스텔은 방향·노폭/도로명 입력(2026-10-14 / 다세대 2026-11-16 / 도로명·주차장 2026-11-19) */}
+    <YohangRoadCard ov={ov} u={u} propType={propType} S={S}/>
     {/* 평가면적 옵션 */}
     <div style={{...S.card,background:ov.areaOption!=="none"?"#fffbeb":"#fff",border:ov.areaOption!=="none"?"1px solid #fde68a":`1px solid ${C.bdr}`}}>
       <div style={S.h2}>평가면적</div>
@@ -3609,7 +3593,7 @@ const YOHANG_ROAD_RES="아파트단지 내 포장도로가 개설되어 있으�
 // 비주거용 접면도로 문장 — 1. 접수 · 대상물건 「접면도로 상황」의 방향·노폭. 노폭에 숫자만 넣으면 m을 붙인다.
 // 두 면 이상 접하면(roadCnt 2~4, 둘째부터 roadDir2·roadWidth2 …) 「…40m, 동측으로 노폭 약 8m 내외의 포장도로에 각각 접함.」(2026-10-19)
 // 주거용이라도 아파트가 아니면(종류·주용도에 다세대·연립·오피스텔 / 건물명에 빌라·맨션) 단지 문장 대신 방향·노폭 문장(2026-11-16, 다세대인데 「아파트단지 내」로 나온 사고)
-const yohangRoadByInput=(ov,propType)=>{if(propType==="비주거용")return true;
+const yohangRoadByInput=(ov,propType)=>{if(propType==="비주거용"||ov.roadMode==="input")return true;
   const k=detectSjKind(ov.kind,ov.mainUseJeonyu,ov.mainUse)||detectSjKindLoose(ov.buildingName,ov.aptName);return !!k&&k!=="아파트";};
 // 2. 부근상황은 템플릿 고정 글자(아파트단지 …) — 주거용 다세대·연립이면 받을 때 바꿔 끼움(2026-11-16)
 const YOHANG_NEAR_APT="본건 주위는 아파트단지 및 근린생활시설 등이 혼재하는 지대로서, 제반 입지여건 무난한 편임.";
@@ -3619,10 +3603,85 @@ const yohangNearRes=(ov,propType)=>{if(propType==="비주거용")return "";
   const w=/연립/.test(s)&&!/다세대/.test(s)?"연립주택, 다세대주택":"다세대주택, 단독주택";
   return `본건 주위는 ${w} 및 근린생활시설 등이 혼재하는 주거지대로서, 제반 입지여건 무난한 편임.`;};
 const yohangRoadCnt=ov=>Math.min(4,Math.max(1,parseInt(ov.roadCnt,10)||1));
-const yohangRoadNr=ov=>{const n=yohangRoadCnt(ov),parts=[];
-  for(let i=0;i<n;i++){const k=i?String(i+1):"";const d=String(ov["roadDir"+k]||"").trim(),w0=String(ov["roadWidth"+k]||"").trim();const w=/^\d+(\.\d+)?$/.test(w0)?w0+"m":w0;
-    parts.push(`${d||"○측"}으로 노폭 약 ${w||"○m"}`);}
-  return `본건 ${parts.join(", ")} 내외의 포장도로에 ${n>1?"각각 ":""}접함.`;};
+// 2026-11-19 도로명·주차장 — 줄마다 「노폭」 / 「도로명」(예: 광대로인 신반포로) 고르기(roadKind·roadGrade·roadName, 첫 칸은 접미사 없음),
+// 주차장 문구(roadPark), 문장 직접 고치기(roadText — 비어 있지 않으면 그대로 씀). 도로명·주차장이 없으면 종전 문장 그대로.
+// 예) 「본건은 북서측 및 북동측으로 각각 광대로인 신반포로 및 잠원로와 접하며, 남서측 및 남동측으로 각각 노폭 약 8m 및 6m의 포장도로와 접하고, 동단지 내 주차장 구비되어 있음.」
+const YOHANG_PARK={apt:"동단지 내 주차장 구비되어 있음.",bld:"건물 내 주차장 구비되어 있음.",none:"별도의 주차장 시설은 없음."};
+const yohangJosaWa=s=>{const t=String(s||"").trim();if(/\d$/.test(t))return /[013678]$/.test(t)?"과":"와";return yohangLastJong(t)===0?"와":"과";};
+const yohangRoadW=w0=>{w0=String(w0||"").trim();return /^\d+(\.\d+)?$/.test(w0)?w0+"m":w0;};
+const yohangRoadItems=ov=>{const n=yohangRoadCnt(ov),a=[];
+  for(let i=0;i<n;i++){const k=i?String(i+1):"";
+    a.push({dir:String(ov["roadDir"+k]||"").trim()||"○측",kind:ov["roadKind"+k]==="name"?"name":"width",
+      w:yohangRoadW(ov["roadWidth"+k])||"○m",grade:String(ov["roadGrade"+k]||"").trim(),name:String(ov["roadName"+k]||"").trim()||"○○로"});}
+  return a;};
+const yohangRoadAuto=ov=>{const n=yohangRoadCnt(ov),items=yohangRoadItems(ov),park=YOHANG_PARK[ov.roadPark]||"";
+  const hasName=items.some(x=>x.kind==="name");
+  if(!hasName){// 종전 문장(노폭만)
+    const body=`본건 ${items.map(x=>`${x.dir}으로 노폭 약 ${x.w}`).join(", ")} 내외의 포장도로에 ${n>1?"각각 ":""}`;
+    return park?`${body}접하고, ${park}`:`${body}접함.`;}
+  // 도로명 묶음 · 노폭 묶음(처음 나온 순서대로)
+  const groups=[];items.forEach(x=>{let g=groups.find(g=>g.kind===x.kind);if(!g)groups.push(g={kind:x.kind,list:[]});g.list.push(x);});
+  const and=a=>a.join(" 및 ");
+  const cl=groups.map(g=>{const many=g.list.length>1,dirs=and(g.list.map(x=>x.dir))+"으로 "+(many?"각각 ":"");
+    if(g.kind==="width")return {t:`${dirs}노폭 약 ${and(g.list.map(x=>x.w))}의 포장도로`,j:"와"};
+    const grades=[...new Set(g.list.map(x=>x.grade))];
+    const names=grades.length===1?(grades[0]?grades[0]+"인 ":"")+and(g.list.map(x=>x.name)):and(g.list.map(x=>(x.grade?x.grade+"인 ":"")+x.name));
+    return {t:dirs+names,j:yohangJosaWa(g.list[g.list.length-1].name)};});
+  const out=cl.map((c,i)=>{const last=i===cl.length-1;
+    const end=!last?(i===0?"접하며,":"접하고,"):(park?"접하고,":"접함.");return `${c.t}${c.j} ${end}`;}).join(" ");
+  return `본건은 ${out}${park?" "+park:""}`;};
+const yohangRoadNr=ov=>{const t=String(ov.roadText||"").trim();return t||yohangRoadAuto(ov);};
+// 1. 접수 · 대상물건 「접면도로 상황 (요항표)」 카드 — 단일·여러 호수가 같이 씀(window.ArapYohang.RoadCard)
+function YohangRoadCard({ov,u,propType,S}){
+  const byInput=yohangRoadByInput(ov,propType),apt=propType!=="비주거용"&&!yohangRoadByInput({...ov,roadMode:""},propType);
+  const n=yohangRoadCnt(ov),sfx=i=>i?String(i+1):"",g={color:"#9ca3af"};
+  const auto=yohangRoadAuto(ov),edited=!!String(ov.roadText||"").trim();
+  return (<div style={S.card}>
+    <div style={S.h2}>접면도로 상황 (요항표)</div>
+    {apt&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:6}}>
+      <span style={g}>아파트</span>
+      <select aria-label="접면도로 문장 방식" style={{...S.inp,width:"auto"}} value={ov.roadMode==="input"?"input":""} onChange={e=>u("roadMode",e.target.value)}>
+        <option value="">단지 내 도로 고정 문장</option>
+        <option value="input">방향·도로명·노폭 직접 입력</option>
+      </select></div>}
+    {!byInput?(<div style={{fontSize:13,color:"#9ca3af"}}>{YOHANG_ROAD_RES}<div style={{fontSize:11,marginTop:4}}>아파트용 문장 — 위에서 「직접 입력」을 고르거나, 「종류」가 다세대주택·연립주택·오피스텔이면 방향·노폭 입력으로 바뀝니다.</div></div>):(<div>
+      <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,marginBottom:6}}>
+        <select aria-label="접면도로 수" style={{...S.inp,width:"auto"}} value={n} onChange={e=>u("roadCnt",e.target.value)}>
+          {[1,2,3,4].map(k=><option key={k} value={k}>{k===1?"한 면 접함":k+"면 접함"}</option>)}
+        </select>
+        <span style={g}>주차장</span>
+        <select aria-label="주차장 문구" style={{...S.inp,width:"auto"}} value={ov.roadPark||""} onChange={e=>u("roadPark",e.target.value)}>
+          <option value="">안 씀</option><option value="apt">동단지 내 주차장 구비</option><option value="bld">건물 내 주차장 구비</option><option value="none">주차장 시설 없음</option>
+        </select>
+      </div>
+      {Array.from({length:n},(_,i)=>{const k=sfx(i),nm=ov["roadKind"+k]==="name",lb=i?" "+(i+1):"";
+        return (<div key={i} style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,fontSize:13,marginBottom:4}}>
+        <span style={{...g,width:16}}>{i+1}</span>
+        <select aria-label={"접면도로 종류"+lb} style={{...S.inp,width:"auto"}} value={nm?"name":""} onChange={e=>u("roadKind"+k,e.target.value)}>
+          <option value="">노폭</option><option value="name">도로명</option>
+        </select>
+        <input aria-label={"접면도로 방향"+lb} style={{...S.inp,width:80,textAlign:"center"}} value={ov["roadDir"+k]||""} onChange={e=>u("roadDir"+k,e.target.value)} placeholder={["북측","동측","남측","서측"][i]}/>
+        {nm?(<React.Fragment>
+          <span style={g}>으로</span>
+          <input aria-label={"접면도로 등급"+lb} list="yohangRoadGrades" style={{...S.inp,width:80,textAlign:"center"}} value={ov["roadGrade"+k]||""} onChange={e=>u("roadGrade"+k,e.target.value)} placeholder="광대로"/>
+          <span style={g}>인</span>
+          <input aria-label={"접면도로 도로명"+lb} style={{...S.inp,width:110,textAlign:"center"}} value={ov["roadName"+k]||""} onChange={e=>u("roadName"+k,e.target.value)} placeholder="신반포로"/>
+        </React.Fragment>):(<React.Fragment>
+          <span style={g}>으로 노폭 약</span>
+          <input aria-label={"접면도로 노폭"+lb} style={{...S.inp,width:70,textAlign:"center"}} value={ov["roadWidth"+k]||""} onChange={e=>u("roadWidth"+k,e.target.value)} placeholder={i?"8m":"40m"}/>
+          <span style={g}>포장도로</span>
+        </React.Fragment>)}
+      </div>);})}
+      <datalist id="yohangRoadGrades"><option value="광대로"/><option value="대로"/><option value="중로"/><option value="소로"/></datalist>
+      <div style={{fontSize:11,color:"#6b7280",margin:"8px 0 2px",display:"flex",alignItems:"center",gap:8}}>
+        <span>요항표에 들어갈 문장 {edited?"(직접 고친 문장)":"(자동 — 고치면 그대로 씀)"}</span>
+        {edited&&<button style={{...S.btn,background:"#fff",color:"#374151",border:"1px solid #d1d5db",fontSize:11,padding:"2px 8px"}} onClick={()=>u("roadText","")}>↺ 자동 문장으로</button>}
+      </div>
+      <textarea aria-label="접면도로 문장" style={{...S.inp,width:"100%",minHeight:52,resize:"vertical",fontFamily:"inherit",fontSize:12,lineHeight:1.5}}
+        value={edited?ov.roadText:auto} onChange={e=>u("roadText",e.target.value===auto?"":e.target.value)}/>
+    </div>)}
+  </div>);
+}
 function buildYohangTokenMap(ov,propType){
   const toks=(ov.jibun||"").trim().split(/\s+/).filter(Boolean);
   let di=toks.findIndex((t,i)=>i>0&&/(동|리|가)$/.test(t));if(di<0)di=Math.max(toks.length-1,1);
@@ -3691,7 +3750,7 @@ async function downloadYohangHwpx(ov,propType,opt={}){
   }catch(e){console.error('요항표 hwpx 생성 실패',e);alert("요항표 생성 실패: "+e.message);}
 }
 // 여러 호수 화면(#root-multi, 다른 babel 블록)이 같은 요항표 엔진·접면도로 문장 규칙을 쓴다(2026-11-17)
-window.ArapYohang={download:downloadYohangHwpx,roadByInput:yohangRoadByInput,roadCnt:yohangRoadCnt,ROAD_RES:YOHANG_ROAD_RES,josaRo:yohangJosaRo,josaNeun:yohangJosaNeun};
+window.ArapYohang={download:downloadYohangHwpx,RoadCard:YohangRoadCard,roadText:yohangRoadNr,roadByInput:yohangRoadByInput,roadCnt:yohangRoadCnt,ROAD_RES:YOHANG_ROAD_RES,josaRo:yohangJosaRo,josaNeun:yohangJosaNeun};
 window.ArapSingleDocuments={MYEONGSE_TPL_B64};  // 여러호수 명세표(arap_multi_myeongse.js)가 같은 xlsx 템플릿을 쓴다
 try{window.buildEvalHwpxV2=buildEvalHwpxV2;window.V2NROPIN_TPL_B64=V2NROPIN_TPL_B64;window.V2_IDS_NR=V2_IDS_NR;window.buildV2TokenMap=buildV2TokenMap;window.buildCheongguTokenMap=buildCheongguTokenMap;window.buildTokenHwpx=buildTokenHwpx;window.V2CHEONGGU_TPL_B64=V2CHEONGGU_TPL_B64;window.V2CHEONGGU_BLUE2BLACK=V2CHEONGGU_BLUE2BLACK;}catch(e){console.error('v2 엔진 전역 노출 실패',e);}
 
@@ -6410,24 +6469,8 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
         </div>
       ))}
     </div>
-    {/* 요항표 4. 접면도로 상황 — 단일호수와 같은 칸·규칙(window.ArapYohang). 여러 호수 요항표 2026-11-17 */}
-    {window.ArapYohang&&<div style={S.card}>
-      <div style={S.h2}>접면도로 상황 (요항표)</div>
-      {window.ArapYohang.roadByInput(ov,propType)?(()=>{const n=window.ArapYohang.roadCnt(ov);const sfx=i=>i?String(i+1):"";
-        return (<div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4,fontSize:13}}>
-        <select aria-label="접면도로 수" style={{...S.inp,width:"auto",marginRight:6}} value={n} onChange={e=>u("roadCnt",e.target.value)}>
-          {[1,2,3,4].map(k=><option key={k} value={k}>{k===1?"한 면 접함":k+"면 접함"}</option>)}
-        </select>
-        <span style={{color:"#9ca3af"}}>본건</span>
-        {Array.from({length:n},(_,i)=>(<React.Fragment key={i}>
-          {i>0&&<span style={{color:"#9ca3af"}}>,</span>}
-          <input aria-label={"접면도로 방향"+(i?" "+(i+1):"")} style={{...S.inp,width:90,textAlign:"center"}} value={ov["roadDir"+sfx(i)]||""} onChange={e=>u("roadDir"+sfx(i),e.target.value)} placeholder={["북측","동측","남측","서측"][i]}/>
-          <span style={{color:"#9ca3af"}}>으로 노폭 약</span>
-          <input aria-label={"접면도로 노폭"+(i?" "+(i+1):"")} style={{...S.inp,width:80,textAlign:"center"}} value={ov["roadWidth"+sfx(i)]||""} onChange={e=>u("roadWidth"+sfx(i),e.target.value)} placeholder={i?"8m":"40m"}/>
-        </React.Fragment>))}
-        <span style={{color:"#9ca3af"}}>{n>1?"내외의 포장도로에 각각 접함.":"내외의 포장도로에 접함."}</span>
-      </div>);})():(<div style={{fontSize:13,color:"#9ca3af"}}>{window.ArapYohang.ROAD_RES}<div style={{fontSize:11,marginTop:4}}>아파트용 문장 — 「종류」가 다세대주택·연립주택·오피스텔이면 방향·노폭 입력으로 바뀝니다.</div></div>)}
-    </div>}
+    {/* 요항표 4. 접면도로 상황 — 단일호수와 같은 카드(window.ArapYohang.RoadCard). 여러 호수 요항표 2026-11-17 */}
+    {window.ArapYohang&&React.createElement(window.ArapYohang.RoadCard,{ov,u,propType,S})}
     {/* 상세물건정보 - 호 단위 (다중) */}
     <div id="unitTableM" style={S.card}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingBottom:6,borderBottom:`2px solid ${C.pri}`}}>
