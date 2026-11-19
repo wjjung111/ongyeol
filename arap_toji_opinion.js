@@ -103,6 +103,18 @@ function addTradeNoteRow(tbl){
   var h=Math.max.apply(null,children(row,'tc').map(function(c){return Number(children(c,'cellSz')[0].getAttribute('height'));}));
   var sz=children(tbl,'sz')[0];if(sz)sz.setAttribute('height',String(Number(sz.getAttribute('height'))+h));
 }
+// 토건 양식은 거래사례 표의 사례 한 열 전체가 굵은 글씨(옛 '채택 사례' 표시 — 첫 표는 #1, 둘째 표는 #2)라
+// 문서에서 그 열(이어지는 표는 #4…)까지 굵게 나왔다. 굵게는 토지단가 행만 남긴다(2026-11-19 요청) —
+// 머리 행·토지단가 행을 뺀 행마다 사례 칸 글자모양을 그 행에서 가장 많이 쓴 것(보통 글씨)으로 맞춘다.
+function plainTradeCols(tbl){
+  children(tbl,'tr').forEach(function(tr,ri){
+    if(!ri||tr.textContent.indexOf('_토지단가}}')>=0)return;
+    var runs=[],cnt={},best=null;
+    children(tr,'tc').slice(1).forEach(function(tc){descendants(tc,'run').forEach(function(r){runs.push(r);});});
+    runs.forEach(function(r){var id=r.getAttribute('charPrIDRef');cnt[id]=(cnt[id]||0)+1;if(best==null||cnt[id]>cnt[best])best=id;});
+    if(best!=null)runs.forEach(function(r){r.setAttribute('charPrIDRef',best);});
+  });
+}
 // 거래시점에 이미 내용연수를 넘긴 사례(경과연수 ≥ 내용연수) — 잔존연수를 관찰감가로 직접 정하게 되는 경우.
 // 의견서 거래사례 표에서 그 사례의 건물 감가 관련 칸을 빨간 글씨로 내보내 눈에 띄게 한다.
 function overAged(c){
@@ -928,6 +940,8 @@ function opinionXml(xml,data){
   });
   // 거래사례 표 — 양식은 3열이지만 한 표에 최대 4건까지 넣는다(4건이면 열을 하나 늘려 4열 — 2026-09-19 예시 문서 기준).
   // 5건 이상은 같은 표를 이어 붙이되 고르게 나눈다(5건 → 3+2, 6건 → 3+3, 7건 → 4+3). 사례 번호는 원래 번호 보존.
+  // 굵게는 토지단가 행만 — 복제(이어지는 표)보다 먼저 양식의 거래사례 표 전부를 고친다
+  tables.filter(function(t){return hasToken(t,'거래1_소재지');}).forEach(plainTradeCols);
   tables.filter(function(t){return hasToken(t,'거래1_소재지');}).forEach(function(tbl){
     var host=tbl;while(host.parentNode&&!(host.namespaceURI===HP&&host.localName==='p'))host=host.parentNode;
     // 화면 비고 칸에 하나라도 적었으면 표에 '비 고' 행을 붙인다(복제 전에 붙여야 이어지는 표에도 들어감). 모두 비면 종전 양식 그대로.
