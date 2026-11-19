@@ -85,11 +85,32 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-of
 .file code{font-family:var(--mono);background:var(--surface2);padding:2px 6px;border-radius:4px;word-break:break-all}
 .mini{background:none;border:1px solid var(--line2);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:12px;color:var(--ink2)}
 details.set summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--ink2)}
+/* 왼쪽: 받은 등기 목록 */
+.layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:0 16px;max-width:1260px;margin:0 auto;padding:0 16px}
+.layout main{max-width:none;padding:18px 0 60px;margin:0}
+.hist{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow:auto;margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px}
+.hist h2{font-size:14px;font-weight:800;display:flex;justify-content:space-between;align-items:center;margin:2px 4px 8px}
+.hist input{width:100%;margin-bottom:8px;min-height:32px!important;padding:5px 8px!important}
+#histList{list-style:none;margin:0;padding:0}
+#histList button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:7px 8px;cursor:pointer}
+#histList button:hover{background:var(--surface2)}
+#histList .a{font-weight:700;font-size:13px;word-break:keep-all;line-height:1.4}
+#histList .m{font-size:11.5px;color:var(--ink3)}
+#histList .k{display:inline-block;font-size:11px;font-weight:700;color:var(--acc-ink);background:var(--acc-soft);border-radius:4px;padding:0 5px;margin-right:4px}
+.hist .hnote{font-size:11.5px;color:var(--ink3);margin:6px 4px 0}
+@media (max-width:860px){.layout{grid-template-columns:1fr;padding:0}.hist{position:static;max-height:320px;margin:12px 16px 0}.layout main{padding:18px 16px 60px}}
+/* 주소 자동완성 */
+.acwrap{position:relative;display:block}
+#acList{position:absolute;left:0;right:0;top:100%;z-index:20;margin:2px 0 0;padding:4px;list-style:none;background:var(--surface);border:1px solid var(--line2);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:300px;overflow:auto}
+#acList li{padding:7px 9px;border-radius:4px;cursor:pointer;font-size:13.5px}
+#acList li.on,#acList li:hover{background:var(--acc-soft)}
+#acList li small{color:var(--ink3);margin-left:6px;font-size:11.5px}
 footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-size:12px;line-height:1.7}
 </style>
 
 <body>
 <script>window.ARAP_NAME_ICON='📜';window.ARAP_NAME_SUB='등기 간편열람';</script><script src="arap_name.js"></script>
+<script src="arap_bldrgst.js"></script><!-- 주소 자동완성: V-World 지번/도로명 → 필지 후보 (아파트시점수정과 같은 모듈) -->
 <script>window.ARAP_VISIT_PAGE='등기발급';</script><script src="arap_visit.js"></script>
 
 <header class="top"><div class="wrap">
@@ -97,6 +118,13 @@ footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-
   <p>주소를 넣으면 내 PC의 에이전트가 인터넷등기소에서 선불(전자민원캐시)로 <b>열람</b>하고, PDF 저장과 함께 고유번호·전유면적·대지권을 뽑아 여기에 보여 줍니다.</p>
 </div></header>
 
+<div class="layout">
+<aside class="hist">
+  <h2>받은 등기 <span class="status" id="histInfo"></span></h2>
+  <input type="text" id="histFilter" placeholder="주소로 찾기" autocomplete="off">
+  <ul id="histList"></ul>
+  <p class="hnote">누르면 PDF를 내려받습니다 (PC 에이전트가 켜져 있을 때).</p>
+</aside>
 <main>
   <section class="card">
     <h2>PC 에이전트</h2>
@@ -106,7 +134,7 @@ footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-
   <section class="card">
     <h2>열람 요청</h2>
     <div class="grid">
-      <label class="f wide"><span>주소 (지번 또는 도로명)</span><input type="text" id="addr" placeholder="서울특별시 강남구 대치동 511" autocomplete="off"></label>
+      <label class="f wide"><span>주소 (지번 또는 도로명)</span><span class="acwrap"><input type="text" id="addr" placeholder="서울특별시 강남구 대치동 511" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="acList"><ul id="acList" role="listbox" hidden></ul></span></label>
       <label class="f"><span>동 (집합건물)</span><input type="text" id="dong" placeholder="107" autocomplete="off"></label>
       <label class="f"><span>호 (집합건물)</span><input type="text" id="ho" placeholder="107" autocomplete="off"></label>
       <label class="f"><span>등기기록</span>
@@ -114,7 +142,7 @@ footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-
       <label class="f wide"><span>메모 (선택)</span><input type="text" id="memo" placeholder="예: 대치동 상속 건" autocomplete="off"></label>
     </div>
     <p class="hint">주소를 치고 Enter → 토지 / 건물 / 토지+건물 중에 고릅니다. 동·호를 넣으면 집합건물(아파트·상가 호)로 바로 요청합니다.</p>
-    <p class="hint">열람 수수료가 선불 잔액에서 바로 차감됩니다. 검색 결과가 정확히 1건 맞을 때만 자동 결제하고, 애매하면 PC에서 멈춰 확인합니다.</p>
+    <p class="hint">열람 수수료가 선불 잔액에서 바로 차감됩니다. 검색 결과가 정확히 1건 맞을 때만 자동 결제하고, 애매하면 PC에서 멈춰 확인합니다. 토지·건물은 같은 지번에 등기가 여러 개(예: 주1·주2)면 전부 한 건씩 받습니다.</p>
     <div class="row">
       <button type="button" class="btn primary" id="addBtn">열람 요청</button>
       <button type="button" class="btn" id="refreshBtn">새로고침</button>
@@ -146,6 +174,7 @@ footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-
     </details>
   </section>
 </main>
+</div>
 
 <footer>개인 전용 도구. 실제 열람은 본인 PC의 에이전트가 본인 등기소 계정·선불 잔액으로 합니다. 등기소 로그인(보안문자)은 PC에서 사람이 하고, 에이전트가 켜져 있는 동안 세션을 유지합니다. PDF는 PC의 output 폴더에 저장됩니다.</footer>
 
@@ -240,6 +269,8 @@ if (typeof module !== "undefined") module.exports = DG;
       const d = await api({action: "list"});
       renderAgent(DG.agentView(d.agent_last_seen, d.agent_state, Date.now()));
       renderJobs(d.jobs || []);
+      const done = (d.jobs || []).filter(j => j.status === "완료").length;   // 새로 끝난 건이 생기면 왼쪽 목록도
+      if (done !== refresh.done) { refresh.done = done; loadHist(); }
       $("listInfo").textContent = `(${(d.jobs || []).length}건, ${new Date().toLocaleTimeString("ko-KR")} 기준)`;
     } catch(e) {
       renderAgent(e.message === "OFFLINE"
@@ -282,8 +313,98 @@ if (typeof module !== "undefined") module.exports = DG;
   $("addBtn").onclick = ask;
   $("kindPick").querySelectorAll("[data-kind]").forEach(b => b.onclick = () => send(b.dataset.kind.split(",")));
   $("kindCancel").onclick = () => { hidePick(); $("addr").focus(); };
-  ["addr", "dong", "ho"].forEach(id => $(id).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); ask(); } }));
-  $("addr").addEventListener("input", hidePick);
+  ["addr", "dong", "ho"].forEach(id => $(id).addEventListener("keydown", e => {
+    if (id === "addr" && acKey(e)) return;   // 자동완성 목록에서 ↑↓/Enter/Esc
+    if (e.key === "Enter") { e.preventDefault(); acHide(); ask(); }
+  }));
+  $("addr").addEventListener("input", () => { hidePick(); acSchedule(); });
+  $("addr").addEventListener("blur", () => setTimeout(acHide, 150));
+
+  // ── 주소 자동완성: 받은 등기(즉시) + V-World 주소 검색(잠깐 멈추면) ──
+  let acItems = [], acOn = -1, acTimer = 0, acSeq = 0, histItems = [];
+  function acHide(){ $("acList").hidden = true; acOn = -1; }
+  function acShow(items){
+    acItems = items.slice(0, 10); acOn = -1;
+    const box = $("acList");
+    if (!acItems.length || document.activeElement !== $("addr")) { acHide(); return; }
+    box.innerHTML = acItems.map((it, i) => `<li role="option" data-i="${i}">${esc(it.addr)}${it.sub ? `<small>${esc(it.sub)}</small>` : ""}</li>`).join("");
+    box.querySelectorAll("li").forEach(li => li.onmousedown = e => { e.preventDefault(); acPick(+li.dataset.i); });
+    box.hidden = false;
+  }
+  function acPick(i){
+    const it = acItems[i]; if (!it) return;
+    $("addr").value = it.addr; acSeq++; acHide(); $("addr").focus();
+  }
+  function acKey(e){
+    if ($("acList").hidden || !acItems.length) return false;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      acOn = (acOn + (e.key === "ArrowDown" ? 1 : -1) + acItems.length) % acItems.length;
+      $("acList").querySelectorAll("li").forEach((li, i) => li.classList.toggle("on", i === acOn));
+      return true;
+    }
+    if (e.key === "Escape") { acHide(); return true; }
+    if (e.key === "Enter" && acOn >= 0) { e.preventDefault(); acPick(acOn); return true; }
+    return false;
+  }
+  const squash = s => String(s || "").replace(/\s+/g, "");
+  function acSchedule(){
+    clearTimeout(acTimer);
+    const q = $("addr").value.trim(), seq = ++acSeq;
+    if (q.length < 2) { acHide(); return; }
+    const mine = [], seen = new Set();
+    histItems.forEach(h => {
+      const a = h["소재지"] || h.query;
+      if (a && squash(a).includes(squash(q)) && !seen.has(squash(a))) { seen.add(squash(a)); mine.push({addr: a, sub: "받은 등기"}); }
+    });
+    acShow(mine.slice(0, 4));
+    if (!window.ArapBldrgst || q.length < 3) return;
+    acTimer = setTimeout(async () => {
+      let c = [];
+      try { c = await window.ArapBldrgst.search(q); } catch (e) { c = []; }
+      if (seq !== acSeq) return;   // 그 사이 더 쳤거나 이미 골랐으면 버림
+      const more = [];
+      c.forEach(x => {
+        const parts = String(x.addr).split("→").map(t => t.trim());
+        const a = parts[parts.length - 1];
+        if (a && !seen.has(squash(a))) { seen.add(squash(a)); more.push({addr: a, sub: parts.length > 1 ? parts[0] : ""}); }
+      });
+      acShow(mine.slice(0, 4).concat(more));
+    }, 350);
+  }
+
+  // ── 왼쪽: 받은 등기 목록 (PC history.json) → 누르면 PDF 내려받기 ──
+  function renderHist(){
+    const f = squash($("histFilter").value);
+    const list = histItems.filter(h => !f || squash((h["소재지"] || "") + h.query + h.name).includes(f));
+    $("histInfo").textContent = histItems.length ? histItems.length + "건" : "";
+    $("histList").innerHTML = list.length ? list.map(h => `<li><button type="button" data-n="${h.n}" title="${esc(h.name)}">
+        <div class="a">${h["구분"] ? `<span class="k">${esc(h["구분"])}</span>` : ""}${esc(h["소재지"] || h.query)}</div>
+        <div class="m">${esc(h.date)} ${esc((h.time || "").slice(0, 5))}${h["고유번호"] ? " · " + esc(h["고유번호"]) : ""}</div></button></li>`).join("")
+      : '<li class="hnote">' + (histItems.length ? "맞는 기록이 없습니다." : "받은 등기가 없습니다.") + "</li>";
+    $("histList").querySelectorAll("[data-n]").forEach(b => b.onclick = () => downloadPdf(+b.dataset.n, b));
+  }
+  async function loadHist(){
+    if (remote()) { $("histList").innerHTML = '<li class="hnote">Apps Script 큐 모드에서는 PC 파일 목록을 볼 수 없습니다.</li>'; return; }
+    try { const d = await api({action: "history"}); histItems = d.items || []; renderHist(); }
+    catch(e) { if (!histItems.length) $("histList").innerHTML = '<li class="hnote">PC 에이전트가 켜져 있어야 목록이 보입니다.</li>'; }
+  }
+  async function downloadPdf(n, btn){
+    const h = histItems.find(x => x.n === n) || {};
+    btn.style.opacity = ".5";
+    try {
+      let r;
+      try { r = await fetch(LOCAL + "?" + new URLSearchParams({action: "file", n}), {targetAddressSpace: "loopback"}); }
+      catch(e) { throw new Error("PC 에이전트가 꺼져 있습니다 (3_에이전트.bat 실행)"); }
+      if (!r.ok) { let m = "PDF를 받지 못했습니다"; try { m = (await r.json()).error || m; } catch(e) {} throw new Error(m); }
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a"); a.href = url; a.download = h.name || "등기.pdf";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch(e) { alert(e.message); }
+    finally { btn.style.opacity = ""; }
+  }
+  $("histFilter").addEventListener("input", renderHist);
 
   $("setUrl").value = conf().url;
   $("setKey").value = conf().key;
@@ -296,8 +417,9 @@ if (typeof module !== "undefined") module.exports = DG;
     $("setStatus").className = "status"; $("setStatus").textContent = "지웠습니다"; refresh();
   };
 
-  refresh();
+  refresh(); loadHist();
   setInterval(refresh, 5000);
+  setInterval(loadHist, 30000);
 })();
 </script>
 </body>
