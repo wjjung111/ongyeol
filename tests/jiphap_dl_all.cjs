@@ -1,4 +1,4 @@
-// 집건 「📦 일괄 받기」 (2026-11-15) + 평가목적 자산재평가면 의견서 목적 문장이 외부감사법(arap_purpose_law.js) — 단일: 표지·괄감·의견서·요항표·명세표 5개 / 여러 호수(주거용): 감정평가서+명세표 2개
+// 집건 「📦 일괄 받기」 (2026-11-15) + 평가목적 자산재평가면 의견서 목적 문장이 외부감사법(arap_purpose_law.js) — 단일: 표지·괄감·의견서·요항표·명세표 5개 / 여러 호수(주거용): 감정평가서+요항표+명세표 3개(요항표 2026-11-17)
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_dl_all.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('assert/strict');
@@ -11,7 +11,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
   try{
     const S5=['1. 표지','2. 감정평가표(괄감)','3. 의견서(산출근거)','5. 요항표','4. 명세표'],AUD=/「주식회사 등의 외부감사에 관한 법률」상 유형자산에 대한 자산재평가 목적의 감정평가임/,LOAN=/으로서, 담보 목적의 감정평가임/;
     // 평가구분 담보(평가목적 비움) → 「…으로서, 담보 목적의 감정평가임.」 (2026-11-16)
-    for(const [mode,want,pur,cat,re] of [['single',S5,'자산재평가','',AUD],['multi',['1. 감정평가서','4. 명세표'],'자산재평가','',AUD],['single',S5,'','담보',LOAN],['multi',['1. 감정평가서','4. 명세표'],'','담보',LOAN]]){
+    for(const [mode,want,pur,cat,re] of [['single',S5,'자산재평가','',AUD],['multi',['1. 감정평가서','5. 요항표','4. 명세표'],'자산재평가','',AUD],['single',S5,'','담보',LOAN],['multi',['1. 감정평가서','5. 요항표','4. 명세표'],'','담보',LOAN]]){
       const ctx=await browser.newContext({viewport:{width:1800,height:1000},acceptDownloads:true}),page=await ctx.newPage(),errors=[];
       page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(60000);page.on('dialog',d=>d.accept());
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
