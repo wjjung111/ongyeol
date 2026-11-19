@@ -15,10 +15,10 @@ const num=s=>Number(String(s).replace(/[^\d]/g,''));
     for(const mode of ['single','multi']){
       const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.setDefaultTimeout(20000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
+      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));},{mode});
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('4. 가격산출',{exact:true}).click({timeout:60000});
+      await scope.getByText('3. 위치도 · 청구서',{exact:true}).click({timeout:60000});
       const right=scope.locator('.k4-right');
       const ta=scope.locator('textarea[placeholder*="계산서1"]').first();
       const feeRow=async()=>{const t=await right.innerText();const m=t.match(/평가수수료[^\d]*([\d,]{5,})/);return m?num(m[1]):null;};

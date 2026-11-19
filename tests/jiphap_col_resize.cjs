@@ -16,7 +16,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
       await page.addInitScript(({mode})=>{
-        localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);const prefix=mode==='multi'?'v2:':'';
+        localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));const prefix=mode==='multi'?'v2:':'';
         if(localStorage.getItem(prefix+'case:TEST-COLW'))return;
         const c=(id,sym,ho,price)=>({id,symbol:sym,location:'서울특별시 성동구 행당동',jibun:'87',aptName:'쌍용남산플라티넘 B-4',dong:'',floor:'4',ho,exclusiveArea:158.97,price,unitPrice:Math.round(price/158.97),tradeDate:'2025.11.27',approvalDate:'2010.08.05',timeAdj:null,timeAdjDetail:'',isShown:true,isSelected:false});
         const p=(id,sel)=>({id,selected:sel,location:'행당동',jibun:'87',buildingName:'검증',exclusiveArea:50,appraiseAmount:300000000,unitPrice:6000000,baseDate:'2026.01.01',purpose:'일반거래',isShown:true});
@@ -25,7 +25,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       },{mode});
       await page.goto(base+'/s3r86w8a.html?last=1');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('3. 사례 등 입력',{exact:true}).click();
+      await scope.getByText('2. 사례 · 가격산출',{exact:true}).click();
 
       // 표는 머리글 글자로 찾는다(여러호수는 단계가 한 화면에 같이 떠서 순번이 다르다) — 0 = 거래사례, 1 = 평가전례
       const tbl=n=>scope.locator('table').filter({has:page.locator('th',{hasText:n===0?'사용승인일':'기준시점'})}).first();
@@ -36,16 +36,16 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
 
       // 1) 안 끌었으면 자동 너비 — 손잡이는 머리글 칸 수만큼 있다
       let i0=await info(0);assert.equal(i0.fixed,false);assert.equal(i0.cols,0);
-      assert.equal(await tbl(0).locator('thead .rsz-grip').count(),15);
+      assert.equal(await tbl(0).locator('thead .rsz-grip').count(),16);   // 용도 열 추가(2026-11-16)
       assert.equal(await tbl(1).locator('thead .rsz-grip').count(),12);
-      const w0=await widths(0);assert.equal(w0.length,15);
+      const w0=await widths(0);assert.equal(w0.length,16);
 
       // 2) 건물명(6번) 열을 +80px — 그 열만 넓어지고 나머지는 그대로
       await dragBy(grip(0,6),80);
       const w1=await widths(0);i0=await info(0);
-      assert.equal(i0.fixed,true);assert.equal(i0.cols,15);
+      assert.equal(i0.fixed,true);assert.equal(i0.cols,16);
       assert.ok(Math.abs(w1[6]-(w0[6]+80))<=2,`건물명 열 ${w0[6]}→${w1[6]}`);
-      for(const j of [0,1,2,3,4,5,7,8,9,10,11,12,13,14])assert.ok(Math.abs(w1[j]-w0[j])<=2,`열 ${j} 변동 ${w0[j]}→${w1[j]}`);
+      for(const j of [0,1,2,3,4,5,7,8,9,10,11,12,13,14,15])assert.ok(Math.abs(w1[j]-w0[j])<=2,`열 ${j} 변동 ${w0[j]}→${w1[j]}`);
 
       // 3) 정렬 머리글(소재지, 4번)을 끌어도 정렬이 눌리지 않는다 — 끄는 도중 다시 그려져도 끊기지 않고 좁히기도 된다
       const before=await tbl(0).locator('thead th').nth(4).innerText();
@@ -58,7 +58,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       // 4) 새로고침해도 유지(표별 localStorage), 평가전례 표는 영향 없음
       await page.waitForFunction(()=>!!localStorage.getItem('arap-colw-cases'));
       assert.equal(await page.evaluate(()=>localStorage.getItem('arap-colw-precs')),null);
-      await page.reload();await scope.getByText('3. 사례 등 입력',{exact:true}).click();
+      await page.reload();await scope.getByText('2. 사례 · 가격산출',{exact:true}).click();
       const w3=await widths(0);assert.ok(Math.abs(w3[6]-w1[6])<=2&&Math.abs(w3[4]-w2[4])<=2,`새로고침 뒤 ${w3}`);
       assert.equal((await info(1)).fixed,false);
 
@@ -72,9 +72,9 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       i0=await info(0);assert.equal(i0.fixed,false);assert.equal(i0.cols,0);
       assert.equal(await page.evaluate(()=>localStorage.getItem('arap-colw-cases')),null);
 
-      // 7) 여러호수만: 상세물건정보(호 단위) 표 — '2. 대상물건개요'
+      // 7) 여러호수만: 상세물건정보(호 단위) 표 — '1. 접수 · 대상물건'
       if(mode==='multi'){
-        await scope.getByText('2. 대상물건개요',{exact:true}).click();
+        await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();
         const ut=scope.locator('table').filter({has:page.locator('th',{hasText:'탁상단가'})}).first();
         const uw=()=>ut.locator('thead > tr:first-child > th').evaluateAll(a=>a.map(t=>Math.round(t.getBoundingClientRect().width)));
         const u0=await uw();assert.equal(u0.length,13);

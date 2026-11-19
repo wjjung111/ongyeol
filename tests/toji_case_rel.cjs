@@ -101,7 +101,7 @@ function fakeData(id){const i=Number(String(id).slice(-3))||1,x=126.9+i*0.002,y=
   await page.waitForFunction(()=>/채움/.test(document.getElementById('pTradeMsg').textContent));
   assert.deepEqual(await page.evaluate(()=>TRADES.map(c=>c.road||'')),['세로(가)','광대한면','']);
   assert.ok(queries.includes('경기도 화성시 팔탄면 율암리 134-1'),'외 떼고 본건 시군구 붙여 조회');
-  await page.getByRole('button',{name:'평가사례',exact:true}).click();
+  // 평가사례 카드는 2-1 화면에 늘 보임(2026-11-03 — 예전 내부 탭 단추 없음)
   await page.locator('#tblAppr th',{hasText:'도로'}).locator('button').click();
   await page.waitForFunction(()=>/채움/.test(document.getElementById('pApprMsg').textContent));
   assert.equal(await page.evaluate(()=>APPRS[0].road),'세로(가)');

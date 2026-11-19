@@ -19,7 +19,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     await page.addInitScript(({mode,pre})=>{if(sessionStorage.getItem('init'))return;sessionStorage.setItem('init','1');
-      localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);
+      localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));
       const d=(id,b,n)=>JSON.stringify({ov:{caseNo:id,buildingName:b,dong:'1',ho:'101',owner:'홍길동',area:'84.9'},cases:Array.from({length:n},(_,i)=>({id:'c'+i,symbol:i+1,unitPrice:5000000})),precs:[],propType:'주거용'});
       localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'C-1',label:'C-1 검증빌딩',updated:'2026-10-14T10:00:00Z'},{id:'D-1',label:'D-1 남의빌딩',updated:'2026-10-13T10:00:00Z'}]));
       localStorage.setItem(pre+'case:C-1',d('C-1','검증빌딩',3));

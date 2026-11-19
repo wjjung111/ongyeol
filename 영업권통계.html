@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<!--
+  Ongyeol — 영업권 평가 통계 내려받기 (한국은행 ECOS) — 화면 목업
+  항목 목록 → 누르면 기간·세부항목 설정 → 다운로드. 지금은 API 미연결(다운로드 버튼은 안내만).
+  연결할 때 인증키는 이 파일에 넣지 않고 프록시 Secret으로. test.html(개발 허브)에서만 링크.
+  Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>영업권 통계 내려받기</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  input:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
+  #mode-bar{position:sticky;top:0;z-index:50;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
+  #mode-bar a{border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
+  #mode-bar a:hover{border-color:#2563eb;color:#fff;}
+  #mode-bar .t{color:#e2e8f0;font-weight:700;margin-left:4px;}
+  #mode-bar .tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
+  .wrap{max-width:760px;margin:16px auto;padding:0 14px;}
+  .top{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #e2e5ea;border-radius:8px;padding:14px 16px;margin-bottom:12px;}
+  .f{display:flex;flex-direction:column;gap:3px;}
+  .f label{font-size:11px;font-weight:700;color:#475569;}
+  input,select{font:inherit;font-size:13px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;}
+  .hint{font-size:12px;color:#64748b;}
+  /* 항목 목록 */
+  .list{background:#fff;border:1px solid #e2e5ea;border-radius:8px;overflow:hidden;}
+  .item{border-bottom:1px solid #eef0f3;border-left:4px solid transparent;transition:background .12s;}
+  .item:last-child{border-bottom:none;}
+  .head{display:flex;align-items:center;gap:10px;padding:12px 16px 12px 12px;cursor:pointer;user-select:none;}
+  .head:hover{background:#f8fafc;}
+  .head input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#2563eb;}
+  .head .nm{font-weight:700;font-size:14px;color:#334155;}
+  .head .sub{font-size:12px;color:#94a3b8;margin-left:6px;}
+  .head .per{margin-left:auto;font-size:12px;color:#94a3b8;font-weight:600;white-space:nowrap;}
+  .head .arr{color:#94a3b8;font-size:12px;width:12px;text-align:center;transition:transform .15s;}
+  /* 선택된 항목: 이름·기간만 진하게 (배경은 그대로 — 펼친 항목만 눈에 띄게) */
+  .item.on .nm{color:#1a2744;}
+  .item.on .per{color:#1d4ed8;}
+  /* 펼친 항목: 남색 머리 + 파란 테두리 카드 */
+  .item.open{border-left-color:#2563eb;background:#eff6ff;margin:8px 10px;border:1px solid #93c5fd;border-left:4px solid #2563eb;border-radius:8px;box-shadow:0 4px 14px rgba(37,99,235,.12);overflow:hidden;}
+  .item.open .head{background:#1a2744;}
+  .item.open .head:hover{background:#1e2f55;}
+  .item.open .nm{color:#fff;}
+  .item.open .sub{color:#93c5fd;}
+  .item.open .per{color:#fde68a;}
+  .item.open .arr{color:#fff;transform:rotate(90deg);}
+  .body{display:none;padding:14px 16px 12px;}
+  .item.open .body{display:block;}
+  .set{display:grid;grid-template-columns:84px 1fr;gap:10px 12px;align-items:center;background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;}
+  .set .k{font-size:12px;font-weight:700;color:#1d4ed8;background:#dbeafe;border-radius:6px;padding:5px 0;text-align:center;}
+  .set .v{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .set .v .tilde{color:#94a3b8;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chips label{display:flex;align-items:center;gap:5px;font-size:12.5px;background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:4px 11px;cursor:pointer;}
+  .chips label:has(input:checked){background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600;}
+  .chips input{accent-color:#fff;}
+  .src{font-size:11px;color:#64748b;margin-top:8px;text-align:right;}
+  .grp{font-size:12px;font-weight:700;color:#fff;padding:6px 16px;background:#475569;letter-spacing:.02em;}
+  .grp.ref{background:#cbd5e1;color:#475569;}
+  /* 하단 */
+  .bottom{position:sticky;bottom:0;display:flex;align-items:center;gap:10px;margin-top:12px;padding:12px 16px;background:#fff;border:1px solid #e2e5ea;border-radius:8px;box-shadow:0 -2px 8px rgba(15,23,42,.05);}
+  .bottom .cnt{font-weight:700;}
+  .bottom .fn{font-size:11px;color:#64748b;}
+  .btn{font:inherit;font-size:13px;font-weight:600;color:#fff;background:#2563eb;border:1px solid #2563eb;border-radius:6px;padding:8px 18px;cursor:pointer;margin-left:auto;}
+  .btn:hover{background:#1d4ed8;}
+  .btn:disabled{background:#cbd5e1;border-color:#cbd5e1;cursor:default;}
+  .btn.gh{background:#fff;color:#334155;border-color:#cbd5e1;margin-left:0;}
+  .btn.gh:hover{background:#f1f5f9;}
+  .head .txt{flex:1;min-width:0;}
+  .head .nm,.head .sub{white-space:nowrap;}
+  .bottom{flex-wrap:wrap;}
+  @media(max-width:600px){
+    #mode-bar{flex-wrap:wrap;}
+    #mode-bar .tag{margin-left:0;}
+    .head{flex-wrap:wrap;row-gap:2px;}
+    .head .sub{display:block;margin-left:0;}
+    .head .per{order:3;width:100%;margin-left:26px;}
+    .set{grid-template-columns:1fr;}
+    .item.open{margin:6px 4px;}
+    .bottom .fn{order:5;width:100%;}
+  }
+  .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#0f172a;color:#fff;font-size:13px;padding:10px 16px;border-radius:8px;display:none;}
+</style>
+</head>
+<body>
+<script src="arap_access.js"></script>
+<div id="mode-bar">
+  <a href="test.html">← 개발 허브</a>
+  <span class="t">📥 영업권 통계 내려받기 (한국은행 ECOS)</span>
+  <span class="tag">화면 목업 · API 미연결</span>
+</div>
+
+<div class="wrap">
+  <div class="top">
+    <div class="f"><label>기준시점</label><input id="base" data-date value="2026.11.01" style="width:120px"></div>
+    <div class="f"><label>사건명 (파일명용)</label><input id="caseName" value="승화고무" style="width:150px"></div>
+    <div class="hint">기준시점을 넣으면 항목마다 기간이 자동으로 채워져요. 항목을 눌러 바꿀 수 있어요.</div>
+  </div>
+
+  <div class="list" id="list"></div>
+
+  <div class="bottom">
+    <span><span class="cnt" id="cnt">0개</span> 선택</span>
+    <span class="fn" id="fn"></span>
+    <button class="btn gh" id="allBtn">전체 선택</button>
+    <button class="btn" id="dl">📥 엑셀로 다운로드</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="arap_date.js"></script>
+<script>
+// 항목 정의 — code/item은 ECOS 통계표·항목코드(연결 때 그대로 사용)
+// per: 기본 기간 규칙 — day(직전 영업일), m12(직전 12개월), m3(최근 공표 3개월), y4(최근 4개년)
+const ITEMS=[
+  {grp:"금리"},
+  {id:"bondD",nm:"국고채 금리 (일별)",sub:"무위험이자율",code:"817Y002",cyc:"일",per:"day",def:["국고채(1년)"],opts:["국고채(1년)","국고채(3년)","국고채(5년)","국고채(10년)"]},
+  {id:"bondM",nm:"국고채 금리 (월별)",sub:"무위험이자율",code:"721Y001",cyc:"월",per:"m12",def:["국고채(1년)"],opts:["국고채(1년)","국고채(3년)","국고채(5년)","국고채(10년)"]},
+  {id:"corpAA",nm:"회사채 3년 AA-",sub:"금리 참고",code:"817Y002 / 721Y001",cyc:"일+월",per:"daym12",def:["일별","월별"],opts:["일별","월별"]},
+  {id:"corpBBB",nm:"회사채 3년 BBB-",sub:"E(Rm)·Kd 상단",code:"817Y002 / 721Y001",cyc:"일+월",per:"daym12",def:["일별","월별"],opts:["일별","월별"]},
+  {id:"loan",nm:"예금은행 대출금리",sub:"Kd",code:"121Y006 신규취급액 / 121Y015 잔액",cyc:"월",per:"m3",def:["중소기업대출 (신규취급액)","중소기업대출 (잔액)"],opts:["중소기업대출 (신규취급액)","중소기업대출 (잔액)","기업대출 (신규취급액)","대기업대출 (신규취급액)"]},
+  {grp:"그 외"},
+  {id:"gdp",nm:"실질 GDP 성장률 (연간)",sub:"성장률",code:"200Y101",cyc:"연",per:"y4",def:["국내총생산(실질성장률)"],opts:["국내총생산(실질성장률)","제조업","서비스업","건설업"]},
+  {id:"cpi",nm:"소비자물가지수",sub:"성장률·임차료 상승률 (5개년 평균)",code:"901Y009",cyc:"연",per:"y6",def:["총지수"],opts:["총지수"]},
+  {id:"bsa",nm:"기업경영분석 (업종·규모별)",sub:"동종업종 매출액증가율",code:"5.1.x",cyc:"연",per:"y3",def:["성장성","수익성"],opts:["성장성","수익성","안정성(부채비율)","활동성"],ind:true},
+  {id:"wage",nm:"산업·규모별 임금",sub:"대표자 보수 참고",code:"8.6.4.1",cyc:"월",per:"m6",def:["월 임금총액"],opts:["월 임금총액","근로일수"],ind:true},
+  {grp:"참고 (전례에서 받았지만 의견서엔 안 씀)"},
+  {id:"gdpQ",nm:"GDP 성장률 (분기)",sub:"성장률",code:"200Y102",cyc:"분기",per:"q8",def:["국내총생산(실질, 전년동기비)"],opts:["국내총생산(실질, 전년동기비)","국내총생산(실질, 계절조정, 전기비)"]},
+  {id:"defl",nm:"GDP 디플레이터 (업종별)",sub:"물가·성장률",code:"200Y111",cyc:"분기",per:"q8",def:["국내총생산(시장가격)"],opts:["국내총생산(시장가격)","제조업","도소매 및 숙박음식업","교육서비스업"]}
+];
+const IND=["C22 고무·플라스틱","C33 기타 제품","M71 전문서비스(광고)","P85 교육서비스","G46 도매","I55 숙박"];
+
+const $=id=>document.getElementById(id);
+const sel={};          // 선택된 항목 id → true
+const open={};         // 펼친 항목
+function pd(d){const m=String(d).match(/(\d{4})\.(\d{2})\.(\d{2})/);return m?new Date(+m[1],+m[2]-1,+m[3]):new Date();}
+const z=n=>String(n).padStart(2,"0");
+const ymd=d=>`${d.getFullYear()}.${z(d.getMonth()+1)}.${z(d.getDate())}`;
+const ym=d=>`${d.getFullYear()}.${z(d.getMonth()+1)}`;
+function prevBiz(d){const x=new Date(d);do{x.setDate(x.getDate()-1);}while(x.getDay()===0||x.getDay()===6);return x;}
+function addM(d,n){return new Date(d.getFullYear(),d.getMonth()+n,1);}
+function q(d){return `${d.getFullYear()}.${Math.floor(d.getMonth()/3)+1}Q`;}
+// 기본 기간 (시작, 끝, 짧은 설명)
+function period(per){
+  const b=pd($("base").value), lastM=addM(b,-1), y=b.getFullYear()-1;
+  switch(per){
+    case"day":{const d=prevBiz(b);return[ymd(d),ymd(d),"직전 영업일 "+ymd(d)];}
+    case"m12":return[ym(addM(lastM,-11)),ym(lastM),`${ym(addM(lastM,-11))} ~ ${ym(lastM)}`];
+    case"daym12":{const d=prevBiz(b);return[ym(addM(lastM,-11)),ymd(d),`${ymd(d)} + 12개월`];}
+    case"m3":{const e=addM(b,-2);return[ym(addM(e,-2)),ym(e),`${ym(addM(e,-2))} ~ ${ym(e)}`];}
+    case"m6":{const e=addM(b,-2);return[ym(addM(e,-5)),ym(e),`${ym(addM(e,-5))} ~ ${ym(e)}`];}
+    case"y3":return[`${y-2}`,`${y}`,`${y-2} ~ ${y}`];
+    case"y4":return[`${y-3}`,`${y}`,`${y-3} ~ ${y}`];
+    case"y5":return[`${y-4}`,`${y}`,`${y-4} ~ ${y}`];
+    case"y6":return[`${y-5}`,`${y}`,`${y-4} ~ ${y} 상승률`];
+    case"q8":{const e=addM(b,-6);return[q(addM(e,-21)),q(e),`${q(addM(e,-21))} ~ ${q(e)}`];}
+  }
+}
+
+function render(){
+  $("list").innerHTML=ITEMS.map(it=>{
+    if(it.grp)return `<div class="grp${it.grp.startsWith("참고")?" ref":""}">${it.grp}</div>`;
+    const [s,e,txt]=period(it.per);
+    return `<div class="item${sel[it.id]?" on":""}${open[it.id]?" open":""}" data-id="${it.id}">
+      <div class="head" data-act="toggle">
+        <input type="checkbox" data-act="check" ${sel[it.id]?"checked":""}>
+        <span class="txt"><span class="nm">${it.nm}</span><span class="sub">${it.sub}</span></span>
+        <span class="per">${it.cyc} · ${txt}</span><span class="arr">▶</span>
+      </div>
+      <div class="body">
+        <div class="set">
+          <span class="k">기간</span>
+          <span class="v"><input value="${s}" style="width:110px"><span class="tilde">~</span><input value="${e}" style="width:110px"></span>
+          ${it.ind?`<span class="k">업종·규모</span>
+          <span class="v"><select>${IND.map(x=>`<option>${x}</option>`).join("")}</select><select><option>소기업</option><option>중소기업</option><option>종합</option></select></span>`:""}
+          <span class="k">조회 항목</span>
+          <span class="v chips">${it.opts.map(o=>`<label><input type="checkbox" ${it.def.includes(o)?"checked":""}> ${o}</label>`).join("")}</span>
+        </div>
+        <div class="src">ECOS 통계표 ${it.code}</div>
+      </div>
+    </div>`;}).join("");
+  const n=Object.values(sel).filter(Boolean).length;
+  $("cnt").textContent=n+"개";$("dl").disabled=!n;
+  $("fn").textContent=n?`ECOS_${$("caseName").value||"사건"}_기준${$("base").value.replace(/\./g,"")}.xlsx (항목별 시트)`:"";
+}
+
+$("list").addEventListener("click",e=>{
+  const item=e.target.closest(".item");if(!item)return;const id=item.dataset.id;
+  if(e.target.dataset.act==="check"){sel[id]=e.target.checked;if(sel[id])open[id]=true;render();return;}
+  if(e.target.closest(".head")){open[id]=!open[id];render();}
+});
+$("allBtn").onclick=()=>{const all=ITEMS.filter(i=>i.id).every(i=>sel[i.id]);ITEMS.forEach(i=>{if(i.id)sel[i.id]=!all;});render();};
+$("dl").onclick=()=>{const t=$("toast");t.textContent="목업이라 아직 다운로드는 안 돼요 (API 연결 후 작동)";t.style.display="block";setTimeout(()=>t.style.display="none",2200);};
+$("base").addEventListener("input",render);$("caseName").addEventListener("input",render);
+// 기본 선택: 영업권 평가에 매번 쓰는 4종
+["bondD","bondM","corpBBB","loan","gdp"].forEach(id=>sel[id]=true);
+render();
+</script>
+</body>
+</html>

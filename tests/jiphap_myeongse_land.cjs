@@ -23,7 +23,7 @@ const cell=(x,r)=>{const m=new RegExp('<c r="'+r+'"([^>]*?)(?:/>|>([\\s\\S]*?)</
   page.on('pageerror',e=>errors.push(e.message));
   let answer=true;const msgs=[];page.on('dialog',d=>{msgs.push(d.message());answer&&d.type()==='confirm'?d.accept():(d.type()==='confirm'?d.dismiss():d.accept());});
   await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
-  await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');});
+  await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
   await page.goto(base+'/s3r86w8a.html');await page.waitForFunction(()=>window.__dlMS);
   const ov={jibun:'서울특별시 강남구 삼성동 14-1 외 1필지',road:'서울특별시 강남구 학동로68길 30',dong:'101',floor:'16',ho:'1601',area:'152.983',
     landArea:'69.49',landRatioDenom:'15382.5',mainUse:'공동주택(아파트)',regStructure:'철근콘크리트구조 (철근)콘크리트경사지붕',floors:'18/3',floorDetail:'지1층 107.228\n1층 764.858',

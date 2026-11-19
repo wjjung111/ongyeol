@@ -31,7 +31,11 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
   await picks.nth(1).selectOption('1');
   assert.deepEqual(await page.evaluate(()=>LANDS.map(L=>L.stdIdx||0)),[0,1]);
   assert.deepEqual(await page.evaluate(()=>GONGSI_RESULT.rows.map(r=>r.stdIdx)),[0,1]);
-  assert.equal(await page.locator('#tblGaebyeol select.std-pick').nth(1).inputValue(),'1','다시 그려도 B');
+  // 다시 그리면 표준지별로 표가 나뉜다(#337 지대별 개별요인 표, 2026-10-21) — 필지 1은 표준지 A 표(#tblGaebyeol), 필지 2는 표준지 B 표(#tblGaebyeol_1)
+  assert.equal(await page.locator('#tblGaebyeol select.std-pick').count(),1,'A 표엔 필지 1만');
+  assert.equal(await page.locator('#tblGaebyeol select.std-pick').inputValue(),'0','필지 1은 A');
+  assert.equal(await page.locator('#tblGaebyeol_1 select.std-pick').inputValue(),'1','다시 그려도 B');
+  assert.match(await page.locator('#tblGaebyeolMore .fac-cap').first().textContent(),/^표준지 B/);
   console.log('① 개별요인비교 표 필지별 표준지 OK');
 
   // ② 그 밖의 요인: 사례 #1 고르고 비교표준지 B

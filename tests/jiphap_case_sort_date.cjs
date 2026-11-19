@@ -20,10 +20,10 @@ const TSV=['소재지\t지번\t기타주소\t거래시점\t전용면적\t물건�
     for(const mode of ['single','multi']){
       const ctx=await browser.newContext(),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());page.setDefaultTimeout(20000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
+      await page.addInitScript(({mode})=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));},{mode});
       await page.goto(base+'/s3r86w8a.html');
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('3. 사례 등 입력',{exact:true}).click({timeout:60000});
+      await scope.getByText('2. 사례 · 가격산출',{exact:true}).click({timeout:60000});
       await scope.locator('textarea[placeholder^="카이스에서 복사"]').first().evaluate((ta,t)=>{const dt=new DataTransfer();dt.setData('text/plain',t);ta.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));},TSV);
       const table=scope.locator('table',{has:page.locator('th',{hasText:'거래시점'})}).first();
       await table.locator('tbody tr').nth(5).waitFor();

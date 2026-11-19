@@ -1,0 +1,303 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>등기 간편열람</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#F5F7F6; --surface:#FFFFFF; --surface2:#EDF1EF; --line:#D5DCD9; --line2:#BFC8C4;
+  --ink:#182028; --ink2:#5B6670; --ink3:#8A949C;
+  --acc:#0E6B67; --acc-soft:#D9ECEA; --acc-ink:#0A4E4B;
+  --brass:#9A6B1E; --brass-soft:#F1E6D0;
+  --warn:#B04A22; --warn-soft:#F6E1D8; --ok:#2E7D4F; --ok-soft:#DCEFE2;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Gothic A1","Noto Sans KR",system-ui,sans-serif;
+  --body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131A1F; --surface:#1B2329; --surface2:#222C33; --line:#33404A; --line2:#44535E;
+    --ink:#E4EAEE; --ink2:#A6B2BB; --ink3:#77848E;
+    --acc:#3FB5AE; --acc-soft:#153B3A; --acc-ink:#8FDDD7;
+    --brass:#D2A24A; --brass-soft:#3A2E17;
+    --warn:#E0784B; --warn-soft:#3E2419; --ok:#5CBF84; --ok-soft:#173526;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131A1F; --surface:#1B2329; --surface2:#222C33; --line:#33404A; --line2:#44535E;
+  --ink:#E4EAEE; --ink2:#A6B2BB; --ink3:#77848E;
+  --acc:#3FB5AE; --acc-soft:#153B3A; --acc-ink:#8FDDD7;
+  --brass:#D2A24A; --brass-soft:#3A2E17;
+  --warn:#E0784B; --warn-soft:#3E2419; --ok:#5CBF84; --ok-soft:#173526;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.55}
+button,input,select{font:inherit;color:inherit}
+h1,h2{font-family:var(--disp);margin:0}
+header.top{padding:24px 16px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.wrap{max-width:960px;margin:0 auto}
+.top h1{font-size:24px;font-weight:800}
+.top p{margin:6px 0 0;color:var(--ink2);max-width:64ch}
+main{max-width:960px;margin:0 auto;padding:18px 16px 60px;display:grid;gap:16px}
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;min-width:0}
+section.card h2{font-size:15px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px}
+.grid .wide{grid-column:span 2}
+@media (max-width:520px){.grid .wide{grid-column:auto}}
+label.f{display:grid;gap:4px}
+label.f>span{font-size:12px;color:var(--ink2);font-weight:500}
+input[type=text],input[type=password],select{width:100%;background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:7px 9px;min-height:38px}
+input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:0;border-color:var(--acc)}
+.hint{font-size:12px;color:var(--ink2);margin:8px 0 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.btn{background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:8px 14px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--ink2)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.btn.del{color:var(--warn)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.status{font-size:12px;color:var(--ink2)}
+[hidden]{display:none!important}
+#kindPick{margin-top:10px;padding:10px 12px;border:1px solid var(--line2);border-radius:5px}
+.status.err{color:var(--warn)} .status.ok{color:var(--ok)}
+/* 에이전트 상태 */
+.agent{display:flex;gap:12px;align-items:flex-start;border-radius:8px;padding:12px 14px;background:var(--surface2)}
+.agent .dot{width:12px;height:12px;border-radius:50%;margin-top:5px;flex:none;background:var(--ink3)}
+.agent.ok{background:var(--ok-soft)} .agent.ok .dot{background:var(--ok)}
+.agent.need{background:var(--warn-soft)} .agent.need .dot{background:var(--warn)}
+.agent.off .dot{background:var(--ink3)}
+.agent b{display:block}
+.agent .sub{font-size:12.5px;color:var(--ink2)}
+/* 작업 */
+.job{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:10px}
+.job .t{font-weight:700;word-break:keep-all}
+.chipst{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12px;margin-left:6px;font-weight:700;vertical-align:1px}
+.st-wait{background:var(--surface2);color:var(--ink2)}
+.st-run{background:var(--brass-soft);color:var(--brass)}
+.st-done{background:var(--ok-soft);color:var(--ok)}
+.st-fail,.st-need{background:var(--warn-soft);color:var(--warn)}
+.job .meta{font-size:12.5px;color:var(--ink2);margin-top:4px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;margin-top:8px;font-size:13px}
+.kv .k{color:var(--ink2)}
+.kv .v{font-family:var(--mono);font-variant-numeric:tabular-nums;word-break:break-all}
+.note{margin-top:6px;font-size:12.5px;color:var(--warn)}
+.file{margin-top:6px;font-size:12px;color:var(--ink2);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.file code{font-family:var(--mono);background:var(--surface2);padding:2px 6px;border-radius:4px;word-break:break-all}
+.mini{background:none;border:1px solid var(--line2);border-radius:4px;padding:1px 7px;cursor:pointer;font-size:12px;color:var(--ink2)}
+details.set summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--ink2)}
+footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-size:12px;line-height:1.7}
+</style>
+
+<body>
+<script>window.ARAP_NAME_ICON='📜';window.ARAP_NAME_SUB='등기 간편열람';</script><script src="arap_name.js"></script>
+<script>window.ARAP_VISIT_PAGE='등기발급';</script><script src="arap_visit.js"></script>
+
+<header class="top"><div class="wrap">
+  <h1>등기 간편열람</h1>
+  <p>주소를 넣으면 내 PC의 에이전트가 인터넷등기소에서 선불(전자민원캐시)로 <b>열람</b>하고, PDF 저장과 함께 고유번호·전유면적·대지권을 뽑아 여기에 보여 줍니다.</p>
+</div></header>
+
+<main>
+  <section class="card">
+    <h2>PC 에이전트</h2>
+    <div class="agent off" id="agent"><span class="dot"></span><div><b id="agentTitle">확인 중…</b><span class="sub" id="agentSub"></span></div></div>
+  </section>
+
+  <section class="card">
+    <h2>열람 요청</h2>
+    <div class="grid">
+      <label class="f wide"><span>주소 (지번 또는 도로명)</span><input type="text" id="addr" placeholder="서울특별시 강남구 대치동 511" autocomplete="off"></label>
+      <label class="f"><span>동 (집합건물)</span><input type="text" id="dong" placeholder="107" autocomplete="off"></label>
+      <label class="f"><span>호 (집합건물)</span><input type="text" id="ho" placeholder="107" autocomplete="off"></label>
+      <label class="f"><span>등기기록</span>
+        <select id="recType"><option>전부(말소사항 포함)</option><option>전부(현재 유효사항)</option></select></label>
+      <label class="f wide"><span>메모 (선택)</span><input type="text" id="memo" placeholder="예: 대치동 상속 건" autocomplete="off"></label>
+    </div>
+    <p class="hint">주소를 치고 Enter → 토지 / 건물 / 토지+건물 중에 고릅니다. 동·호를 넣으면 집합건물(아파트·상가 호)로 바로 요청합니다.</p>
+    <p class="hint">열람 수수료가 선불 잔액에서 바로 차감됩니다. 검색 결과가 정확히 1건 맞을 때만 자동 결제하고, 애매하면 PC에서 멈춰 확인합니다.</p>
+    <div class="row">
+      <button type="button" class="btn primary" id="addBtn">열람 요청</button>
+      <button type="button" class="btn" id="refreshBtn">새로고침</button>
+      <span class="status" id="formStatus"></span>
+    </div>
+    <div class="row" id="kindPick" hidden>
+      <span class="status" id="kindAsk"></span>
+      <button type="button" class="btn primary" data-kind="토지">토지만</button>
+      <button type="button" class="btn primary" data-kind="건물">건물만</button>
+      <button type="button" class="btn primary" data-kind="토지,건물">토지+건물 (2건)</button>
+      <button type="button" class="btn" id="kindCancel">취소</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>요청 목록 <span class="status" id="listInfo"></span></h2>
+    <div id="jobList"></div>
+  </section>
+
+  <section class="card">
+    <details class="set" id="setBox">
+      <summary>고급: Apps Script 큐 (다른 기기에서 요청할 때만)</summary>
+      <div class="grid" style="margin-top:10px">
+        <label class="f wide"><span>작업 큐 주소 (Apps Script 웹앱 URL)</span><input type="text" id="setUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
+        <label class="f"><span>페이지 키 (PAGE_KEY)</span><input type="password" id="setKey" autocomplete="off"></label>
+      </div>
+      <p class="hint">비워 두면 이 PC의 에이전트(접수 창구 127.0.0.1:8790)로 바로 요청합니다 — 보통은 비워 두세요. 주소와 키는 이 브라우저에만 저장됩니다(공개 저장소 파일에는 넣지 않음).</p>
+      <div class="row"><button type="button" class="btn primary" id="saveSet">저장</button><button type="button" class="btn del" id="clearSet">지우기</button><span class="status" id="setStatus"></span></div>
+    </details>
+  </section>
+</main>
+
+<footer>개인 전용 도구. 실제 열람은 본인 PC의 에이전트가 본인 등기소 계정·선불 잔액으로 합니다. 등기소 로그인(보안문자)은 PC에서 사람이 하고, 에이전트가 켜져 있는 동안 세션을 유지합니다. PDF는 PC의 output 폴더에 저장됩니다.</footer>
+
+<script>
+// ── 순수 함수 (tests/deunggi_page.cjs 에서 검증) ─────────────────────────
+const DG = {
+  ST: {"대기":["st-wait","대기"], "처리중":["st-run","처리중"], "완료":["st-done","완료"], "실패":["st-fail","실패"], "확인필요":["st-need","확인필요"]},
+  num(v){ const n = Number(v); return Number.isFinite(n) ? n.toLocaleString("ko-KR", {maximumFractionDigits: 4}) : String(v ?? ""); },
+  // 추출값 → [라벨, 값] 목록 (표시용)
+  summarize(f){
+    const out = [];
+    if (!f || typeof f !== "object") return out;
+    if (f["고유번호"]) out.push(["고유번호", f["고유번호"]]);
+    if (f["소재지"]) out.push(["소재지", f["소재지"]]);
+    if (f["전유면적"] != null) out.push(["전유면적", DG.num(f["전유면적"]) + "㎡"]);
+    const list = Array.isArray(f["대지권_목록"]) && f["대지권_목록"].length ? f["대지권_목록"]
+               : (f["대지권_분모"] != null ? [{"분모": f["대지권_분모"], "분자": f["대지권_분자"]}] : []);
+    list.forEach((d, i) => out.push([list.length > 1 ? `대지권 ${i + 1}` : "대지권",
+      `${DG.num(d["분모"])}분의 ${d["분자"] == null ? "?" : DG.num(d["분자"])}`]));
+    if (f["토지면적"] != null) out.push(["토지면적", `${f["지목"] || ""} ${DG.num(f["토지면적"])}㎡`.trim()]);
+    if (f["열람일시"]) out.push(["열람일시", f["열람일시"]]);
+    return out;
+  },
+  // 에이전트 상태 표시: lastSeen 'YYYY-MM-DD HH:mm:ss'(KST), state {session, login_minutes}
+  agentView(lastSeen, state, now){
+    const t = lastSeen ? Date.parse(lastSeen.replace(" ", "T") + "+09:00") : NaN;
+    const ago = Number.isFinite(t) ? Math.max(0, Math.round((now - t) / 1000)) : null;
+    if (ago == null) return {cls: "off", title: "PC 에이전트 기록 없음", sub: "PC에서 3_에이전트.bat 을 실행하세요."};
+    if (ago > 180) return {cls: "off", title: "PC 에이전트 꺼짐", sub: `마지막 동작 ${lastSeen}. PC에서 3_에이전트.bat 을 실행하세요.`};
+    const s = (state && state.session) || "";
+    if (s === "로그인 필요") return {cls: "need", title: "등기소 로그인 필요", sub: "PC 크롬 창에서 보안문자를 입력해 로그인하세요. 그 전까지 요청은 대기합니다."};
+    if (s === "로그인됨") {
+      const m = Number(state.login_minutes) || 0;
+      return {cls: "ok", title: "준비됨 — 등기소 로그인 유지 중", sub: m > 0 ? `로그인 후 ${m >= 60 ? Math.floor(m / 60) + "시간 " : ""}${m % 60}분째` : "요청하면 바로 처리합니다."};
+    }
+    return {cls: "ok", title: "PC 에이전트 동작 중", sub: `마지막 확인 ${ago}초 전`};
+  },
+};
+if (typeof module !== "undefined") module.exports = DG;
+
+// ── 화면 ────────────────────────────────────────────────────
+(function(){
+  if (typeof document === "undefined") return;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const K_URL = "ongyeol-deunggi-url", K_KEY = "ongyeol-deunggi-pagekey";
+  const LOCAL = "http://127.0.0.1:8790/";   // 이 PC의 에이전트 접수 창구 (deunggi/localqueue.py)
+  const get = k => { try { return localStorage.getItem(k) || ""; } catch(e) { return ""; } };
+  const set = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch(e) {} };
+  const conf = () => ({url: get(K_URL), key: get(K_KEY)});
+  const remote = () => !!(conf().url && conf().key);
+  async function api(params, body){
+    const {url, key} = conf();
+    const u = remote() ? url + (url.includes("?") ? "&" : "?") + new URLSearchParams({key, ...params}).toString()
+                       : LOCAL + "?" + new URLSearchParams(params).toString();
+    const opt = body ? {method: "POST", headers: {"Content-Type": "text/plain"}, body: JSON.stringify(body)} : {};
+    if (!remote()) opt.targetAddressSpace = "loopback";   // 크롬 로컬 네트워크 접근 (처음 한 번 허용 창)
+    let r;
+    try { r = await fetch(u, opt); }
+    catch(e) { throw new Error(remote() ? "큐에 연결할 수 없습니다" : "OFFLINE"); }
+    const d = await r.json();
+    if (d && d.ok === false) throw new Error(d.error === "unauthorized" ? "키가 맞지 않습니다 (큐 연결 설정 확인)" : d.error);
+    return d;
+  }
+
+  function renderAgent(v){
+    $("agent").className = "agent " + v.cls;
+    $("agentTitle").textContent = v.title;
+    $("agentSub").textContent = v.sub;
+  }
+  function renderJobs(jobs){
+    const box = $("jobList");
+    if (!jobs.length) { box.innerHTML = '<p class="hint">요청이 없습니다.</p>'; return; }
+    box.innerHTML = jobs.map((j, i) => {
+      const [cls, lab] = DG.ST[j.status] || DG.ST["대기"];
+      const kv = DG.summarize(j.fields);
+      const notes = (j.fields && j.fields["확인필요"]) || [];
+      return `<div class="job"><span class="t">${esc(j.address)} ${esc(j.dong ? j.dong + "동" : "")} ${esc(j.ho ? j.ho + "호" : "")}</span><span class="chipst ${cls}">${lab}</span>
+        <div class="meta">${esc(j.rtype || "")} · ${esc(j.record_type || "")} · ${esc(j.created || "")}${j.memo ? " · " + esc(j.memo) : ""}</div>
+        ${kv.length ? '<div class="kv">' + kv.map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span>`).join("") + "</div>" : ""}
+        ${notes.map(n => `<div class="note">⚠ ${esc(n)}</div>`).join("")}
+        ${j.file ? `<div class="file">PC 파일 <code>${esc(j.file)}</code><button class="mini" data-copy="${i}">경로 복사</button></div>` : ""}
+        ${j.error ? `<div class="note">${esc(j.error)}</div>` : ""}</div>`;
+    }).join("");
+    box.querySelectorAll("[data-copy]").forEach(b => b.onclick = () => {
+      navigator.clipboard && navigator.clipboard.writeText(jobs[+b.dataset.copy].file).then(() => { b.textContent = "복사됨"; });
+    });
+  }
+
+  async function refresh(){
+    try {
+      const d = await api({action: "list"});
+      renderAgent(DG.agentView(d.agent_last_seen, d.agent_state, Date.now()));
+      renderJobs(d.jobs || []);
+      $("listInfo").textContent = `(${(d.jobs || []).length}건, ${new Date().toLocaleTimeString("ko-KR")} 기준)`;
+    } catch(e) {
+      renderAgent(e.message === "OFFLINE"
+        ? {cls: "off", title: "PC 에이전트 꺼짐", sub: "이 PC에서 3_에이전트.bat 을 실행하세요. 켜져 있는데도 이렇게 보이면 주소창 왼쪽 아이콘 → 「로컬 네트워크 액세스」를 허용하세요."}
+        : {cls: "need", title: "큐 연결 실패", sub: e.message});
+      $("listInfo").textContent = "";
+    }
+  }
+
+  // 주소 + Enter(또는 [열람 요청]) → 호가 있으면 집합건물로 바로, 없으면 토지/건물/토지+건물 고르기.
+  // 토지+건물은 요청 2건(토지 1건, 건물 1건)으로 보낸다 - 등기부가 따로라 수수료도 2건.
+  function setStatus(cls, text){ $("formStatus").className = "status " + cls; $("formStatus").textContent = text; }
+  function hidePick(){ $("kindPick").hidden = true; }
+  async function send(kinds){
+    const address = $("addr").value.trim();
+    if (!address) { $("addr").focus(); setStatus("err", "주소를 입력하세요"); return; }
+    const base = {address, dong: $("dong").value.trim(), ho: $("ho").value.trim(), doc_type: "열람",
+      record_type: $("recType").value, memo: $("memo").value.trim(), created: new Date().toLocaleString("ko-KR"), status: "대기"};
+    if (window.arapVisitLog) window.arapVisitLog("열람요청", address);
+    $("addBtn").disabled = true;
+    const ids = [];
+    try {
+      for (const rtype of kinds) { const d = await api({action: "add"}, {...base, rtype}); ids.push(rtype + " " + (d.id || "")); }
+      setStatus("ok", "요청됨 " + ids.join(" · "));
+      ["addr", "dong", "ho", "memo"].forEach(id => $(id).value = "");
+      hidePick();
+    } catch(e) {
+      setStatus("err", (ids.length ? "일부만 요청됨(" + ids.join(" · ") + ") - " : "") + "요청 실패: " +
+        (e.message === "OFFLINE" ? "PC 에이전트가 꺼져 있습니다 (3_에이전트.bat 실행)" : e.message));
+    } finally { $("addBtn").disabled = false; refresh(); }
+  }
+  function ask(){
+    const address = $("addr").value.trim();
+    if (!address) { $("addr").focus(); setStatus("err", "주소를 입력하세요"); return; }
+    if ($("ho").value.trim()) { send(["집합건물"]); return; }
+    $("kindAsk").textContent = "「" + address + "」 어떤 등기를 받을까요?";
+    $("kindPick").hidden = false; setStatus("", "");
+    $("kindPick").querySelector("[data-kind]").focus();
+  }
+  $("addBtn").onclick = ask;
+  $("kindPick").querySelectorAll("[data-kind]").forEach(b => b.onclick = () => send(b.dataset.kind.split(",")));
+  $("kindCancel").onclick = () => { hidePick(); $("addr").focus(); };
+  ["addr", "dong", "ho"].forEach(id => $(id).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); ask(); } }));
+  $("addr").addEventListener("input", hidePick);
+
+  $("setUrl").value = conf().url;
+  $("setKey").value = conf().key;
+  $("saveSet").onclick = () => {
+    set(K_URL, $("setUrl").value.trim()); set(K_KEY, $("setKey").value.trim());
+    $("setStatus").className = "status ok"; $("setStatus").textContent = "저장됨"; refresh();
+  };
+  $("clearSet").onclick = () => {
+    set(K_URL, ""); set(K_KEY, ""); $("setUrl").value = ""; $("setKey").value = "";
+    $("setStatus").className = "status"; $("setStatus").textContent = "지웠습니다"; refresh();
+  };
+
+  refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
+</body>

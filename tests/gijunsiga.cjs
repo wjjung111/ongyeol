@@ -14,7 +14,8 @@ const G=context.window.ArapGijunsiga;
 function check(name,tax,input,units,total){
   const r=G.compute(Object.assign({year:2026,remodel:0,intel:0,roof:'1'},input));
   assert.ok(r.ready,`${name}: 입력 누락 ${r.missing}`);
-  const got=r.lines.map(l=>tax==='SJ'?l.unitSJ:l.unitYD);
+  // vm 컨텍스트에서 만든 배열은 Array.prototype이 달라 deepStrictEqual이 값이 같아도 불일치로 본다 → 이 영역 배열로 복사(값·순서·타입 비교는 그대로 엄격).
+  const got=Array.from(r.lines,l=>tax==='SJ'?l.unitSJ:l.unitYD);
   assert.deepEqual(got,units,`${name}: ㎡당 가액`);
   assert.equal(Math.round((tax==='SJ'?r.totSJ:r.totYD)*100)/100,total,`${name}: 기준시가`);
 }

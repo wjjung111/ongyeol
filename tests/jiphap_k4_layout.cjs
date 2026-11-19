@@ -1,8 +1,7 @@
-// 집합건물 앱 ④ 가격산출 2단 배치 검증(단일·여러호수)
-//  - 본문 폭이 넓으면: 왼쪽 = 사례 선택·가치형성요인(여러호수는 적용단가·감정평가액 결정), 오른쪽 = 청구서 카드
-//  - 오른쪽 청구서는 아래로 스크롤해도 화면 위쪽에 붙어 따라온다(sticky) — 단일호수만(여러호수는 페이지 전체가 스크롤되는 구조라 같이 스크롤)
-//  - 본문 폭이 좁으면(<1100px) 한 줄로 쌓인다 — 예전과 같은 순서(청구서가 맨 아래)
-//  - 청구서 칸(착수금)을 고치면 정산청구액이 바뀌는 등 입력이 그대로 동작
+// 집합건물 앱 「2. 사례 · 가격산출」 / 「3. 위치도 · 청구서」 배치 검증(단일·여러호수) — 2026-11-13 탭 3개로 다시 씀
+//  - 2번 탭: 맨 위 한 줄 [거래사례 붙여넣기 | 평가전례 붙여넣기 | 인근가격수준], 그 아래 위에서 아래로 거래사례 표 → 가치형성요인 → 적용단가 → 시산가액 결정(단일). 여러호수도 위아래
+//  - 3번 탭: [내려받기 전 확인·서류 | 청구서], 그 아래 전체 폭 위치도
+//  - 청구서 칸(착수금)을 고치면 정산청구액이 바뀌고, 탭을 오가도 입력이 남는다
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_k4_layout.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('assert/strict');
@@ -13,11 +12,12 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
   const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHANNEL?{channel:process.env.PLAYWRIGHT_CHANNEL}:{})});
   try{
     for(const mode of ['single','multi']){
-      const ctx=await browser.newContext({viewport:{width:2100,height:900}}),page=await ctx.newPage(),errors=[];
+      const W=mode==='multi'?2400:2300;   // 메모장을 펼친 화면 기준 — 단일호수 2번 탭 2단은 본문 1550px 이상   // 여러호수 적용단가 표가 본건 면적·사례 지번/건물명/호/면적 열로 ~1300px(2026-11-10) — 2단 검사는 넓은 창에서
+      const ctx=await browser.newContext({viewport:{width:W,height:900}}),page=await ctx.newPage(),errors=[];
       page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.setDefaultTimeout(60000);
       await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
       await page.addInitScript(({mode})=>{
-        localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);const pre=mode==='multi'?'v2:':'';
+        localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));const pre=mode==='multi'?'v2:':'';
         const c=(id,sym,ho,price,sel)=>({id,symbol:sym,location:'서울특별시 중구 회현동2가',jibun:'87',aptName:'쌍용남산플라티넘 B-'+ho,dong:'',floor:'4',ho,exclusiveArea:88.5,price,unitPrice:Math.round(price/88.5),tradeDate:'2025.08.21',approvalDate:'2010.08.05',timeAdj:1.08473,timeAdjDetail:'x ≒ 1.08473',isShown:true,isSelected:sel});
         localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'T',label:'t'}]));
         localStorage.setItem(pre+'case:T',JSON.stringify({ov:{caseNo:'T',jibun:'서울특별시 중구 회현동2가 87',units:[{id:1,dong:'7',floor:'7',ho:'702',area:'88.5'}],dong:'7',floor:'7',ho:'702',area:'88.5',baseDate:'2026.09.17',writeDate:'2026.09.17',client:'테스트'},cases:[c('c1','1','702',1141000000,true),c('c2','2','1501',2000000000,true),c('c3','3','801',2050000000,true)],precs:[],propType:'주거용'}));
@@ -26,37 +26,43 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       const openMemo=async()=>{const b=page.locator('span:text-is("◀ 메모"):visible');await b.first().waitFor();await b.first().click();};   // 메모장은 켤 때 접혀 있다(2026-10-13) — 펼친 뒤 검사
       await openMemo();   // 폭 기준은 메모장을 펼친 화면
       const scope=page.locator(mode==='single'?'#root':'#root-multi');
-      await scope.getByText('4. 가격산출',{exact:true}).click();
-      const split=scope.locator('.k4-split:visible').first();await split.waitFor();
-      const geo=()=>split.evaluate(sp=>{const L=sp.querySelector('.k4-left'),R=sp.querySelector('.k4-right');const l=L.getBoundingClientRect(),r=R.getBoundingClientRect();return{l:{x:l.x,y:l.y,w:l.width,h:l.height},r:{x:r.x,y:r.y,w:r.width,h:r.height},leftText:L.innerText,rightText:R.innerText};});
+      const tab=n=>scope.getByText(n,{exact:true}).click();
+      const split=scope.locator('.k4-split').first();
+      const box=sel=>split.locator(sel).evaluate(e=>{const r=e.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height,vis:!!e.offsetParent,text:e.innerText};});
 
-      // 1) 넓은 화면 — 2단: 오른쪽이 청구서, 왼쪽에 사례 선택(+가치형성요인/적용단가)
-      let g=await geo();
-      assert.ok(g.r.x>g.l.x+g.l.w-2,`오른쪽 열이 왼쪽 오른편에 있어야 함 ${JSON.stringify(g)}`);
-      assert.ok(Math.abs(g.r.y-g.l.y)<=40,`두 열의 윗선이 같아야 함 ${g.r.y} vs ${g.l.y}`);
-      assert.ok(g.r.w>=430&&g.r.w<=560,`청구서 폭 ${g.r.w}`);
-      assert.ok(g.l.w>=900,`왼쪽 폭 ${g.l.w}`);
-      assert.ok(g.leftText.includes('사례 선택'));
-      assert.ok(mode==='single'?g.leftText.includes('가치형성요인'):g.leftText.includes('적용단가'));
-      assert.ok(g.rightText.includes('청구서'));
-      assert.ok(!g.leftText.includes('청구서 hwpx 다운로드'),'청구서 카드가 왼쪽에 남음');
-      assert.ok(!g.rightText.includes('사례 선택'),'사례 선택이 오른쪽에 들어감');
+      const tabs=scope.locator('.js-tab');
+      const vis=sel=>scope.locator(sel).first().isVisible();
+      const bb=sel=>scope.locator(sel).first().boundingBox();
+      // 1) 「2. 사례 · 가격산출」 — 단일호수: 왼쪽 [거래사례 표 / 적용단가] | 오른쪽 [가치형성요인], 아래 전체 폭 [시산가액 결정]. 여러호수: 위아래(적용단가 표가 넓음)
+      await tabs.nth(1).click();await scope.locator('.s3-card').waitFor();
+      assert.ok(!(await vis('.pf-list')),'2번 탭엔 청구서 쪽 없음');
+      assert.ok(!(await vis('.k4-pick')),'가격산출의 사례 선택 표 숨김');
+      if(mode==='single'){
+        const C=await bb('.s3-card'),F=await bb('.k4-colA'),A=await bb('.k4-apply'),Z=await bb('.k4-final');
+        assert.ok(Math.abs(F.x-C.x)<2&&F.y>=C.y+C.height-2&&A.y>=F.y+F.height-2&&Z.y>=A.y+A.height-2&&Math.abs(F.width-C.width)<2,`거래사례 → 가치형성요인 → 적용단가 → 시산가액, 같은 폭 ${JSON.stringify({C,F,A,Z})}`);
+        // 표가 잘리지 않음(2단일 때)
+        const clipped=await scope.locator('.t23').evaluate(g=>[...g.querySelectorAll('.s3-card *,.k4-apply *')].filter(e=>{const o=getComputedStyle(e).overflowX;return(o==='auto'||o==='scroll')&&e.scrollWidth>e.clientWidth+4&&e.offsetParent;})   /* 표 테두리 몇 px(+3)은 원래부터 있음 — 열이 잘리는 수준만 본다 */.map(e=>e.scrollWidth+'>'+e.clientWidth));
+        assert.deepEqual(clipped,[],'넓은 화면에서 거래사례·적용단가 표가 잘림');
+        // 붙여넣기 칸은 한 줄 높이
+        const ta=await scope.locator('.s3-top textarea').first().evaluate(e=>e.getBoundingClientRect().height);assert.ok(ta<=40,'붙여넣기 칸 높이 '+ta);
+      }else{
+        const C=await bb('.s3-card'),K=await bb('.t23-k4');
+        assert.ok(Math.abs(C.x-K.x)<2&&K.y>=C.y+C.height-2,'여러호수: 가격산출은 거래사례 아래');
+      }
 
-      // 2) 스크롤해도 청구서가 따라온다 — 가운데 스크롤 영역을 내린 뒤에도 오른쪽 열이 화면 위에 붙어 있다
-      await page.setViewportSize({width:2100,height:520});await page.waitForTimeout(200);   // 창을 낮춰 두면 짧은 건에서도 스크롤 여지가 생긴다
-      const scroller=await split.evaluateHandle(sp=>{let e=sp.parentElement;while(e&&!(getComputedStyle(e).overflowY==='auto'&&e.scrollHeight>e.clientHeight+50))e=e.parentElement;return e||document.scrollingElement;});   // 단일호수는 가운데 영역이, 여러호수는 페이지 전체가 스크롤된다
-      const sc0=await scroller.evaluate(e=>{const pg=e===document.scrollingElement;return{top:pg?0:e.getBoundingClientRect().top,max:e.scrollHeight-e.clientHeight};});
-      assert.ok(sc0.max>200,`스크롤 여지가 있어야 검증 가능: ${sc0.max}`);
-      await scroller.evaluate(e=>{e.scrollTop=400;});await page.waitForTimeout(150);
-      g=await geo();
-      assert.ok(g.l.y<-100,'왼쪽은 같이 올라가야 함');
-      // 단일호수: 가운데 영역이 스크롤되므로 청구서가 위에 붙어 따라온다. 여러호수: 가운데 영역에 높이 제한이 없어(페이지 전체 스크롤) 따라오기(sticky)는 적용되지 않고 같이 스크롤된다 — 2단 배치만 유지
-      if(mode==='single'){assert.ok(g.r.y<sc0.top+40&&g.r.y>=sc0.top-2,`스크롤 후 청구서 위치 ${g.r.y} (스크롤영역 위 ${sc0.top})`);assert.ok(g.r.y+g.r.h<=520+1,`낮은 창에서 청구서 아래가 화면 밖 ${g.r.y+g.r.h}`);}
-      else assert.ok(g.r.x>g.l.x+g.l.w-2,'스크롤 뒤에도 2단 유지');
-      await scroller.evaluate(e=>{e.scrollTop=0;});await page.setViewportSize({width:2100,height:900});await page.waitForTimeout(200);
+      // 2) 「3. 위치도 · 청구서」 — [내려받기 전 확인·서류 | 청구서] + 오른쪽(좁으면 아래) 위치도. 사례·계산은 숨김
+      await tabs.nth(2).click();
+      assert.ok(!(await vis('.s3-card')),'3번 탭엔 거래사례 없음');
+      assert.ok(await vis('.pf-list'),'3번 탭 내려받기 전 확인');
+      const R=await split.locator('.k4-right').evaluate(e=>e.innerText);
+      assert.ok(R.includes('내려받기 전 확인')&&R.includes('평가서 내려받기')&&R.includes('청구서'));
+      const kids=()=>split.locator('.k4-right').evaluate(e=>[...e.children].map(c=>{const r=c.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};}));
+      let k=await kids();assert.equal(k.length,2);
+      assert.ok(k[1].x>k[0].x+k[0].w-2&&Math.abs(k[0].y-k[1].y)<=4,`확인 카드 | 청구서 카드 2단 ${JSON.stringify(k)}`);
+      const M=await bb('.t23-map');
+      assert.ok(M.y>=Math.max(k[0].y+k[0].h,k[1].y+k[1].h)-2&&M.width>k[0].w+k[1].w,`위치도는 청구서 아래 전체 폭 ${JSON.stringify({M,k})}`);
 
-      // 3) 오른쪽 청구서 입력은 그대로 동작 — 기납부착수금 입력 → 정산청구액 반영
-      // 평가수수료는 감정평가액으로 자동 계산되므로(arap_fee.js) 금액 자체가 아니라 「착수금만큼 줄어드는지」를 본다
+      // 3) 청구서 입력은 그대로 동작 — 기납부착수금 입력 → 정산청구액 반영 (평가수수료는 자동 계산이라 「착수금만큼 줄어드는지」를 본다)
       const due=async()=>{const t=await split.locator('.k4-right').innerText();const m=t.match(/정산청구액[^\d]*([\d,]+)/);return m?Number(m[1].replace(/,/g,'')):null;};
       const down=split.locator('.k4-right input').last();
       await down.fill('0');await down.blur();await page.waitForTimeout(300);
@@ -65,27 +71,18 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
       await page.waitForTimeout(300);
       assert.equal(await down.inputValue(),'50,000');
       assert.ok(before>50000&&(await due())===before-50000,`기납부착수금을 넣으면 정산청구액이 50,000 줄어야 함 (${before} → ${await due()})`);
+      // 탭을 오가도 청구서 입력이 남는다(Step4를 한 번만 그리므로)
+      await tabs.nth(1).click();await tabs.nth(2).click();
+      assert.equal(await down.inputValue(),'50,000','탭을 오간 뒤에도 착수금 유지');
 
-      // 3-1) 어느 폭에서도 왼쪽 표가 잘리지 않는다(특히 여러호수 적용단가 표 ~980px) — 2단이면 왼쪽 폭이 충분하거나, 모자라면 한 줄로 쌓여 있어야 함
-      const clipped=()=>split.evaluate(sp=>[...sp.querySelectorAll('.k4-left *')].filter(e=>{const o=getComputedStyle(e).overflowX;return(o==='auto'||o==='scroll')&&e.scrollWidth>e.clientWidth+1&&e.offsetParent;}).map(e=>e.scrollWidth+'>'+e.clientWidth));
-      const cols=()=>split.evaluate(sp=>getComputedStyle(sp).gridTemplateColumns.split(' ').length);
-      for(const [w,exp] of (mode==='single'?[[2560,2],[1920,2],[1700,1],[1600,1]]:[[2560,2],[2100,2],[1920,1],[1700,1]])){
-        await page.setViewportSize({width:w,height:900});await page.waitForTimeout(250);
-        assert.equal(await cols(),exp,`${mode} ${w}px 단 수`);
-        assert.deepEqual(await clipped(),[],`${mode} ${w}px 에서 표가 잘림`);
-      }
-      await page.setViewportSize({width:2100,height:900});await page.waitForTimeout(250);
-
-      // 4) 좁은 화면(본문 1100px 미만) — 한 줄로 쌓임: 청구서가 왼쪽 내용 아래
-      await page.setViewportSize({width:1400,height:900});await page.waitForTimeout(300);
-      g=await geo();
-      assert.ok(Math.abs(g.r.x-g.l.x)<=2&&Math.abs(g.r.w-g.l.w)<=2,`좁으면 폭이 같아야 함 ${JSON.stringify(g)}`);
-      assert.ok(g.r.y>=g.l.y+g.l.h-2,'좁으면 청구서가 아래에 놓여야 함');
-      const pos=await split.locator('.k4-right').evaluate(e=>getComputedStyle(e).position);assert.equal(pos,'static');
-
+      // 4) 좁은 화면 — 확인 카드 아래에 청구서, 위치도는 그 아래
+      await page.setViewportSize({width:1100,height:900});await page.waitForTimeout(300);
+      k=await kids();
+      assert.ok(Math.abs(k[0].x-k[1].x)<=2&&k[1].y>=k[0].y+k[0].h-2,`좁으면 위아래 ${JSON.stringify(k)}`);
+      const M2=await bb('.t23-map');assert.ok(M2.y>=k[1].y+k[1].h-2,'좁으면 위치도는 맨 아래');
 
       assert.deepEqual(errors,[]);
-      console.log(mode+': PASS 2단 배치(왼쪽 사례·요인 / 오른쪽 청구서), 스크롤 시 청구서 고정, 입력 동작, 좁은 화면 한 줄, 페이지 오류 없음');
+      console.log(mode+': PASS 2번 탭 사례|가치형성요인·적용단가·시산가액, 3번 탭 확인·서류|청구서|위치도, 입력 동작·유지, 좁은 화면 위아래, 페이지 오류 없음');
       await ctx.close();
     }
   }finally{await browser.close();server.close();}

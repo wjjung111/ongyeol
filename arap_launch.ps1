@@ -2,7 +2,7 @@
 # - 'EXACT 실행.bat'이 이 파일을 호출한다. 직접 실행해도 된다.
 # - 지수 데이터(arap_index_data.js)가 없으면: 먼저 받고 앱을 연다.
 # - 있으면: 앱을 먼저 열고, 하루 이상 지난 경우 백그라운드로 새로 받는다.
-param([switch]$FetchOnly, [switch]$CapOnly, [switch]$JibyunOnly)   # -CapOnly: 자본수익률(비주거)만 받아 기존 데이터에 병합 / -JibyunOnly: 지가변동률(토지)만 받아 arap_jibyun_data.js 갱신 (테스트·부분갱신용)
+param([switch]$FetchOnly, [switch]$CapOnly, [switch]$JibyunOnly, [switch]$ResidOnly)   # -CapOnly: 자본수익률(비주거)만 받아 기존 데이터에 병합 / -JibyunOnly: 지가변동률(토지)만 받아 arap_jibyun_data.js 갱신 (테스트·부분갱신용) / -ResidOnly: 주거 매매지수(아파트·연립·오피스텔)만 새로 받고 자본수익률은 기존 파일 것 유지, 지가변동률 생략 — 지역 추가 직후 빨리 반영용(전체 3시간 → 약 25분)
 
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -39,10 +39,10 @@ function Invoke-Rone($url) {
 # 매매가격지수 통계표 (R-ONE STATBL_ID, 고정값) — CLS_ID 없이 표 전체를 페이지로 받아
 # CLS_FULLNM 첫 구간(시도)이 roots에 드는 지역만 저장한다. (유효한 키면 전체조회 정상 동작 — 2026-07-30 실행 #12 확인.
 # 이전의 '전체조회 거부'는 잘못된 API 키(ERROR-290)가 원인이었음)
-# 아파트는 구 단위까지(서울·경기·인천 — 인천은 2026-10-06 추가), 연립다세대는 권역 단위까지만 공표됨(인천은 시도 전체만). 오피스텔은 A_2024_00615 (설계문서 §API 사실관계).
+# 아파트는 구 단위까지(서울·경기·인천·대구·전북·전남 — 인천은 2026-10-06, 대구는 2026-10-28, 전북·전남은 2026-10-29 추가, 같은 날 전국 17개 시도로 확대(아파트·연립). 대구 중구는 서울과 동명이라 「대구 중구」 키. 전북은 「전북특별자치도」 표기여도 "전북*"로 걸림), 연립다세대는 권역 단위까지만 공표됨(인천은 시도 전체만). 오피스텔은 A_2024_00615 (설계문서 §API 사실관계).
 $tables = [ordered]@{
-  "아파트"     = @{ id = "A_2024_00045"; roots = @("서울","경기","인천") }
-  "연립다세대" = @{ id = "A_2024_00080"; roots = @("서울","경기","인천","수도권") }
+  "아파트"     = @{ id = "A_2024_00045"; roots = @("서울","경기","인천","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주") }
+  "연립다세대" = @{ id = "A_2024_00080"; roots = @("서울","경기","인천","부산","대구","광주","대전","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주","수도권") }
   "오피스텔"   = @{ id = "A_2024_00615"; roots = @("서울","경기","인천","수도권","전국","지방","부산","대구","광주","대전","울산","세종"); decimals = 2 }
 }
 
@@ -448,8 +448,18 @@ function Fetch-IndexData {
   }
   if (-not $out.tables.Contains("아파트")) { throw "아파트 지수 수신 실패 — 기존 파일 유지" }
   # 비주거용 자본수익률(분기) — 실패해도 매매지수는 정상 저장
+  if ($ResidOnly) {
+    # 주거 매매지수만: 자본수익률은 기존 파일 것을 그대로 옮겨 담음(다음 정기 갱신 때 새로 받음)
+    try {
+      if (Test-Path $dataFile) {
+        $old = (([IO.File]::ReadAllText($dataFile) -replace '^\s*window\.ARAP_INDEX_DATA\s*=\s*', '').TrimEnd().TrimEnd(';')) | ConvertFrom-Json
+        if ($old.capReturn) { $out.capReturn = $old.capReturn; Write-Host "자본수익률: 기존 파일 것 유지(-ResidOnly)" -ForegroundColor Cyan }
+      }
+    } catch { Write-Host "기존 자본수익률 읽기 실패 — 자본수익률 없이 저장: $_" -ForegroundColor Yellow }
+  } else {
   try { $cap = Fetch-CapReturn; if ($cap) { $out.capReturn = $cap } }
   catch { Write-Host "자본수익률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow }
+  }
   $json = $out | ConvertTo-Json -Depth 8 -Compress
   $js = "window.ARAP_INDEX_DATA=" + $json + ";"
   $tmp = $dataFile + ".tmp"
@@ -482,6 +492,6 @@ else {
     Start-Sleep -Seconds 3
   }
   # 토지 시점수정용 지가변동률 — 실패해도 매매지수 저장에는 영향 없음
-  if ($FetchOnly) { try { Fetch-Jibyun } catch { Write-Host "지가변동률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow } }
+  if ($FetchOnly -and -not $ResidOnly) { try { Fetch-Jibyun } catch { Write-Host "지가변동률 수신 실패(매매지수는 정상 저장): $_" -ForegroundColor Yellow } }
   if (-not $FetchOnly) { Start-Process $htmlFile }
 }

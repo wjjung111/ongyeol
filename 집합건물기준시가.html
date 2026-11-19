@@ -1,0 +1,553 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ongyeol 집합건물 기준시가</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#F5F7F6; --surface:#FFFFFF; --surface2:#EDF1EF; --line:#D5DCD9; --line2:#BFC8C4;
+  --ink:#182028; --ink2:#5B6670; --ink3:#8A949C;
+  --acc:#0E6B67; --acc-soft:#D9ECEA; --acc-ink:#0A4E4B;
+  --brass:#9A6B1E; --brass-soft:#F1E6D0;
+  --warn:#B04A22; --warn-soft:#F6E1D8; --ok:#2E7D4F; --ok-soft:#DCEFE2;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Gothic A1","Noto Sans KR",system-ui,sans-serif;
+  --body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131A1F; --surface:#1B2329; --surface2:#222C33; --line:#33404A; --line2:#44535E;
+    --ink:#E4EAEE; --ink2:#A6B2BB; --ink3:#77848E;
+    --acc:#3FB5AE; --acc-soft:#153B3A; --acc-ink:#8FDDD7;
+    --brass:#D2A24A; --brass-soft:#3A2E17;
+    --warn:#E0784B; --warn-soft:#3E2419; --ok:#5CBF84; --ok-soft:#173526;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131A1F; --surface:#1B2329; --surface2:#222C33; --line:#33404A; --line2:#44535E;
+  --ink:#E4EAEE; --ink2:#A6B2BB; --ink3:#77848E;
+  --acc:#3FB5AE; --acc-soft:#153B3A; --acc-ink:#8FDDD7;
+  --brass:#D2A24A; --brass-soft:#3A2E17;
+  --warn:#E0784B; --warn-soft:#3E2419; --ok:#5CBF84; --ok-soft:#173526;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.55}
+button,input,select{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--disp);margin:0;text-wrap:balance}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);font-weight:700}
+
+header.top{padding:28px 24px 18px;border-bottom:1px solid var(--line);background:var(--surface)}
+.top-inner{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px 32px;align-items:flex-end;justify-content:space-between}
+.top h1{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.top p{margin:6px 0 0;color:var(--ink2);max-width:62ch}
+.mode{display:flex;gap:0;border:1px solid var(--line2);border-radius:6px;overflow:hidden}
+.mode button{background:var(--surface);border:0;padding:9px 16px;cursor:pointer;color:var(--ink2);font-weight:500}
+.mode button+button{border-left:1px solid var(--line2)}
+.mode button.on{font-weight:700;color:#fff}
+.mode button.on[data-mode="sj"]{background:var(--acc)}
+.mode button.on[data-mode="yd"]{background:var(--brass)}
+.mode button:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+
+main{max-width:1280px;margin:0 auto;padding:20px 24px 60px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:22px;align-items:start}
+@media (max-width:1000px){main{grid-template-columns:1fr}.side{position:static!important}}
+.side{position:sticky;top:16px;display:grid;gap:14px}
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 20px;min-width:0}
+.side>*{min-width:0}
+section.card h2{font-size:15px;font-weight:800;display:flex;align-items:center;gap:10px;margin-bottom:14px}
+section.card h2 .step{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:4px;background:var(--surface2);color:var(--ink2);font-size:12px;font-family:var(--mono)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 14px}
+label.f{display:grid;gap:4px}
+label.f>span{font-size:12px;color:var(--ink2);font-weight:500}
+label.f small{color:var(--ink3);font-size:11px}
+input[type=text],input[type=number],input[type=date],select{
+  width:100%;background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:7px 9px;min-height:36px}
+input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:0;border-color:var(--acc)}
+.hint{font-size:12px;color:var(--ink2);margin:8px 0 0}
+.chip{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;background:var(--surface2);color:var(--ink2);font-family:var(--mono)}
+.chip.acc{background:var(--acc-soft);color:var(--acc-ink)}
+.chip.brass{background:var(--brass-soft);color:var(--brass)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+
+.tablewrap{overflow-x:auto;margin:0 -20px;padding:0 20px}
+table.rows{border-collapse:collapse;width:100%;min-width:880px}
+table.rows th{font-size:11px;letter-spacing:.06em;color:var(--ink3);text-align:left;padding:6px 6px;border-bottom:1px solid var(--line2);font-weight:700;white-space:nowrap}
+table.rows td{padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.rows td.r,table.rows th.r{text-align:right}
+table.rows input,table.rows select{min-height:32px;padding:5px 7px}
+table.rows tr.res td{background:var(--surface2)}
+.rowbtn{background:none;border:1px solid var(--line2);border-radius:4px;padding:3px 7px;cursor:pointer;color:var(--ink2);font-size:12px}
+.rowbtn:hover{border-color:var(--ink2);color:var(--ink)}
+.addrow{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{background:var(--surface);border:1px solid var(--line2);border-radius:5px;padding:7px 12px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--ink2)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+
+/* 간편 계산 (평가기준일 + 소재지 → 층별 결과) */
+.quick{max-width:1280px;margin:0 auto;padding:20px 24px 0}
+.quick .card{display:grid;gap:12px}
+.qrow{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.qrow .f.addr{flex:1;min-width:240px}
+.qrow .f.date{width:190px}
+.qres .sumline{font-size:12px;color:var(--ink2);margin:0 0 8px}
+.qres table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
+.qres th{background:var(--surface2);color:var(--ink2);font-weight:700;font-size:12px;padding:7px 8px;border:1px solid var(--line);white-space:nowrap}
+.qres td{padding:7px 8px;border:1px solid var(--line);text-align:center;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.qres td.lab{text-align:left;font-family:var(--body)}
+.qres tr.tot td{font-weight:700;background:var(--surface2)}
+.qres tr.tot td.big{color:var(--acc);font-size:14px}
+.qbasis{font-size:12px;color:var(--ink2);background:var(--surface2);border-radius:6px;padding:10px 12px;line-height:1.75;margin-top:10px}
+.qbasis b{color:var(--ink)}
+.qbasis ul{margin:4px 0 0;padding-left:18px}
+main[hidden]{display:none!important}
+@media (max-width:600px){.quick{padding:16px 16px 0}.qrow .f.date{width:100%}}
+
+.sum{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.sum .head{padding:14px 18px 12px;border-bottom:1px solid var(--line)}
+.sum .head h2{font-size:14px;font-weight:800}
+.sum .big{padding:14px 18px;border-bottom:1px solid var(--line)}
+.sum .big .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-.01em;line-height:1.15}
+.sum .big .l{font-size:12px;color:var(--ink2);margin-top:2px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:5px 12px;padding:12px 18px;font-size:13px}
+.kv .k{color:var(--ink2)}
+.kv .v{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.kv .v.sub{color:var(--ink3)}
+.kv .sep{grid-column:1/-1;border-top:1px dashed var(--line2);margin:4px 0}
+.kv .tot{font-weight:700}
+.sum.mode-sj .big .v{color:var(--acc)}
+.sum.mode-yd .big .v{color:var(--brass)}
+.verify{padding:0 18px 14px;display:grid;gap:10px}
+.verdict{border-radius:6px;padding:9px 11px;font-size:13px;line-height:1.5}
+.verdict.ok{background:var(--ok-soft);color:var(--ok)}
+.verdict.warn{background:var(--warn-soft);color:var(--warn)}
+.verdict.mute{background:var(--surface2);color:var(--ink2)}
+.notes{font-size:12px;color:var(--ink2);padding:0 18px 14px;display:grid;gap:6px}
+.notes b{color:var(--ink)}
+.formula{font-family:var(--mono);font-size:12px;background:var(--surface2);border-radius:5px;padding:8px 10px;color:var(--ink2);white-space:pre-wrap;word-break:keep-all;line-height:1.7}
+details.ref{border-top:1px solid var(--line);padding-top:10px;margin-top:8px}
+details.ref summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--ink2)}
+details.ref table{border-collapse:collapse;font-size:12px;width:100%;margin-top:8px}
+details.ref td,details.ref th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}
+details.ref td.r{text-align:right;font-family:var(--mono)}
+.apirow{display:flex;gap:8px;flex-wrap:wrap}
+.apirow input[type=text]{flex:1;min-width:240px}
+.status{font-size:12px;color:var(--ink2);margin-top:8px}
+.status.err{color:var(--warn)}
+.status.ok{color:var(--ok)}
+.paste{margin-top:10px;border:1px dashed var(--line2);border-radius:6px;padding:10px;font-size:12px}
+.paste textarea{width:100%;min-height:90px;border:1px solid var(--line2);border-radius:5px;padding:6px;font-family:var(--mono);font-size:11px;background:var(--surface);color:var(--ink)}
+.paste a{color:var(--acc);word-break:break-all}
+pre.raw{font-size:11px;max-height:240px;overflow:auto;background:var(--surface2);padding:8px;border-radius:5px;color:var(--ink2);white-space:pre-wrap}
+.tag{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;background:var(--warn-soft);color:var(--warn);margin-left:4px;font-weight:700}
+footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font-size:12px;line-height:1.7}
+@media print{
+  header.top,.addrow,.rowbtn,.mode,.tools{display:none!important}
+  main{grid-template-columns:1fr;padding:0}
+  .side{position:static}
+  section.card,.sum{break-inside:avoid;border-color:#999}
+}
+@media (prefers-reduced-motion:no-preference){.btn,.mode button{transition:background .15s,border-color .15s}}
+</style>
+
+<style>
+.verdict{border-radius:12px;padding:14px 16px;margin:0 18px 14px;font-size:14px;line-height:1.55}
+.verdict.ok{background:var(--ok-soft);border:1px solid var(--ok)}
+.verdict.over{background:var(--warn-soft);border:1px solid var(--warn)}
+.verdict.none{background:var(--surface2);border:1px solid var(--line2);color:var(--ink2)}
+.verdict b{font-size:16px}
+.verdict .diff{font-family:var(--mono);font-size:13px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.frac{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.frac .f{flex:1;min-width:110px}
+.frac .of{align-self:center;color:var(--ink2);font-size:13px;padding-bottom:8px}
+select#hoPick{width:100%}
+</style>
+
+<body>
+
+<script>window.ARAP_NAME_ICON='🏢';window.ARAP_NAME_SUB='집합건물 기준시가 간편계산';</script><script src="arap_name.js"></script>
+<script>window.ARAP_VISIT_PAGE='집합건물기준시가';</script><script src="arap_visit.js"></script>
+<header class="top">
+  <div class="top-inner">
+    <div>
+      <div class="eyebrow"><a href="index.html" style="color:inherit;text-decoration:none">Ongyeol</a> · 국세청 건물 기준시가 계산방법 고시 · 집합건물 전용</div>
+      <h1>집합건물 기준시가 계산서</h1>
+      <p>오피스텔·상업용건물 일괄고시 대상이 아닌 집합건물(지식산업센터·근생·아파트 등)의 호별 기준시가입니다. 건물은 전유+공용면적(계약면적), 토지는 대지권 면적 × 개별공시지가로 계산합니다. 상속·증여 보충적 평가는 개별건물 특성 조정률을 적용하고, 복수감정 판정용 소득세법 기준시가는 조정률 없이 계산합니다.</p>
+    </div>
+    <div class="mode" role="tablist" aria-label="세목 선택">
+      <button type="button" data-mode="sj" class="on" role="tab" aria-selected="true">상속·증여</button>
+      <button type="button" data-mode="yd" role="tab" aria-selected="false">양도·복수감정 판정</button>
+    </div>
+  </div>
+</header>
+
+<main style="display:block">
+<div style="display:grid;gap:16px;min-width:0">
+
+  <section class="card">
+    <h2><span class="step">0</span>지번으로 불러오기 <span class="chip">V-World 토지 · 건축HUB 집합대장</span></h2>
+    <div class="apirow">
+      <input type="text" id="apiQuery" aria-label="지번 주소" autocomplete="off" list="qHist" placeholder="경기도 고양시 덕양구 향동동 394">
+      <datalist id="qHist"></datalist>
+      <button type="button" class="btn primary" id="apiGo">조회</button>
+      <button type="button" class="btn" id="presetBtn">향동 1143호 예시</button>
+    </div>
+    <p class="hint">지번 주소를 넣으면 개별공시지가와 집합 건축물대장(총괄표제부·전유공용면적)을 불러옵니다. 호 목록이 뜨면 이 호를 고르세요. <b>대지권은 어떤 API로도 조회되지 않습니다</b> - 등기부등본의 "소유권대지권 24,444.4분의 94"를 아래 4단계에 직접 입력하세요. 모든 칸은 직접 수정할 수 있습니다.</p>
+    <div class="status" id="apiStatus"></div>
+    <div class="paste" id="fallbackPanel" hidden>
+      공공데이터포털 응답이 지연되고 있습니다. <b>자동 재시도</b>를 누르거나, <a id="fbLink" href="#" target="_blank" rel="noopener">이 링크</a>를 새 탭에서 열어 내용 전체(Ctrl+A, Ctrl+C)를 아래에 붙여넣고 적용을 누르세요.
+      <textarea id="fbPaste"></textarea>
+      <div style="margin-top:6px;display:flex;gap:8px"><button type="button" class="btn primary" id="btnFbRetry">자동 재시도</button><button type="button" class="btn" id="btnFbApply">붙여넣은 내용 적용</button></div>
+    </div>
+    <div class="grid" style="margin-top:10px">
+      <label class="f"><span>이 호 선택 <small>(전유공용면적 불러온 뒤)</small></span><select id="hoPick"><option value="">- 조회 후 선택 -</option></select></label>
+    </div>
+    <details class="ref" id="apiLog" hidden><summary>불러온 원본 데이터 · 매핑 근거</summary><pre class="raw" id="apiRaw"></pre></details>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">1</span>평가기준일과 고시연도</h2>
+    <div class="grid">
+      <label class="f"><span>평가기준일 <small>(상속개시일·증여일·양도일)</small></span><input type="date" id="evalDate"></label>
+      <label class="f"><span>적용 고시연도</span>
+        <select id="noticeYear">
+          <option value="2026">2026년 (제2025-39호, 기준액 860,000)</option>
+          <option value="2025">2025년 (제2024-38호, 기준액 850,000)</option>
+        </select></label>
+      <label class="f"><span>건물명·소재지 <small>(선택)</small></span><input type="text" id="siteName"></label>
+    </div>
+    <p class="hint">고시연도는 평가기준일 연도가 원칙입니다. 평가기준일이 바뀌면 고시연도도 맞춰 바꾸세요. 조정률 Ⅱ(연면적)는 <b>1동 전체 연면적</b>으로 판단합니다 - 비워두면 이 호 면적으로 판단해 큰 건물의 상증 가액이 실제보다 낮게 나올 수 있어요.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">2</span>건물 공통 <small style="color:var(--ink2)">(동 전체 기준)</small></h2>
+    <div class="grid">
+      <label class="f"><span>구조</span><select id="structure"></select></label>
+      <label class="f"><span>내용연수 그룹 <small>(비우면 구조 기준 자동)</small></span><select id="lifeGroup"><option value="">자동 (구조번호 기준)</option><option value="1">Ⅰ 50년</option><option value="2">Ⅱ 40년</option><option value="3">Ⅲ 30년</option><option value="4">Ⅳ 20년</option></select></label>
+      <label class="f"><span>신축연도 <small>(사용승인일 기준)</small></span><input type="number" id="builtYear" min="1900" max="2100"></label>
+      <label class="f"><span>리모델링(대수선) 연도 <small>(해당 시)</small></span><input type="number" id="remodelYear" min="1900" max="2100"></label>
+      <label class="f"><span>건물 최고층수 <small>(지상, 조정률Ⅱ 층수 판단)</small></span><input type="number" id="topFloor" min="1"></label>
+      <label class="f"><span>건물 전체 연면적 ㎡ <small>(1동, 조정률Ⅱ 연면적 판단)</small></span><input type="number" id="bldArea" min="0" step="0.1" placeholder="총괄표제부 연면적"></label>
+      <label class="f"><span>지붕재료 <small>(구조지수 100 미만일 때만 반영)</small></span>
+        <select id="roof"><option value="1">슬래브·기와·징크·신소재 (100)</option><option value="0.8">패널·유리·슬레이트 (80)</option><option value="0.6">함석·천막·초가·썬라이트 (60)</option></select></label>
+      <label class="f"><span>지능형건축물 인증</span>
+        <select id="intel"><option value="0">없음</option><option value="1.1">3·4등급 (110)</option><option value="1.2">1·2등급 (120)</option></select></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">3</span>이 호 (구분건물)</h2>
+    <div class="grid">
+      <label class="f"><span>호 표시 <small>(예: 11층 1143호)</small></span><input type="text" id="hoLabel" placeholder="11층 1143호"></label>
+      <label class="f"><span>용도 (고시 용도지수표)</span><select id="useSel"></select></label>
+      <label class="f"><span>용도지수 직접입력 <small>(비우면 표 값)</small></span><input type="number" id="useOvr" min="0" step="1" placeholder="예: 115"></label>
+      <label class="f"><span>층 특성 (조정률 Ⅳ·Ⅲ)</span><select id="ftypeSel"></select></label>
+    </div>
+    <div class="grid3" style="margin-top:10px">
+      <label class="f"><span>전유면적 ㎡</span><input type="number" id="exclArea" min="0" step="0.01"></label>
+      <label class="f"><span>공용면적 ㎡ <small>(이 호 지분)</small></span><input type="number" id="commArea" min="0" step="0.01"></label>
+      <label class="f"><span>건물 기준시가 면적 ㎡ <small>(전유+공용 = 계약면적)</small></span><input type="number" id="contractArea" min="0" step="0.01"></label>
+    </div>
+    <p class="hint">국세청 건물 기준시가의 면적은 <b>전유+공용</b>입니다. 전유·공용을 고치면 합계가, 합계를 고치면 공용이 자동으로 맞춰집니다. 아파트(용도 1번)는 층 특성에서 "주거용 · 아파트"를 고르세요.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">4</span>토지 (대지권)</h2>
+    <div class="grid">
+      <label class="f"><span>개별공시지가 <small>(원/㎡, 평가기준일 연도)</small></span><input type="number" id="landPrice" min="0" step="1000"></label>
+      <label class="f"><span>대지 전체면적 ㎡ <small>(등기 목적 토지)</small></span><input type="number" id="landTotal" min="0" step="0.1"></label>
+    </div>
+    <div class="frac" style="margin-top:10px">
+      <label class="f"><span>대지권 분모 <small>(등기 "○○분의")</small></span><input type="number" id="landDen" min="0" step="0.1" placeholder="24444.4"></label>
+      <span class="of">분의</span>
+      <label class="f"><span>대지권 분자</span><input type="number" id="landNum" min="0" step="0.01" placeholder="94"></label>
+      <label class="f"><span>대지권 면적 ㎡ <small>(자동계산·수정 가능)</small></span><input type="number" id="landRight" min="0" step="0.01"></label>
+    </div>
+    <p class="hint">대지권 면적 = 대지 전체면적 × 분자 ÷ 분모. 분모가 대지 전체면적과 같으면 분자가 곧 대지권 면적입니다. 등기부의 대지권은 API로 조회되지 않으니 등기부등본에서 직접 확인하세요.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">5</span>결과</h2>
+    <div class="sum mode-sj" id="sum" style="border:1px solid var(--line);border-radius:12px">
+      <div class="head"><div class="eyebrow" id="sumEyebrow">상속·증여 · 조정률 적용</div><h2 id="sumTitle">기준시가 합계 (토지+건물)</h2></div>
+      <div class="big"><div class="v num" id="bigVal">0원</div><div class="l" id="bigLabel"></div></div>
+      <div class="verdict none" id="verdict">개별공시지가·신축연도·면적을 입력하면 복수감정 판정이 표시됩니다.</div>
+      <div class="kv" id="kv"></div>
+      <div class="notes" id="sumNotes"></div>
+      <div class="tools" style="padding:0 18px 16px;display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" id="copyBtn">요약 복사</button>
+        <button type="button" class="btn" id="printBtn">인쇄</button>
+      </div>
+    </div>
+    <div class="formula" id="formula" style="margin-top:12px"></div>
+    <details class="ref"><summary>적용 지수표 보기 (선택한 고시연도)</summary><div id="refTables"></div></details>
+  </section>
+</div>
+</main>
+
+<footer>
+  근거: 국세청 건물 기준시가 계산방법 고시(제2025-39호·제2024-38호) 및 해설서, 상속세 및 증여세법 제60조 제5항·시행령 제49조 제6항(기준시가 10억원 이하 부동산은 1개 감정기관 평가액 인정). 건물 ㎡당 금액은 1,000원 미만 절사 후 면적을 곱합니다. 복수감정 판정은 소득세법 제99조 기준시가(조정률 미적용) 기준이며, 오피스텔·상업용건물 일괄고시 대상은 홈택스 호별 기준시가가 우선합니다.
+</footer>
+
+<script src="arap_gijunsiga.js"></script>
+<script>
+const G = window.ArapGijunsiga;
+const {BASE, STRUCT, USE, FLOORTYPE} = G;
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString("ko-KR");
+const f2 = n => (+n).toLocaleString("ko-KR",{maximumFractionDigits:2});
+const won = n => fmt(n) + "원";
+let mode = "sj";
+let hoData = {};   // 호 선택지: key -> {excl, comm, useNo, useWhy, label}
+
+function buildSelects(){
+  $("structure").innerHTML = STRUCT.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join(""); $("structure").value="4";
+  $("useSel").innerHTML = USE.map(g=>`<optgroup label="${g[0]}">`+g[1].map(u=>`<option value="${u[0]}">${u[0]}. ${u[1]} (${u[2]})</option>`).join("")+`</optgroup>`).join("");
+  $("useSel").value = "41";
+  $("ftypeSel").innerHTML = FLOORTYPE.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join("");
+  const today = new Date(); $("evalDate").value = today.toISOString().slice(0,10);
+  syncYear();
+}
+function syncYear(){ const d=$("evalDate").value; if(d){ const y=+d.slice(0,4); $("noticeYear").value = y>=2026?"2026":"2025"; } }
+function useName(no){ for(const g of USE) for(const u of g[1]) if(u[0]===no) return u[1]; return ""; }
+
+function calc(){
+  const year = +$("noticeYear").value;
+  const area = +$("contractArea").value||0;
+  const rows = [{floor:$("hoLabel").value||"이 호", use:+$("useSel").value, useOvr:$("useOvr").value, area:area, ftype:$("ftypeSel").value, extra:"1"}];
+  const res = G.compute({year, structNo:+$("structure").value, group:+$("lifeGroup").value||0, built:+$("builtYear").value, remodel:+$("remodelYear").value||0, top:+$("topFloor").value||0,
+    landPrice:+$("landPrice").value, roof:$("roof").value, intel:+$("intel").value, rows});
+  const landVal = (+$("landPrice").value>0 && +$("landRight").value>0) ? (+$("landPrice").value)*(+$("landRight").value) : null;
+  const l = res.lines[0]||{};
+  // 조정률 Ⅱ(연면적)는 1동 전체 연면적으로 판단한다. 엔진은 호 면적으로 계산하므로,
+  // 1동 연면적을 입력하면 상증 단가를 다시 계산해 보정한다 (소득세법 단가·판정에는 영향 없음).
+  const bldArea = +$("bldArea").value||0;
+  let unitSJfix=null, adjIIfix=null;
+  if(res.ready && bldArea>0 && res.loc){
+    adjIIfix = Math.max(res.fIdx||0, G.areaIdx(bldArea), (+$("intel").value||0));
+    const adjFix = (l.adjI||1)*adjIIfix*(l.ftAdj||1)*(l.exAdj||1);
+    unitSJfix = G.floorK(res.base*(res.sIdx/100)*(l.u/100)*(res.loc.idx/100)*l.rr*adjFix);
+  }
+  const unitSJshow = unitSJfix!==null ? unitSJfix : (l.unitSJ||0);
+  const bldSJ = unitSJfix!==null ? unitSJfix*area : res.totSJ;
+  const totSJ = landVal!==null ? bldSJ + landVal : null;
+  const totYD = landVal!==null ? res.totYD + landVal : null;
+  const isSJ = mode==="sj";
+  $("sum").className = "sum mode-"+mode; $("sum").style.border="1px solid var(--line)"; $("sum").style.borderRadius="12px";
+  $("sumEyebrow").textContent = isSJ ? "상속·증여 · 조정률 적용 (보충적 평가액)" : "양도·복수감정 판정 · 조정률 미적용 (소득세법 기준시가)";
+  const big = isSJ ? totSJ : totYD;
+  $("bigVal").textContent = (res.ready && big!==null) ? won(big) : "0원";
+  $("bigLabel").textContent = res.ready ? `${$("siteName").value||""} ${$("hoLabel").value||""} · ${year}년 고시` : ("입력 필요: " + res.missing.join(" · "));
+  const kv = [];
+  if(res.ready){
+    kv.push(["건물 ㎡당 단가 (소득세법)", won(l.unitYD||0)]);
+    kv.push(["건물 ㎡당 단가 (상속·증여)", won(unitSJshow)]);
+    kv.push(["건물 기준시가 면적", f2(area)+"㎡ (전유 "+f2(+$("exclArea").value||0)+" + 공용 "+f2(+$("commArea").value||0)+")"]);
+    kv.push(["건물가액 (소득세법 / 상증)", won(res.totYD)+" / "+won(bldSJ)]);
+    if(landVal!==null) kv.push(["토지가액 (대지권 "+f2(+$("landRight").value)+"㎡ × "+fmt(+$("landPrice").value)+"원)", won(landVal)]);
+    kv.push(["합계 (소득세법)", totYD!==null?won(totYD):"-"]);
+    kv.push(["합계 (상속·증여)", totSJ!==null?won(totSJ):"-"]);
+  }
+  $("kv").innerHTML = kv.map(([k,v])=>`<div class="k">${k}</div><div class="v num">${v}</div>`).join("");
+  // 복수감정 판정 (항상 소득세법 합계 기준)
+  const vd = $("verdict");
+  if(res.ready && totYD!==null){
+    if(totYD <= 1000000000){ vd.className="verdict ok"; vd.innerHTML = `<b>단일감정 가능</b> - 소득세법 기준시가 합계 ${won(totYD)} (10억원 이하)<br><span class="diff">10억원까지 여유 ${won(1000000000-totYD)}</span><br>상증법 §60⑤·시행령 §49⑥: 기준시가 10억원 이하 부동산은 1개 감정기관 평가액을 시가로 인정받을 수 있습니다.`; }
+    else { vd.className="verdict over"; vd.innerHTML = `<b>복수감정 대상</b> - 소득세법 기준시가 합계 ${won(totYD)} (10억원 초과)<br><span class="diff">10억원 초과 ${won(totYD-1000000000)}</span><br>2개 이상 감정기관 평가액의 평균이 필요합니다.`; }
+  } else { vd.className="verdict none"; vd.textContent="개별공시지가·신축연도·면적을 입력하면 복수감정 판정이 표시됩니다."; }
+  const notes=[];
+  if(res.ready){
+    notes.push(`${year}년 고시 · 신축가격기준액 ${fmt(res.base)}원/㎡ · 구조지수 ${res.sIdx} · 용도지수 ${l.u} (${useName(l.use)}) · 위치지수 ${res.loc?res.loc.idx:"-"} (개별공시지가 ${fmt(+$("landPrice").value)}원/㎡) · 잔가율 ${res.rr} (${$("builtYear").value}년 신축)`);
+    if(isSJ && (l.adj!==1 || unitSJfix!==null)){
+      const a2 = unitSJfix!==null ? adjIIfix : l.adjII;
+      const at = unitSJfix!==null ? (l.adjI||1)*adjIIfix*(l.ftAdj||1)*(l.exAdj||1) : l.adj;
+      notes.push(`개별건물 특성 조정률 ${(+at).toFixed(4)} 적용 (Ⅰ ${l.adjI} · Ⅱ ${(+a2).toFixed(2)}${unitSJfix!==null?` · 1동 연면적 ${f2(bldArea)}㎡ 기준`:" · 호 면적 기준"} · 층특성 ${l.ftAdj}) - 조정률은 상속·증여(상증법 §61) 계산에만 들어갑니다`);
+    }
+    notes.push("복수감정 판정은 조정률을 뺀 소득세법 기준시가로 합니다. 기준시가가 10억원에 근접하면 평가기준일 연도와 공용면적 산정을 재확인하세요.");
+  }
+  $("sumNotes").innerHTML = notes.map(n=>`<p>${n}</p>`).join("");
+  const adjShowF = unitSJfix!==null ? (l.adjI||1)*adjIIfix*(l.ftAdj||1)*(l.exAdj||1) : (l.adj||1);
+  $("formula").innerHTML = res.ready ? `건물 ㎡당(소득세법) = ${fmt(res.base)} × 구조 ${res.sIdx/100} × 용도 ${l.u/100} × 위치 ${res.loc.idx/100} × 잔가율 ${res.rrYD} = ${won(l.unitYD)} (1,000원 미만 절사)<br>건물 ㎡당(상증) = 위 단가 산식에 조정률 ${(+adjShowF).toFixed(4)} 추가 = ${won(unitSJshow)}${unitSJfix!==null?` (Ⅱ: 1동 연면적 ${f2(bldArea)}㎡)`:""}` : "";
+  renderRef();
+  save();
+  return {res, totSJ, totYD, landVal, unitSJshow, bldArea, adjIIfix};
+}
+
+function renderRef(){
+  const year=+$("noticeYear").value;
+  let h=`<p style="font-size:12px;color:var(--ink2)">건물신축가격기준액 ${fmt(BASE[year])}원/㎡ (${year}년 고시)</p>`;
+  h+=`<p style="font-size:12px;color:var(--ink2)">구조지수·용도지수·위치지수·잔가율 표는 기존 건물 기준시가 계산기와 같은 엔진(arap_gijunsiga.js)의 고시 데이터를 사용합니다.</p>`;
+  $("refTables").innerHTML=h;
+}
+
+// ---------- 면적·대지권 연동 ----------
+$("exclArea").addEventListener("input",()=>{ const e=+$("exclArea").value||0, c=+$("commArea").value||0; if(e||c) $("contractArea").value=(e+c).toFixed(2); calc(); });
+$("commArea").addEventListener("input",()=>{ const e=+$("exclArea").value||0, c=+$("commArea").value||0; if(e||c) $("contractArea").value=(e+c).toFixed(2); calc(); });
+$("contractArea").addEventListener("input",()=>{ const t=+$("contractArea").value||0, e=+$("exclArea").value||0; if(t&&e) $("commArea").value=Math.max(0,t-e).toFixed(2); calc(); });
+function landRightAuto(){ const den=+$("landDen").value||0, num=+$("landNum").value||0, tot=+$("landTotal").value||0; if(den>0&&num>0){ $("landRight").value = (tot>0 ? tot*num/den : num).toFixed(2); } calc(); }
+["landDen","landNum","landTotal"].forEach(id=>$(id).addEventListener("input",landRightAuto));
+["evalDate","noticeYear","siteName","structure","lifeGroup","builtYear","remodelYear","topFloor","bldArea","roof","intel","hoLabel","useSel","useOvr","ftypeSel","landPrice","landRight"].forEach(id=>{
+  $(id).addEventListener("input",()=>{ if(id==="evalDate") syncYear(); calc(); });
+  $(id).addEventListener("change",()=>{ if(id==="evalDate") syncYear(); calc(); });
+});
+document.querySelectorAll(".mode button").forEach(b=>b.addEventListener("click",()=>{ mode=b.dataset.mode; document.querySelectorAll(".mode button").forEach(x=>{x.classList.toggle("on",x===b); x.setAttribute("aria-selected",x===b?"true":"false");}); calc(); }));
+$("printBtn").addEventListener("click",()=>window.print());
+$("copyBtn").addEventListener("click",()=>{
+  const {res,totSJ,totYD,landVal,unitSJshow}=calc(); if(!res.ready){ alert("입력이 부족합니다"); return; }
+  const t=[`[집합건물 기준시가] ${$("siteName").value} ${$("hoLabel").value}`,
+    `평가기준일 ${$("evalDate").value} · ${$("noticeYear").value}년 고시`,
+    `건물: ㎡당 소득세법 ${won(res.lines[0].unitYD)} / 상증 ${won(unitSJshow)} × ${f2(+$("contractArea").value)}㎡`,
+    `토지: 대지권 ${f2(+$("landRight").value)}㎡ × ${fmt(+$("landPrice").value)}원 = ${landVal!==null?won(landVal):"-"}`,
+    `합계: 소득세법 ${totYD!==null?won(totYD):"-"} / 상속·증여 ${totSJ!==null?won(totSJ):"-"}`,
+    totYD!==null ? (totYD<=1e9 ? "판정: 기준시가 10억원 이하 - 단일감정 가능" : "판정: 기준시가 10억원 초과 - 복수감정 대상") : ""].join("\n");
+  navigator.clipboard.writeText(t).then(()=>alert("복사됨"));
+});
+
+// ---------- 저장 ----------
+function save(){ try{ const o={}; ["evalDate","noticeYear","siteName","structure","lifeGroup","builtYear","remodelYear","topFloor","bldArea","roof","intel","hoLabel","useSel","useOvr","ftypeSel","exclArea","commArea","contractArea","landPrice","landTotal","landDen","landNum","landRight","apiQuery"].forEach(k=>o[k]=$(k).value); localStorage.setItem("ongyeol-jiphap-gijunsiga-v1", JSON.stringify({mode, f:o})); }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem("ongyeol-jiphap-gijunsiga-v1")||"null"); if(!s) return false; mode=s.mode||"sj"; Object.entries(s.f||{}).forEach(([k,v])=>{ if($(k)) $(k).value=v; }); document.querySelectorAll(".mode button").forEach(x=>{x.classList.toggle("on",x.dataset.mode===mode); x.setAttribute("aria-selected",x.dataset.mode===mode?"true":"false");}); return true; }catch(e){ return false; } }
+
+// ---------- 예시 (향동 1143호, 2026) ----------
+$("presetBtn").addEventListener("click",()=>{
+  const v={evalDate:"2026-10-22", noticeYear:"2026", siteName:"고양시 덕양구 향동동 394 지엘메트로시티향동 1143호", structure:"4", lifeGroup:"", builtYear:"2023", remodelYear:"", topFloor:"14", roof:"1", intel:"0",
+    hoLabel:"11층 1143호", useSel:"46", useOvr:"", ftypeSel:"none", exclArea:"373.50", commArea:"378.20", contractArea:"751.70",
+    landPrice:"2077000", landTotal:"24444.4", landDen:"24444.4", landNum:"94", landRight:"94.00"};
+  Object.entries(v).forEach(([k,val])=>{ if($(k)) $(k).value=val; });
+  calc(); $("apiStatus").className="status ok"; $("apiStatus").textContent="예시를 채웠습니다 (2026년 고시 기준). 소득세법 합계 996,550,200원 · 단일감정 가능 판정이 나와야 정상입니다.";
+});
+
+// ═══════════ 지번 조회 → 자동 채움 (기존 계산기와 같은 경로) ═══════════
+const API_BASE='https://api.vworld.kr';
+const KEY_STORAGE='exact-vworld-key';
+const DEFAULT_VKEY='8D5CB15B-426D-3015-9680-618B587ACBCB';
+const PROXY_BASE='https://ongyeol-proxy.woojin-apr.workers.dev';
+function getKey(){ try{ return localStorage.getItem(KEY_STORAGE)||DEFAULT_VKEY; }catch(e){ return DEFAULT_VKEY; } }
+const netModes={};
+function hostOf(u){ const m=/^https?:\/\/([^\/]+)/.exec(u); return m?m[1]:"x"; }
+function tryFetch(url,attempt=1){ return fetch(url).then(async r=>{
+  const txt=await r.text(); let j=null; try{ j=JSON.parse(txt); }catch(e){}
+  const upstreamFail = r.status>=500 || (j&&j.OpenAPI_ServiceResponse) || /SERVICETIMEOUT|연결실패/.test(txt);
+  if(upstreamFail && attempt<6){ await new Promise(res=>setTimeout(res,1000*attempt)); return tryFetch(url,attempt+1); }
+  if(!r.ok) throw new Error("HTTP "+r.status); if(!j) throw new Error("JSON 아님"); return j; }); }
+function tryJsonp(url){ return new Promise((resolve,reject)=>{
+  const cb="__vw_cb"+Math.floor(Math.random()*1e9); const sc=document.createElement("script"); let done=false;
+  window[cb]=d=>{ done=true; cleanup(); resolve(d); };
+  function cleanup(){ delete window[cb]; if(sc.parentNode) sc.parentNode.removeChild(sc); }
+  sc.onerror=()=>{ if(!done){ cleanup(); reject(new Error("JSONP 로드 실패")); } };
+  setTimeout(()=>{ if(!done){ cleanup(); reject(new Error("JSONP 시간초과")); } },8000);
+  sc.src=url+(url.indexOf("?")>=0?"&":"?")+"callback="+cb; document.head.appendChild(sc); }); }
+let manualQueue=Promise.resolve();
+function tryManual(url){
+  manualQueue=manualQueue.then(()=>new Promise(resolve=>{
+    const panel=$("fallbackPanel"), link=$("fbLink"), ta=$("fbPaste");
+    panel.hidden=false; link.href=url; link.textContent="이 링크"; ta.value=""; ta.focus();
+    $("btnFbRetry").onclick=()=>{ const b=$("btnFbRetry"); b.disabled=true; b.textContent="재시도 중…";
+      tryFetch(url,1).then(j=>{ panel.hidden=true; resolve(j); }).catch(()=>alert("아직 공공데이터포털 응답이 없습니다. 잠시 후 다시 눌러 주세요.")).finally(()=>{ b.disabled=false; b.textContent="자동 재시도"; }); };
+    $("btnFbApply").onclick=()=>{ const t=ta.value.trim(); if(!t){ alert("붙여넣은 내용이 없습니다"); return; }
+      try{ const j=JSON.parse(t); panel.hidden=true; resolve(j); }catch(e){ alert("JSON 형식이 아닙니다. 페이지 전체를 복사했는지 확인하세요."); } };
+  })); return manualQueue; }
+function callApi(url){
+  const h=hostOf(url), m=netModes[h]||"auto";
+  if(m==="fetch") return tryFetch(url); if(m==="jsonp") return tryJsonp(url); if(m==="manual") return tryManual(url);
+  return tryFetch(url).then(d=>{ netModes[h]="fetch"; return d; })
+    .catch(()=>tryJsonp(url).then(d=>{ netModes[h]="jsonp"; return d; })
+    .catch(()=>{ netModes[h]="manual"; return tryManual(url); })); }
+function searchPnu(q,key){
+  const url=API_BASE+"/req/search?service=search&request=search&version=2.0&size=10&page=1&query="+encodeURIComponent(q)+"&type=address&category=parcel&format=json&errorformat=json&key="+key;
+  return callApi(url).then(d=>{ const r=d&&d.response;
+    if(!r||r.status!=="OK"||!r.result||!r.result.items||!r.result.items.length) throw new Error("주소를 찾지 못했습니다: "+q+(r&&r.error?" ("+r.error.text+")":""));
+    const it=r.result.items[0]; return { pnu:it.id, addr:(it.address&&(it.address.parcel||it.address.road))||it.title||q }; }); }
+const nedUrl=(op,pnu,key)=>API_BASE+"/ned/data/"+op+"?key="+key+"&pnu="+pnu+"&format=json&numOfRows=100&pageNo=1";
+const bldUrl=(op,pnu)=>PROXY_BASE+"/bld?op="+op+"&pnu="+pnu;
+const apiItems=d=>{ const it=d&&d.response&&d.response.body&&d.response.body.items&&d.response.body.items.item; return it?(Array.isArray(it)?it:[it]):[]; };
+function pickYear(fields,year){ if(!fields.length) return null; const y=fields.filter(f=>String(f.stdrYear)===String(year)); const pool=y.length?y:fields;
+  return pool.reduce((b,f)=> !b||(f.stdrYear||"")>(b.stdrYear||"")||((f.stdrYear||"")===(b.stdrYear||"")&&(f.lastUpdtDt||"")>(b.lastUpdtDt||""))?f:b, null); }
+const mapStructure=G.mapStructure, mapRoof=G.mapRoof, mapUse=G.mapUse;
+
+async function importByAddress(q){
+  if(window.arapVisitLog) window.arapVisitLog('조회',q);
+  const st=$("apiStatus"), btn=$("apiGo"), key=getKey(); btn.disabled=true; st.className="status"; st.textContent="주소 검색 중… "+q;
+  const raw={}; const notes=[];
+  try{
+    const s=await searchPnu(q,key); raw.pnu=s.pnu; raw.addr=s.addr;
+    st.textContent="토지특성·집합 건축물대장 조회 중… (PNU "+s.pnu+")";
+    const evalYear = +($("evalDate").value||"").slice(0,4) || new Date().getFullYear();
+    const [landD, recapD, titleD, pubuseD] = await Promise.all([
+      callApi(nedUrl("getLandCharacteristics",s.pnu,key)).catch(e=>({err:String(e.message||e)})),
+      callApi(bldUrl("getBrRecapTitleInfo",s.pnu)).catch(e=>({err:String(e.message||e)})),
+      callApi(bldUrl("getBrTitleInfo",s.pnu)).catch(e=>({err:String(e.message||e)})),
+      callApi(bldUrl("getBrExposPubuseAreaInfo",s.pnu)).catch(e=>({err:String(e.message||e)}))
+    ]);
+    raw.land=landD; raw.recap=recapD; raw.title=titleD; raw.pubuseCount=apiItems(pubuseD).length;
+    // 토지: 개별공시지가 + 전체면적
+    const lf=(landD&&landD.landCharacteristicss&&landD.landCharacteristicss.field)||[];
+    const lc=pickYear(lf,evalYear);
+    if(lc){ if(lc.pblntfPclnd){ $("landPrice").value=lc.pblntfPclnd; notes.push(`공시지가 ${lc.stdrYear}년 ${fmt(+lc.pblntfPclnd)}원/㎡`+(String(lc.stdrYear)!==String(evalYear)?` (평가기준일 연도 ${evalYear} 자료 없음 → 최신 사용)`:"")); }
+      if(lc.lndpclAr){ $("landTotal").value=lc.lndpclAr; notes.push(`대지 전체면적 ${lc.lndpclAr}㎡ (토지특성)`); } }
+    else notes.push("토지특성 조회 실패"+(landD&&landD.err?": "+landD.err:""));
+    // 건물 공통: 총괄표제부 우선, 없으면 표제부
+    const t = apiItems(recapD)[0] || apiItems(titleD)[0];
+    if(t){
+      const [sNo,sWhy]=mapStructure(t.strctCdNm); $("structure").value=String(sNo); notes.push(`구조 "${t.strctCdNm||""}" → ${sWhy}`);
+      const lg=G.structGroup(sNo,t.strctCdNm); $("lifeGroup").value = lg!==G.GROUP_OF[sNo]?String(lg):"";
+      if(t.useAprDay){ $("builtYear").value=String(t.useAprDay).slice(0,4); notes.push(`사용승인일 ${t.useAprDay} → 신축연도 ${String(t.useAprDay).slice(0,4)}`); }
+      if(t.grndFlrCnt) $("topFloor").value=t.grndFlrCnt;
+      if(t.totArea){ $("bldArea").value=t.totArea; notes.push(`연면적 ${t.totArea}㎡ (총괄표제부) → 조정률Ⅱ 연면적 판단에 사용`); }
+      if(t.roofCdNm){ $("roof").value=mapRoof(t.roofCdNm); notes.push(`지붕 "${t.roofCdNm}" → 조정률Ⅰ ${$("roof").value}`); }
+      if(!$("landTotal").value && t.platArea) $("landTotal").value=t.platArea;
+      $("siteName").value=(s.addr||q)+(t.bldNm?" "+t.bldNm:"");
+    } else { notes.push("표제부 조회 실패 - 건물 공통은 직접 입력하세요"); $("siteName").value=s.addr||q; }
+    // 전유공용면적 → 호 목록
+    const items=apiItems(pubuseD);
+    hoData={};
+    items.forEach(it=>{
+      const dong=String(it.dongNm||"").trim(), ho=String(it.hoNm||"").trim();
+      if(!ho) return;
+      const key2=(dong?dong+" ":"")+ho;
+      if(!hoData[key2]) hoData[key2]={excl:0, comm:0, useText:"", flr:it.flrNoNm||""};
+      const gb=String(it.exposPubuseGbCdNm||""); const code=String(it.exposPubuseGbCd||"");
+      const isExcl = /전유/.test(gb) || (!gb && code==="1");
+      const a=+it.area||0;
+      if(isExcl){ hoData[key2].excl+=a; const pt=[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" "); if(pt&&!hoData[key2].useText) hoData[key2].useText=pt; }
+      else hoData[key2].comm+=a;
+    });
+    const keys=Object.keys(hoData).sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
+    $("hoPick").innerHTML = `<option value="">- 호 선택 (${keys.length}개 호) -</option>` + keys.map(k=>`<option value="${k.replace(/"/g,"&quot;")}">${k} · 전유 ${f2(hoData[k].excl)}㎡ · 공용 ${f2(hoData[k].comm)}㎡</option>`).join("");
+    if(keys.length){ notes.push(`전유공용면적 ${items.length}건 → 호 ${keys.length}개. 위에서 이 호를 고르세요.`); if(keys.length===1) applyHo(keys[0]); }
+    else notes.push("전유공용면적 없음"+(pubuseD&&pubuseD.err?": "+pubuseD.err:"")+" - 면적은 직접 입력하세요 (일반건물이면 기존 건물 기준시가 계산기를 쓰세요)");
+    notes.push("대지권은 API로 조회되지 않습니다. 등기부등본에서 확인해 4단계에 입력하세요.");
+    calc();
+    st.className="status ok"; st.textContent="✅ 불러옴: "+(s.addr||q)+(keys.length?" · 호 목록에서 이 호를 고르세요":"");
+    histAdd(s.addr||q);
+  }catch(e){ console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); }
+  finally{ btn.disabled=false; $("apiLog").hidden=false; $("apiRaw").textContent=notes.join("\n")+"\n\n"+JSON.stringify(raw,null,1).slice(0,20000); }
+}
+function applyHo(k){
+  const d=hoData[k]; if(!d) return;
+  $("hoPick").value=k;
+  $("hoLabel").value=(d.flr?d.flr+" ":"")+k.split(" ").pop();
+  if(d.excl) $("exclArea").value=d.excl.toFixed(2);
+  if(d.comm) $("commArea").value=d.comm.toFixed(2);
+  $("contractArea").value=(d.excl+d.comm).toFixed(2);
+  if(d.useText){ const m=mapUse(d.useText, d.excl); $("useSel").value=String(m.use); $("apiStatus").textContent=`호 적용: ${k} · 용도 "${d.useText}" → ${m.use}번 (${m.why}) · 용도지수를 확인하세요`; }
+  calc();
+}
+$("hoPick").addEventListener("change",()=>{ if($("hoPick").value) applyHo($("hoPick").value); });
+
+const HIST_KEY="arap-bld-history-parcel";
+function histRead(){ try{ const a=JSON.parse(localStorage.getItem(HIST_KEY)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function histAdd(v){ v=String(v||"").trim(); if(!v) return; const a=histRead().filter(x=>x!==v); a.unshift(v); try{ localStorage.setItem(HIST_KEY,JSON.stringify(a.slice(0,30))); }catch(e){} histRender(); }
+function histRender(){ $("qHist").innerHTML=histRead().map(v=>`<option value="${v.replace(/"/g,"&quot;")}">`).join(""); }
+histRender();
+$("apiGo").addEventListener("click",()=>{ const q=$("apiQuery").value.trim(); if(!q){ alert("지번 주소를 입력하세요"); return; } importByAddress(q); });
+$("apiQuery").addEventListener("keydown",e=>{ if(e.key==="Enter") $("apiGo").click(); });
+$("evalDate").addEventListener("change",syncYear);
+
+buildSelects();
+load();
+calc();
+</script>
+
+</body>

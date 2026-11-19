@@ -36,8 +36,8 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>LAND_ONLY),true,'?mode=land → 토지만');
     assert.equal(await page.evaluate(()=>evalKind()),'land');
     assert(await page.locator('#tabbtn-bld').isHidden(),'건물평가 탭 숨김');
-    assert.equal(await page.locator('#tabbtn-final').textContent(),'3. 토지 평가액 결정');
-    assert.equal(await page.locator('#tabbtn-cheonggu').textContent(),'7. 청구서 다운로드');
+    assert.equal(await page.locator('#tabbtn-final').textContent(),'3. 평가액 결정·청구서');
+    assert.equal(await page.locator('#tabbtn-cheonggu').count(),0,'청구서는 평가액 결정 화면 안');
     assert(await page.locator('#sd_bldAmt').isHidden());assert(await page.locator('#btnFetchBld').isHidden(),'본건 건물 카드 숨김');
     assert.match(await page.locator('#mbTitle').textContent(),/EXACT 토지$/);
     await page.evaluate(()=>showTab('yohang'));assert(await page.locator('.y-bld').isHidden(),'요항표 Ⅲ 숨김');
@@ -133,7 +133,7 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>LAND_ONLY),true,'저장 건은 토지만으로 복원');
     await page.click('#ek_tb');
     assert.equal(await page.evaluate(()=>LAND_ONLY),false);assert(await page.locator('#tabbtn-bld').isVisible(),'토건 전환 → 건물 탭');
-    assert.equal(await page.locator('#tabbtn-final').textContent(),'4. 토지건물 평가액 결정');
+    assert.equal(await page.locator('#tabbtn-final').textContent(),'4. 평가액 결정·청구서');
     assert(await page.evaluate(()=>BLD_RESULT.total>0),'토건 전환 → 남아 있던 건물 입력으로 건물가액 계산');
     assert.equal(await page.evaluate(()=>opinionTplPath()),'템플릿/토건 의견서(산출근거) 템플릿.hwpx');
     // ⑦ 저장된 토건 건을 연 채로 ?mode=land → 새 평가서(토지만)

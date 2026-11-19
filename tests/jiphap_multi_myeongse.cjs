@@ -6,7 +6,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL});
 try{const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.route('**/*',r=>r.request().url().includes('arap_access.js')?r.fulfill({body:''}):r.request().url().startsWith(base)?r.continue():r.abort());
-await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','multi');});
+await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','multi'),sessionStorage.setItem('arap-jiphap-mode','multi'));});
 await page.goto(base+'/s3r86w8a.html');await page.waitForFunction(()=>window.multiHelpers&&window.ArapMultiMyeongse);
 // 사용자 그림(당산동6가 오피스텔 5개호)과 같은 입력
 const input=await page.evaluate(()=>{
@@ -65,12 +65,12 @@ console.log('PASS 혼합 입력(사정면적·분모 없음·미완료·동 2개
 
 // 실제 화면 버튼으로 내려받기
 await page.evaluate(inp=>{localStorage.setItem('v2:appraisal-case-list',JSON.stringify([{id:'SYNTHETIC',label:'합성 검증'}]));localStorage.setItem('v2:case:SYNTHETIC',JSON.stringify({...inp,propType:'주거용',rnd:{uD:'천원',uM:'round',tD:'백만원',tM:'round'}}));},input);
-await page.reload();const scope=page.locator('#root-multi');await scope.getByText('4. 가격산출',{exact:true}).click();
+await page.reload();const scope=page.locator('#root-multi');await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
 await page.waitForFunction(()=>Array.from(document.querySelectorAll('#root-multi button')).some(b=>b.textContent==='명세표(excel)'&&!b.disabled));
 await page.evaluate(()=>{const c=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){window.__dlName=this.download;return c.call(this);};});
-const dl=page.waitForEvent('download');await scope.getByRole('button',{name:'명세표(excel)',exact:true}).click();const d=await dl;await d.saveAs(path.join(out,'ui.xlsx'));assert.equal(await page.evaluate(()=>window.__dlName),'2. 명세표_검증용 의뢰인.xlsx');   // 헤드리스 Chromium은 blob 다운로드 이름을 'download'로 주므로 앵커의 파일명을 본다
-assert.equal(await scope.getByRole('button',{name:'요항표',exact:true}).count(),0);
-await scope.getByText('2. 대상물건개요',{exact:true}).click();assert.equal(await scope.locator('div',{hasText:/^대지권비율 분모\(등기\)/}).locator('input').last().inputValue(),'1064.5');
+const dl=page.waitForEvent('download');await scope.getByRole('button',{name:'명세표(excel)',exact:true}).click();const d=await dl;await d.saveAs(path.join(out,'ui.xlsx'));assert.equal(await page.evaluate(()=>window.__dlName),'4. 명세표_검증용 의뢰인.xlsx');   // 헤드리스 Chromium은 blob 다운로드 이름을 'download'로 주므로 앵커의 파일명을 본다
+assert.equal(await scope.getByRole('button',{name:'요항표',exact:true}).count(),1);   // 여러 호수 요항표(2026-11-17)
+await scope.getByText('1. 접수 · 대상물건',{exact:true}).click();assert.equal(await scope.locator('div',{hasText:/^대지권비율 분모\(등기\)/}).locator('input').last().inputValue(),'1064.5');
 console.log('PASS 화면 버튼 다운로드 / 요항표 버튼 없음 / 분모 칸');
 assert.deepEqual(errors,[]);
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});

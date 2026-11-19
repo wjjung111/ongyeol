@@ -35,11 +35,11 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>BLD_ONLY),true,'?mode=bld → 건물만');
     assert.equal(await page.evaluate(()=>LAND_ONLY),false);
     assert.equal(await page.evaluate(()=>evalKind()),'bld');
-    assert(await page.locator('#tabbtn-land').isHidden(),'토지평가 탭 숨김');
+    for(const id of ['gongsi','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isHidden(),'토지평가 탭 숨김 '+id);
     assert(await page.locator('#tabbtn-bld').isVisible(),'건물평가 탭 보임');
     assert.equal(await page.locator('#tabbtn-bld').textContent(),'2. 건물평가');
-    assert.equal(await page.locator('#tabbtn-final').textContent(),'3. 건물 평가액 결정');
-    assert.equal(await page.locator('#tabbtn-cheonggu').textContent(),'7. 청구서 다운로드');
+    assert.equal(await page.locator('#tabbtn-final').textContent(),'3. 평가액 결정·청구서');
+    assert.equal(await page.locator('#tabbtn-cheonggu').count(),0,'청구서는 평가액 결정 화면 안');
     assert(await page.locator('#sd_landAmt').isHidden()&&await page.locator('#sd_landUnit').isHidden(),'사이드바 토지 숨김');
     assert(await page.locator('#sd_bldAmt').isVisible());
     assert(await page.locator('#btnFetchBld').isVisible(),'본건 건물 카드 보임');
@@ -75,6 +75,26 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       // 토지 관련 절·문단 없음
       ['토지가액 산출근거','공시지가기준법에 의한 시산가액','평가대상 토지','비교표준지','본건 토지는','"공시지가기준법','토지 및 건물'].forEach(w=>assert(!r.text.includes(w),mode+' 없어야 함: '+w));
       assert(r.text.includes('부동산(건물)으로서'),'목적 문장');
+      assert(r.text.includes('「상속세 및 증여세법」상'),'기본 목적 문장 = 상증세법');
+      if(mode==='road'){   // 평가목적 자산재평가 → 외부감사법 문구 (arap_purpose_law.js, 2026-11-15)
+        await page.evaluate(()=>{document.getElementById('ov_purpose').value='자산재평가';});
+        const rab=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data())));
+        fs.writeFileSync(path.join(out,'건물만_의견서_자산재평가.hwpx'),Buffer.from(rab));
+        const ra=await check(page,rab);
+        assert.deepEqual(ra.bad,[],'자산재평가 표 구조');
+        assert(ra.text.includes('부동산(건물)으로서, 「주식회사 등의 외부감사에 관한 법률」상 유형자산에 대한 자산재평가 목적의 감정평가임'),'자산재평가 목적 문장');
+        assert(!ra.text.includes('「상속세 및 증여세법」상'),'상증세법 문구 없음');
+        await page.evaluate(()=>{document.getElementById('ov_purpose').value='일반거래(시가참고)';});
+        // 평가구분 담보(평가목적 기본값) → 「담보 목적의 감정평가임」, 6. 그 밖의 사항도 담보 (2026-11-16)
+        const kind0=await page.evaluate(()=>{const e=document.getElementById('ov_kind'),v=e.value;e.value='담보';return v;});
+        const lb=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data())));
+        fs.writeFileSync(path.join(out,'건물만_의견서_담보.hwpx'),Buffer.from(lb));
+        const la=await check(page,lb);assert.deepEqual(la.bad,[],'담보 표 구조');assert.deepEqual(la.left,[],'담보 남은 토큰');
+        assert(la.text.includes('부동산(건물)으로서, 담보 목적의 감정평가임'),'담보 목적 문장');
+        assert(!la.text.includes('「상속세 및 증여세법」상')&&!la.text.includes('일반거래(시가참고)'),'담보 — 상증세법·일반거래 문구 없음');
+        assert(la.text.includes('담보 목적의 감정평가로서, 일반거래나 소송 등 다른 목적'),'담보 6. 그 밖의 사항');
+        await page.evaluate(v=>{document.getElementById('ov_kind').value=v;},kind0);
+      }
       assert(r.top.some(t=>t.startsWith('Ⅲ. 건물가액 산출근거'))&&r.top.some(t=>t.startsWith('Ⅳ. 감정평가액의 결정')),'절 번호 Ⅲ·Ⅳ');
       assert(r.top.some(t=>t.startsWith('② 대상물건과'))&&r.top.some(t=>t.startsWith('③ 대상물건이')),'방법 목록 번호');
       assert(r.top.some(t=>t.startsWith('나.')&&t.includes('본건 건물은')&&t.includes('원가법을 적용')),'나. 원가법');
@@ -137,8 +157,8 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
     assert.equal(await page.evaluate(()=>BLD_ONLY),true,'저장 건은 건물만으로 복원');
     assert.equal(await page.evaluate(()=>LAND_FINAL),0);
     await page.click('#ek_tb');
-    assert.equal(await page.evaluate(()=>BLD_ONLY),false);assert(await page.locator('#tabbtn-land').isVisible(),'토건 전환 → 토지평가 탭');
-    assert.equal(await page.locator('#tabbtn-final').textContent(),'4. 토지건물 평가액 결정');
+    assert.equal(await page.evaluate(()=>BLD_ONLY),false);for(const id of ['gongsi','gyeoljeong'])assert(await page.locator('#tabbtn-'+id).isVisible(),'토건 전환 → 토지평가 탭 '+id);
+    assert.equal(await page.locator('#tabbtn-final').textContent(),'4. 평가액 결정·청구서');
     assert(await page.evaluate(()=>LAND_FINAL>0),'토건 전환 → 남아 있던 토지 입력으로 토지가액 계산');
     assert.equal(await page.evaluate(()=>ETC_ITEMS[1]),await page.evaluate(()=>ETC_ITEMS_DEFAULT[1]),'물적 동일성 기본 문구 복귀');
     assert.equal(await page.locator('#fn_opinion').inputValue(),await page.evaluate(()=>FN_OPINION_TB));

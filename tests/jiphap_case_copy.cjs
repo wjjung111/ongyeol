@@ -14,7 +14,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     let answer=null;page.on('dialog',d=>d.type()==='prompt'?d.accept(answer==null?d.defaultValue():answer):d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     await page.addInitScript(({mode,pre})=>{if(sessionStorage.getItem('init'))return;sessionStorage.setItem('init','1');
-      localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);
+      localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode',mode),sessionStorage.setItem('arap-jiphap-mode',mode));
       localStorage.setItem(pre+'appraisal-case-list',JSON.stringify([{id:'C-1',label:'C-1 검증빌딩 1동 101호'}]));
       localStorage.setItem(pre+'case:C-1',JSON.stringify({ov:{caseNo:'C-1',buildingName:'검증빌딩',dong:'1',ho:'101'},cases:[{id:'a',symbol:1,unitPrice:5000000}],precs:[],propType:'주거용'}));
       localStorage.setItem(pre+'appraisal-memo:C-1',JSON.stringify([{t:'메모'}]));},{mode,pre});
@@ -63,7 +63,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const msgs=[];page.on('dialog',d=>{msgs.push(d.message());d.type()==='prompt'?d.accept(d.defaultValue()):d.accept();});
     await ctx.route('**/*',r=>{const u=r.request().url();if((u.includes('arap_access.js')||u.includes('arap_user.js')))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     await page.addInitScript(()=>{if(sessionStorage.getItem('init'))return;sessionStorage.setItem('init','1');
-      localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','multi');
+      localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','multi'),sessionStorage.setItem('arap-jiphap-mode','multi'));
       localStorage.setItem('appraisal-case-list',JSON.stringify([{id:'S-1',label:'S-1 단일빌딩 1동 101호',updated:'2026-09-01T00:00:00Z'}]));
       localStorage.setItem('case:S-1',JSON.stringify({ov:{caseNo:'S-1',buildingName:'단일빌딩',dong:'1',ho:'101',area:'84.5'},cases:[{id:'a',unitPrice:7000000}],precs:[],propType:'주거용'}));
       localStorage.setItem('v2:appraisal-case-list',JSON.stringify([{id:'M-1',label:'M-1 여러빌딩 2동 201호',updated:'2026-09-02T00:00:00Z'}]));

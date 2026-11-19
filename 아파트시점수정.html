@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<!--
+  아파트 실거래 시점수정 (단독 화면, test.html에서만 링크)
+  단지 주소 + 본건 면적 → 실거래(국토부, 프록시 /rtms) 또는 붙여넣기 → 부동산원 월간 아파트 매매가격지수(프록시 /rone)로 시점수정
+  → 본건 최저/중간/최고 + 거래별 표 + 엑셀. 계산 규칙은 arap_apt_sise.js 머리말.
+  Copyright (c) 2026 정우진 감정평가사 (Woojin Jung, Certified Appraiser). All Rights Reserved. 모든 권리 보유.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아파트 시점수정</title>
+<link rel="stylesheet" href="arap_tool.css">
+<style>
+  :root{--bg:var(--t-bg);--surface:var(--t-surface);--ink:var(--t-ink);--ink-2:var(--t-ink-2);--faint:var(--t-faint);
+    --line:var(--t-line);--line-strong:var(--t-line-strong);--accent:var(--t-accent);--accent-soft:var(--t-accent-soft);
+    --danger:#b42318;--danger-bg:#fdf2f1;--warn:#9a6700;--warn-bg:#fff8e6;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--t-font);font-size:14px;line-height:1.45;display:flex;flex-direction:column}
+  .page{max-width:1180px;width:100%;margin:0 auto;padding:18px 16px 40px}
+  h1{font-size:19px;font-weight:700;margin-bottom:4px}
+  .lede{color:var(--ink-2);font-size:13px;margin-bottom:12px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--t-radius);padding:14px 16px;margin-bottom:12px}
+  .grid{display:grid;grid-template-columns:3fr .6fr .6fr .6fr 1fr 1.1fr auto auto;gap:8px;align-items:end}
+  @media (max-width:820px){.grid{grid-template-columns:1fr 1fr}.grid .addr{grid-column:1/-1}}
+  label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:3px}
+  input,textarea{width:100%;border:1px solid var(--line-strong);border-radius:7px;padding:8px 10px;font:inherit;color:var(--ink);background:#fff}
+  input:focus,textarea:focus{outline:2px solid #bfdbfe;border-color:var(--accent)}
+  textarea{min-height:150px;font-family:Consolas,'D2Coding',monospace;font-size:13px}
+  button{border:1px solid var(--line-strong);background:#fff;border-radius:7px;padding:8px 14px;font:inherit;cursor:pointer;color:var(--ink)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;padding:9px 22px}
+  button.primary:hover{background:var(--t-accent-strong)}
+  button:disabled{opacity:.55;cursor:default}
+  .tabs{display:flex;gap:4px;margin:12px 0 8px}
+  .tab{border-radius:7px;padding:6px 12px;font-size:13px}
+  .tab.on{background:var(--t-bar);color:#fff;border-color:var(--t-bar)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .hint{font-size:12px;color:var(--ink-2)}
+  .msg{padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:13px}
+  .msg.err{background:var(--danger-bg);color:var(--danger);border:1px solid #f1c9c4}
+  .msg.warn{background:var(--warn-bg);color:var(--warn);border:1px solid #f0dca8}
+  .big{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media (max-width:600px){.big{grid-template-columns:1fr}}
+  .big .b{background:var(--surface);border:1px solid var(--line);border-radius:var(--t-radius);padding:14px 16px}
+  .big .b.min{border:2px solid var(--accent);background:var(--accent-soft)}
+  .big .k{font-size:13px;color:var(--ink-2)}
+  .big .v{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-top:2px}
+  .big .s{font-size:12px;color:var(--faint);margin-top:2px}
+  .bandonly{display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;user-select:none}
+  .big .u{font-size:13px;font-weight:600;color:var(--ink-2);margin-top:4px}
+  .big .rng{font-size:12px;color:var(--ink-2);margin-top:6px}
+  .big .rng.chip{display:inline-block;font-size:13px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px}
+  .sub{margin:8px 2px 0;color:var(--ink-2);font-size:13px}
+  .tbl{overflow:auto;max-height:70vh;padding:0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}
+  th{background:#f8fafc;color:var(--ink-2);font-weight:600;text-align:center;position:sticky;top:0}
+  th[data-k]{cursor:pointer;user-select:none}
+  th[data-k]:hover{color:var(--ink)}
+  th .ar{display:inline-block;width:1em;color:var(--accent);font-size:11px}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  td.c{text-align:center}
+  tr.off td{color:var(--faint)}
+  td.note{white-space:normal;min-width:180px;font-size:12px}
+  .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;background:#eef0f3;color:var(--ink-2);margin:1px 2px 1px 0}
+  .tag.bad{background:var(--danger-bg);color:var(--danger)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chips button.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+  details summary{cursor:pointer;color:var(--ink-2);font-size:12px;margin-top:10px}
+  .hidden{display:none}
+  /* 조회 기록 패널: 넓은 화면은 왼쪽 세로 목록, 좁은 화면은 위로 올라가고 접힘 */
+  .layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:0 18px;max-width:1500px;width:100%;margin:0 auto;padding:0 16px}
+  .layout .page{max-width:none;padding:18px 0 40px}
+  .hist{position:sticky;top:60px;align-self:start;max-height:calc(100vh - 72px);overflow:auto;margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--t-radius);padding:10px}
+  .hhead{width:100%;text-align:left;border:none;background:none;font-weight:700;padding:2px 2px 8px;cursor:default}
+  .hhead span{color:var(--ink-2);font-weight:400;margin-left:4px}
+  #histList{list-style:none}
+  #histList li{display:flex;align-items:stretch;border-radius:6px;margin-bottom:2px}
+  #histList li:hover{background:#f1f5f9}
+  #histList li.on{background:var(--accent-soft)}
+  .hopen{flex:1;min-width:0;border:none;background:none;text-align:left;padding:6px;cursor:pointer;border-radius:6px}
+  .hopen b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hopen span{display:block;font-size:12px;color:var(--ink-2)}
+  .hdel{border:none;background:none;color:var(--faint);padding:0 6px;cursor:pointer;font-size:15px}
+  .hdel:hover{color:var(--danger)}
+  .hempty{font-size:12px;color:var(--faint);padding:6px}
+  .hnote{font-size:11px;color:var(--faint);margin-top:6px}
+  @media (max-width:1100px){
+    .layout{grid-template-columns:1fr}
+    .hist{position:static;max-height:none;margin-top:12px}
+    .hhead{cursor:pointer;padding-bottom:2px}
+    .hhead::after{content:' ▾'}
+    .hist.open .hhead{padding-bottom:8px}
+    .hist:not(.open) #histList,.hist:not(.open) .hnote{display:none}
+  }
+</style>
+</head>
+<body>
+<header class="ttop">
+  <a class="tb-home" href="test.html" title="개발 허브로">🏠</a>
+  <span class="tb-title"><span class="tb-ico">🏢</span>아파트 실거래 시점수정</span>
+  <span class="tb-right"><span class="tb-tag">탁상용</span></span>
+</header>
+
+<div class="layout">
+<aside class="hist" id="histPanel">
+  <button type="button" class="hhead" id="histToggle">조회 기록<span id="histCount">0</span></button>
+  <ul id="histList"></ul>
+  <div class="hnote">이 브라우저에만 저장돼요 (최근 100건)</div>
+</aside>
+<main class="page">
+  <h1>아파트 실거래 시점수정</h1>
+  <p class="lede">단지 주소와 본건 면적만 넣으면 작성일 기준 최근 3년(체크하면 5년) 실거래를 부동산원 월간 아파트 매매가격지수로 시점수정해 본건 최저, 중간, 최고 가격을 보여줍니다. <a href="apt_nearby.html" style="color:var(--accent)">인근 유사 신축 실거래 →</a></p>
+
+  <div class="card">
+    <div class="grid">
+      <div class="addr"><label>단지 주소 (지번 또는 도로명, 단지명도 됨. 시도, 시군구는 빼도 됨)</label>
+        <input id="address" placeholder="예) 마북동 524-8 / 파주시 동패동 1234 / 일원동 한솔마을"></div>
+      <div><label>동</label><input id="dong" placeholder="101"></div>
+      <div><label>호</label><input id="ho" placeholder="1203"></div>
+      <div><label>층</label><input id="floor" inputmode="numeric" placeholder="12"></div>
+      <div><label>본건 전용면적(㎡)</label><input id="area" inputmode="decimal" placeholder="비우면 고르기"></div>
+      <div><label>작성일 <span class="hint" id="baseHint"></span></label><input id="wdate" data-date placeholder="2026.11.11" autocomplete="off"></div>
+      <div><label>조회 기간</label><label class="bandonly" style="height:36px;margin:0;color:var(--ink);white-space:nowrap"><input type="checkbox" id="long5"> 5년까지 (기본 3년)</label></div>
+      <div><button class="primary" id="go" type="button">계산</button></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" data-mode="api" type="button">실거래 자동</button>
+      <button class="tab" data-mode="paste" type="button">거래 붙여넣기</button>
+    </div>
+
+    <div id="apiPane">
+      <div class="hint">국토교통부 아파트 매매 실거래가 자료, 작성일 기준 최근 3년(「5년까지」 체크 시 5년). 해제 거래는 표시만 하고 집계에서 뺍니다. 주소에 지번이나 단지명이 없으면 단지 후보를 보여줍니다.</div>
+    </div>
+
+    <div id="pastePane" class="hidden">
+      <textarea id="paste" placeholder="한 줄에 한 거래. 순서, 형식 자유. 예)
+2026.08.20  4.3억  124.985㎡  12층
+26.05.19  26억 6,000  84.73㎡  3층 직거래
+2026-07-11, 43500, 124.985, 8      (거래금액 만원)
+2025.12.08  4억 1,000  9층 해제     (해제는 자동 제외)"></textarea>
+      <div class="row" style="margin-top:6px">
+        <div style="width:220px"><input id="caseArea" inputmode="decimal" placeholder="사례 면적 (비우면 본건 면적)"></div>
+        <span class="hint">줄에 ㎡가 없을 때 쓰는 면적. 호갱노노 목록처럼 평형별로 붙여넣을 때 넣으세요.</span>
+      </div>
+    </div>
+
+    <details>
+      <summary>고급: 기준월 직접 지정</summary>
+      <div class="row" style="margin-top:6px">
+        <div style="width:160px"><input id="baseOverride" placeholder="예) 202608"></div>
+        <span class="hint">비우면 작성일 기준 공표된 최신월 (익월 15일 공표, 휴일이면 다음 영업일).</span>
+      </div>
+    </details>
+  </div>
+
+  <div id="msg"></div>
+  <div id="pick" class="card hidden"></div>
+  <div id="areaPick" class="card hidden"></div>
+
+  <div id="result" class="hidden">
+    <div class="big">
+      <div class="b min"><div class="k">최저</div><div class="v" id="vMin"></div><div class="s" id="sMin"></div><div class="u" id="uMin"></div></div>
+      <div class="b"><div class="k">중간</div><div class="v" id="vMid"></div><div class="s" id="sMid"></div><div class="u" id="uMid"></div><div class="rng" id="rMid"></div></div>
+      <div class="b"><div class="k">최고</div><div class="v" id="vMax"></div><div class="s" id="sMax"></div><div class="u" id="uMax"></div></div>
+    </div>
+    <div class="sub" id="subline"></div>
+    <div class="row" style="margin:10px 0 12px">
+      <button id="copy" type="button">결론 복사</button>
+      <button id="xlsx" type="button">엑셀 저장</button>
+      <label class="bandonly"><input type="checkbox" id="bandOnly"> 본건 면적대만 보기 (동일, 유사)</label><span class="hint" id="bandInfo"></span>
+      <span class="hint">체크를 바꾸면 최저, 중간, 최고가 바로 다시 계산됩니다.</span>
+    </div>
+    <div class="card tbl">
+      <table>
+        <thead><tr>
+          <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
+          <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">기준시점 거래가격</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+</div>
+<footer class="tsign">출처: 국토교통부 아파트 매매 실거래가, 한국부동산원 R-ONE 전국주택가격동향조사(월간)</footer>
+
+<script>window.ARAP_DATE_POPUP=true;</script><script src="arap_date.js"></script><!-- 작성일 칸 누르면 집건과 같은 달력 -->
+<script src="arap_sgg_codes.js?v=20261111"></script>
+<script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
+<script src="arap_apt_sise.js?v=20261111g"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script>
+(function(){
+'use strict';
+const A = window.ArapAptSise, SGG = window.ARAP_SGG_CODES;
+const PROXY = 'https://ongyeol-proxy.woojin-apr.workers.dev';
+const STATBL = 'A_2024_00045';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num = (v, d) => v == null ? '' : Number(v).toLocaleString('ko-KR', {minimumFractionDigits: d || 0, maximumFractionDigits: d || 0});
+let mode = 'api', last = null, sortK = null, sortDir = 1;
+let selAreas = []; // 칩에서 고른 전용면적(누른 순서). 고른 면적 거래는 전부 '동일' 면적대로 집계
+let curParcel = null; // 고른 필지 {id: PNU, addr, q: 그때 주소칸 글자}. 주소칸을 고치면 버림
+
+const todayIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+function readDate(v){
+  const m = String(v || '').replace(/\s/g, '').match(/^(\d{4})\D?(\d{1,2})\D?(\d{1,2})$/);
+  if (!m) return null;
+  return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+}
+
+async function getJson(url, ms){
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms || 20000);
+  try { const r = await fetch(url, {signal: c.signal, cache: 'no-store'}); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+async function getText(url, ms){
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms || 40000);
+  try { const r = await fetch(url, {signal: c.signal, cache: 'no-store'}); return await r.text(); }
+  finally { clearTimeout(t); }
+}
+
+/* R-ONE 한 달 전체(236개 지역) - 프록시 /rone, 같은 달은 한 번만 */
+const monthCache = {};
+function roneMonth(ym){
+  if (!monthCache[ym]) monthCache[ym] = (async () => {
+    const j = await getJson(PROXY + '/rone?STATBL_ID=' + STATBL + '&DTACYCLE_CD=MM&WRTTIME_IDTFR_ID=' + ym + '&pSize=1000&pIndex=1');
+    if (j && j.error) throw new Error('부동산원 지수 조회 실패: ' + j.error);
+    const rows = (j && j.SttsApiTblData && j.SttsApiTblData[1] && j.SttsApiTblData[1].row) || [];
+    return { vals: new Map(rows.map(r => [Number(r.CLS_ID), Number(r.DTA_VAL)])), list: rows.map(r => ({cls: Number(r.CLS_ID), path: r.CLS_FULLNM})) };
+  })().catch(e => { delete monthCache[ym]; throw e; });
+  return monthCache[ym];
+}
+async function pool(items, n, fn){
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({length: Math.min(n, items.length)}, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]); } }));
+  return out;
+}
+
+/* 국토부 실거래 - 프록시 /rtms (XML 그대로) */
+const RTMS_MSG = {
+  SERVICE_KEY_IS_NOT_REGISTERED_ERROR: '공공데이터포털 키가 실거래 API에 아직 등록되지 않았어요(승인 직후면 1~2시간 대기). 그동안은 붙여넣기 탭을 쓰세요.',
+  LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR: '실거래 API 오늘 호출 한도를 넘었어요.',
+};
+const rtmsCache = {};
+async function rtmsMonth(lawd, ym){
+  const key = lawd + '|' + ym;
+  if (rtmsCache[key]) return rtmsCache[key];
+  const items = [];
+  for (let page = 1; page < 20; page++){
+    let t = '';
+    for (let tries = 0; tries < 4; tries++){ // 국토부 초당 호출 제한에 걸리면 잠깐 쉬었다 다시
+      t = await getText(PROXY + '/rtms?LAWD_CD=' + lawd + '&DEAL_YMD=' + ym + '&numOfRows=1000&pageNo=' + page);
+      if (!/PER_SECOND_EXCEEDS/.test(t)) break;
+      await new Promise(r => setTimeout(r, 800 + tries * 700));
+    }
+    if (/^\s*\{/.test(t)){
+      let j = {}; try { j = JSON.parse(t); } catch (e) {}
+      if (j.ok && (j.ver || 0) < 4) throw new Error('프록시에 실거래 경로(/rtms)가 아직 없어요. 문서/클라우드플레어_프록시.js 4판을 대시보드에 붙여넣어 재배포해야 합니다. 그동안은 붙여넣기 탭을 쓰세요.');
+      throw new Error('실거래 조회 실패: ' + (j.error || t.slice(0, 120)));
+    }
+    const doc = new DOMParser().parseFromString(t, 'application/xml');
+    const err = doc.querySelector('errMsg'), rc = doc.querySelector('resultCode');
+    if (err || (rc && !/^0+$/.test(rc.textContent.trim()))){
+      const code = err ? err.textContent.trim() : '';
+      const m = doc.querySelector('returnAuthMsg') || doc.querySelector('resultMsg');
+      throw new Error(RTMS_MSG[code] || ('실거래 API 오류: ' + code + ' ' + (m ? m.textContent : '')));
+    }
+    doc.querySelectorAll('item').forEach(it => { const o = {}; for (const c of it.children) o[c.tagName] = (c.textContent || '').trim(); items.push(o); });
+    const total = +((doc.querySelector('totalCount') || {}).textContent || 0);
+    if (page * 1000 >= total) break;
+  }
+  const now = todayIso().slice(0, 7).replace('-', '');
+  if (A.ymDiff(now, ym) > 3) rtmsCache[key] = items; // 최근 3개월은 지연 신고, 해제가 들어오니 매번 새로
+  return items;
+}
+
+async function calc(aptPick, parcel, keepSort){
+  showMsg(''); $('pick').classList.add('hidden'); $('areaPick').classList.add('hidden');
+  const area = parseFloat(String($('area').value).replace(/,/g, '')) || null; // 비우면 단지 면적 종류에서 고르기
+  const subjectFloor = parseInt($('floor').value, 10) || A.floorFromHo($('ho').value);
+  const writeIso = readDate($('wdate').value) || todayIso();
+  const histInput = inputNow(); // 조회 기록용(누른 순간의 입력)
+  $('go').disabled = true; $('go').textContent = '계산 중...';
+  try{
+    // 주소: 건축물대장 조회와 같은 검색(V-World) → 필지 후보가 여럿이면 고르게. 단지명만 넣었거나 못 찾으면 법정동 표로 찾기
+    const q = $('address').value.trim();
+    if (!parcel && curParcel && curParcel.q === q) parcel = curParcel;
+    let addr = null;
+    if (parcel) addr = A.addrFromParcel(parcel, SGG);
+    else if (/\d/.test(q) && window.ArapBldrgst){
+      $('go').textContent = '주소 확인 중...';
+      let cands = null;
+      try { cands = await ArapBldrgst.search(q); } catch (e) { cands = null; }
+      if (cands && cands.length > 1){ offerParcelPick(cands); return; }
+      if (cands && cands.length === 1){ parcel = cands[0]; addr = A.addrFromParcel(parcel, SGG); }
+      $('go').textContent = '계산 중...';
+    }
+    if (!addr) addr = A.resolveAddress(q, SGG);
+    curParcel = parcel ? {id: parcel.id, addr: parcel.addr, q: $('address').value.trim()} : null;
+    // 기준월: 규칙상 공표월, 자료 없으면 한 달씩 당김
+    const ov = $('baseOverride').value.trim();
+    const ruleYm = /^\d{6}$/.test(ov) ? ov : A.baseMonthByRule(writeIso);
+    let baseYm = ruleYm, baseTbl = null;
+    for (let k = 0; k < 4; k++){ baseTbl = await roneMonth(baseYm); if (baseTbl.list.length) break; baseYm = A.ymAdd(baseYm, -1); }
+    if (!baseTbl.list.length) throw new Error('부동산원 기준월 지수를 못 가져왔어요.');
+    const chain = A.roneChain(addr.sido, addr.sgg, baseTbl.list);
+
+    let trades, warns = [], complexes = [];
+    const lookback = $('long5').checked ? A.LOOKBACK_LONG : A.LOOKBACK; // 기본 3년, 체크 시 5년(개월)
+    if (mode === 'api'){
+      const endYm = writeIso.slice(0, 4) + writeIso.slice(5, 7);
+      const months = Array.from({length: lookback + 1}, (_, i) => A.ymAdd(endYm, -i));
+      const lists = await pool(months, 6, ym => rtmsMonth(addr.code, ym));
+      const f = A.filterRtms(lists.flat(), addr, aptPick);
+      if (f.message){ showPick(f.message, f.complexes); return; }
+      trades = f.trades; complexes = f.complexes;
+    } else {
+      const p = A.parsePaste($('paste').value, parseFloat(String($('caseArea').value).replace(/,/g, '')) || area || null);
+      trades = p.trades; warns = p.warns;
+    }
+    if (!trades.length) throw new Error('계산할 거래가 없어요.' + (warns.length ? ' ' + warns.slice(0, 3).join(' / ') : (mode === 'api' ? ' 주소(법정동, 지번, 단지명)를 확인하세요.' : '')));
+
+    const yms = [...new Set(trades.map(t => t.date.slice(0, 4) + t.date.slice(5, 7)))].filter(ym => ym <= baseYm);
+    const back = Array.from({length: 18}, (_, i) => A.ymAdd(baseYm, -i)); // 지수 기준시점(=100) 찾기용
+    const need = [...new Set([...yms, ...back])];
+    const tbls = {}; (await pool(need, 6, ym => roneMonth(ym))).forEach((t, i) => tbls[need[i]] = t);
+    tbls[baseYm] = baseTbl;
+    const idx = (cls, ym) => { const t = tbls[ym]; const v = t && t.vals.get(Number(cls)); return v || null; };
+    const ats = A.areaTypes(trades);
+    selAreas = selAreas.filter(a => ats.some(t => Math.abs(t.area - a) < 1e-9)); // 이 단지에 없는 면적은 버림
+    const res = A.calculate(trades, area, writeIso, chain, baseYm, idx, {subjectFloor, sameAreas: selAreas, lookback});
+    res.areaTypes = ats;
+    res.parcel = curParcel;
+    res.ruleYm = ruleYm; res.addr = addr; res.complexes = complexes; res.aptPick = aptPick || null;
+    res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
+    res.subject = {dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: subjectFloor || null};
+    last = res; if (!keepSort) { sortK = null; sortDir = 1; }
+    if (warns.length) showMsg(warns.join(' / '), 'warn');
+    render();
+    histRecord(histInput);
+    try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, mode, long5: $('long5').checked})); } catch (e) {}
+  } catch (e){
+    if (e && e.candidates){ showRegionPick(e.message, e.candidates); return; }
+    showMsg(e && e.name === 'AbortError' ? '응답이 늦어 중단했어요. 다시 눌러주세요.' : (e.message || String(e)));
+  } finally { $('go').disabled = false; $('go').textContent = '계산'; }
+}
+
+/* ── 조회 기록: 이 브라우저(localStorage)에 최근 100건. 같은 입력(주소, 동, 호, 층, 면적, 작성일, 고른 단지)이면 덮어씀.
+      누르면 다시 조회하지 않고 저장된 결과(입력값, 거래표, 집계 체크, 정렬)를 그대로 보여줌. ── */
+const HIST_KEY = 'arap-apt-sise-history', HIST_MAX = 100;
+let curHist = null;
+const histHasResult = h => { try { return A.summarize(h.res.rows).n > 0; } catch (e) { return false; } };
+function histLoad(){
+  let v; try { v = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { v = []; }
+  if (!Array.isArray(v)) v = [];
+  const ok = v.filter(histHasResult); // 결과 없는 기록(면적 고르기 전, 실패)은 빼고 저장소도 정리
+  if (ok.length !== v.length) { try { localStorage.setItem(HIST_KEY, JSON.stringify(ok)); } catch (e) {} }
+  return ok;
+}
+function histSave(list){
+  for (let n = list.length; n >= 0; n = n ? Math.floor(n * 0.8) : -1){ // 용량이 넘치면 오래된 것부터 덜어냄
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, n))); return true; } catch (e) {}
+  }
+  return false;
+}
+function inputNow(){
+  return {address: $('address').value.trim(), dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: $('floor').value.trim(),
+    area: $('area').value.trim(), wdate: $('wdate').value.trim(), mode, paste: mode === 'paste' ? $('paste').value : '',
+    caseArea: $('caseArea').value.trim(), baseOverride: $('baseOverride').value.trim(), long5: $('long5').checked};
+}
+const histKeyOf = (i, pick) => {
+  const area = parseFloat(String(i.area || '').replace(/,/g, '')) || '';
+  const fl = parseInt(i.floor, 10) || A.floorFromHo(i.ho) || '';
+  return [i.address.replace(/\s+/g, ' '), String(i.dong || '').replace(/동$/, ''), String(i.ho || '').replace(/\D/g, ''), fl, area, i.wdate, pick || '', i.long5 ? '5y' : ''].join('|');
+};
+const ROW_KEYS = ['date', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled'];
+function compactRes(r){
+  return Object.assign({}, r, {chain: r.chain.slice(0, 1), complexes: [],
+    rows: r.rows.map(x => { const o = {}; ROW_KEYS.forEach(k => { o[k] = x[k]; }); return o; })});
+}
+function histRecord(inp){
+  if (!(A.summarize(last.rows).n > 0)) return; // 최저/중간/최고가 나온 경우만 기록
+  const list = histLoad(), key = histKeyOf(inp, last.aptPick);
+  const old = list.findIndex(h => h.key === key);
+  const id = old >= 0 ? list[old].id : Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  if (old >= 0) list.splice(old, 1);
+  list.unshift({id, key, t: Date.now(), input: inp, res: compactRes(last), sortK, sortDir});
+  histSave(list.slice(0, HIST_MAX)); curHist = id; paintHist();
+}
+function histUpdateState(){ // 집계 체크, 정렬이 바뀌면 지금 보고 있는 기록에도 반영
+  if (!curHist || !last || !(A.summarize(last.rows).n > 0)) return; // 체크를 다 꺼도 기록은 마지막 결과 유지
+  const list = histLoad(), h = list.find(x => x.id === curHist);
+  if (!h) return;
+  h.res = compactRes(last); h.sortK = sortK; h.sortDir = sortDir;
+  histSave(list); paintHist();
+}
+function histLabel(h){
+  const r = h.res, x = r.subject || {}, a = r.addr || {};
+  const apt = [...new Set(r.rows.map(z => z.apt).filter(Boolean))][0] || a.keyword || [a.umd, a.jibun].filter(Boolean).join(' ') || a.sgg || '';
+  const flTag = x.ho && x.floor && x.floor !== A.floorFromHo(x.ho) ? `(${x.floor}층)` : '';
+  const unit = (x.dong && x.ho ? `${x.dong}-${x.ho}` : x.ho ? `${x.ho}호` : x.floor ? `${x.floor}층` : '') + flTag;
+  const s = A.summarize(r.rows);
+  return {title: [apt, unit, r.subjectArea ? r.subjectArea + '㎡' : '면적 미정'].filter(Boolean).join(' '),
+    sub: `${s.mid != null ? A.fmtWon(s.mid) : '-'} / ${String(r.writeDate).replace(/-/g, '.')}`};
+}
+function paintHist(){
+  const list = histLoad();
+  $('histCount').textContent = list.length;
+  const ul = $('histList');
+  ul.innerHTML = list.length ? '' : '<li class="hempty">아직 조회 기록이 없어요</li>';
+  list.forEach(h => {
+    let L; try { L = histLabel(h); } catch (e) { return; }
+    const li = document.createElement('li'); li.className = h.id === curHist ? 'on' : '';
+    li.innerHTML = `<button type="button" class="hopen" title="${esc(L.title)}"><b>${esc(L.title)}</b><span>${esc(L.sub)}</span></button><button type="button" class="hdel" title="이 기록 삭제">×</button>`;
+    li.querySelector('.hopen').onclick = () => histOpen(h.id);
+    li.querySelector('.hdel').onclick = () => { histSave(histLoad().filter(z => z.id !== h.id)); if (curHist === h.id) curHist = null; paintHist(); };
+    ul.appendChild(li);
+  });
+}
+function histOpen(id){
+  const h = histLoad().find(x => x.id === id);
+  if (!h) return;
+  const i = h.input || {};
+  ['address', 'dong', 'ho', 'floor', 'area', 'wdate', 'caseArea', 'baseOverride'].forEach(k => { $(k).value = i[k] || ''; });
+  $('long5').checked = !!i.long5;
+  $('floor').dataset.auto = '1';
+  if (i.mode === 'paste') $('paste').value = i.paste || '';
+  document.querySelector(`[data-mode=${i.mode === 'paste' ? 'paste' : 'api'}]`).click();
+  paintBaseHint();
+  last = h.res; sortK = h.sortK || null; sortDir = h.sortDir || 1; curHist = id;
+  selAreas = (h.res.sameAreas || []).slice();
+  curParcel = h.res.parcel || null;
+  $('pick').classList.add('hidden');
+  render(); paintHist();
+  $('msg').innerHTML = `<div class="msg warn">저장된 결과예요 (${esc(new Date(h.t).toLocaleString('ko-KR'))} 조회). <button type="button" id="reRun">다시 조회 (오늘 기준)</button></div>`;
+  $('reRun').onclick = () => { $('wdate').value = todayIso().replace(/-/g, '.'); paintBaseHint(); calc(h.res.aptPick); };
+  if (window.innerWidth <= 1100) $('histPanel').classList.remove('open');
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function showMsg(text, kind){ $('msg').innerHTML = text ? `<div class="msg ${kind || 'err'}">${esc(text)}</div>` : ''; }
+/* 같은 지번이 여러 곳(건축물대장 조회 offerPick과 같은 동작): 고르면 그 필지로 계산 */
+function offerParcelPick(cands){
+  showMsg(`같은 지번이 ${cands.length}곳에 있습니다. 아래에서 고르세요. (시, 구까지 쓰면 바로 조회됩니다)`, 'warn');
+  const box = $('pick'); box.classList.remove('hidden');
+  box.innerHTML = '<div class="chips"></div>';
+  cands.forEach(c => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.textContent = c.addr;
+    b.onclick = () => { $('pick').classList.add('hidden'); $('address').value = String(c.addr).replace(/^.*→\s*/, ''); calc(null, c); };
+    box.querySelector('.chips').appendChild(b);
+  });
+}
+/* 같은 이름 법정동이 여러 곳 → 지역 후보 버튼(누르면 주소를 채워 다시 계산) */
+function showRegionPick(message, cands){
+  showMsg(message, 'warn');
+  const box = $('pick'); box.classList.remove('hidden');
+  box.innerHTML = '<div class="hint">지역 후보 (눌러서 선택)</div><div class="chips"></div>';
+  cands.forEach(c => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.textContent = c.label;
+    b.onclick = () => { $('address').value = c.address; calc(); };
+    box.querySelector('.chips').appendChild(b);
+  });
+}
+function showPick(message, complexes){
+  showMsg(message, 'warn');
+  const box = $('pick'); box.classList.remove('hidden');
+  box.innerHTML = '<div class="hint">단지 후보 (눌러서 선택)</div><div class="chips"></div>';
+  complexes.slice(0, 60).forEach(c => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.textContent = `${c.name} (${c.umd} ${c.jibun}, ${c.n}건)`;
+    b.onclick = () => calc(c.name);
+    box.querySelector('.chips').appendChild(b);
+  });
+}
+
+/* 면적을 비우고 계산했을 때: 단지 전용면적 종류 버튼 → 누르면 그 면적으로 바로 계산 */
+/* 전용면적 칩: 여러 개 고르기(누를 때마다 켜고 끔). 고른 면적 거래는 전부 '동일' 면적대로 집계.
+   환산 면적 = 면적 칸 값, 비어 있으면 처음 누른 칩 면적을 면적 칸에 채움. 누를 때마다 바로 다시 계산 */
+function showAreaPick(){
+  const box = $('areaPick'), types = last.areaTypes || [], sel = last.sameAreas || [];
+  if (!types.length || (last.subjectArea && types.length < 2 && !sel.length)){ box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.innerHTML = `<div class="hint">${last.subjectArea ? '같은 면적으로 볼 전용면적을 고르세요' : '본건 전용면적을 고르세요'} (여러 개 고를 수 있음, 누르면 켜고 꺼짐. 고른 면적 거래는 모두 동일 면적대로 집계)</div><div class="chips"></div>`;
+  types.forEach(t => {
+    const b = document.createElement('button'); b.type = 'button';
+    if (sel.some(a => Math.abs(a - t.area) < 1e-9)) b.className = 'on';
+    b.textContent = `${t.area}㎡ (${t.n}건)`;
+    b.onclick = () => toggleArea(t.area);
+    box.querySelector('.chips').appendChild(b);
+  });
+}
+function toggleArea(a){
+  const i = selAreas.findIndex(x => Math.abs(x - a) < 1e-9);
+  if (i >= 0) selAreas.splice(i, 1); else selAreas.push(a);
+  if (!String($('area').value).trim() && selAreas.length) $('area').value = selAreas[0];
+  calc(last.aptPick, null, true);
+}
+/* 본건 표시: 동, 호, 층, 면적 중 입력된 것만 */
+function subjectText(r){
+  const x = r.subject || {};
+  return [x.dong && x.dong + '동', x.ho && x.ho + '호', x.floor && x.floor + '층', r.subjectArea && '전용 ' + r.subjectArea + '㎡'].filter(Boolean).join(' ');
+}
+
+/* 재감정 안전범위 = 중간값 x 0.8 ~ x 1.2 (만원 반올림 표기) */
+const safeRange = mid => mid != null ? `[${A.fmtWon(mid * 0.8)} ~ ${A.fmtWon(mid * 1.2)}] 재감정 안전범위` : '';
+function renderSummary(){
+  const s = A.summarize(last.rows);
+  const set = (k, v) => { $('v' + k).textContent = v != null ? A.fmtWon(v) : '-'; $('s' + k).textContent = v != null ? num(Math.round(v)) + '원' : '';
+    // ㎡당 단가 = 기준시점 거래가격 / 본건 전용면적 (= 표의 시점수정 ㎡단가, 원 단위)
+    $('u' + k).textContent = v != null && last.subjectArea ? '㎡당 ' + num(Math.round(v / last.subjectArea)) + '원' : ''; };
+  set('Min', s.min); set('Mid', s.mid); set('Max', s.max);
+  const rm = $('rMid'), hasRange = last.subjectArea && s.mid != null;
+  rm.textContent = hasRange ? safeRange(s.mid) + ' ±20%' : (last.subjectArea ? '' : '본건 전용면적을 고르면 계산됩니다');
+  rm.className = hasRange ? 'rng chip' : 'rng';
+  const c = last.chain[0];
+  const apts = [...new Set(last.rows.map(r => r.apt).filter(Boolean))];
+  $('subline').innerHTML = `집계 <b>${s.n}</b>건 / 전체 ${last.rows.length}건 (면적대 ${esc(last.bandUsed)}), `
+    + `지수 ${esc(c.path.split('>').slice(-1)[0])} (CLS ${c.cls}), 기준월 <b>${A.fmtYm(last.baseYm)}</b>`
+    + (last.idxBase ? ` (${A.fmtYm(last.idxBase)}=100)` : '')
+    + (last.baseYm !== last.ruleYm ? ` <span class="tag bad">규칙상 ${A.fmtYm(last.ruleYm)} 자료 없음</span>` : '')
+    + (subjectText(last) ? `, 본건 ${esc(subjectText(last))}` : '') + (apts.length ? `, 단지 ${esc(apts.join(', '))}` : '');
+}
+/* 헤더 클릭 정렬: 오름 → 내림. 원값 비교(금액, 날짜), 빈 값은 항상 맨 아래. 집계 체크, 재집계 그대로. 엑셀도 화면 순서. */
+const BAND_ORDER = {'동일': 0, '유사': 1, '상이': 2};
+function sortVal(r, k){
+  if (k === 'include') return r.include ? 0 : 1;
+  if (k === 'band') return BAND_ORDER[r.band] ?? 9;
+  if (k === 'notes') return r.notes.join(', ');
+  return r[k];
+}
+function sortRows(){
+  if (!sortK) { last.rows.sort((a, b) => a.no - b.no); return; }
+  last.rows.sort((a, b) => {
+    const x = sortVal(a, sortK), y = sortVal(b, sortK);
+    const ex = x == null || x === '', ey = y == null || y === '';
+    if (ex || ey) return ex === ey ? a.no - b.no : (ex ? 1 : -1);
+    const c = typeof x === 'string' ? x.localeCompare(y, 'ko') : x - y;
+    return c ? c * sortDir : a.no - b.no;
+  });
+}
+function paintHead(){
+  document.querySelectorAll('th[data-k]').forEach(th => {
+    let ar = th.querySelector('.ar');
+    if (!ar){ ar = document.createElement('span'); ar.className = 'ar'; th.appendChild(ar); }
+    ar.textContent = th.dataset.k === sortK ? (sortDir > 0 ? '▲' : '▼') : '';
+  });
+}
+document.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click', () => {
+  if (!last) return;
+  const k = th.dataset.k;
+  if (sortK === k) sortDir = -sortDir; else { sortK = k; sortDir = 1; }
+  render(); histUpdateState();
+}));
+
+function render(){
+  $('result').classList.remove('hidden');
+  sortRows(); paintHead(); showAreaPick();
+  const tb = $('tbody'); tb.innerHTML = '';
+  const bOnly = $('bandOnly').checked, selOn = (last.sameAreas || []).length > 0; let hid = 0;
+  last.rows.forEach(r => {
+    // 보기만 숨김(집계 체크, 최저/중간/최고는 그대로). 칩으로 면적을 골랐으면 고른 면적(동일)만 보임
+    if (bOnly && (selOn ? r.band !== '동일' : r.band === '상이')) { hid++; return; }
+    const tr = document.createElement('tr');
+    if (!r.include) tr.className = 'off';
+    const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
+    tr.innerHTML = `<td class="c"><input type="checkbox" ${r.include ? 'checked' : ''} ${r.subjectPrice ? '' : 'disabled'}></td>
+      <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
+      <td class="n">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
+      <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n"><b>${A.fmtWon(r.subjectPrice)}</b></td>
+      <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
+    tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); histUpdateState(); });
+    tb.appendChild(tr);
+  });
+  $('bandInfo').textContent = bOnly ? `${last.rows.length - hid}건 표시, ${selOn ? '고른 면적 외' : '면적대 상이'} ${hid}건 숨김 (계산은 그대로)` : '';
+  renderSummary();
+}
+
+/* 엑셀: 눈금선 끔, 표 테두리 연회색(BFBFBF), 제목 줄바꿈 없음 */
+function loadScript(src){ return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('엑셀 라이브러리를 못 불러왔어요.')); document.head.appendChild(s); }); }
+async function exportXlsx(){
+  if (!window.ExcelJS) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+  const r = last, s = A.summarize(r.rows), a = r.addr, c0 = r.chain[0];
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('시점수정', {views: [{showGridLines: false}]});
+  const side = {style: 'thin', color: {argb: 'FFBFBFBF'}}, border = {top: side, left: side, bottom: side, right: side};
+  const head = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFF2F2F2'}};
+  const nowrap = {vertical: 'middle', wrapText: false};
+  const apts = [...new Set(r.rows.map(x => x.apt).filter(Boolean))];
+  const loc = [a.sido, a.sgg, a.umd, a.jibun, a.keyword].filter(Boolean).join(' ');
+
+  ws.getCell('A1').value = '아파트 실거래 시점수정 결과';
+  ws.getCell('A1').font = {bold: true, size: 14}; ws.getCell('A1').alignment = nowrap;
+  const info = [['단지', loc + (apts.length ? ` (${apts.join(', ')})` : '')], ['본건', subjectText(r) || '(미입력)'],
+    ['작성일', r.writeDate.replace(/-/g, '.')],
+    ['시점수정', `한국부동산원 월간 아파트 매매가격지수, ${c0.path} (CLS ${c0.cls}), 기준월 ${A.fmtYm(r.baseYm)}` + (r.idxBase ? ` (${A.fmtYm(r.idxBase)}=100)` : '')]];
+  info.forEach(([k, v], i) => { const row = ws.getRow(3 + i); row.getCell(1).value = k; row.getCell(1).font = {bold: true}; row.getCell(2).value = v; row.getCell(1).alignment = nowrap; row.getCell(2).alignment = nowrap; });
+  const sr = 3 + info.length + 1;
+  [['구분', '기준시점 거래가격(원)', '표기'], ['최저', s.min, A.fmtWon(s.min)], ['중간', s.mid, A.fmtWon(s.mid)], ['최고', s.max, A.fmtWon(s.max)]].forEach((vals, i) => {
+    const row = ws.getRow(sr + i);
+    vals.forEach((v, j) => {
+      const cell = row.getCell(j + 1);
+      cell.value = (i && j === 1 && v != null) ? Math.round(v) : v;
+      cell.border = border;
+      cell.alignment = {vertical: 'middle', horizontal: j === 1 ? 'right' : 'center', wrapText: false};
+      if (j === 1 && i) cell.numFmt = '#,##0';
+      if (!i){ cell.fill = head; cell.font = {bold: true}; }
+    });
+  });
+  ws.getCell(sr + 4, 1).value = s.mid != null ? safeRange(s.mid) + ' (중간값의 80% ~ 120%)' : '본건 전용면적 미정';
+  ws.getCell(sr + 4, 1).alignment = nowrap;
+  ws.getCell(sr + 5, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, ${(r.lookback || 24) / 12}년 초과 제외`;
+  ws.getCell(sr + 5, 1).alignment = nowrap;
+  const tr = sr + 7;
+  const heads = ['번호', '계약일', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '기준시점 거래가격(원)', '면적대', '집계', '비고'];
+  const fmts = [null, null, '0', '0.000', '#,##0', '0.000', '0.000', '0.00000', '#,##0', '#,##0', '#,##0', null, null, null];
+  heads.forEach((h, j) => { const cell = ws.getCell(tr, j + 1); cell.value = h; cell.font = {bold: true}; cell.fill = head; cell.border = border; cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: false}; });
+  r.rows.forEach((x, i) => {
+    const vals = [i + 1, x.date.replace(/-/g, '.'), x.floor, x.area, x.price, x.iCon, x.iBase, x.ratio,
+      x.adjPrice != null ? Math.round(x.adjPrice) : null, x.unit != null ? Math.round(x.unit) : null, x.subjectPrice != null ? Math.round(x.subjectPrice) : null,
+      x.band, x.include ? 'O' : '', x.notes.join(', ')];
+    vals.forEach((v, j) => {
+      const cell = ws.getCell(tr + 1 + i, j + 1);
+      cell.value = v == null ? null : v; cell.border = border;
+      cell.alignment = {vertical: 'middle', wrapText: false, horizontal: [0, 1, 2, 11, 12].includes(j) ? 'center' : (j === 13 ? 'left' : 'right')};
+      if (fmts[j]) cell.numFmt = fmts[j];
+    });
+  });
+  const nr = tr + r.rows.length + 2;
+  ws.getCell(nr, 1).value = '시점수정치 = 기준월 지수 / 계약월 지수. 기준월은 작성일 현재 공표된 최신월(익월 15일 공표). 기준시점 거래가격 = 시점수정 ㎡단가 x 본건 전용면적.';
+  ws.getCell(nr + 1, 1).value = '출처: 국토교통부 아파트 매매 실거래가, 한국부동산원 R-ONE 전국주택가격동향조사(월간).';
+  [9, 14, 6, 13, 16, 12, 12, 10, 19, 19, 17, 8, 6, 40].forEach((w, j) => ws.getColumn(j + 1).width = w);
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const el = document.createElement('a'); el.href = URL.createObjectURL(blob);
+  el.download = `시점수정_${a.umd || a.sgg}_${r.writeDate}.xlsx`; el.click();
+  setTimeout(() => URL.revokeObjectURL(el.href), 5000);
+}
+
+$('go').onclick = () => calc();
+/* 본건 면적대만 보기: 켜고 끈 상태 기억(localStorage, 실패해도 그냥 동작) */
+try { $('bandOnly').checked = localStorage.getItem('arap-apt-sise-bandonly') === '1'; } catch (e) {}
+$('bandOnly').addEventListener('change', () => {
+  try { localStorage.setItem('arap-apt-sise-bandonly', $('bandOnly').checked ? '1' : '0'); } catch (e) {}
+  if (last) render();
+});
+
+$('address').addEventListener('input', () => { curParcel = null; selAreas = []; });
+// 호수를 넣으면 층 자동(1105 → 11). 층을 직접 고쳤으면 그 값을 우선.
+$('ho').addEventListener('input', () => {
+  const f = $('floor');
+  if (f.value === '' || f.dataset.auto === '1'){ const v = A.floorFromHo($('ho').value); f.value = v || ''; f.dataset.auto = v ? '1' : ''; }
+});
+$('floor').addEventListener('input', () => { $('floor').dataset.auto = ''; });
+document.querySelectorAll('.grid input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') calc(); }));
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  mode = t.dataset.mode;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  $('pastePane').classList.toggle('hidden', mode !== 'paste');
+  $('apiPane').classList.toggle('hidden', mode !== 'api');
+});
+$('copy').onclick = () => {
+  const s = A.summarize(last.rows);
+  if (!s.n){ showMsg('본건 전용면적을 고르거나 집계할 사례를 체크한 뒤 복사하세요.', 'warn'); return; }
+  const t = (subjectText(last) ? `본건 ${subjectText(last)}: ` : '') + `최저 ${A.fmtWon(s.min)} / 중간 ${A.fmtWon(s.mid)} / 최고 ${A.fmtWon(s.max)} (사례 ${s.n}건, 부동산원 지수 ${A.fmtYm(last.baseYm)} 기준 시점수정)
+${safeRange(s.mid)}`;
+  navigator.clipboard.writeText(t).then(() => { $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '결론 복사', 1200); });
+};
+$('xlsx').onclick = () => exportXlsx().catch(e => showMsg(e.message || String(e)));
+
+// 작성일: 열 때마다 오늘(저장값 불러오지 않음). 바꾸면 공표 규칙대로 기준월 안내도 바로 갱신.
+$('wdate').value = todayIso().replace(/-/g, '.');
+function paintBaseHint(){
+  const iso = readDate($('wdate').value);
+  $('baseHint').textContent = iso ? '(지수 ' + A.fmtYm(A.baseMonthByRule(iso)) + ')' : '';
+}
+$('wdate').addEventListener('input', paintBaseHint);
+$('wdate').addEventListener('change', paintBaseHint);
+paintBaseHint();
+$('histToggle').onclick = () => $('histPanel').classList.toggle('open');
+paintHist();
+try {
+  const l = JSON.parse(localStorage.getItem('arap-apt-sise-last') || 'null');
+  if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); $('long5').checked = !!l.long5; $('floor').dataset.auto = '1'; /* 불러온 층은 자동값(호수를 새로 치면 바뀜) */ if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
+} catch (e) {}
+})();
+</script>
+</body>
+</html>

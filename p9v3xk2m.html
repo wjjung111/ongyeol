@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Ongyeol — 거래사례 위치도 (독립 페이지)
+  거래사례 위치도 (독립 페이지)
   토지 거래사례(국토부 실거래가·KAIS)와 집합건물 거래사례(카이스)를 붙여넣어 지도에 찍는다.
   ARM 앱과 별개로 도는 도구 — 감정평가서·청구서 생성과는 무관하고, 저장도 이 페이지 전용 키를 쓴다.
 
@@ -12,20 +12,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>거래사례 위치도 — Ongyeol</title>
+<title>거래사례 위치도</title>
+<link rel="stylesheet" href="arap_tool.css"><!-- 단독 도구 공통 상단바·서명·글꼴·색 -->
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  body{background:var(--t-bg);font-family:var(--t-font);color:var(--t-ink);font-size:13px;line-height:1.5;}
   input:focus,textarea:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
 
-  #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
-  #mode-bar .mb-title{color:#e2e8f0;font-weight:700;font-size:13px;margin-right:6px;}
-  #mode-bar a.mb-home{cursor:pointer;border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
-  #mode-bar a.mb-home:hover{border-color:#2563eb;color:#fff;}
-  #mode-bar .mb-tag{margin-left:auto;font-size:11px;color:#fbbf24;background:#422006;padding:3px 10px;border-radius:999px;font-weight:700;}
-
   .wrap{padding:10px 12px 40px;}
-  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:11px 13px;margin-bottom:9px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:var(--t-radius);padding:11px 13px;margin-bottom:9px;}
   h2{font-size:14px;font-weight:700;color:#1a2744;border-bottom:2px solid #1a2744;padding-bottom:4px;margin-bottom:8px;}
   .note{background:#f8fafc;border-left:3px solid #2563eb;padding:6px 9px;font-size:11.5px;color:#475569;border-radius:0 4px 4px 0;}
   .status{margin:6px 0 0;color:#555;min-height:14px;font-size:11.5px;}
@@ -65,7 +60,6 @@
   /* 좌우 배치 — 지도(왼쪽)는 화면 높이를 꽉 채우고, 입력란(오른쪽)은 따로 스크롤 */
   html,body{height:100%;}
   body{display:flex;flex-direction:column;}
-  #mode-bar{flex:none;}
   .wrap.split{display:flex;align-items:stretch;flex:1 1 auto;min-height:0;padding:8px 10px;}
   .pane-map{flex:0 0 70%;min-width:320px;display:flex;flex-direction:column;}
   .pane-map>.card{flex:1 1 auto;display:flex;flex-direction:column;margin-bottom:0;min-height:0;}
@@ -145,12 +139,11 @@
 <body>
 <script>window.ARAP_NAME_ICON='🗺️';window.ARAP_NAME_SUB='거래사례 위치도';</script><script src="arap_name.js"></script><!-- 이름 게이트(시점수정과 같은 방식) — 누가 썼는지 접속 기록에 남긴다 -->
 
-<div id="mode-bar">
-  <a class="mb-home" href="index.html">🏠 홈</a>
-  <span class="mb-title">🗺️ Ongyeol · 거래사례 위치도</span>
-  <span class="mb-tag">토지 · 집합건물</span>
-  <span id="arap-name-badge" title="눌러서 이름 바꾸기" style="color:#cbd5e1;font-size:12px;cursor:pointer;margin-left:6px"></span>
-</div>
+<header class="ttop">
+  <a class="tb-home" href="index.html">🏠 홈</a>
+  <span class="tb-title"><span class="tb-ico">🗺️</span>거래사례 위치도</span>
+  <span class="tb-right"><span class="tb-tag">토지 · 집합건물</span><span id="arap-name-badge" title="눌러서 이름 바꾸기"></span></span>
+</header>
 
 <div class="wrap split" id="split">
   <!-- 왼쪽 = 위치도(기본 70%), 오른쪽 = 본건·사례 입력(30%). 가운데 막대를 끌어 너비 조절(두 번 누르면 7:3), 좁은 화면은 위아래로 -->
@@ -289,6 +282,7 @@
   </section>
   </div>
 </div>
+<footer class="tsign slim">Woojin Jung<span class="ts-dot">·</span>정우진 감정평가사<span class="ts-dot">·</span>문의 <a href="mailto:woojin.apr@gmail.com">woojin.apr@gmail.com</a></footer>
 
 <script>window.ARAP_VISIT_PAGE='거래사례 위치도';</script>
 <script src="arap_visit.js"></script><!-- 접속·주요 동작을 관리자 수신함 '접속' 탭에 기록 -->

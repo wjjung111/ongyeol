@@ -18,26 +18,31 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
   try{
     const ctx=await browser.newContext({acceptDownloads:true,viewport:{width:1300,height:900}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
-    await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode','single');localStorage.setItem('arap-nrcap-kind','집합상가');localStorage.setItem('arap-nrcap-region','서울');});
+    await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));localStorage.setItem('arap-nrcap-kind','집합상가');localStorage.setItem('arap-nrcap-region','서울');});
     await page.goto(base+'/s3r86w8a.html?last=1');const scope=page.locator('#root');
-    await scope.getByText('2. 대상물건개요',{exact:true}).click({timeout:60000});
+    await scope.getByText('1. 접수 · 대상물건',{exact:true}).click({timeout:60000});
     await scope.locator('button',{hasText:/^비주거용$/}).first().click();
     if(process.env.SHARE){await scope.locator('select').filter({has:page.locator('option[value="share"]')}).first().selectOption('share');
       await scope.locator('input[placeholder="분자"]').fill('1');await scope.locator('input[placeholder="분모"]').fill('4');}
-    await scope.getByText('3. 사례 등 입력',{exact:true}).click();
+    await scope.getByText('2. 사례 · 가격산출',{exact:true}).click();
     // 선정 사례 행의 시점수정치 칸 → 자본수익률 계산 → 적용
     const idx=await scope.locator('tr').evaluateAll(trs=>trs.findIndex(tr=>{const c=tr.querySelectorAll(':scope > td')[2];const b=c&&c.querySelector('input[type=checkbox]');return !!(b&&b.checked&&/^#\d/.test((tr.querySelectorAll(':scope > td')[3]||{}).textContent||''));}));
     assert.ok(idx>=0,'선정 사례 행');
-    await scope.locator('tr').nth(idx).locator('td[style*="cursor: pointer"]').first().click();
-    const modal=scope.locator('div[style*="max-width: 540px"]').filter({hasText:'시점수정치 — 사례'});await modal.waitFor();
-    await modal.locator('button',{hasText:/^계산$/}).click();
+    await scope.locator('tr').nth(idx).locator('span[aria-label$="시점수정 창"]').first().click();   // 🧮(2026-11-09)
+    const modal=page.locator('div[style*="max-width: 1000px"]').filter({hasText:'시점수정치 — 사례'});await modal.waitFor();   // 계산기 화면처럼(2026-10-29)
+    await modal.locator('button',{hasText:/^시점수정치 계산$/}).click();
     assert.match(await modal.locator('textarea').inputValue(),/^집합상가\n지역 : 서울/,'자본수익률 산식이 칸에');
     await modal.locator('button',{hasText:/^적용$/}).click();
-    await scope.getByText('4. 가격산출',{exact:true}).click();
-    const btn=scope.getByRole('button',{name:'표지/괄감/의견서'});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
-    const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);
-    const file=process.env.OUT||path.join(require('os').tmpdir(),'jiphap_nr.hwpx');await dl.saveAs(file);
-    const z=unzip(fs.readFileSync(file));const x=z['Contents/section1.xml'].toString('utf8'),x0=z['Contents/section0.xml'].toString('utf8');
+    await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
+    const T=x=>(x.match(/<hp:t>[^<]*<\/hp:t>/g)||[]).map(s=>s.slice(6,-7)).join('|');
+    // 2026-10-28부터 표지·괄감·의견서가 따로 — 의견서(x)·괄감(x0)을 각각 받는다
+    const get=async(name,fname)=>{const btn=scope.getByRole('button',{name,exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
+      const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||require('os').tmpdir(),fname);await dl.saveAs(file);return unzip(fs.readFileSync(file));};
+    const tag='jiphap_nr';
+    const z=await get('의견서',tag+'_의견서.hwpx'),zg=await get('괄감',tag+'_괄감.hwpx'),zp=await get('표지',tag+'_표지.hwpx');
+    assert.ok(!z['Contents/section1.xml']&&!zg['Contents/section1.xml']&&!zp['Contents/section1.xml'],'파일마다 구역 하나');
+    assert.ok(T(zp['Contents/section0.xml'].toString('utf8')).includes('Appraisal Report')&&!zp['Contents/section0.xml'].toString('utf8').includes('chapter'),'표지만');
+    const x=z['Contents/section0.xml'].toString('utf8'),x0=zg['Contents/section0.xml'].toString('utf8');
     const ok=await page.evaluate(([a,b])=>[a,b].every(s=>!new DOMParser().parseFromString(s,'application/xml').getElementsByTagName('parsererror').length),[x,x0]);
     assert.ok(ok,'XML 정상');
     assert.deepEqual([...new Set((x+x0).match(/\{\{[^}]+\}\}/g)||[])],[],'남은 토큰 없음');
@@ -47,16 +52,28 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     assert.ok(t.includes('개별요인 비교항목(상업용)')&&t.includes('공실률 및 입점업체 구성')&&!t.includes('시공사의 브랜드'),'상업용 항목');
     assert.match(t,/\|\d{4}\.\dQ\(\d+일\) : -?\d+\.\d\d\|/,'분기 내역 줄');
     assert.match(t,/\|\(1[+-]0\.\d{5}×\d+\/\d+\)/,'산식 첫 줄');
-    assert.match(t,/\|\d+\.\d{3}%\|\(\|1\.\d{5}\|\)/,'상승률·시점수정치');
+    assert.match(t,/\|\d+\.\d{3}%\|\(\|?1\.\d{5}\|?\)/,'상승률·시점수정치');   // 사용자 양식은 「(1.00768)」 한 칸
     assert.ok(/\d{4}\.\d\d\.\d\d ~ \d{4}\.\d\d\.\d\d/.test(t),'기간');
-    assert.ok(!/charPrIDRef="5[3-7]"/.test(x),'파란 글자 없음');
+    // (2026-10-28부터 표 밖 채운 값은 파랑 — tests/jiphap_value_blue.cjs가 검사)
     { // 「7. 단가의 결정」 시점수정 칸: 단 설정 조각·옛 줄배치 없이 가운데 정렬되게
-      const k=x.indexOf('7. 전유면적당 단가의 결정');const tb=x.slice(k,x.indexOf('</hp:tbl>',k));
+      const k=x.indexOf('. 전유면적당 단가의 결정');/* 평가사례 절이 있으면 8., 없으면 7. */const tb=x.slice(k,x.indexOf('</hp:tbl>',k));
       assert.ok(!/<hp:colPr/.test(tb),'단가 결정 표에 단 설정 조각 없음');
       const v=tb.match(/<hp:p\b[^>]*>(?:(?!<\/hp:p>)[\s\S])*?1\.\d{5}<\/hp:t><\/hp:run>((?:(?!<\/hp:p>)[\s\S])*?)<\/hp:p>/);assert.ok(v,'시점수정 값 문단');assert.ok(!/linesegarray/.test(v[1]),'시점수정 칸 줄배치 캐시 제거');}
     assert.equal(t.split('|').filter(v=>v.startsWith('■ ')).length,4,'개별요인 ■ 네 줄');
     if(process.env.SHARE)assert.ok(t.includes('귀 의뢰지분(1/4')&&/□ 산식 : /.test(t),'지분 양식');
     assert.deepEqual(errors,[]);
+    { // 평가사례가 있으면 「7. 기타 참고자료(평가사례)」 절이 남고 그 수만큼 행, 단가 결정은 8., ※ 문구 / 없으면 ※ 문단만 빠짐
+      for(const note of ['※ 평가사례 기호①은 전면상가임.','']){
+        const arr=await page.evaluate(async(note)=>{const m={'평가1_법정동':'청량리동','평가1_지번':'235-4','평가1_동층호':'A/1/30호','평가1_감정평가액':'1,350,000,000','평가2_법정동':'청량리동','평가2_지번':'235-4','평가사례_비고':note};
+          return Array.from(await buildEvalHwpxV2(m,V2NROPIN_TPL_B64,{ids:V2_IDS_NR}));},note);
+        const px=unzip(Buffer.from(arr))['Contents/section0.xml'].toString('utf8'),pt=T(px);
+        assert.ok(pt.includes('7. 기타 참고자료(평가사례)')&&pt.includes('8. 전유면적당 단가의 결정'),'평가사례 절 유지');
+        const s=px.indexOf('7. 기타 참고자료'),tb=px.slice(px.indexOf('<hp:tbl',s),px.indexOf('</hp:tbl>',s));
+        assert.equal((tb.match(/<hp:tr>/g)||[]).length,3,'머리글+평가사례 2행');assert.match(tb,/rowCnt="3"/);
+        assert.ok(tb.includes('1,350,000,000')&&tb.includes('①')&&tb.includes('②')&&!tb.includes('③'),'평가사례 값');
+        assert.equal(pt.includes('전면상가임'),!!note,'※ 문구 '+(note?'있음':'없으면 문단째 뺌'));
+      }
+    }
     console.log(t.slice(t.indexOf('가. 자본수익률'),t.indexOf('나. 시점수정치의 결정')));
     console.log('PASS');
   }finally{await browser.close();server.close();}

@@ -1,7 +1,7 @@
 /*
  * Ongyeol — 건축물대장 조회 공용 모듈 (window.ArapBldrgst)
  *
- * 집합건물 앱(s3r86w8a.html) '2. 대상물건개요'에서 건축물대장 PDF 없이
+ * 집합건물 앱(s3r86w8a.html) '1. 접수 · 대상물건'에서 건축물대장 PDF 없이
  * 주소 → (V-World PNU) → 국토부 건축HUB 표제부·총괄표제부·지역지구·전유부·전유공용면적을 받아
  * 건물 단위 칸(용도지역·주구조·주용도·사용승인일·단지규모·대지면적·연면적·층수·도로명주소·건물명)과
  * 호 단위 칸(동·층·호·전유면적·공용면적·주용도(전유부))을 채운다.
@@ -57,7 +57,7 @@ function bldUrl(pnu,op,extra){
 // 여러 페이지를 끝까지 받아 합친다(건축물대장.html과 동일)
 async function fetchAll(pnu,op,extra){
   var out=[],page=1,rows=200,total=null,proxyOld=false;
-  for(;page<=25;page++){
+  for(;page<=100;page++){
     var d=await callApi(bldUrl(pnu,op,Object.assign({pageNo:page,numOfRows:rows},extra||{})));
     var b=d&&d.response&&d.response.body||{};
     var it=items(d),gotPage=Number(b.pageNo);

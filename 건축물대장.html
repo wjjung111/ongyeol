@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Ongyeol — 건축물대장 조회
+  건축물대장 조회
   지번 입력 → V-World로 PNU 확인 → 국토부 건축HUB(표제부·층별개요·지역지구) 조회
   KAIS 건축물대장(일반) 화면과 같은 구성으로 보여주고, 층별현황은 엑셀로 그대로 복사된다.
   Copyright (c) 2026 정우진 감정평가사. All Rights Reserved.
@@ -10,16 +10,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>건축물대장 조회</title>
+<link rel="stylesheet" href="arap_tool.css"><!-- 단독 도구 공통 상단바·서명·글꼴·색 -->
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:#f5f6f8;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2744;font-size:13px;line-height:1.5;}
+  body{background:var(--t-bg);font-family:var(--t-font);color:var(--t-ink);font-size:13px;line-height:1.5;}
   input:focus,select:focus{outline:2px solid #2563eb!important;outline-offset:-1px;background:#eff6ff!important;}
-  #mode-bar{position:sticky;top:0;z-index:9999;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#0f172a;border-bottom:2px solid #334155;}
-  #mode-bar .mb-title{color:#e2e8f0;font-weight:700;font-size:13px;}
-  #mode-bar a{border:1px solid #475569;background:#1e293b;color:#cbd5e1;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;text-decoration:none;}
-  #mode-bar a:hover{border-color:#2563eb;color:#fff;}
   .wrap{max-width:1500px;margin:12px auto;padding:0 12px;}
-  .card{background:#fff;border:1px solid #e2e5ea;border-radius:6px;padding:12px 14px;margin-bottom:10px;}
+  .card{background:#fff;border:1px solid #e2e5ea;border-radius:var(--t-radius);padding:12px 14px;margin-bottom:10px;}
   .card h2{font-size:13px;font-weight:700;color:#1a2744;margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid #1a2744;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   input[type=text]{font:inherit;font-size:13px;padding:6px 9px;border:1px solid #e2e5ea;border-radius:3px;}
@@ -42,7 +39,6 @@
   .note{background:#f6f8fa;border:1px solid #e2e5ea;border-left:3px solid #94a3b8;border-radius:4px;padding:7px 11px;font-size:11px;color:#475569;margin-top:8px;}
   #result{display:none;}
   .hl{background:#fff9e6;font-weight:700;}
-  .foot{text-align:center;color:#94a3b8;font-size:11px;padding:8px;}
   #fallbackPanel{border:2px solid #e67e22;background:#fff7ef;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
   #fallbackPanel textarea{width:100%;font:inherit;font-size:11px;padding:7px;border:1px solid #e2e5ea;border-radius:4px;}
@@ -50,18 +46,19 @@
 </head>
 <body>
 <script>window.ARAP_NAME_ICON='🏢';window.ARAP_NAME_SUB='건축물대장 간편조회';</script><script src="arap_name.js"></script><!-- 접속코드 없이 사용자 이름만 최초 1회 입력 (이름 없으면 화면 안 열림) -->
+<script src="arap_addr.js"></script><!-- 도로명주소(갯벌로 72)도 지번·PNU로 찾기 -->
 <script>window.ARAP_VISIT_PAGE='건축물대장';</script><script src="arap_visit.js"></script><!-- 접속·조회 기록 → 관리자 「건축물대장」 탭 -->
-<div id="mode-bar">
-  <span class="mb-title">🏢 건축물대장 조회</span>
-  <span id="arap-name-badge" style="margin-left:auto;color:#94a3b8;font-size:12px;"></span>
-</div>
+<header class="ttop">
+  <span class="tb-title"><span class="tb-ico">🏢</span>건축물대장 조회</span>
+  <span class="tb-right"><span id="arap-name-badge"></span></span>
+</header>
 
 <div class="wrap">
   <div class="card">
     <div class="row" style="gap:14px">
       <span class="row" style="gap:6px">
         <span style="font-weight:700;color:#475569;white-space:nowrap">지번</span>
-        <input type="text" id="q" size="34" list="qHist" autocomplete="off" placeholder="예: 안산시 단원구 선부동 1017-11" onkeydown="if(event.key==='Enter')go()">
+        <input type="text" id="q" size="34" list="qHist" autocomplete="off" placeholder="예: 선부동 1017-11 (도로명도 됨)" onkeydown="if(event.key==='Enter')go()">
         <datalist id="qHist"></datalist>
         <button class="btn" id="btnGo" onclick="go()">조회</button>
       </span>
@@ -73,7 +70,7 @@
         <button class="btn" id="btnGoRoad" onclick="goRoad()">조회</button>
       </span>
     </div>
-    <div class="hint" style="margin-top:5px">시·구·동까지 쓰면 정확합니다. (예: 안양시 동안구 관양동 1443-5) · 도로명주소는 건물번호까지 쓰세요. 도로명으로 찾으면 그 건물의 지번으로 바꿔서 대장을 조회합니다.</div>
+    <div class="hint" style="margin-top:5px">시·구·동까지 쓰면 정확합니다. (예: 안양시 동안구 관양동 1443-5) · 지번 칸에 도로명주소(예: 연수구 갯벌로 72)를 넣어도 됩니다. 도로명주소는 건물번호까지 쓰세요. 도로명으로 찾으면 그 건물의 지번으로 바꿔서 대장을 조회합니다.</div>
     <div class="status" id="status"></div>
     <!-- 같은 지번이 여러 동네에 있을 때(예: 홍제동 = 서울 서대문구·강원 강릉시) 고르는 목록 -->
     <div id="pick" style="display:none;margin-top:8px;">
@@ -112,6 +109,15 @@
           <span class="hint">공용·계약면적은 국토교통부 건축HUB 「전유공용면적」 대장의 공용 행을 합한 값입니다.</span>
         </div>
         <div class="tw" id="hoDetail" style="display:none;margin-top:6px"><table id="tblHoDetail"></table></div>
+        <!-- 이 호 등기 열람: 내 PC의 등기 에이전트(접수 창구 127.0.0.1:8790)로 요청. 진행·결과는 여기와 등기발급.html 둘 다에 보인다 -->
+        <div style="margin-top:10px;padding-top:8px;border-top:1px dashed #cdd3dc">
+          <div class="row" style="gap:10px">
+            <button class="btn sm" id="btnDeunggi" onclick="requestDeunggi()">📜 이 호 등기 열람 요청</button>
+            <span class="hint">내 PC의 등기 에이전트(3_에이전트.bat)가 켜져 있을 때 · 열람 수수료는 선불(전자민원캐시)에서 차감 · <a href="등기발급.html" target="_blank" style="color:#2563eb">요청 목록</a></span>
+          </div>
+          <div class="status" id="dgStatus"></div>
+          <div class="tw" id="dgResult" style="display:none;margin-top:6px"><table id="tblDg"></table></div>
+        </div>
       </div>
       <!-- 이 동 전체 호 — 호명·층·전유면적 표 + 엑셀 복사 (동을 고른 뒤 버튼으로 받음. 호 하나 조회와 별개) -->
       <div style="margin-top:10px;padding-top:8px;border-top:1px dashed #cdd3dc">
@@ -172,9 +178,8 @@
     <textarea id="fbPaste" rows="4"></textarea>
     <div style="margin-top:6px"><button class="btn sm" id="btnFbApply">적용</button></div>
   </div>
-
-  <div class="foot">© 2026 정우진 감정평가사 · 자료: 국토교통부 건축HUB 건축물대장 / 국토교통부 V-World</div>
 </div>
+<footer class="tsign">Woojin Jung<span class="ts-dot">·</span>정우진 감정평가사<span class="ts-dot">·</span>문의 <a href="mailto:woojin.apr@gmail.com">woojin.apr@gmail.com</a><span class="ts-src">자료: 국토교통부 건축HUB 건축물대장 · 국토교통부 V-World</span></footer>
 
 <script>
 'use strict';
@@ -250,7 +255,7 @@ function bldUrl(op,extra){
 // 여러 페이지를 끝까지 받아 합친다. 구버전 프록시(페이지·동·호를 안 넘기는)면 1페이지에서 멈추고 STATE.proxyOld 표시.
 async function fetchAll(op,extra){
   var out=[],page=1,rows=200,total=null;
-  for(;page<=25;page++){
+  for(;page<=100;page++){
     var d=await callApi(bldUrl(op,Object.assign({pageNo:page,numOfRows:rows},extra||{})));
     var b=d&&d.response&&d.response.body||{};
     var it=items(d),gotPage=Number(b.pageNo);
@@ -314,12 +319,16 @@ histRender();
 async function go(){
   var q=document.getElementById('q').value.trim();
   if(!q){alert('지번을 입력하세요');return;}
+  // 지번 칸에 도로명주소(「갯벌로 72」)를 넣어도 도로명 조회로 넘긴다 (2026-11-15)
+  if(window.ArapAddr&&ArapAddr.looksRoad(q)){document.getElementById('qRoad').value=q;return goRoad();}
   busy(true);
   document.getElementById('result').style.display='none';hidePick();
   setStatus('주소 확인 중… '+q);
   try{
     // 1) V-World로 PNU — 같은 지번이 여러 동네에 있으면(홍제동: 서울 서대문구·강원 강릉시) 고르게 한다
-    var cands=parcelCands(await vworldSearch(q,'parcel'),q);
+    var cands=parcelCands(await vworldSearch(q,'parcel').catch(function(e){
+      if(/(로|길)\s*\d+/.test(q))return [];throw e;}),q);   // 지번 검색에 없으면 도로명으로 한 번 더
+    if(!cands.length&&/(로|길)\s*\d+/.test(q)){busy(false);document.getElementById('qRoad').value=q;return goRoad();}
     if(!cands.length)throw new Error('주소는 찾았지만 필지 번호(PNU)를 받지 못했습니다: '+q);
     await offerPick(cands,function(c){return lookup(c.id,c.addr);},
       '같은 지번이 '+cands.length+'곳에 있습니다 — 아래에서 고르세요. (시·구까지 쓰면 바로 조회됩니다)');
@@ -490,7 +499,7 @@ function setupHoPanel(){
   document.getElementById('btnHoCopy').style.display='none';
   document.getElementById('hoStatus').textContent='';document.getElementById('hoStatus').className='status';
   document.getElementById('hoSel').innerHTML='<option value="">호를 선택하세요</option>';
-  resetHoAll();
+  resetHoAll();dgReset();
   if(!isJiphap()){p.style.display='none';return;}
   // 동 목록: 표제부의 동 이름(주건축물 우선). 동 이름이 없는 단일동 집합건물은 빈 값 하나
   var seen={},dongs=[];
@@ -532,6 +541,7 @@ async function loadHoDetail(){
   var ho=document.getElementById('hoSel').value,dong=STATE.hoDong;
   var st=document.getElementById('hoStatus'),res=document.getElementById('hoResult');
   STATE.hoNm=ho;STATE.hoRows=[];res.style.display='none';document.getElementById('btnHoCopy').style.display='none';
+  dgReset();                                               // 호가 바뀌면 전 호의 등기 요청 표시는 지운다
   if(!ho)return;
   st.className='status';st.textContent='전유·공용 면적 조회 중… ('+(dong?dong+' ':'')+ho+')';
   try{
@@ -596,6 +606,83 @@ function copyHo(){
   var lines=[['동명','호명','용도','층번호','전유','공유','계약'].join('\t'),[s.dong,s.ho,s.purps,s.flr,s.expos,s.pub,s.tot].join('\t')];
   clipboardCopy(lines.join('\n'),document.getElementById('hoStatus'),
     '✅ 복사 완료 — 엑셀에서 Ctrl+V 하세요 ('+s.dong+' '+s.ho+' · 전유 '+s.expos+' · 공용 '+s.pub+' · 계약 '+s.tot+')');
+}
+
+// ── 이 호 등기 열람 요청 → 내 PC 등기 에이전트 (비공개 wjp/registry-tool, 접수 창구 127.0.0.1:8790) ──
+// 등기발급.html과 같은 창구를 쓴다. 창구는 이 사이트에서 온 요청만 받고(Origin 검사), 에이전트가 꺼져 있으면 연결이 안 된다.
+var DG_LOCAL='http://127.0.0.1:8790/',DG_TIMER=null,DG_JOB_ID='';
+// '2325동'→'2325', '0902호'→'902' (에이전트가 '주소 동 호'로 간편검색). 숫자가 아닌 동 이름(가동 등)은 글자 그대로
+function dgNum(s,suf){s=String(s||'').trim().replace(new RegExp(suf+'$'),'');return /^\d+$/.test(s)?String(Number(s)):s;}
+// 요청 본문 — 등기발급.html의 열람 요청과 같은 형태
+function dgJob(addr,dong,ho,memo){
+  return{address:String(addr||'').trim(),dong:dgNum(dong,'동'),ho:dgNum(ho,'호'),
+    rtype:'집합건물',doc_type:'열람',record_type:'전부(말소사항 포함)',memo:memo||''};
+}
+// 추출값 → [라벨, 값] (등기발급.html DG.summarize와 같은 규칙)
+function dgSummary(f){
+  var out=[];if(!f||typeof f!=='object')return out;
+  var num=function(v){var n=Number(v);return isFinite(n)?n.toLocaleString('ko-KR',{maximumFractionDigits:4}):String(v==null?'':v);};
+  if(f['고유번호'])out.push(['고유번호',f['고유번호']]);
+  if(f['전유면적']!=null)out.push(['전유면적(등기)',num(f['전유면적'])+'㎡']);
+  var list=Array.isArray(f['대지권_목록'])&&f['대지권_목록'].length?f['대지권_목록']:(f['대지권_분모']!=null?[{'분모':f['대지권_분모'],'분자':f['대지권_분자']}]:[]);
+  list.forEach(function(d,i){out.push([list.length>1?'대지권 '+(i+1):'대지권',num(d['분모'])+'분의 '+(d['분자']==null?'?':num(d['분자']))]);});
+  return out;
+}
+function dgApi(params,body){
+  var opt={targetAddressSpace:'loopback'};                 // 크롬 로컬 네트워크 접근(처음 한 번 허용 창)
+  if(body){opt.method='POST';opt.headers={'Content-Type':'text/plain'};opt.body=JSON.stringify(body);}
+  return fetch(DG_LOCAL+'?'+new URLSearchParams(params).toString(),opt).catch(function(){throw new Error('OFFLINE');})
+    .then(function(r){return r.json();}).then(function(d){if(d&&d.ok===false)throw new Error(d.error);return d;});
+}
+function dgReset(){
+  if(DG_TIMER){clearTimeout(DG_TIMER);DG_TIMER=null;}DG_JOB_ID='';
+  var r=document.getElementById('dgResult'),st=document.getElementById('dgStatus');
+  if(r)r.style.display='none';if(st){st.className='status';st.textContent='';}
+}
+async function requestDeunggi(){
+  var st=document.getElementById('dgStatus'),btn=document.getElementById('btnDeunggi');
+  var s=hoSummary(STATE.hoRows),job=dgJob(STATE.addr,s.dong||STATE.hoDong,s.ho||STATE.hoNm,'건축물대장에서 요청');
+  if(!job.address||!job.ho){st.className='status err';st.textContent='먼저 건축물대장을 조회하고 호를 고르세요.';return;}
+  dgReset();btn.disabled=true;st.className='status';st.textContent='PC 에이전트에 요청 중… ('+job.address+' '+(job.dong?job.dong+'동 ':'')+job.ho+'호)';
+  if(window.arapVisitLog)window.arapVisitLog('등기열람요청',job.address+' '+job.dong+' '+job.ho);
+  try{
+    var d=await dgApi({action:'add'},job);
+    DG_JOB_ID=d.id||'';
+    st.className='status ok';st.textContent='✅ 요청됨 '+DG_JOB_ID+' — PC 에이전트가 등기소에서 열람 중입니다 (보통 1분 안팎)';
+    dgWatch();
+  }catch(e){
+    console.error('등기 요청',e);st.className='status err';
+    st.textContent=e.message==='OFFLINE'
+      ?'PC 등기 에이전트가 꺼져 있습니다. PC에서 3_에이전트.bat 을 실행한 뒤 다시 누르세요. (켜져 있는데도 이러면 주소창 왼쪽 아이콘 → 「로컬 네트워크 액세스」 허용)'
+      :'요청 실패: '+e.message;
+  }finally{btn.disabled=false;}
+}
+// 4초마다 창구 목록에서 내 요청을 찾아 상태·결과를 그린다. 끝나면(완료·실패·확인필요) 멈춘다
+function dgWatch(){
+  DG_TIMER=setTimeout(async function(){
+    try{
+      var d=await dgApi({action:'list'});
+      var j=(d.jobs||[]).filter(function(x){return x.id===DG_JOB_ID;})[0];
+      if(j)dgRender(j);
+      if(!j||j.status==='대기'||j.status==='처리중')dgWatch();
+    }catch(e){dgWatch();}
+  },4000);
+}
+function dgRender(j){
+  var st=document.getElementById('dgStatus'),res=document.getElementById('dgResult');
+  var label={'대기':'대기 중','처리중':'등기소에서 처리 중…','완료':'✅ 열람 완료','실패':'실패','확인필요':'⚠ 확인 필요'}[j.status]||j.status;
+  var bad=j.status==='실패'||j.status==='확인필요';
+  st.className='status '+(j.status==='완료'?'ok':bad?'err':'');
+  st.textContent=label+(j.error?' — '+j.error:'')+(bad?' (PC에서 2_등기발급.bat 으로 직접 하거나, 잠시 뒤 다시 요청)':'');
+  var kv=dgSummary(j.fields),s=hoSummary(STATE.hoRows);
+  // 등기 전유면적이 건축물대장 전유와 다르면 바로 보이게 (감정평가에서 꼭 맞춰 보는 값)
+  if(kv.length&&j.fields&&j.fields['전유면적']!=null&&s.expos&&Math.abs(Number(j.fields['전유면적'])-s.expos)>=0.01)
+    kv.push(['대장과 비교','건축물대장 전유 '+n1(s.expos)+'㎡ ≠ 등기 '+n1(j.fields['전유면적'])+'㎡ — 확인 필요']);
+  ((j.fields&&j.fields['확인필요'])||[]).forEach(function(n){kv.push(['확인필요',n]);});
+  if(j.file)kv.push(['PC 파일',j.file]);
+  if(!kv.length){res.style.display='none';return;}
+  document.getElementById('tblDg').innerHTML=kv.map(function(p){return '<tr><th style="width:140px">'+esc(p[0])+'</th><td class="l">'+esc(p[1])+'</td></tr>';}).join('');
+  res.style.display='';
 }
 
 // ── 이 동 전체 호 (호명·층·전유면적) ──

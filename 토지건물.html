@@ -8,6 +8,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script src="arap_storage.js"></script><!-- 저장공간 가득 참 대비: 임시 칸·옛 이전 버전을 비우고 다시 저장, 그래도 안 되면 빨간 띠+파일로 받기 -->
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>EXACT 토지건물</title>
 <style>
@@ -35,12 +36,6 @@
   .tabs{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap;}
   .tabs button{background:#e2e8f0;color:#888;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:inherit;}
   .tabs button.active{background:#1a2744;color:#fff;}
-  /* 「2. 토지평가」 안의 세 단계 — 토지평가에 들어와 있을 때만 둘째 줄로 보인다 */
-  .tabs2{display:flex;gap:3px;align-items:center;flex-wrap:wrap;margin:-4px 0 8px;padding-left:12px;}
-  .tabs2[hidden]{display:none;}
-  .tabs2 .arm{font-size:11px;font-weight:700;color:#94a3b8;margin-right:3px;}
-  .tabs2 button{background:#eef2f7;color:#64748b;border:1px solid #dbe2ea;padding:4px 11px;border-radius:14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
-  .tabs2 button.active{background:#2563eb;border-color:#2563eb;color:#fff;}
   .tab{display:none;} .tab.active{display:block;}
 
   /* 요항표 입지조건: 문장 안에서 빈칸을 채우는 의견서 형태 */
@@ -89,8 +84,8 @@
   .card h3{font-size:12px;font-weight:700;color:#334155;margin:9px 0 4px;}
   .lr{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:42%;}
   @media(min-width:1380px){.lr{grid-template-columns:minmax(0,42fr) minmax(0,58fr);}}
-  .cols2{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:330px;}
-  @media(min-width:1280px){.cols2{grid-template-columns:330px minmax(0,1fr);}}
+  .cols2{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:340px;}
+  @media(min-width:1280px){.cols2{grid-template-columns:340px minmax(0,1fr);}}
   .cols5050{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;--sl:calc(50% - 5px);}
   @media(min-width:1280px){.cols5050{grid-template-columns:1fr 1fr;}}
   /* 좌/우 너비 조절 손잡이 — 2단 레이아웃 가운데를 드래그. 너비는 --sl(왼쪽 열)로 정하고 localStorage에 저장 */
@@ -133,6 +128,17 @@
   .hint{color:#94a3b8;font-size:11px;}
   .status{margin:6px 0 0;color:#555;min-height:14px;font-size:11px;}
   .status.err{color:#dc2626;font-weight:600;}
+  /* 지가변동률 지역 표(시점수정 계산기·집건 시점수정 창과 같은 모양) */
+  .jb-rt{margin-top:8px;}
+  .jb-rt-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;font-size:12px;}
+  .jb-rt-head input{font:inherit;font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:3px;width:170px;}
+  .jb-rt-sel{color:#334155;} .jb-rt-sel b{color:#1e3a8a;}
+  .jb-rt-box{max-height:220px;overflow-y:auto;border:1px solid #cbd5e1;border-radius:4px;background:#fff;}
+  .jb-rt-box table{width:100%;border-collapse:collapse;font-size:12px;}
+  .jb-rt-box th{position:sticky;top:0;z-index:1;background:#e2e8f0;padding:4px 6px;text-align:left;font-size:12px;font-weight:600;color:#1a2744;border:none;border-bottom:1px solid #cbd5e1;}
+  .jb-rt-box td{padding:3px 6px;border:none;border-bottom:1px solid #f1f5f9;color:#0f172a;text-align:left;}
+  .jb-rt-box tbody tr[data-key]{cursor:pointer;} .jb-rt-box tbody tr[data-key]:hover{background:#f1f5f9;}
+  .jb-rt-box tbody tr.on{background:#dbeafe;font-weight:700;} .jb-rt-box td.agg{color:#64748b;} .jb-rt-box td.msg{color:#94a3b8;cursor:default;}
   .tablewrap,.tw{overflow-x:auto;}
 
   /* 값의 성격은 색 두 가지로만 구분한다 —
@@ -145,10 +151,16 @@
   .jud-c{background:#fff9e6;}
   .calc-c input{color:#0f2547;font-weight:700;}
   /* 묶기 — 여러 필지의 사정면적을 한 칸으로 합쳐 보여주는 셀 */
+  td.grp-ck{text-align:center;}
   td.grp-c{position:relative;text-align:center;vertical-align:middle;}
   /* 필지들을 하나로 묶는 ] 꺾쇠 — 세로줄 + 위아래 팔이 공부면적 칸 쪽(왼쪽)으로 뻗는다 */
   .grp-br{position:absolute;z-index:2;left:-18px;top:5px;bottom:5px;width:17px;border:3px solid #dc2626;border-left:none;border-radius:0 4px 4px 0;pointer-events:none;}
   .grp-lab{font-size:10px;color:#b91c1c;font-weight:700;margin-bottom:2px;}
+  /* 묶음 용도지역별 나누기 — 묶음 칸 오른쪽, 구역마다 한 줄(용도지역 · 면적) */
+  td.zone-c{vertical-align:middle;text-align:left;min-width:200px;}
+  .zone-r{display:flex;align-items:center;gap:4px;margin:2px 0;}
+  .zone-r input.zone-nm{width:140px;text-align:left;}
+  .zone-r input.zone-ar{width:70px;text-align:right;}
   /* 토지 평가구분 — 나눈 줄(구분평가·일부 평가외)은 연한 바탕, 평가외 줄은 회색 기울임 */
   #landTbl tr.land-sub td{background:#f8fafc;}
   #landTbl tr.land-sub td.jud-c{background:#fff9e6;}
@@ -163,6 +175,11 @@
   input.grp-in{width:78%;text-align:center;font-weight:700;font-size:13px;}
   /* 거래사례 열별 붙여넣기 칸 (kais붙여넣기) — 작게, 한 줄 */
   td.kp-c{padding:2px 3px;background:#fafbfc;}
+  /* 의견서 표시 — 끈 사례(의견서·위치도에서 빠짐)는 열·행을 흐리게 */
+  td.op-c{text-align:center;white-space:nowrap;font-size:11px;color:#334155;}
+  td.op-c label{cursor:pointer;display:inline-flex;align-items:center;gap:3px;}
+  td.op-c.off{color:#b91c1c;}
+  #tblTrade .op-off,#tblAppr tr.op-off td:not(.op-c){opacity:.4;}
   .kp{display:block;width:100%;height:22px;border:1px dashed #94a3b8;border-radius:3px;font-size:11px;font-family:inherit;padding:2px 4px;resize:none;overflow:hidden;white-space:nowrap;text-align:center;line-height:16px;color:#2563eb;background:#fff;}
   .kp::placeholder{color:#2563eb;opacity:.9;}
   /* 거래사례 표 아래 한 줄 메모 — 안내 문구는 연한 회색으로만 보이고, 적은 내용만 한글로 나간다 */
@@ -172,6 +189,9 @@
   /* 평가사례 표의 kapa hub 칸 — '선정' 열만큼만 차지하게 좁힌다(붙여넣기 전용이라 넓을 필요가 없음) */
   td.kp-c.kp-narrow{width:38px;min-width:0;}
   td.kp-c.kp-narrow .kp{min-width:0;box-sizing:border-box;padding:2px 1px;}
+  /* 평가사례 표 — 기호·지목은 한두 글자라 좁게, 남는 폭은 소재지(지번까지 보이게)로 */
+  #tblAppr .ac-no,#tblAppr .ac-jimok{width:26px;min-width:26px;padding-left:2px;padding-right:2px;}
+  #tblAppr td.ac-loc{min-width:118px;}
   /* 사례 소재지 「외」 옆 — 함께 거래·평가된 지번 입력 버튼(누르면 창) */
   .loc-w{display:flex;align-items:center;gap:3px;}
   .loc-w input{flex:1;min-width:0;}
@@ -230,6 +250,15 @@
   .subtabs button{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:#94a3b8;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
   .subtabs button.active{color:#1a2744;border-bottom-color:#2563eb;}
   .sub{display:none;} .sub.active{display:block;}
+  /* 2-1 공시지가기준법 한 화면 배치 — 1행 3칸(비교표준지|시점수정|개별요인) · 2행 2칸(거래사례|평가사례) · 3행 2칸(그 밖의 요인|시산가액). 좁으면 1열 */
+  .gs-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start;--sl:53.5%;}
+  .gs-col{display:flex;flex-direction:column;gap:10px;min-width:0;}
+  .gs-col>.card{margin-bottom:0;min-width:0;}
+  @media(min-width:1280px){
+    .gs-grid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);}
+    .gs-grid.split{grid-template-columns:minmax(0,var(--sl)) 0 minmax(0,1fr);column-gap:5px;}   /* 가운데 ⋮ 손잡이로 좌우 너비 조절 */
+    .gs-grid.split>.split-h{display:block;}
+  }
   .paste{border:2px dashed #cbd5e1;border-radius:6px;background:#fafbfc;padding:8px;margin-bottom:8px;}
   .paste textarea{width:100%;border:1px solid #e2e5ea;border-radius:3px;padding:5px 7px;font-size:11px;font-family:inherit;resize:vertical;}
   .pst{font-size:11px;margin-top:4px;min-height:14px;}
@@ -374,6 +403,15 @@
   .evalkind-bar .ek-label{font-weight:700;font-size:13px;color:#1e293b;margin-right:4px;}
   .evalkind-bar .btn{font-size:13px;padding:7px 18px;}
   .evalkind-bar .ek-hint{font-size:11px;color:#94a3b8;margin-left:6px;}
+  /* 2026-11-15 감정평가 개요 카드 안으로(집건 「물건 유형」 자리) — 테두리 없이, 버튼 3개 한 줄 */
+  .ov-col .evalkind-bar{border:0;padding:0 0 8px;margin:0 0 8px;border-bottom:1px solid #eef0f3;border-radius:0;gap:4px;}
+  .ov-col .evalkind-bar{flex-wrap:wrap;}
+  .ov-col .evalkind-bar .btn{padding:5px 8px;font-size:12px;white-space:nowrap;}
+  .ov-col .evalkind-bar .ek-label{margin-right:2px;}
+  .ov-col .evalkind-bar .ek-hint{flex-basis:100%;margin:2px 0 0;}
+  /* 자동 인식으로 채운 칸 — 확인 전까지 연노랑(손으로 고치면 사라짐) */
+  input.up-auto,textarea.up-auto,select.up-auto{background:#fef9c3 !important;}
+  #upCard.drag{background:#dbeafe !important;border:1px dashed #2563eb !important;}
   #fallbackPanel a{word-break:break-all;color:#2563eb;}
   /* 위치도 말풍선 설정 줄 */
   .maplab{border:1px solid #e2e5ea;border-radius:6px;background:#f8fafc;padding:6px 9px;margin-bottom:8px;font-size:12px;}
@@ -392,7 +430,9 @@
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 -->
 <script src="arap_cheonggu.js"></script>
 <script src="arap_fee.js"></script><!-- 감정평가수수료 자동 계산(보수에 관한 기준 별표) — 수수료 사이트 대신 --><!-- 청구서(한글 hwpx) 공용 엔진 — 집합건물 청구서와 동일 양식·계산 -->
+<script src="arap_addr.js"></script><!-- 도로명주소(갯벌로 72)도 지번·PNU로 찾기 -->
 <script src="arap_map.js"></script>
+<script src="arap_filebak.js"></script><!-- 💾 백업 파일 내려받기/불러오기 -->
 <script src="arap_sync.js"></script><!-- 저장건 GitHub 자동 백업(집합건물과 같은 토큰·Gist) --><!-- 위치도 공용 엔진 — 거래사례 지도 페이지와 같은 코드 -->
 
 <script src="arap_jibyun_data.js"></script><!-- 지가변동률+연도 누계(매일 06시 자동갱신). 있으면 통신 없이 계산, 없거나 파일 밖 달은 프록시 -->
@@ -448,37 +488,32 @@
 
     <div class="tabs">
       <button id="tabbtn-daesang" class="active" onclick="showTab('daesang')">1. 대상물건 개요</button>
-      <button id="tabbtn-land" class="land-calc" onclick="showTab('land')">2. 토지평가</button>
+      <!-- 토지평가 세 단계는 처음부터 늘 보이는 탭(2026-11-03 사용자 요청 — 예전엔 「2. 토지평가」를 눌러야 둘째 줄에 나옴). 건물만이면 land-calc로 숨김 -->
+      <button id="tabbtn-gongsi" class="land-calc" onclick="showTab('gongsi')">2-1. 공시지가·거래사례비교법</button>
+      <button id="tabbtn-gyeoljeong" class="land-calc" onclick="showTab('gyeoljeong')">2-2. 토지평가액 결정</button>
       <button id="tabbtn-bld" class="bld-only" onclick="showTab('bld')">3. 건물평가</button>
-      <button id="tabbtn-final" onclick="showTab('final')">4. 토지건물 평가액 결정</button>
+      <button id="tabbtn-final" onclick="showTab('final')">4. 평가액 결정·청구서</button>
       <button id="tabbtn-jido" onclick="showTab('jido')">5. 위치도</button>
       <button id="tabbtn-yohang" onclick="showTab('yohang')">6. 요항표</button>
       <button id="tabbtn-doc" onclick="showTab('doc')">7. 감정평가서 다운로드</button>
-      <button id="tabbtn-cheonggu" onclick="showTab('cheonggu')">8. 청구서 다운로드</button>
-    </div>
-    <!-- 「2. 토지평가」를 고르면 나오는 둘째 줄 -->
-    <div class="tabs2" id="landTabs" hidden>
-      <span class="arm">2. 토지평가 ▸</span>
-      <button id="tabbtn-gongsi" onclick="showTab('gongsi')">2-1. 공시지가기준법</button>
-      <button id="tabbtn-georae" onclick="showTab('georae')">2-2. 거래사례비교법</button>
-      <button id="tabbtn-gyeoljeong" onclick="showTab('gyeoljeong')">2-3. 토지평가액 결정</button>
     </div>
 
     <!-- ═══════════ 1. 대상물건 개요 ═══════════ -->
     <div id="tab-daesang" class="tab active">
-     <!-- 평가유형 — 첫 화면 맨 위에서 고른다(2026-10-13 사용자 요청). 건별 저장, 바꿔도 입력값은 지우지 않는다 -->
-     <div class="evalkind-bar" role="group" aria-label="평가유형">
-       <span class="ek-label">평가유형</span>
-       <button type="button" class="btn gh" id="ek_bld" onclick="setEvalKind('bld')" title="토지평가를 숨기고 건물(원가법)만으로 감정평가액을 결정합니다(의견서는 건물 전용 양식)">🏠 건물만</button>
-       <button type="button" class="btn" id="ek_tb" onclick="setEvalKind('tb')" title="토지와 건물을 함께 평가합니다">🏞️ 토지건물</button>
-       <button type="button" class="btn gh" id="ek_land" onclick="setEvalKind('land')" title="건물평가를 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)">🌾 토지만</button>
-       <span class="ek-hint">바꿔도 입력한 값은 그대로 남아요</span>
-     </div>
      <div class="cols2">
 
-      <!-- 좌: 접수개요 -->
+      <!-- 좌: 접수개요 세로 한 줄 + 평가유형 (2026-11-15 집건 1번 탭과 같은 배치) -->
+      <div class="ov-col">
       <div class="card">
         <h2>감정평가 개요</h2>
+        <!-- 평가유형 — 감정평가 개요 맨 위(2026-11-15, 집건 「물건 유형」과 같은 자리. 처음엔 2026-10-13 탭 맨 위). 건별 저장, 바꿔도 입력값은 지우지 않는다 -->
+        <div class="evalkind-bar" role="group" aria-label="평가유형">
+          <span class="ek-label">평가유형</span>
+          <button type="button" class="btn gh" id="ek_bld" onclick="setEvalKind('bld')" title="토지평가를 숨기고 건물(원가법)만으로 감정평가액을 결정합니다(의견서는 건물 전용 양식)">🏠 건물만</button>
+          <button type="button" class="btn" id="ek_tb" onclick="setEvalKind('tb')" title="토지와 건물을 함께 평가합니다">🏞️ 토지건물</button>
+          <button type="button" class="btn gh" id="ek_land" onclick="setEvalKind('land')" title="건물평가를 숨기고 토지만으로 감정평가액을 결정합니다(의견서는 토지 전용 양식)">🌾 토지만</button>
+          <span class="ek-hint">바꿔도 입력한 값은 그대로 남아요</span>
+        </div>
         <div class="grid2">
           <span class="fld"><label>접수번호</label><input type="text" id="ov_caseNo" placeholder="HI260709-2702"></span>
           <span class="fld"><label>의뢰인</label><input type="text" id="ov_client" placeholder="홍길동"></span>
@@ -500,9 +535,28 @@
           <span class="fld"><label>탁상가격</label><input type="text" id="ov_deskPrice" placeholder="4,625,000,000"></span>
         </div>
       </div>
+      </div>
 
-      <!-- 우: 대상물건(토지+건물) -->
+      <!-- 우: 공부서류 업로드(arap_toji_upload.js, 집건과 같은 API 키) + 대상물건(토지+건물) + 그 밖의 사항 -->
       <div>
+        <div class="card" id="upCard" style="background:#f0f7ff;border-color:#bfdbfe">
+          <h2>📄 공부서류·접수 캡처 업로드</h2>
+          <div class="hint" style="margin:-2px 0 6px">토지·건물 등기 PDF, 접수 캡처 → 접수번호·의뢰인·기준시점·소유자·본건 토지·건물내역 자동 입력</div>
+          <div class="row" style="flex-wrap:nowrap;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:#555;white-space:nowrap">🔑 API 키</span>
+            <input type="password" id="up_apiKey" style="flex:1;min-width:0;font-size:12px" placeholder="sk-ant-... (집건 키 자동)">
+            <button type="button" class="btn gh sm" id="up_keyShow">보기</button>
+            <span id="up_keyState" style="font-size:11px;white-space:nowrap"></span>
+          </div>
+          <div class="row">
+            <label class="btn gh sm" style="cursor:pointer">+ 파일 추가<input type="file" id="up_files" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple style="display:none"></label>
+            <button type="button" class="btn sm" id="up_run" disabled>🤖 자동 인식</button>
+          </div>
+          <div class="hint" id="up_dropHint" style="margin-top:4px">PDF·이미지를 이 칸에 끌어다 놓거나 Ctrl+V로 붙여넣어도 됩니다</div>
+          <div id="up_list" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+          <div class="status" id="up_status" style="min-height:0"></div>
+          <div id="up_result" style="font-size:12px;line-height:1.6;margin-top:4px"></div>
+        </div>
         <div class="card">
           <h2>본건 토지</h2>
           <div class="row">
@@ -540,6 +594,8 @@
             <span class="fld"><label>층수(지상/지하)</label><input type="text" id="bt_flrs" placeholder="6/1"></span>
             <span class="fld"><label>사용승인일</label><input type="text" id="bt_useApr" data-date placeholder="1993.10.09"></span>
             <span class="fld" style="grid-column:1/-1"><label>도로명주소 (명세표 건물란)</label><input type="text" id="bt_roadAddr" placeholder="서울특별시 강남구 압구정로 165"></span>
+            <span class="fld" style="grid-column:1/-1;align-items:flex-start"><label title="건물 등기사항전부증명서 표제부 「건물내역」을 그대로 붙여넣으면 명세표 건물란(구조·용도·층별 면적)이 등기대로 나갑니다. 비우면 건축물대장 층별 목록대로">건물등기 건물내역<br>(명세표용)</label><textarea id="bt_regText" rows="4" style="flex:1;min-width:0;border:1px solid #e2e5ea;border-radius:3px;padding:4px 7px;font-size:12px;font-family:inherit;resize:vertical" placeholder="등기 표제부 건물내역을 붙여넣기 (비우면 건축물대장대로)&#10;철근콘크리트구조&#10;(철근)콘크리트지붕 4층&#10;근린생활시설&#10;1층 148.26㎡&#10;2층 234.79㎡ …&#10;지1층 294.39㎡&#10;옥탑1 28.35㎡"></textarea></span>
+            <span class="hint" id="bt_regHint" style="grid-column:1/-1"></span>
           </div>
           <div class="tw" style="margin-top:8px">
             <table id="bldTbl">
@@ -558,29 +614,29 @@
             <span class="hint" id="bldCopyMsg" style="margin-left:auto"></span>
           </div>
         </div>
+        <!-- 그 밖의 사항 — 의견서 「Ⅰ. 6. 그 밖의 사항」의 가·나·다 문단. 양식의 고정 문구를 여기서 보여 주고, 항목을 끼워 넣거나 고치면 순서대로 가나다… 다시 매겨 의견서에 그대로 내보낸다 -->
+        <div class="card" id="etcItemsCard">
+          <h2>그 밖의 사항</h2>
+          <div id="etcItemsBox"></div>
+          <div class="row" style="margin-top:6px">
+            <button class="btn gh sm" onclick="etcItemAdd()">＋ 항목 추가</button>
+            <button class="btn gh sm" onclick="etcItemsReset()">↺ 기본 문구로 되돌리기</button>
+          </div>
+        </div>
       </div>
 
      </div>
 
-     <!-- 그 밖의 사항 — 의견서 「Ⅰ. 6. 그 밖의 사항」의 가·나·다 문단. 양식의 고정 문구를 여기서 보여 주고, 항목을 끼워 넣거나 고치면 순서대로 가나다… 다시 매겨 의견서에 그대로 내보낸다 -->
-     <div class="card" id="etcItemsCard">
-       <h2>그 밖의 사항</h2>
-       <div id="etcItemsBox"></div>
-       <div class="row" style="margin-top:6px">
-         <button class="btn gh sm" onclick="etcItemAdd()">＋ 항목 추가</button>
-         <button class="btn gh sm" onclick="etcItemsReset()">↺ 기본 문구로 되돌리기</button>
-       </div>
-     </div>
     </div>
 
     <!-- ═══════════ 2-1. 공시지가기준법 ═══════════ -->
     <div id="tab-gongsi" class="tab">
       <div class="res"><span>공시지가기준법 시산가액</span><span class="n" id="resGongsi">-</span></div>
-      <div class="lr">
-
-        <!-- 좌: 계산 본류 -->
-        <div>
-          <div class="card">
+      <!-- 화면 배치(2026-11-03 2차): 왼쪽 = 계산 흐름(비교표준지→시점수정→개별요인→그 밖의 요인→시산가액, 위에서 아래로),
+           오른쪽 = 사례 자료(거래사례·평가사례). 좁은 화면은 1열 -->
+      <div class="gs-grid" id="gongsi_layout">
+        <div class="gs-col gs-main" id="gsMain">
+          <div class="card gs-r1" id="gsStdCard">
             <h2>비교표준지</h2>
             <div class="row">
               <input type="text" id="stdQuery" size="34" placeholder="예: 안양시 동안구 관양동 1445-1">
@@ -592,13 +648,19 @@
               <button class="btn gh sm" onclick="addStd()">+ 표준지 추가</button>
             </div>
           </div>
-
-          <div class="card">
+          <div class="card gs-r1" id="gsJbCard">
             <h2>시점수정 (지가변동률)</h2>
             <div class="row">
               <button class="btn" id="btnJb">📈 지가변동률 자동조회</button>
-              <select id="jb_selRegion" title="대상지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:180px;max-width:280px"></select>
-              <select id="jb_selUse" title="용도지역" style="display:none;font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:100px"></select>
+              <!-- 지역은 아래 표(jbRegTable)에서 고름 — 이 select는 숨은 값 저장용(다른 코드가 .value를 읽음) -->
+              <select id="jb_selRegion" title="대상지역" style="display:none"></select>
+              <label id="jb_useWrap" style="display:none;align-items:center;gap:5px;font-size:12px;color:#475569">용도지역
+                <select id="jb_selUse" title="용도지역" style="font:inherit;font-size:12px;padding:4px 8px;border:1px solid #e2e5ea;border-radius:3px;min-width:100px"></select></label>
+            </div>
+            <!-- 시점수정 계산기(arm_시점수정.html 토지 탭)·집건 시점수정 창과 같은 지역 표: 검색칸 + 지역1~지역3 줄 클릭 선택 -->
+            <div class="jb-rt" id="jbRegTable" style="display:none">
+              <div class="jb-rt-head"><input type="text" id="jbRegQ" placeholder="지역 검색 (예: 완산, 수원)" autocomplete="off" aria-label="지가변동률 지역 검색"><span class="jb-rt-sel" id="jbRegSel"></span></div>
+              <div class="jb-rt-box" id="jbRegBox"><table><thead><tr id="jbRegHead"></tr></thead><tbody id="jbRegBody"></tbody></table></div>
             </div>
             <div class="status" id="jbStatus"></div>
             <div class="tw" style="margin-top:8px">
@@ -614,8 +676,7 @@
               </table>
             </div>
           </div>
-
-          <div class="card">
+          <div class="card gs-r1" id="gsFacCard">
             <h2>개별요인비교 (본건/표준지)</h2>
             <div class="row" style="margin-bottom:6px"><span class="hint">지대:</span>
               <select class="box" id="g_daegu" style="max-width:120px" onchange="renderDaeguStd();calcGongsi();saveForm();"><option selected>상업지대</option><option>주택지대</option><option>공업지대</option><option>농경지대</option><option>임야지대</option></select><span id="daeguStd" style="display:none;align-items:center;gap:6px"></span></div>
@@ -625,9 +686,66 @@
             <!-- 비교의견은 필지 행마다 아래 줄에 따로 쓴다(LANDS[i].gop). 이 숨은 칸은 그 기능 전 저장건의 공통 의견 — 필지 의견이 없으면 이 값을 보여 준다 -->
             <input type="hidden" id="g_opinion" value="본건은 비교표준지와 제반 개별요인에서 대등함.">
           </div>
+          <div class="card gs-r3" id="gsEtcCard">
+            <h2>그 밖의 요인</h2>
+            <!-- 본건 필지가 표준지 둘 이상(공장용지 A·임야 B)을 쓰면 아래 한 벌 패널 대신 표준지(사례×표준지)마다 산정 블록을 나란히(renderEtcBlocks) -->
+            <div id="etcBlocks" style="display:none"></div>
+            <div id="etcSingle">
+            <div class="row" style="margin-bottom:7px">
+              <b style="font-size:12px">적용사례</b>
+              <select class="box" id="etcPick" style="max-width:240px"></select>
+              <span class="hint" id="etcStdLab" style="display:none">/ 비교표준지</span>
+              <select class="box" id="etcStd" style="max-width:120px;display:none" title="이 사례와 비교할 표준지 — 표준지가 둘 이상이면 고르세요(사례마다 기억)" onchange="setEtcStd(+this.value)"></select>
+              <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime(true)" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
+            </div>
+            <!-- 필지별 사례를 고르면 쓰이는 「사례 × 표준지」 목록 — ✎로 위 표에 띄워 입력(renderEtcPairs) -->
+            <div id="etcPairs" class="hint" style="display:none;margin:0 0 7px;padding:6px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px"></div>
+            <div class="tw"><table>
+              <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
+              <tr><th class="rowh">사례기준<br>표준지평가</th>
+                  <td class="calc-c" id="eSrc"><input class="eo" data-k="src" onblur="calcGongsi()" oninput="etcOv('src',this.value)"></td>
+                  <td class="jud-c"><input id="eSaj1" value="" placeholder="-" oninput="calcGongsi()"></td>
+                  <td class="jud-c"><input id="eTime" value="" placeholder="1.00699" oninput="calcGongsi()"></td>
+                  <td class="jud-c"><input id="eArea" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
+                  <td class="calc-c" id="eIndSum"><input class="eo" data-k="ind" onblur="calcGongsi()" oninput="etcOv('ind',this.value)"></td>
+                  <td class="calc-c" id="eOut1"><input class="eo" data-k="out1" onblur="calcGongsi()" oninput="etcOv('out1',this.value)"></td>
+                  <td class="calc-c" id="eRatio" rowspan="2"><input class="eo" data-k="ratio" style="font-size:14px" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td></tr>
+              <tr><th class="rowh">표준지공시지가<br>시점수정</th>
+                  <td class="calc-c" id="eStd"><input class="eo" data-k="std" onblur="calcGongsi()" oninput="etcOv('std',this.value)"></td>
+                  <td class="jud-c"><input id="eSaj2" value="" placeholder="-" oninput="calcGongsi()"></td>
+                  <td class="calc-c" id="eStdTime"><input class="eo" data-k="stdTime" onblur="calcGongsi()" oninput="etcOv('stdTime',this.value)"></td>
+                  <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
+                  <td class="jud-c"><input class="fac" id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
+                  <td class="calc-c" id="eOut2"><input class="eo" data-k="out2" onblur="calcGongsi()" oninput="etcOv('out2',this.value)"></td></tr>
+            </table></div>
+            <div class="etc-warn" id="etcWarn" style="display:none">
+              <span id="etcWarnMsg">⚠ 직접 수정된 칸이 있습니다(빨간 글씨) — 자동계산값과 다릅니다.</span>
+              <button class="btn gh sm" style="margin-left:auto" onclick="etcRestore()">↺ 원래대로 복원</button>
+            </div>
 
-          <!-- 시산가액: 왼쪽 계산 흐름의 마지막 칸(거래사례비교법 탭과 같은 자리) -->
-          <div class="card" id="pinLand">
+            <div class="fnote">1) 시점수정(사례시점~기준시점) : <b id="fnTime">-</b></div>
+            <div class="fnote">2) 지역요인비교치 : <b id="fnArea">1.00</b></div>
+            <div class="fnote">3) 개별요인비교치</div>
+            <div class="tw"><table>
+              <tr><th id="efh1">가로<br>조건</th><th id="efh2">접근<br>조건</th><th id="efh3">환경<br>조건</th><th id="efh4">획지<br>조건</th><th id="efh5">행정적<br>조건</th><th id="efh6">기타<br>조건</th><th>계</th></tr>
+              <tr>
+                <td class="jud-c"><input class="ef fac" id="e_f1" value="1.00" oninput="calcGongsi()"></td>
+                <td class="jud-c"><input class="ef fac" id="e_f2" value="1.00" oninput="calcGongsi()"></td>
+                <td class="jud-c"><input class="ef fac" id="e_f3" value="1.00" oninput="calcGongsi()"></td>
+                <td class="jud-c"><input class="ef fac" id="e_f4" value="1.00" oninput="calcGongsi()"></td>
+                <td class="jud-c"><input class="ef fac" id="e_f5" value="1.00" oninput="calcGongsi()"></td>
+                <td class="jud-c"><input class="ef fac" id="e_f6" value="1.00" oninput="calcGongsi()"></td>
+                <td class="calc-c fixed fac" id="efSum" title="자동 계산(여섯 조건의 곱) — 이 칸은 고칠 수 없고, 위 조건 칸을 고치면 따라 바뀝니다">1.000</td></tr>
+              <tr><th class="rowh">의견</th><td colspan="6" id="e_opTd" style="text-align:left"><input id="e_opinion" value="" placeholder="표준지는 평가사례와 비교하여 …" style="text-align:left"></td></tr>
+            </table></div>
+
+            <div class="tw" style="margin-top:8px"><table>
+              <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
+              <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="calc-c"><input id="eDecide" placeholder="-" oninput="calcGongsi();saveForm();"></td><td>1</td></tr>
+            </table></div>
+            </div>
+          </div>
+          <div class="card gs-r3" id="pinLand">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><h2 style="margin-right:auto">시산가액</h2>
               <span style="font-size:12px;color:#626b78">결정단가</span>
               <select class="box" id="sisan_unit" style="flex:0 0 auto;width:auto" onchange="calcGongsi();saveForm();" title="자동 = 집합건물과 같은 규칙: 백만원대 단가는 천원, 천만원대는 만원 단위"><option value="auto">자동(단가 자릿수)</option><option value="1000">천원 단위</option><option value="10000">만원 단위</option><option value="100000">십만원 단위</option><option value="1000000">백만원 단위</option></select>
@@ -637,103 +755,24 @@
             <div class="tw"><table id="tblSisan"></table></div>
           </div>
         </div>
-
-        <!-- 우: 사례 · 그밖의요인 -->
-        <div>
-          <div class="card" style="padding-top:9px">
-            <div class="subtabs">
-              <button class="active" onclick="sub(0,this)">거래사례</button>
-              <button onclick="sub(1,this)">평가사례</button>
-              <button onclick="sub(2,this)">그 밖의 요인</button>
-            </div>
-
-            <!-- 거래사례 (세로 표) -->
-            <div class="sub active">
-              <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 거래사례</b>
-                <button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></div>
-              <div class="pst" id="pTradeMsg"></div>
-              <div class="tw"><table id="tblTrade"></table></div>
-              <!-- 표 아래 한 줄 메모 — 적은 그대로 한글 의견서의 거래사례 표 바로 아래에 나간다(비우면 아무것도 안 나감) -->
-              <div class="fld" style="margin-top:6px"><textarea class="box" id="g_tradeNote" rows="2" title="여기에 적은 문구가 한글 의견서의 거래사례 표 바로 아래에 그대로 나옵니다 — 엔터로 줄을 바꾸면 한글에서도 문단이 나뉩니다" placeholder="관찰감가, 토지만의 거래 등 내용 기입 (엔터로 줄바꿈)"></textarea></div>
-            </div>
-
-            <!-- 평가사례 -->
-            <div class="sub">
-              <div class="paste">
-                <div class="row" style="margin-bottom:4px"><b style="font-size:12px">📋 평가사례</b>
-                  <button class="btn gh sm" style="margin-left:auto" onclick="addAppr()">+ 사례 추가</button></div>
-                <div class="pst" id="pApprMsg"></div>
-              </div>
-              <div class="tw"><table id="tblAppr"></table></div>
-            </div>
-
-            <!-- 그 밖의 요인 -->
-            <div class="sub">
-              <!-- 본건 필지가 표준지 둘 이상(공장용지 A·임야 B)을 쓰면 아래 한 벌 패널 대신 표준지(사례×표준지)마다 산정 블록을 나란히(renderEtcBlocks) -->
-              <div id="etcBlocks" style="display:none"></div>
-              <div id="etcSingle">
-              <div class="row" style="margin-bottom:7px">
-                <b style="font-size:12px">적용사례</b>
-                <select class="box" id="etcPick" style="max-width:240px"></select>
-                <span class="hint" id="etcStdLab" style="display:none">/ 비교표준지</span>
-                <select class="box" id="etcStd" style="max-width:120px;display:none" title="이 사례와 비교할 표준지 — 표준지가 둘 이상이면 고르세요(사례마다 기억)" onchange="setEtcStd(+this.value)"></select>
-                <button class="btn gh sm" style="margin-left:auto" onclick="autoEtcTime(true)" title="선택한 사례의 거래일자(평가사례는 기준시점)~본건 기준시점 지가변동률로 시점수정치 자동계산. 지역·용도는 사례의 소재지·용도지역 기준">↻ 시점수정 자동</button>
-              </div>
-              <!-- 필지별 사례를 고르면 쓰이는 「사례 × 표준지」 목록 — ✎로 위 표에 띄워 입력(renderEtcPairs) -->
-              <div id="etcPairs" class="hint" style="display:none;margin:0 0 7px;padding:6px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px"></div>
-              <div class="tw"><table>
-                <tr><th>구분</th><th>적용사례/<br>공시지가</th><th>사정<br>보정</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>산출단가<br>(원/㎡)</th><th>비교치</th></tr>
-                <tr><th class="rowh">사례기준<br>표준지평가</th>
-                    <td class="calc-c" id="eSrc"><input class="eo" data-k="src" onblur="calcGongsi()" oninput="etcOv('src',this.value)"></td>
-                    <td class="jud-c"><input id="eSaj1" value="" placeholder="-" oninput="calcGongsi()"></td>
-                    <td class="jud-c"><input id="eTime" value="" placeholder="1.00699" oninput="calcGongsi()"></td>
-                    <td class="jud-c"><input id="eArea" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
-                    <td class="calc-c" id="eIndSum"><input class="eo" data-k="ind" onblur="calcGongsi()" oninput="etcOv('ind',this.value)"></td>
-                    <td class="calc-c" id="eOut1"><input class="eo" data-k="out1" onblur="calcGongsi()" oninput="etcOv('out1',this.value)"></td>
-                    <td class="calc-c" id="eRatio" rowspan="2"><input class="eo" data-k="ratio" style="font-size:14px" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td></tr>
-                <tr><th class="rowh">표준지공시지가<br>시점수정</th>
-                    <td class="calc-c" id="eStd"><input class="eo" data-k="std" onblur="calcGongsi()" oninput="etcOv('std',this.value)"></td>
-                    <td class="jud-c"><input id="eSaj2" value="" placeholder="-" oninput="calcGongsi()"></td>
-                    <td class="calc-c" id="eStdTime"><input class="eo" data-k="stdTime" onblur="calcGongsi()" oninput="etcOv('stdTime',this.value)"></td>
-                    <td class="jud-c"><input id="eArea2" value="1.000" oninput="calcGongsi()" onblur="etcAreaBlur(this)"></td>
-                    <td class="jud-c"><input class="fac" id="eInd2" value="" placeholder="-" oninput="calcGongsi()"></td>
-                    <td class="calc-c" id="eOut2"><input class="eo" data-k="out2" onblur="calcGongsi()" oninput="etcOv('out2',this.value)"></td></tr>
-              </table></div>
-              <div class="etc-warn" id="etcWarn" style="display:none">
-                <span id="etcWarnMsg">⚠ 직접 수정된 칸이 있습니다(빨간 글씨) — 자동계산값과 다릅니다.</span>
-                <button class="btn gh sm" style="margin-left:auto" onclick="etcRestore()">↺ 원래대로 복원</button>
-              </div>
-
-              <div class="fnote">1) 시점수정(사례시점~기준시점) : <b id="fnTime">-</b></div>
-              <div class="fnote">2) 지역요인비교치 : <b id="fnArea">1.00</b></div>
-              <div class="fnote">3) 개별요인비교치</div>
-              <div class="tw"><table>
-                <tr><th id="efh1">가로<br>조건</th><th id="efh2">접근<br>조건</th><th id="efh3">환경<br>조건</th><th id="efh4">획지<br>조건</th><th id="efh5">행정적<br>조건</th><th id="efh6">기타<br>조건</th><th>계</th></tr>
-                <tr>
-                  <td class="jud-c"><input class="ef fac" id="e_f1" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f2" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f3" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f4" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f5" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="jud-c"><input class="ef fac" id="e_f6" value="1.00" oninput="calcGongsi()"></td>
-                  <td class="calc-c fixed fac" id="efSum" title="자동 계산(여섯 조건의 곱) — 이 칸은 고칠 수 없고, 위 조건 칸을 고치면 따라 바뀝니다">1.000</td></tr>
-                <tr><th class="rowh">의견</th><td colspan="6" id="e_opTd" style="text-align:left"><input id="e_opinion" value="" placeholder="표준지는 평가사례와 비교하여 …" style="text-align:left"></td></tr>
-              </table></div>
-
-              <div class="tw" style="margin-top:8px"><table>
-                <tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>
-                <tr><td class="calc-c" id="eRatio2"><input class="eo" data-k="ratio" onblur="calcGongsi()" oninput="etcOv('ratio',this.value)"></td><td class="calc-c"><input id="eDecide" placeholder="-" oninput="calcGongsi();saveForm();"></td><td>1</td></tr>
-              </table></div>
-              </div>
-            </div>
+        <div class="gs-col gs-side" id="gsSide">
+          <div class="card gs-r2" id="gsTradeCard">
+            <h2>거래사례<button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></h2>
+            <div class="pst" id="pTradeMsg"></div>
+            <div class="tw"><table id="tblTrade"></table></div>
+            <!-- 표 아래 한 줄 메모 — 적은 그대로 한글 의견서의 거래사례 표 바로 아래에 나간다(비우면 아무것도 안 나감) -->
+            <div class="fld" style="margin-top:6px"><textarea class="box" id="g_tradeNote" rows="2" title="여기에 적은 문구가 한글 의견서의 거래사례 표 바로 아래에 그대로 나옵니다 — 엔터로 줄을 바꾸면 한글에서도 문단이 나뉩니다" placeholder="관찰감가, 토지만의 거래 등 내용 기입 (엔터로 줄바꿈)"></textarea></div>
+          </div>
+          <div class="card gs-r2" id="gsApprCard">
+            <h2>평가사례<button class="btn gh sm" style="margin-left:auto" onclick="addAppr()">+ 사례 추가</button></h2>
+            <div class="pst" id="pApprMsg"></div>
+            <div class="tw"><table id="tblAppr"></table></div>
           </div>
         </div>
       </div>
 
-    </div>
-
-    <!-- ═══════════ 2-2. 거래사례비교법 ═══════════ -->
-    <div id="tab-georae" class="tab">
+      <!-- 거래사례비교법 — 따로 탭이던 것(2-2)을 공시지가기준법 화면 맨 아래로 합침(2026-11-03 사용자 요청). id·함수 그대로 -->
+      <div id="georae_sec" style="margin-top:14px">
       <div class="res"><span>거래사례비교법 시산가액</span><span class="n" id="resGeorae">-</span></div>
       <div class="cols5050" id="georae_layout">
         <div class="card">
@@ -763,6 +802,7 @@
         <div class="tw"><table id="tblGaSisan"></table></div>
         <div class="fnote" id="gaTimeNote" style="margin-top:6px">시점수정 : <b id="gaTimeText">-</b> <button class="btn gh sm" style="margin-left:8px" onclick="autoGaTime(true)" title="채택한 거래사례의 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준)을 새로 조회">↻ 시점수정 자동</button></div>
       </div>
+      </div>
     </div>
 
     <!-- ═══════════ 5. 위치도 (본건·표준지·사례를 지도에 표시) ═══════════ -->
@@ -770,7 +810,7 @@
       <div class="card">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <h2 style="margin-right:auto">위치도 — 본건 · 비교표준지 · 사례</h2>
-          <label class="mapchk"><input type="checkbox" id="mapCadastre" checked onchange="mapToggleOverlay()"> 지적선</label>
+          <label class="mapchk"><input type="checkbox" id="mapCadastre" onchange="mapToggleOverlay()"> 지적선</label>
           <label class="mapchk"><input type="checkbox" id="mapZoning" onchange="mapToggleOverlay()"> 용도지역</label>
           <select class="box" id="mapBaseSel" style="flex:0 0 auto;width:auto" onchange="mapSetBase()">
             <option value="kakao">카카오맵</option>
@@ -799,17 +839,17 @@
       </div>
     </div>
 
-    <!-- ═══════════ 2-3. 토지평가액 결정 ═══════════ -->
+    <!-- ═══════════ 2-2. 토지평가액 결정 ═══════════ -->
     <div id="tab-gyeoljeong" class="tab">
       <div class="res"><span>토지감정평가액</span><span class="n" id="resGyeoljeong">-</span></div>
-      <div class="card">
+      <div class="card" id="gjCard" style="max-width:720px">   <!-- 두 칸짜리 표라 화면 폭만큼 늘이지 않는다(2026-11-03) -->
         <h2>합리성 검토 및 결정</h2>
         <div class="tw"><table>
-          <tr><th>평가방법</th><th>시산가액(원)</th></tr>
-          <tr><td>공시지가기준법</td><td id="gj_a">-</td></tr>
-          <tr><td>거래사례비교법</td><td id="gj_b">-</td></tr>
-          <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_diff">-</td></tr>
-          <tr><td style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
+          <tr><th>평가방법</th><th>적용단가(원/㎡)</th><th>시산가액(원)</th></tr>
+          <tr><td>공시지가기준법</td><td id="gj_au">-</td><td id="gj_a">-</td></tr>
+          <tr><td>거래사례비교법</td><td id="gj_bu">-</td><td id="gj_b">-</td></tr>
+          <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_udiff">-</td><td class="calc-c" id="gj_diff">-</td></tr>
+          <tr><td style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_fu">-</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
         </table></div>
       </div>
     </div>
@@ -846,18 +886,19 @@
           <span id="bld_rHint" style="font-size:11px;color:#626b78"></span></div>
         <div class="tw"><table id="tblBldCalc"></table></div>
       </div>
-      </div>
-      </div>
+      <!-- 국세청 기준시가 — 재조달원가 박스와 같은 오른쪽 열·같은 너비(2026-11-03 사용자 요청) -->
       <div class="card" id="gjsCard">
         <h2>국세청 건물 기준시가</h2>
         <div id="gjsBox"><div class="hint">계산 중…</div></div>
+      </div>
+      </div>
       </div>
     </div>
 
     <!-- ═══════════ 4. 토지건물 평가액 결정 ═══════════ -->
     <div id="tab-final" class="tab">
       <div class="res"><span>감정평가액</span><span class="n" id="resFinal">-</span></div>
-      <div class="cols5050">
+      <div class="cols5050" style="align-items:start">
         <div class="card">
           <h2>감정평가액의 결정</h2>
           <div class="tw"><table>
@@ -868,9 +909,55 @@
           </table></div>
           <div class="fld" style="margin-top:8px"><label>결정의견</label><input class="box" id="fn_opinion" value="본건은 수요성·환가성·공시지가와 인근지역의 현지조사 가격수준, 토지 및 건물의 특성 등을 종합적으로 고려하여 공시지가기준법 등에 의한 시산가액을 감정평가액으로 결정하였음."></div>
         </div>
+        <!-- 청구서 — 따로 탭(8)이던 것을 평가액 결정 화면 오른쪽으로(2026-11-03 사용자 요청). id·함수 그대로 -->
+        <div id="cheonggu_sec">
+        <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
         <div class="card">
-          <h2>검산 패널</h2>
-          <div class="tw"><table id="tblCheck"></table></div>
+          <h2>표지 · 청구서 · 회보서</h2>
+          <div class="note">평가수수료는 <b>감정평가액(<span id="cg_amt">-</span>)</b>으로 자동 계산합니다 — 「감정평가법인등의 보수에 관한 기준」(2026.2.9.) 별표. 사이트에 들어갈 필요 없어요.</div>
+          <div class="cg-auto" id="cg_autoBox"></div>
+          <details id="cg_pasteBox" style="margin-top:6px"><summary style="font-size:12px;color:#64748b;cursor:pointer">수수료 계산 사이트 계산서를 직접 붙여넣기(선택 — 붙여넣으면 그 값을 씁니다)</summary>
+            <div class="note" style="margin-top:4px"><a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a> → 계산서1 복사 → 아래에 붙여넣기. 비우면 다시 자동 계산.</div>
+            <textarea id="cg_feeText" rows="4" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"></textarea>
+          </details>
+          <div class="row" style="margin-top:6px"><button type="button" class="btn gh sm" onclick="cgVerifySaved()" title="이 브라우저에 저장된 건(집합건물·입주권·토지건물)에 붙여넣어 둔 사이트 계산서를 자동 계산과 하나씩 맞춰 봅니다">🔎 기평가건으로 수수료 자동계산 검증</button></div>
+          <div id="cg_verify" class="tw" hidden style="margin-top:6px"></div>
+          <div class="row" style="margin-top:8px">
+            <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
+            <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
+              <option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select>
+            <span class="mul-x">×</span>
+            <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" title="수수료 배수(할증) — 예: 1.5. (가)평가수수료 = 요율 수수료 × 배수(천원 미만 절사). 이 값을 고치면 특별용역비 배수도 같은 값으로 따라갑니다." oninput="cgFeeMulIn(this.value)">
+            <span class="hint" id="cg_mulNote" style="margin-left:2px"></span>
+            <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
+            <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한·상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
+              <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option><option value="상한-기준">상한-기준</option></select>
+            <span class="hint" id="cg_feeState">계산서 붙여넣으면 평가수수료 자동입력</span>
+          </div>
+          <div class="tw" style="margin-top:8px"><table id="cg_table">
+            <tr><th colspan="2">과　목</th><th style="width:190px">금　액</th></tr>
+            <tr><td class="cg-g">(가)</td><td class="cg-n">평가수수료</td><td class="cg-v" id="cgv_fee">-</td></tr>
+            <tr><td class="cg-g" rowspan="6">(나)<br>실비</td>
+              <td class="cg-n">여　비<span class="cg-undo" id="cgUndoTravel" title="소재지 기준 여비 자동값으로 복원" onclick="cgResetTravel()">↺</span></td>
+              <td class="cg-in"><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></td></tr>
+            <tr><td class="cg-n">물건조사비</td><td class="cg-in"><input type="text" id="cg_survey" placeholder="15,000"></td></tr>
+            <tr><td class="cg-n">공부발급비</td><td class="cg-in"><input type="text" id="cg_doc" placeholder="15,000"></td></tr>
+            <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
+            <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
+              <td class="cg-in"><div class="mul-row">
+                <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한·상한-기준이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
+                <span class="mul-x" id="cg_specialMulX">×</span>
+                <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다. 직접입력 방식에서는 쓰이지 않습니다." oninput="CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();">
+              </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(자동값은 천원 단위 반올림 — 예: 755,897 → 756,000. 원 단위로 되돌리려면 755,897처럼 직접 입력). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
+            <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
+            <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
+            <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
+            <tr><td colspan="2" class="cg-s">총　계</td><td class="cg-v big" id="cgv_total">-</td></tr>
+            <tr><td colspan="2" class="cg-s">기납부착수금</td><td class="cg-in"><input type="text" id="cg_downPayment" placeholder="1,000,000"></td></tr>
+            <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
+          </table></div>
+          <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
+        </div>
         </div>
       </div>
     </div>
@@ -959,56 +1046,6 @@
       </div>
     </div>
 
-    <!-- ═══════════ 8. 청구서 다운로드 (한글 hwpx) — 집합건물 청구서와 동일 양식·계산 ═══════════ -->
-    <div id="tab-cheonggu" class="tab">
-      <div class="res"><span>정산청구액</span><span class="n" id="resCheonggu">-</span></div>
-      <div class="card">
-        <h2>표지 · 청구서 · 회보서</h2>
-        <div class="note">평가수수료는 <b>감정평가액(<span id="cg_amt">-</span>)</b>으로 자동 계산합니다 — 「감정평가법인등의 보수에 관한 기준」(2026.2.9.) 별표. 사이트에 들어갈 필요 없어요.</div>
-        <div class="cg-auto" id="cg_autoBox"></div>
-        <details id="cg_pasteBox" style="margin-top:6px"><summary style="font-size:12px;color:#64748b;cursor:pointer">수수료 계산 사이트 계산서를 직접 붙여넣기(선택 — 붙여넣으면 그 값을 씁니다)</summary>
-          <div class="note" style="margin-top:4px"><a href="https://xn--989a00af8jnslv3dba.com/%EA%B0%90%EC%A0%95%ED%8F%89%EA%B0%80%EC%88%98%EC%88%98%EB%A3%8C" target="_blank" rel="noreferrer" style="color:#2563eb;font-weight:600">수수료 계산 사이트</a> → 계산서1 복사 → 아래에 붙여넣기. 비우면 다시 자동 계산.</div>
-          <textarea id="cg_feeText" rows="4" style="width:100%;font:inherit;font-size:12px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;margin-top:6px;resize:vertical" placeholder="여기에 계산서1 전체를 붙여넣으세요 (하한 수수료/기준 수수료 줄 포함)"></textarea>
-        </details>
-        <div class="row" style="margin-top:6px"><button type="button" class="btn gh sm" onclick="cgVerifySaved()" title="이 브라우저에 저장된 건(집합건물·입주권·토지건물)에 붙여넣어 둔 사이트 계산서를 자동 계산과 하나씩 맞춰 봅니다">🔎 기평가건으로 수수료 자동계산 검증</button></div>
-        <div id="cg_verify" class="tw" hidden style="margin-top:6px"></div>
-        <div class="row" style="margin-top:8px">
-          <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
-          <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
-            <option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select>
-          <span class="mul-x">×</span>
-          <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" title="수수료 배수(할증) — 예: 1.5. (가)평가수수료 = 요율 수수료 × 배수(천원 미만 절사). 이 값을 고치면 특별용역비 배수도 같은 값으로 따라갑니다." oninput="cgFeeMulIn(this.value)">
-          <span class="hint" id="cg_mulNote" style="margin-left:2px"></span>
-          <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
-          <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한·상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
-            <option value="직접입력">직접입력</option><option value="상한-하한">상한-하한</option><option value="기준-하한">기준-하한</option><option value="상한-기준">상한-기준</option></select>
-          <span class="hint" id="cg_feeState">계산서 붙여넣으면 평가수수료 자동입력</span>
-        </div>
-        <div class="tw" style="margin-top:8px"><table id="cg_table">
-          <tr><th colspan="2">과　목</th><th style="width:190px">금　액</th></tr>
-          <tr><td class="cg-g">(가)</td><td class="cg-n">평가수수료</td><td class="cg-v" id="cgv_fee">-</td></tr>
-          <tr><td class="cg-g" rowspan="6">(나)<br>실비</td>
-            <td class="cg-n">여　비<span class="cg-undo" id="cgUndoTravel" title="소재지 기준 여비 자동값으로 복원" onclick="cgResetTravel()">↺</span></td>
-            <td class="cg-in"><input type="text" id="cg_travel" placeholder="소재지 기준 자동"></td></tr>
-          <tr><td class="cg-n">물건조사비</td><td class="cg-in"><input type="text" id="cg_survey" placeholder="15,000"></td></tr>
-          <tr><td class="cg-n">공부발급비</td><td class="cg-in"><input type="text" id="cg_doc" placeholder="15,000"></td></tr>
-          <tr><td class="cg-n">기타실비</td><td class="cg-in"><input type="text" id="cg_etc" placeholder="0"></td></tr>
-          <tr><td class="cg-n">특별용역비<span class="cg-undo" id="cgUndoSpecial" title="수수료 차액 자동값으로 복원" onclick="cgResetSpecial()" hidden>↺</span></td>
-            <td class="cg-in"><div class="mul-row">
-              <input type="text" id="cg_special" placeholder="0" title="직접입력이면 이 금액이 그대로 청구서에 나갑니다(배수 없음). 상한-하한·기준-하한·상한-기준이면 계산서 수수료 차액이 채워지고 × 배수 = 적용액이 아래에 뜹니다.">
-              <span class="mul-x" id="cg_specialMulX">×</span>
-              <input type="text" id="cg_specialMul" class="mul-in" placeholder="1" title="특별용역비 배수(할증) — 예: 1.5. 수수료 배수를 고치면 이 칸도 같은 값으로 따라오고, 그 뒤 따로 고칠 수 있습니다. 직접입력 방식에서는 쓰이지 않습니다." oninput="CG_SPECIAL_MANUAL=false;renderCheonggu();saveForm();">
-            </div><div class="mul-eq" id="cg_specialEq" style="text-align:right" hidden>= <input type="text" id="cg_specialApplied" class="mul-in" style="width:96px;text-align:right" title="청구서에 나가는 특별용역비. 차액 × 배수로 자동 채워지며 그대로 고칠 수 있습니다(자동값은 천원 단위 반올림 — 예: 755,897 → 756,000. 원 단위로 되돌리려면 755,897처럼 직접 입력). 차액이나 배수를 다시 고치면 자동값으로 돌아갑니다."> 원</div></td></tr>
-          <tr><td class="cg-n">소　계</td><td class="cg-v" id="cgv_sub">-</td></tr>
-          <tr><td colspan="2" class="cg-s">합계 (가 + 나)</td><td class="cg-v big" id="cgv_sum">-</td></tr>
-          <tr><td colspan="2" class="cg-s">부가가치세</td><td class="cg-v" id="cgv_vat">-</td></tr>
-          <tr><td colspan="2" class="cg-s">총　계</td><td class="cg-v big" id="cgv_total">-</td></tr>
-          <tr><td colspan="2" class="cg-s">기납부착수금</td><td class="cg-in"><input type="text" id="cg_downPayment" placeholder="1,000,000"></td></tr>
-          <tr><td colspan="2" class="cg-s">정산청구액</td><td class="cg-v big" id="cgv_due">-</td></tr>
-        </table></div>
-        <div class="row" style="margin-top:10px"><button class="btn" id="btnCheonggu" onclick="downloadCheonggu()" disabled>📄 99. 청구서 (.hwpx) 받기</button></div>
-      </div>
-    </div>
     <!-- 하단 ← 이전 / 다음 → (집합건물과 동일) — 토지평가 세 단계도 차례로 지난다 -->
     <div class="stepnav"><button type="button" class="prev" id="btnPrevTab" onclick="stepTab(-1)" hidden>← 이전</button><button type="button" class="next" id="btnNextTab" onclick="stepTab(1)">다음 →</button></div>
   </div>
@@ -1142,6 +1179,14 @@ function latestRecord(fields){var best=null;fields.forEach(function(f){
   if((f.stdrYear||'')===(best.stdrYear||'')&&(f.lastUpdtDt||'')>(best.lastUpdtDt||''))best=f;
 });return best;}
 function searchPnu(query,key){
+  // 도로명주소(「갯벌로 72」)도 받는다 — arap_addr.js가 도로명 → 지번 → PNU로 바꿔 줌(2026-11-15)
+  if(window.ArapAddr)return ArapAddr.resolve(query,function(q,cat){
+    return callApi(API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(q)+'&type=address&category='+cat+'&format=json&errorformat=json&key='+key)
+      .then(function(d){var r=d&&d.response;return (r&&r.status==='OK'&&r.result&&r.result.items)||[];});
+  }).then(function(h){
+    if(!h.length)throw new Error('주소를 찾지 못했습니다: '+query+' (지번은 「송도동 7-14」, 도로명은 「연수구 갯벌로 72」처럼)');
+    return {pnu:h[0].id,addr:h[0].addr,road:h[0].road||''};
+  });
   var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(query)+'&type=address&category=parcel&format=json&errorformat=json&key='+key;
   return callApi(url).then(function(d){
     var resp=d&&d.response;
@@ -1154,7 +1199,7 @@ function searchPnu(query,key){
 function nedUrl(op,pnu,key){return API_BASE+'/ned/data/'+op+'?key='+key+'&pnu='+pnu+'&format=json&numOfRows=100&pageNo=1';}
 function queryParcel(query,key){
   var out={};
-  return searchPnu(query,key).then(function(s){out.pnu=s.pnu;out.addr=s.addr;
+  return searchPnu(query,key).then(function(s){out.pnu=s.pnu;out.addr=s.addr;out.road=s.road||'';
     return callApi(nedUrl('getLandCharacteristics',s.pnu,key));
   }).then(function(d){
     var fields=(d&&d.landCharacteristicss&&d.landCharacteristicss.field)||[];
@@ -1218,6 +1263,86 @@ function setIldanji(v){
   if(MAPV)mapOpen();   // 위치도를 이미 열었으면 본건 이름표(하나/여럿)를 바로 다시 그린다
 }
 function isLandGroup(){return SAJ_MODE.land==='group';}
+// ── 묶음 용도지역별 나누기 (2026-10-29) ──
+// 일단지(묶음)인데 용도지역이 둘로 걸치면 지번과 상관없이 묶은 면적을 용도지역별로 나눠(일반상업 59.7 / 3종일주 41.6)
+// 각각 표준지·개별요인·그 밖의 요인·단가를 따로 산정한다. 나눈 구역은 GZONES(건별 저장) — 필지(LANDS)와 별개라
+// 명세표·요항표·위치도의 필지 줄은 그대로다. 평가하는 줄을 가리키는 키: 필지 = LANDS 번호(숫자), 구역 = 'z0'·'z1'(글자).
+var GZONES=[];
+function zoneMode(){return isLandGroup()&&GZONES.length>1;}
+function isZoneKey(k){return typeof k==='string'&&k.charAt(0)==='z';}
+function rowObj(k){return isZoneKey(k)?GZONES[+k.slice(1)]:LANDS[k];}
+function rowRef(k){return isZoneKey(k)?'GZONES['+(+k.slice(1))+']':'LANDS['+k+']';}   // 표 안 입력칸 oninput에 쓰는 이름
+function rowArg(k){return isZoneKey(k)?'\''+k+'\'':String(k);}                      // 함수 인자로 넘길 때
+function zoneName(k){var Z=GZONES[k]||{};return String(Z.name||'').trim()||('구역'+(k+1));}
+function rowNo(k){return isZoneKey(k)?zoneName(+k.slice(1)):isGrpKey(k)?groupWord():landNo(k);}
+// 평가하는 줄의 키 — 구역으로 나눴으면 구역들, 아니면 종전처럼 필지 전부(평가외·묶기 대표는 부르는 쪽이 거른다)
+// 묶기(나누지 않음)면 대표 필지 하나 + 묶음 밖 필지, 용도지역별로 나눴으면 구역들 + 묶음 밖 필지
+function evalKeys(){
+  if(!isLandGroup())return LANDS.map(function(_,i){return i;});
+  var gk=zoneMode()?GZONES.map(function(_,k){return 'z'+k;}):[grpRep()],out=[],put=false;
+  LANDS.forEach(function(L,i){if(!grpIn(L))out.push(i);else if(!put){put=true;out=out.concat(gk);}});   // 묶음 줄은 첫 묶음 필지 자리에
+  return out;}
+// 이 키가 묶음 대표 줄인지(나누지 않은 묶기) — 표 첫 칸 「일단지」·입력은 묶음 전체에
+function isGrpKey(k){return isLandGroup()&&!zoneMode()&&!isZoneKey(k)&&k===grpRep();}
+// 구역 면적 — 적은 값, 마지막 구역을 비우면 묶은 면적 − 나머지 구역(자동)
+function zoneAreaAuto(k){if(k!==GZONES.length-1)return 0;var s=0;GZONES.forEach(function(Z,q){if(q!==k)s+=num(Z.area)||0;});
+  var r=roundArea(groupTotal()-s);return r>0?r:0;}
+function zoneArea(k){var v=num((GZONES[k]||{}).area);return v?v:zoneAreaAuto(k);}
+// ── 묶음 지분 (2026-10-29) ── 일단지를 묶고(용도지역별로 나눠도) 그 지분만 평가 — 평가면적 = 묶은(구역) 면적 × 지분.
+// 「그 밖의 사항」 지분 문구는 지분입력과 같은 문장(etcShareLabel → etcSyncShare)
+var GROUP_SHARE='';
+function groupShare(){var p=parseShare(GROUP_SHARE);return p>0?p/100:1;}
+function groupShareLabel(){return shareLabel({'지분':GROUP_SHARE});}
+function zoneEvalArea(k){return roundArea(zoneArea(k)*groupShare());}
+function grpSumText(){return fmtArea(groupTotal())+(groupShare()!==1?' (지분 '+groupShareLabel()+' → 평가 '+fmtArea(groupEvalTotal())+')':'');}
+function groupEvalTotal(){return roundArea(groupTotal()*groupShare());}
+// 필지들의 용도지역 칸에서 이름 후보(「일반상업지역, 제3종일반주거지역」 → 둘)
+function zoneUseList(){var out=[];landParcels().forEach(function(L){String(L['용도지역']||'').split(/[,，·\/]|\s{2,}/).forEach(function(s){s=s.trim();if(s&&out.indexOf(s)<0)out.push(s);});});return out;}
+function newZone(name){var L0=LANDS[0]||{};
+  var Z={name:name||'',area:'',stdIdx:L0.stdIdx||0,gf:landFactors(L0).slice(),gaf:landGaFactors(L0).slice()};
+  ['gop','gaop','etcPick','gaPick'].forEach(function(p){if(L0[p]!=null)Z[p]=L0[p];});return Z;}
+function zoneMemSplice(at,del,add){TRADES.forEach(function(c){var m=c&&c.gaMem;if(!m)return;
+  ['zgaf','zgaApply','zgaop'].forEach(function(p){if(!Array.isArray(m[p]))return;if(add)m[p].splice(at,0,null);else m[p].splice(at,del);});});}
+function addZones(){
+  try{histFlush();}catch(e){console.error('undo flush',e);}
+  if(GZONES.length<2){var nm=zoneUseList();if(nm.length<2)nm=[nm[0]||'',''];
+    GZONES=nm.map(newZone);TRADES.forEach(function(c){if(c&&c.gaMem){delete c.gaMem.zgaf;delete c.gaMem.zgaApply;delete c.gaMem.zgaop;}});}
+  else{GZONES.push(newZone(''));zoneMemSplice(GZONES.length-1,0,true);}
+  renderLands();calcGongsi();saveForm();sd();
+}
+function delZone(k){
+  if(!GZONES[k])return;
+  try{histFlush();}catch(e){console.error('undo flush',e);}   // 지우기 직전 상태를 되돌리기 기록에
+  if(GZONES.length<=2){if(!confirm('용도지역별 나누기를 끝내고 묶음 한 줄로 평가할까요?')){return;}GZONES=[];}
+  else{GZONES.splice(k,1);zoneMemSplice(k,1,false);}
+  renderLands();calcGongsi();saveForm();sd();
+}
+// 구역 이름·면적 입력 — 본건 토지 표는 다시 그리지 않는다(입력 중 커서·한글 조합 유지). 자동 면적 안내만 바꾼다
+function zoneChanged(){calcGongsi();saveForm();sd();zoneHints();}
+function zoneHints(){
+  var last=GZONES.length-1,el=document.querySelector('#landTbl input.zone-ar[data-k="'+last+'"]');
+  if(el)el.placeholder=zoneAreaAuto(last)?fmtArea(zoneAreaAuto(last))+' (자동)':'면적';
+  var sh=groupShare()!==1;   // 지분이면 구역마다 「→ 지분 면적」
+  document.querySelectorAll('#landTbl .zone-ev').forEach(function(e){var k=+e.dataset.k;e.textContent=sh?'→ '+fmtArea(zoneEvalArea(k)):'';});
+  var ss=document.getElementById('landSajSum');if(ss)ss.textContent=grpSumText();
+  var gs=document.getElementById('grpShareHint');if(gs)gs.textContent=groupShare()!==1?'평가 '+fmtArea(groupEvalTotal())+'㎡':'';
+  var h=document.getElementById('zoneSumHint');if(!h)return;
+  var s=0;GZONES.forEach(function(_,k){s+=zoneArea(k);});s=roundArea(s);var t=groupTotal(),ok=Math.abs(s-t)<0.00005;
+  h.style.color=ok?'#64748b':'#b91c1c';h.textContent=ok?'합계 '+fmtArea(s)+'㎡ = 묶은 면적':'⚠ 합계 '+fmtArea(s)+'㎡ ≠ 묶은 면적 '+fmtArea(t)+'㎡';
+}
+var ZONE_TITLE='용도지역별 나누기 — 묶은 면적이 용도지역 두 개 이상에 걸치면 지번과 상관없이 용도지역별 면적으로 나눠, 각각 표준지·개별요인·그 밖의 요인·단가를 따로 산정합니다. 마지막 줄 면적을 비우면 묶은 면적 − 나머지로 자동.';
+function zoneCell(rows){
+  var h='<td class="zone-c" rowspan="'+rows+'" title="'+ZONE_TITLE+'">';
+  if(GZONES.length<2)return h+'<button class="btn gh sm" style="white-space:nowrap" onclick="addZones()">＋ 용도지역별 나누기</button></td>';
+  var dl='<datalist id="zoneUseDl">'+zoneUseList().map(function(s){return '<option value="'+esc(s)+'">';}).join('')+'</datalist>';
+  return h+dl+GZONES.map(function(Z,k){
+    return '<div class="zone-r"><input class="zone-nm" value="'+esc(Z.name)+'" placeholder="용도지역" list="zoneUseDl" aria-label="구역 '+(k+1)+' 용도지역"'
+      +' oninput="GZONES['+k+'].name=this.value;zoneChanged();">'
+      +'<input class="zone-ar" data-k="'+k+'" value="'+esc(Z.area)+'" placeholder="'+(zoneAreaAuto(k)?fmtArea(zoneAreaAuto(k))+' (자동)':'면적')+'" aria-label="구역 '+(k+1)+' 면적"'
+      +' oninput="GZONES['+k+'].area=this.value;zoneChanged();"><span class="hint">㎡</span><span class="hint zone-ev" data-k="'+k+'" style="color:#1d4ed8;white-space:nowrap"></span>'
+      +'<span class="del" title="이 줄 삭제" onclick="delZone('+k+')">✕</span></div>';}).join('')
+    +'<div class="zone-r"><button class="btn gh sm" style="padding:0 6px;font-size:11px" onclick="addZones()">＋ 줄</button><span id="zoneSumHint" class="hint" style="font-size:11px"></span></div></td>';
+}
 // ── 평가구분: 구분평가 · 평가외 (2026-10-19) ──
 // 한 필지 안에서 일부(선하지·하천 저촉·도로 등)만 단가를 달리하거나(구분평가) 빼는(평가외) 경우, 그 부분을
 // 원 필지 바로 아래 「부분 줄」(L.sub)로 둔다. 부분 줄은 공부면적이 없고(원 필지에 한 번만) 사정면적·개별요인·단가·비고만 따로 —
@@ -1279,33 +1404,47 @@ function removeLandRow(i){
 }
 function landPartChanged(i){recalcParentSaj(landParentIdx(i));landChanged();etcSyncGubun();}
 function landGongbuSum(){var s=0;LANDS.forEach(function(L){s+=num(L['면적'])||0;});return roundArea(s);}
-function recalcGroupArea(){var s=landGongbuSum();GROUP_AREA=s?String(s):'';}
-function groupTotal(){var v=num(GROUP_AREA);return v?v:landGongbuSum();}
-// 묶은 면적을 필지별로 안분 — 마지막 필지가 잔여를 흡수해 합계가 묶은 면적과 정확히 같다
+// ── 묶음에 넣을 필지 고르기 (2026-10-29) ── 본건 필지 중 일부만 일단지로 묶는 건(246-2·247-2는 따로, 247-1·247-3만 일단지).
+// 필지마다 L.noGrp=true면 묶음에서 뺀 필지 — 일반 필지처럼 따로 평가한다. 표시가 없으면 묶음에 든다(종전 저장건 그대로).
+function grpIn(L){return !!L&&!isSub(L)&&!L.noGrp;}
+function grpIdx(){var o=[];LANDS.forEach(function(L,i){if(grpIn(L))o.push(i);});return o;}
+function grpRep(){var g=grpIdx();return g.length?g[0]:0;}   // 묶음 대표 필지(표준지·개별요인·단가를 담는 줄)
+function isGrpRow(i){return isLandGroup()&&grpIn(LANDS[i]);}
+function partialGroup(){return isLandGroup()&&grpIdx().length<LANDS.length;}
+function grpGongbuSum(){var s=0;grpIdx().forEach(function(i){s+=num(LANDS[i]['면적'])||0;});return roundArea(s);}
+function setGrpIn(i,v){
+  var L=LANDS[i];if(!L)return;
+  if(!v&&grpIdx().length<=2&&grpIn(L)){alert('묶음에는 필지가 둘 이상 있어야 합니다.\n묶지 않으려면 사정면적 열 머리를 「직접입력」으로 바꿔 주세요.');renderLands();return;}
+  try{histFlush();}catch(e){console.error('undo flush',e);}
+  if(v)delete L.noGrp;else L.noGrp=true;
+  recalcGroupArea();renderLands();calcGongsi();saveForm();sd();renderYohangLands();if(MAPV)mapOpen();
+}
+function recalcGroupArea(){var s=grpGongbuSum();GROUP_AREA=s?String(s):'';}
+function groupTotal(){var v=num(GROUP_AREA);return v?v:grpGongbuSum();}
+// 묶은 면적을 묶음 필지별로 안분 — 마지막 묶음 필지가 잔여를 흡수해 합계가 묶은 면적과 정확히 같다(묶음 밖 필지는 0)
 function groupSplit(){
-  var tot=groupTotal(),gs=LANDS.map(function(L){return num(L['면적'])||0;});
-  var sum=gs.reduce(function(a,b){return a+b;},0);
-  if(!tot)return gs.map(function(){return 0;});
-  if(!sum)return gs.map(function(_,i){return i===0?tot:0;});
-  var out=gs.map(function(g){return roundArea(tot*g/sum);});
-  var acc=out.reduce(function(a,b){return a+b;},0);
-  out[out.length-1]=roundArea(out[out.length-1]+(tot-acc));
+  var tot=groupEvalTotal(),gi=grpIdx(),out=LANDS.map(function(){return 0;});
+  if(!tot||!gi.length)return out;
+  var sum=0;gi.forEach(function(i){sum+=num(LANDS[i]['면적'])||0;});
+  if(!sum){out[gi[0]]=tot;return out;}
+  var acc=0;gi.forEach(function(i){out[i]=roundArea(tot*(num(LANDS[i]['면적'])||0)/sum);acc+=out[i];});
+  var last=gi[gi.length-1];out[last]=roundArea(out[last]+(tot-acc));
   return out;
 }
-// 묶기 모드에서는 첫 필지 값(표준지·개별요인·단가)이 대표 — 나머지 필지에 그대로 복사해 두면
-// 필지별로 도는 계산(명세표·의견서)도 같은 단가로 나온다.
+// 묶기 모드에서는 대표 필지 값(표준지·개별요인·단가)이 대표 — 나머지 묶음 필지에 그대로 복사해 두면
+// 필지별로 도는 계산(명세표·의견서)도 같은 단가로 나온다. 묶음 밖 필지는 건드리지 않는다.
 function syncGroupRep(){
   if(!isLandGroup())return;
-  var L0=LANDS[0];if(!L0)return;
+  var r=grpRep(),L0=LANDS[r];if(!L0)return;
   var std=L0.stdIdx||0,gf=landFactors(L0).slice(),gaf=landGaFactors(L0).slice();
-  LANDS.forEach(function(L,i){if(!i)return;
+  grpIdx().forEach(function(i){if(i===r)return;var L=LANDS[i];
     L.stdIdx=std;L.gf=gf.slice();L.gaf=gaf.slice();L.apply=L0.apply;L.gaApply=L0.gaApply;});
 }
-function setGroupFac(kind,k,v){LANDS.forEach(function(L){(kind==='ga'?landGaFactors(L):landFactors(L))[k]=v;});}
-function setGroupApply(kind,v){LANDS.forEach(function(L){if(kind==='ga')L.gaApply=v;else L.apply=v;});}
-// 평가에 쓰는 토지 면적 — 묶기면 안분면적, 아니면 사정면적이 있으면 그 값, 없으면 공부면적
+function setGroupFac(kind,k,v){grpIdx().forEach(function(i){var L=LANDS[i];(kind==='ga'?landGaFactors(L):landFactors(L))[k]=v;});}
+function setGroupApply(kind,v){grpIdx().forEach(function(i){var L=LANDS[i];if(kind==='ga')L.gaApply=v;else L.apply=v;});}
+// 평가에 쓰는 토지 면적 — 묶음 필지면 안분면적, 아니면 사정면적이 있으면 그 값, 없으면 공부면적
 function landArea(L){
-  if(isLandGroup()){var i=LANDS.indexOf(L);if(i>=0)return groupSplit()[i]||0;}
+  if(isLandGroup()&&grpIn(L)){var i=LANDS.indexOf(L);if(i>=0)return groupSplit()[i]||0;}
   var s=num(L&&L['사정면적']);return s?s:num(L&&L['면적']);}
 // 평가에 쓰는 건물 면적 — 같은 규칙(공부면적 = 연면적)
 function bldArea(r){var s=num(r&&r['사정면적']);return s?s:num(r&&r['연면적']);}
@@ -1319,6 +1458,7 @@ function sajHead(kind){
     +(kind==='land'?'<option value="group"'+(SAJ_MODE.land==='group'?' selected':'')+'>묶기</option>':'')+'</select>';
 }
 var SAJ_TITLE='사정면적 — 값이 있으면 이 면적으로 평가액이 계산됩니다(비우면 공부면적). 지분입력으로 자동 채운 값도 자유롭게 고칠 수 있습니다.';
+var GRPIN_TITLE='묶음에 넣기 — 체크한 필지만 한 덩어리(일단지)로 묶어 평가합니다. 체크를 끄면 그 필지는 따로(일반 필지처럼) 평가합니다(예: 246-2·247-2는 따로, 247-1·247-3만 일단지).';
 var GROUP_TITLE='묶은 면적 — 필지 전체를 한 덩어리로 보고 이 면적으로 평가액이 계산됩니다. 공부면적 합계가 자동으로 채워지고 자유롭게 고칠 수 있습니다(명세표는 필지별로 안분).';
 var SHARE_TITLE='지분 — 퍼센트(50, 33.33)도 되고 분수(1/2, 3/10)도 됩니다. 넣으면 공부면적 × 지분으로 사정면적이 자동 채워지고, 「그 밖의 사항」에 지분 평가 문구(본 평가는 귀 제시 지분(1/2)만의 평가로서 …)가 자동으로 들어갑니다.';
 function setSajMode(kind,v){
@@ -1374,7 +1514,10 @@ function setFacTables(id,parts){
 }
 // 평가하는 필지를 표준지별로 묶음 [{std, daegu, idx:[필지 번호…]}] — 묶기면 한 묶음
 function facGroups(){
-  if(isLandGroup())return [{std:landStdOf(LANDS[0]),daegu:landDaegu(LANDS[0]),idx:[0]}];
+  // 묶기면 평가 줄(evalKeys — 묶음 대표 또는 구역들 + 묶음 밖 필지)을 표준지별로
+  if(isLandGroup()){var zo=[];evalKeys().forEach(function(k){var Z=rowObj(k);if(isOut(Z))return;var j=landStdOf(Z),g=zo.find(function(x){return x.std===j;});
+    if(!g){g={std:j,daegu:stdDaegu(j),idx:[]};zo.push(g);}g.idx.push(k);});
+    return zo.sort(function(a,b){return a.std-b.std;});}
   var out=[];LANDS.forEach(function(L,i){if(isOut(L))return;var j=landStdOf(L),g=out.find(function(x){return x.std===j;});
     if(!g){g={std:j,daegu:stdDaegu(j),idx:[]};out.push(g);}g.idx.push(i);});
   return out.sort(function(a,b){return a.std-b.std;});
@@ -1403,8 +1546,8 @@ function renderLands(){
   var multiStd=STDS.length>1,share=SAJ_MODE.land==='share',group=isLandGroup();
   var gb=!group;   // 평가구분 열 — 묶기와는 같이 쓰지 않으므로 묶기면 숨긴다
   var h='<tr><th>일련<br>번호</th>'+LAND_COLS.map(function(c){
-        var t='<th>'+(c==='면적'?'공부면적(㎡)':c==='공시지가'?'개별공시지가<br>(원/㎡)':c)+'</th>';
-        if(c==='면적')t+='<th style="min-width:96px">'+sajHead('land')+'</th>'+(share?'<th>지분(%)</th>':'')
+        var t=(c==='면적'&&group?'<th title="'+GRPIN_TITLE+'" style="width:40px">묶음</th>':'')+'<th>'+(c==='면적'?'공부면적(㎡)':c==='공시지가'?'개별공시지가<br>(원/㎡)':c)+'</th>';
+        if(c==='면적')t+='<th style="min-width:96px">'+sajHead('land')+'</th>'+(group?'<th title="'+ZONE_TITLE+'">용도지역별<br>나누기</th>':'')+(share?'<th>지분(%)</th>':'')
           +(gb?'<th title="'+GUBUN_TITLE+'" style="min-width:104px">평가<br>구분</th>':'');
         return t;}).join('')
        +(multiStd?'<th>적용<br>표준지</th>':'')+'<th></th></tr>';
@@ -1440,12 +1583,21 @@ function renderLands(){
         +' ondragstart="landDragStart(event,'+i+')" ondragend="landDragEnd()"><span class="grip">⠿</span> '+landNo(i)+'</td>':'<td>'+landNo(i)+'</td>')+LAND_COLS.map(function(c){
       if(c==='면적'){
         var gongbuCell='<td><input value="'+esc(L['면적'])+'" oninput="LANDS['+i+'][\'면적\']=this.value;landAreaChanged('+i+');"></td>';
-        // 묶기 — 사정면적 칸을 필지 수만큼 세로로 합친 한 칸으로 (첫 행에서만 그린다)
-        if(group)
-          return gongbuCell+(i?'':'<td class="jud-c grp-c" rowspan="'+LANDS.length+'" title="'+GROUP_TITLE+'">'
+        // 묶기 — 묶음 필지들의 사정면적 칸을 세로로 합친 한 칸으로 (첫 묶음 필지 행에서만 그린다).
+        // 묶음 체크를 끈 필지는 일반 필지처럼 사정면적 칸 + 따로 평가
+        if(group){
+          var gi=grpIdx(),contig=gi.length>0&&gi[gi.length-1]-gi[0]+1===gi.length,span=contig?gi.length:1;
+          var ck='<td class="grp-ck"><input type="checkbox"'+(grpIn(L)?' checked':'')+' title="'+GRPIN_TITLE+'" aria-label="'+landNo(i)+'번 필지 묶음에 넣기" onchange="setGrpIn('+i+',this.checked)"></td>';
+          if(!grpIn(L))return ck+gongbuCell+'<td class="jud-c"><input value="'+esc(L['사정면적'])+'" placeholder="공부면적" title="묶음 밖 필지 — 따로 평가합니다. '+SAJ_TITLE+'"'
+            +' oninput="LANDS['+i+'][\'사정면적\']=this.value;landChanged();"></td><td class="hint" style="font-size:11px">묶음 밖 — 따로 평가</td>';
+          if(i!==gi[0])return ck+gongbuCell+(contig?'':'<td colspan="2" class="hint" style="color:#b91c1c;font-size:11px">↑ 묶음 필지가 떨어져 있어요 — ⠿를 끌어 붙여 주세요</td>');
+          return ck+gongbuCell+'<td class="jud-c grp-c" rowspan="'+span+'" title="'+GROUP_TITLE+'">'
             +'<span class="grp-br"></span><div class="grp-lab">'+groupWord()+' 묶음</div>'
             +'<input class="grp-in" value="'+esc(GROUP_AREA)+'" placeholder="'+fmtArea(landGongbuSum())+'"'
-            +' oninput="GROUP_AREA=this.value;landChanged();">㎡</td>');
+            +' oninput="GROUP_AREA=this.value;landChanged();">㎡'
+            +'<div style="margin-top:4px;white-space:nowrap" title="지분만 평가할 때 — 1/2 또는 50. 평가면적 = 묶은 면적(용도지역별 면적) × 지분, 「그 밖의 사항」에 지분 문구가 자동으로 들어갑니다. 비우면 전체"><span class="hint">지분</span> '
+            +'<input class="grp-sh" value="'+esc(GROUP_SHARE)+'" placeholder="전체" style="width:52px;text-align:center" oninput="GROUP_SHARE=this.value;zoneChanged();etcSyncShare();">'
+            +'<div class="hint" id="grpShareHint" style="color:#1d4ed8"></div></div></td>'+zoneCell(span);}
         var hasSub=landSubIdx(i).length>0;
         return gongbuCell
           +'<td class="jud-c"><input value="'+esc(L['사정면적'])+'" placeholder="'+(share?'자동':'공부면적')+'" title="'+(hasSub?'나눈 줄이 있어 공부면적 − 나눈 줄 면적으로 자동 채움(직접 고칠 수 있음)':SAJ_TITLE)+'"'
@@ -1469,6 +1621,7 @@ function renderLands(){
     h+='<td><span class="del" title="필지 삭제" onclick="delLand('+i+')">✕</span></td></tr>';
   });
   setTableHtml('landTbl',h);   // 면적·사정면적 칸 입력 중 커서 유지
+  if(group)zoneHints();
   // 일단지 체크는 필지가 둘 이상일 때만 뜬다(한 필지면 뜻이 없다)
   var iw=document.getElementById('ildanjiWrap'),ib=document.getElementById('ov_ildanji');
   if(iw){iw.style.display=landParcelCount()>1?'inline-flex':'none';if(ib)ib.checked=ILDANJI;}
@@ -1479,7 +1632,7 @@ function renderLands(){
   var w=document.getElementById('landSajWrap');
   if(w){
     if(group){w.style.display='';w.firstChild.textContent=groupWord()+' 묶은 면적: ';
-      document.getElementById('landSajSum').textContent=fmtArea(groupTotal());}
+      document.getElementById('landSajSum').textContent=grpSumText()+(partialGroup()?' · 따로 평가 '+(LANDS.length-grpIdx().length)+'필지':'');}
     else{w.style.display=anySaj?'':'none';w.firstChild.textContent='사정면적 합계: ';
       document.getElementById('landSajSum').textContent=fmtArea(roundArea(j))+(o?' (평가외 '+fmtArea(roundArea(o))+')':'');}}
 }
@@ -1734,9 +1887,9 @@ function calcSijeom(){
 function bindQuery(btnId,queryId,statusId,onDone){
   document.getElementById(btnId).onclick=function(){
     var key=getKey();
-    var q=document.getElementById(queryId).value.trim();if(!q){alert('지번을 입력하세요');return;}
+    var q=document.getElementById(queryId).value.trim();if(!q){alert('지번 또는 도로명주소를 입력하세요');return;}
     var btn=this,st=document.getElementById(statusId);btn.disabled=true;st.className='status';st.textContent='조회 중… '+q;
-    queryParcel(q,key).then(function(out){onDone(extract(out),out);st.textContent='✅ 조회 완료: '+out.addr;saveForm();calcGongsi();})
+    queryParcel(q,key).then(function(out){onDone(extract(out),out);st.textContent='✅ 조회 완료: '+out.addr+(window.ArapAddr&&ArapAddr.looksRoad(q)&&out.road?'  (도로명 '+out.road+')':'');saveForm();calcGongsi();})
       .catch(function(e){console.error('조회 실패',e);st.className='status err';st.textContent='실패: '+e.message;})
       .then(function(){btn.disabled=false;});
   };
@@ -1748,7 +1901,9 @@ function fillOrPush(arr,cols,v){
   cols.forEach(function(c){if(v[c]!=null)arr[i][c]=v[c];});
   return i;
 }
-bindQuery('btnLand','landQuery','landStatus',function(v,out){
+bindQuery('btnLand','landQuery','landStatus',landFromQuery);
+// 토지 조회 결과 한 필지를 본건 토지 표에 넣는다 — 조회 버튼과 공부서류 자동 인식(arap_toji_upload.js)이 같이 쓴다
+function landFromQuery(v,out){
   var i=fillOrPush(LANDS,LAND_COLS,{소재지:v.소재지,지번:v.지번,지목:v.지목,면적:v.면적,용도지역:v.용도지역,
     이용상황:v.이용상황,도로교통:v.도로교통,형상:v.형상,지세:v.지세,공시지가:v.공시지가,비고:'-'});
   LANDS[i].pnu=(out&&out.pnu)||'';
@@ -1757,7 +1912,8 @@ bindQuery('btnLand','landQuery','landStatus',function(v,out){
   if(i===0&&LANDS[i].roadAddr&&!cgVal('bt_roadAddr').trim())document.getElementById('bt_roadAddr').value=LANDS[i].roadAddr;
   if(isLandGroup())recalcGroupArea();   // 묶기 모드에서 필지를 더 조회하면 묶음 면적도 다시 합산
   renderLands();calcGongsi();saveForm();sd();
-});
+  return i;
+}
 bindQuery('btnStd','stdQuery','stdStatus',function(v){
   fillOrPush(STDS,STD_COLS,{소재지:v.소재지,지번:v.지번,면적:v.면적,지목:v.지목,용도지역:v.용도지역,
     형상:v.형상,공시지가:v.공시지가,이용상황:v.이용상황,도로교통:v.도로교통,지세:v.지세});
@@ -1895,7 +2051,11 @@ function jbPickRegion(regs,hint){
   hint=String(hint||'').trim();if(!hint)return -1;
   var bi=-1,bs=0;
   // 접미사를 뗀 조각이 한 글자(동구→'동', 중구→'중', 남구→'남')면 동 이름과 우연히 겹치므로 무시 — "상봉동 74-6"이 "대전 동구"로 잡히는 것 방지
-  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');if(p.length>=2&&jbHasName(hint,p))score+=p.length;});if(score>bs){bs=score;bi=i;}});
+  // 단, 「중구」처럼 접미사까지 붙은 낱말이 주소에 그대로 있으면 인정 — 안 그러면 "서울특별시 중구"가 '서울'만 맞아 목록 첫 서울 지역(종로구)이 됐다(2026-10-29 사용자 제보)
+  // 주소에 없는 조각은 조금 감점 — '서울'만 맞으면 「서울 > 종로구」보다 「서울」이, 「화성시 우정읍」은 「경기 > 화성시」가 되게
+  regs.forEach(function(x,i){var score=0;x.split('>').forEach(function(p){p=p.trim().replace(/^\(구\)/,'');var s=p.replace(/(특별시|광역시|특별자치시|특별자치도|도|시|군|구)$/,'');
+    if(s.length>=2&&jbHasName(hint,s))score+=s.length;else if(s.length===1&&s!==p&&jbHasName(hint,p))score+=p.length;else score-=0.1;});
+    if(score>=1&&score>bs){bs=score;bi=i;}});
   return bi;
 }
 // 지역 이름 조각이 주소에 「그 이름으로」 들어 있는지 — 주소를 띄어쓰기로 나눈 낱말 하나가 그 이름(+시·군·구·도 등)이어야 한다.
@@ -2001,9 +2161,10 @@ function jbPrepare(st,endYm){
     var selR=document.getElementById('jb_selRegion'),selU=document.getElementById('jb_selUse');
     selR.innerHTML=regs.map(function(x){return '<option>'+x.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>';}).join('');
     selU.innerHTML=uses.map(function(x){return '<option>'+x.replace(/</g,'&lt;')+'</option>';}).join('');
-    selR.style.display='';selU.style.display='';
     var ri=jbPickRegion(regs,document.getElementById('jb_region').value);if(ri>=0)selR.selectedIndex=ri;
     var ui=jbPickUse(uses,document.getElementById('jb_use').value||'주거');if(ui>=0)selU.selectedIndex=ui;
+    document.getElementById('jb_useWrap').style.display='inline-flex';document.getElementById('jbRegTable').style.display='';
+    renderJbRegTable(true);
   })();
   return jbPrepPromise.catch(function(e){jbState.tbl=null;throw e;}).finally(function(){jbPrepPromise=null;});
 }
@@ -2040,6 +2201,8 @@ async function computeCaseTime(c,type,st,force){
   // 저장된 값의 용도가 사례 용도지역과 다르면(옛 오조회 — 계획관리 사례가 보전관리로) 다시 계산
   var ug=jbUseGroup(c.use),useOk=!m0||!ug||String(m0.use||'').indexOf(ug)>=0;
   var regOk=!jbStaleReg(m0,c.loc);   // 옛 오조회(장안면 → 수원시 장안구)면 다시 계산
+  if(staleSgg(c)){delete c.sgg;regOk=false;}   // 옛 시군구 오조회(화산리 → 강원 삼척시)도 다시
+  if(staleRegSgg(c))regOk=false;   // 서울 중구 → 종로구로 잡혔던 옛 값
   if(!force&&m0&&useOk&&regOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
   c.timeBusy=true;delete c.timeErr;refreshTradeTime();
   try{
@@ -2047,7 +2210,7 @@ async function computeCaseTime(c,type,st,force){
     var regs=jbState.regs,uses=jbState.uses;
     // 지역: 소재지에 시군구가 있으면 그대로, 없으면("상봉동 74-6") 주소 조회로 시군구를 찾아 씀(사례에 sgg로 저장). 그래도 못 찾으면 본건 시군구
     var ri=jbPickRegion(regs,c.loc);
-    if(ri<0&&c.sgg==null){if(st)st.textContent='사례 소재지의 시군구 확인 중… '+(c.loc||'');c.sgg=await caseSgg(c.loc);}
+    if(ri<0&&c.sgg==null){if(st)st.textContent='사례 소재지의 시군구 확인 중… '+(c.loc||'');c.sgg=await caseSgg(c.loc);c.sggV=2;}
     if(ri<0&&c.sgg)ri=jbPickRegion(regs,c.sgg+' '+(c.loc||''));
     if(ri<0)ri=jbPickRegion(regs,subjectSgg());
     if(ri<0)ri=regs.indexOf(document.getElementById('jb_selRegion').value);
@@ -2066,6 +2229,8 @@ async function computeCaseTime(c,type,st,force){
 async function autoEtcTime(force){
   var st=document.getElementById('jbStatus'),eIn=document.getElementById('eTime');
   var type=ETC.type,idx=ETC.idx,c=etcCase();if(!c)return;
+  // 표준지가 둘 이상(블록 화면)이면 위 단일 패널은 숨어 있고 블록마다 따로 계산 — 숨은 패널의 옛 사례로 상태줄을 덮지 않는다
+  if(ETC_MULTI&&!force)return;
   var tok=++etcTimeTok,mine=function(){return ETC.type===type&&ETC.idx===idx&&tok===etcTimeTok;};
   try{
     var p=computeCaseTime(c,type,st,force);
@@ -2117,17 +2282,38 @@ function sggOfAddr(addr){var out=[],ts=String(addr||'').trim().split(/\s+/);
   return out.join(' ');}
 // 사례 소재지(예 "상봉동 74-6")의 시군구를 V-World 주소검색으로 찾는다. 후보가 여럿이면 본건과 같은 시·도를 우선.
 // 실패하면 '' (호출한 쪽에서 본건 시군구로 대체). 수동 붙여넣기 단계(tryManual)는 쓰지 않는다 — 배경 작업이라 사용자에게 창을 띄우지 않기 위해.
+// 「화산리 1228」처럼 전국에 흔한 이름은 검색 상위 10건에 본건 시·도가 없을 수 있어(→ 강원 삼척시로 잡힘, 2026-10-28 사용자 제보)
+// ① 본건 시군구를 붙여 먼저 찾고 ② 안 되면 소재지만으로 찾되 본건 시·도 후보만 쓰며, 다른 시·도 후보만 여럿이면 고르지 않는다('' → 본건 시군구).
+function sidoKey(s){return String(s||'').trim().split(/\s+/)[0].replace(/(특별시|광역시|특별자치시|특별자치도|도)$/,'');}
 function caseSgg(loc){
   loc=String(loc||'').trim();if(!loc)return Promise.resolve('');
-  var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(loc)+'&type=address&category=parcel&format=json&errorformat=json&key='+getKey();
-  return tryFetch(url).catch(function(){return tryJsonp(url);}).then(function(d){
-    var items=(d&&d.response&&d.response.result&&d.response.result.items)||[];
-    var addrs=items.map(function(it){return (it.address&&(it.address.parcel||it.address.road))||it.title||'';}).filter(Boolean);
-    if(!addrs.length)return '';
-    var sido=subjectSgg().split(' ')[0]||'';
-    var pick=addrs.find(function(a){return sido&&a.indexOf(sido)===0;})||addrs[0];
-    return sggOfAddr(pick);
+  var subj=subjectSgg(),sido=sidoKey(subj);
+  var search=function(q){
+    var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(q)+'&type=address&category=parcel&format=json&errorformat=json&key='+getKey();
+    return tryFetch(url).catch(function(){return tryJsonp(url);}).then(function(d){
+      var items=(d&&d.response&&d.response.result&&d.response.result.items)||[];
+      return items.map(function(it){return (it.address&&(it.address.parcel||it.address.road))||it.title||'';}).filter(Boolean);
+    });};
+  var same=function(a){return sido&&sidoKey(a)===sido;};
+  return (subj?search(subj+' '+loc):Promise.resolve([])).catch(function(){return [];}).then(function(a1){
+    var hit=a1.find(same);if(hit)return sggOfAddr(hit);
+    return search(loc).then(function(addrs){
+      var pick=addrs.find(same)||(addrs.length===1?addrs[0]:'');
+      return pick?sggOfAddr(pick):'';
+    });
   }).catch(function(e){console.error('사례 시군구 조회',e);return '';});
+}
+// 옛 방식(위 ①② 전)으로 찾아 둔 사례 시군구가 본건과 다른 시·도면 오조회로 본다(강원 삼척시 등) → 시군구·시점수정 다시
+function staleSgg(c){return !!(c&&c.sgg&&!c.sggV&&sidoKey(subjectSgg())&&sidoKey(c.sgg)!==sidoKey(subjectSgg()));}
+// 계산해 둔 지역이 사례 시군구와 다른지 — 「서울특별시 중구」인데 '서울 종로구'로 계산된 옛 값(한 글자 구 무시 문제, 2026-10-29)
+// 사례 시군구(c.sgg, 찾지 못했으면 본건 시군구)와 소재지의 시·군·구 낱말이 계산된 지역 어디에도 없으면 다시 계산
+function staleRegSgg(c){
+  var m=c&&c.timeMeta;if(!m||!m.reg)return false;
+  var src=(c.sgg||(c.sgg===''?subjectSgg():''))+' '+(c.loc||'');
+  var toks=src.split(/\s+/).filter(function(t){return /(시|군|구)$/.test(t)&&!/(특별시|광역시|특별자치시)$/.test(t);});
+  if(!toks.length)return false;
+  var reg=m.reg.split(/\s+/).map(function(t){return t.replace(/^\(구\)/,'');});
+  return !toks.some(function(t){return reg.indexOf(t)>=0;});
 }
 // 각주용 문구: "서울특별시 중랑구 (26.01.31~26.04.14) (주거)"
 function timeMetaLabel(m){if(!m)return '';return m.reg+' ('+m.from+'~'+m.to+') ('+m.use+')';}
@@ -2145,7 +2331,41 @@ function refreshTradeTime(){
     td.textContent=tradeTimeText(c);td.classList.toggle('sel',!!usedCases().t[i]);td.classList.toggle('busy',!!c.timeBusy);});
   gaTimeNote();
 }
-document.getElementById('jb_selRegion').onchange=jbCompute;
+// 지가변동률 지역 표(2026-11-16): 긴 드롭다운 대신 시점수정 계산기 토지 탭(arm_시점수정.html renderLandTable)과 같은 표 —
+// 지역(시도 > 시 > 구)을 지역1~지역3 칸으로 한 번에, 줄 클릭 = 선택(숨은 #jb_selRegion에 값) → 바로 다시 계산. 검색칸은 낱말 모두 포함.
+// 순서: 전국 → 수도권 → 지방 → 서울 → 경기…, 시도 바로 아래 「시지역·군지역」 묶음 줄(회색). 정렬 규칙을 바꾸면 계산기 쪽도 함께
+var JB_ROOT_ORDER=['전국','수도권','지방','서울','경기','인천','부산','대구','광주','대전','울산','세종','강원','충북','충남','전북','전남','경북','경남','제주'];
+function jbRegRows(){
+  var rank=function(x){var i=JB_ROOT_ORDER.findIndex(function(k){return x.indexOf(k)===0;});return i<0?99:i;},agg=function(x){return /[시군]지역$/.test(x)?0:1;};
+  return (jbState.regs||[]).map(function(k){return {k:k,p:String(k).split('>').map(function(x){return x.trim();}).filter(Boolean)};}).sort(function(a,b){
+    var r=rank(a.p[0])-rank(b.p[0]);if(r)return r;
+    for(var i=0;i<Math.min(a.p.length,b.p.length);i++)if(a.p[i]!==b.p[i])return agg(a.p[i])-agg(b.p[i])||a.p[i].localeCompare(b.p[i],'ko');
+    return a.p.length-b.p.length;});
+}
+function renderJbRegTable(scroll){
+  var body=document.getElementById('jbRegBody'),head=document.getElementById('jbRegHead'),selEl=document.getElementById('jbRegSel');
+  var rows=jbRegRows(),cols=Math.max(1,Math.max.apply(null,rows.map(function(r){return r.p.length;}).concat([1])));
+  head.innerHTML='';body.innerHTML='';selEl.innerHTML='';
+  for(var i=0;i<cols;i++){var th=document.createElement('th');th.textContent='지역'+(i+1);head.appendChild(th);}
+  var q=document.getElementById('jbRegQ').value.trim().split(/\s+/).filter(Boolean),cur=document.getElementById('jb_selRegion').value;
+  var shown=q.length?rows.filter(function(r){return q.every(function(w){return r.p.some(function(x){return x.indexOf(w)>=0;});});}):rows;
+  var onRow=null;
+  shown.forEach(function(r){var tr=document.createElement('tr');tr.dataset.key=r.k;if(r.k===cur){tr.className='on';onRow=tr;}
+    for(var i=0;i<cols;i++){var td=document.createElement('td');td.textContent=r.p[i]||'';if(r.p[i]&&/[시군]지역$/.test(r.p[i]))td.className='agg';tr.appendChild(td);}
+    body.appendChild(tr);});
+  if(!shown.length){var tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=cols;td.className='msg';td.textContent='찾는 지역이 없습니다';tr.appendChild(td);body.appendChild(tr);}
+  var sel=rows.find(function(r){return r.k===cur;});
+  if(sel){selEl.appendChild(document.createTextNode('선택: '));var b=document.createElement('b');b.textContent=sel.p.join(' > ');selEl.appendChild(b);}
+  if(scroll&&onRow){var box=document.getElementById('jbRegBox');box.scrollTop=onRow.offsetTop-box.clientHeight/2;}
+}
+document.getElementById('jbRegBody').addEventListener('click',function(e){
+  var tr=e.target.closest('tr[data-key]');if(!tr)return;
+  var selR=document.getElementById('jb_selRegion'),k=tr.dataset.key;
+  if(![].some.call(selR.options,function(o){return o.value===k;}))return;
+  selR.value=k;renderJbRegTable();jbCompute();
+});
+document.getElementById('jbRegQ').addEventListener('input',function(){renderJbRegTable(!this.value.trim());});   // 검색칸을 비우면 고른 줄로 다시 스크롤
+document.getElementById('jb_selRegion').onchange=function(){renderJbRegTable();jbCompute();};
 document.getElementById('jb_selUse').onchange=jbCompute;
 document.getElementById('btnJb').onclick=async function(){
   var st=document.getElementById('jbStatus'),btn=this;
@@ -2262,6 +2482,10 @@ function renderTrade(){
       +(i<TRADES.length-1?'<span class="mv" title="오른쪽(#'+(i+2)+') 자리로 옮기기" onclick="moveTrade('+i+','+(i+1)+')">▶</span>':'')
       +' <span class="del" title="이 사례 비우기/삭제" onclick="delTrade('+i+')">✕</span>'
       +(i===ui?' <span class="undo" title="방금 '+(u.spliced?'삭제':'비움')+'한 거래사례 #'+(u.i+1)+'('+attr(u.data.loc||'내용 없음')+') 복구" onclick="undoTrade()">↩</span>':'')+'</th>';}).join('')+'</tr>';
+  // 의견서 표시 — 끄면 의견서 거래사례 표·위치도에서 빠진다(집건 「표시」 체크와 같은 뜻, 2026-11-03)
+  var usedT=opUsedSafe().t;opClearUsed('t',usedT);var hidT=opHiddenList('t');
+  h+='<tr><th class="rowh" title="끄면 이 사례는 의견서 거래사례 표와 위치도에 나가지 않습니다. 의견서 번호(거래사례#)는 남은 사례끼리 차례로 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다.">의견서<br>표시</th>'+TRADES.map(function(c,i){
+    return opCheckCell('t',i,hidT,usedT);}).join('')+'</tr>';
   [['토지','토지 행(토지면적)'],['건물','건물 행(건물면적·사용승인일)']].forEach(function(k){
     h+='<tr><th class="rowh" style="font-weight:600;color:#475569;font-size:11px">'+k[0]+' kais</th>'+TRADES.map(function(c,i){
       return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" data-kind="'+k[0]+'" data-i="'+i+'" title="실거래가 엑셀의 '+k[1]+'을 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워집니다" onpaste="kaisPaste(event,'+i+',\''+k[0]+'\')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
@@ -2281,10 +2505,13 @@ function renderTrade(){
   // 시점수정치: 선정할 때 계산되고, 계산된 값은 사례별로 남아 다른 사례로 옮겨도 계속 보인다
   h+='<tr><th class="rowh" title="선정 시 사례 거래일자~기준시점 지가변동률(사례 소재지·용도지역 기준). 한 번 계산되면 저장돼 계속 보임">시점<br>수정치</th>'+TRADES.map(function(c,i){
     return '<td class="tt-c'+(usedCases().t[i]?' sel':'')+(c.timeBusy?' busy':'')+'" id="tradeTime_'+i+'" style="cursor:pointer" title="누르면 이 사례의 시점수정치를 다시 계산합니다(거래일자~기준시점, 사례 소재지 기준)" onclick="redoCaseTime(\'t\','+i+',true)">'+attr(tradeTimeText(c))+'</td>';}).join('')+'</tr>';
-  // 비고: 사례별 자유 메모 (화면에서만 보이고 문서에는 나가지 않음)
-  h+='<tr><th class="rowh" title="사례에 대한 메모 — 자유롭게 적으세요. 화면에만 남고 문서에는 나가지 않습니다">비고</th>'+TRADES.map(function(c,i){
+  // 비고: 사례별 자유 메모 — 하나라도 적으면 의견서 거래사례 표 맨 아래 '비 고' 행으로 나간다(2026-10-29)
+  h+='<tr><th class="rowh" title="사례에 대한 메모 — 적으면 의견서 거래사례 표 맨 아래 \'비 고\' 행에 그대로 들어갑니다">비고</th>'+TRADES.map(function(c,i){
     return '<td><input value="'+attr(c.note||'')+'" placeholder="자유 입력" oninput="tradeIn('+i+',\'note\',this.value)"></td>';}).join('')+'</tr>';
-  document.getElementById('tblTrade').innerHTML=h;
+  var tblT=document.getElementById('tblTrade');tblT.innerHTML=h;
+  // 끈 사례 열은 흐리게(의견서 표시 칸만 또렷이)
+  hidT.forEach(function(off,i){if(!off)return;
+    Array.prototype.forEach.call(tblT.rows,function(tr){var cell=tr.cells[i+1];if(cell&&!cell.classList.contains('op-c'))cell.classList.add('op-off');});});
   renderTradePick();
   fixStaleTimeMeta();
 }
@@ -2388,16 +2615,18 @@ var APPR_COLS=[['기호','no'],['소재지','loc'],['용도지역','use'],['지�
 function apprHasData(a){return a&&['loc','use','jimok','cond','road','unit','base','purp'].some(function(k){return String(a[k]||'').trim()!=='';});}
 function renderAppr(){
   while(APPRS.length<3)APPRS.push({});   // 기본 화면은 항상 빈 3행(거래사례와 같은 규격)
-  var h='<tr><th style="width:22px"></th><th>선정</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th>'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
+  var usedA=opUsedSafe().a;opClearUsed('a',usedA);var hidA=opHiddenList('a');
+  var h='<tr><th style="width:22px"></th><th>선정</th><th title="끄면 이 사례는 의견서 평가사례 표와 위치도에 나가지 않습니다. 기호가 기본 순서(a·b·c…)면 의견서에서는 남은 사례끼리 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다." style="font-size:11px;line-height:1.15">의견서<br>표시</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th class="ac-'+c[1]+'">'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
-    h+='<tr ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
+    h+='<tr'+(hidA[i]?' class="op-off"':'')+' ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
       +'<td class="grip-c" draggable="true" title="끌어서 위아래로 옮기기 — 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다"'
       +' ondragstart="apprDragStart(event,'+i+')" ondragend="apprDragEnd()"><span class="grip">⠿</span></td>';
     h+='<td class="jud-c">'+(STDS.length>1?stdCaseSelect('etc','a',i):'<input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onclick="togEtc(\'a\','+i+')">')+'</td>';
+    h+=opCheckCell('a',i,hidA,usedA);
     h+='<td class="kp-c kp-narrow"><textarea class="kp" rows="1" cols="3" placeholder="" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
     APPR_COLS.forEach(function(c){
       var inp='<input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;'+(c[1]==='loc'?'relBtnSync(\'a\','+i+');':'')+'syncPick();calcGongsi();saveForm();">';
-      h+='<td>'+(c[1]==='loc'?'<div class="loc-w">'+inp+relBtn('a',i,a)+'</div>':inp)+'</td>';});
+      h+='<td class="ac-'+c[1]+'">'+(c[1]==='loc'?'<div class="loc-w">'+inp+relBtn('a',i,a)+'</div>':inp)+'</td>';});
     h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
   document.getElementById('tblAppr').innerHTML=h;
@@ -2411,6 +2640,38 @@ function stripOe(loc){return String(loc||'').replace(OE_RE,'').trim();}
 function hasOe(loc){return OE_RE.test(String(loc||''))&&stripOe(loc)!=='';}
 function relOf(o){return (o&&Array.isArray(o.rel))?o.rel.filter(function(p){return p&&hasV(p.jibun);}):[];}
 function caseArr(kind){return kind==='t'?TRADES:APPRS;}
+
+// ── 의견서 표시 (2026-11-03) ── 집건 사례 표 「표시」 체크처럼 사례마다 의견서에 넣을지 고른다.
+// 끈 사례는 의견서(거래사례 표·평가사례 표)와 위치도에서 빠지고, 의견서 번호는 남은 사례끼리 차례로 다시 매긴다
+// (거래사례#1·#2… / 평가사례 기호는 기본 순서 a·b·c…일 때만 — 직접 고친 기호는 그대로).
+// 저장 = 사례 객체의 _hide(밑줄 키라 '입력된 사례'로 치지 않는다). ✕로 비우면 같이 지워진다.
+// 산정에 선정된 사례(그 밖의 요인·거래사례비교법, 필지·표준지별 포함 — usedCases)는 끌 수 없다: 끈 표시가 남아 있어도 의견서에 나간다.
+function opUsedSafe(){try{return usedCases();}catch(e){return {t:{},a:{}};}}
+function opClearUsed(kind,used){caseArr(kind).forEach(function(o,i){if(o&&o._hide&&used[i])delete o._hide;});}
+function opHiddenList(kind,used){used=used||opUsedSafe()[kind];return caseArr(kind).map(function(o,i){return !!(o&&o._hide)&&!used[i];});}
+function caseHidden(kind,i){return !!opHiddenList(kind)[i];}
+// 의견서 번호 — 앞에서 끈 사례가 없으면 화면 번호 그대로(종전과 같음)
+function docTradeNo(i){var h=opHiddenList('t'),n=i+1;for(var j=0;j<i;j++)if(h[j])n--;return n;}
+function docApprNo(i){
+  var a=APPRS[i]||{},h=opHiddenList('a'),before=h.slice(0,i).filter(Boolean).length;
+  if(!before||!apprSymsAuto())return String(a.no==null?'':a.no);
+  return apprSym(i-before);
+}
+function opCheckCell(kind,i,hid,used){
+  var o=caseArr(kind)[i]||{},off=!!hid[i],lock=!!used[i];
+  var tip=lock?'산정에 선정된 사례라 의견서에서 뺄 수 없습니다(선정을 풀면 끌 수 있음)':off?'의견서·위치도에서 빠짐 — 체크하면 다시 넣습니다':'체크를 풀면 의견서·위치도에서 뺍니다';
+  var no=kind==='t'?'#'+docTradeNo(i):docApprNo(i),same=kind==='t'?docTradeNo(i)===i+1:docApprNo(i)===String(o.no==null?'':o.no);
+  var lab=kind==='t'?(off?'제외':'의견서 '+no):(off||same?'':no);
+  return '<td class="op-c'+(off?' off':'')+'" title="'+attr(tip)+'"><label><input type="checkbox" class="op-ck" '+(off?'':'checked ')+(lock?'disabled ':'')
+    +'onchange="togOpShow(\''+kind+'\','+i+',this.checked)">'+(lab?'<span>'+lab+'</span>':'')+'</label></td>';
+}
+function togOpShow(kind,i,on){
+  var o=caseArr(kind)[i];if(!o)return;
+  if(on)delete o._hide;
+  else{if(opUsedSafe()[kind][i]){alert('산정에 선정된 사례는 의견서에서 뺄 수 없습니다. 선정을 먼저 풀어 주세요.');}else o._hide=true;}
+  renderTrade();renderAppr();saveForm();
+  if(MAPV)mapOpen();   // 위치도를 이미 열었으면 바로 다시 그린다
+}
 // 지번 → 전체 주소: 「134-2」면 대표 소재지의 지번 자리만 바꾸고, 「구장리 12」처럼 마을 이름부터 적으면 그 앞(시군구·읍면)만 빌린다
 function relLoc(base,j){
   var b=stripOe(base),t=String(j||'').trim().replace(/\s+/g,' ');if(!t)return '';
@@ -2731,7 +2992,7 @@ function etcOwnRef(L){return etcRefById(L&&L.etcPick)||etcRefById((STDS[landStdO
 function etcOwn(L){return !!etcOwnRef(L);}
 function etcRefOf(L){var r=etcOwnRef(L);if(r)return r;var c=etcCase();return (c&&ETC.idx>=0)?{type:ETC.type,idx:ETC.idx,c:c}:null;}
 // 필지별로 따로 고른 사례가 하나라도 있는지(없으면 의견서·계산 모두 종전과 똑같이)
-function anyOwnCase(){return LANDS.some(function(L){return !isOut(L)&&(gaOwn(L)||etcOwn(L));});}
+function anyOwnCase(){return evalKeys().some(function(k){var L=rowObj(k);return !isOut(L)&&(gaOwn(L)||etcOwn(L));});}
 // 사례 표 「선정」 칸 — 표준지가 둘 이상이면 동그라미 대신 표준지(A·B…) 고르기. 고른 표준지를 쓰는 필지 전부에 이 사례를 쓴다.
 // kind 'etc' = 그 밖의 요인(거래사례·평가사례), 'ga' = 거래사례비교법(거래사례)
 function stdCaseSelect(kind,type,i){
@@ -2746,11 +3007,11 @@ function setStdCase(kind,type,i,v){
   if(kind==='ga')pinGaPicks();else pinEtcPicks();   // 다른 표준지 필지는 지금 쓰던 사례 그대로
   STDS.forEach(function(S){if(S[key]===cid)delete S[key];});
   if(v!==''){var j=+v;STDS[j][key]=cid;
-    LANDS.forEach(function(L){if(landStdOf(L)===j)delete L[pk];});   // 그 표준지 필지는 표준지 사례를 따른다
+    evalKeys().forEach(function(k){var L=rowObj(k);if(landStdOf(L)===j)delete L[pk];});   // 그 표준지 필지는 표준지 사례를 따른다
     if(!c.timeMeta)computeCaseTime(c,type,document.getElementById('jbStatus')).then(function(){calcGongsi();saveForm();}).catch(function(e){console.error('표준지별 사례 시점수정',e);});
   }
   renderTrade();renderAppr();calcGongsi();saveForm();
-  if(kind==='etc'&&v!==''){var li=LANDS.findIndex(function(L){return !isOut(L)&&landStdOf(L)===+v;});if(li>=0)editEtcPair(li);}   // 그 쌍을 그 밖의 요인 표에 띄움
+  if(kind==='etc'&&v!==''){var li=evalKeys().find(function(k){var L=rowObj(k);return !isOut(L)&&landStdOf(L)===+v;});if(li!=null)editEtcPair(li);}   // 그 쌍을 그 밖의 요인 표에 띄움
 }
 
 // ================= 거래사례비교법 채택 =================
@@ -2772,13 +3033,18 @@ function memFields(ids){var f={};ids.forEach(function(id){var el=document.getEle
 function memApply(f){Object.keys(f||{}).forEach(function(id){var el=document.getElementById(id);if(el&&f[id]!=null)el.value=f[id];});}
 function gaMemSave(){var c=TRADES[GA.idx];if(!c)return;
   c.gaMem={f:memFields(GA_MEM_IDS),gaf:LANDS.map(function(L){return landGaFactors(L).slice();}),gaApply:LANDS.map(function(L){return L.gaApply;}),
-    gaop:LANDS.map(function(L){return L.gaop==null?null:L.gaop;})};}
+    gaop:LANDS.map(function(L){return L.gaop==null?null:L.gaop;}),
+    // 용도지역별로 나눈 구역도 같은 방식(구역 순서 배열)
+    zgaf:GZONES.map(function(Z){return landGaFactors(Z).slice();}),zgaApply:GZONES.map(function(Z){return Z.gaApply;}),zgaop:GZONES.map(function(Z){return Z.gaop==null?null:Z.gaop;})};}
 function gaMemLoad(){var c=TRADES[GA.idx],m=c&&c.gaMem;if(!m)return false;
   memApply(m.f);
   LANDS.forEach(function(L,i){if(gaOwn(L))return;   // 사례를 따로 고른 필지는 그 사례 기준 값을 그대로 둔다(선정 사례를 바꿔도 안 바뀜)
     if(m.gaf&&m.gaf[i])L.gaf=m.gaf[i].slice();if(m.gaApply)L.gaApply=m.gaApply[i];
     // 필지별 비교의견 — 기억에 없으면(이 기능 전 기억) 지워서 공통 의견(ga_opinion, 위 memApply로 복구됨)을 보이게
     if(m.gaop&&m.gaop[i]!=null)L.gaop=m.gaop[i];else delete L.gaop;});
+  GZONES.forEach(function(Z,k){if(gaOwn(Z)||!m.zgaf)return;
+    if(m.zgaf[k])Z.gaf=m.zgaf[k].slice();if(m.zgaApply)Z.gaApply=m.zgaApply[k];
+    if(m.zgaop&&m.zgaop[k]!=null)Z.gaop=m.zgaop[k];else delete Z.gaop;});
   return true;}
 // 거래사례비교법 사례 채택 — 지금 사례의 입력을 기억해 두고, 새 사례의 기억이 있으면 복구. 시점수정은 기억값이 있으면 그대로, 없으면 자동 계산
 function pickGa(i){
@@ -2819,7 +3085,7 @@ function etcPairsUsed(rows){
   var out=[];(rows||[]).forEach(function(r,i){if(r.out||!r.etcKey)return;
     var key=r.etcKey+'|'+r.stdIdx,p=out.find(function(x){return x.key===key;});
     if(!p){p={key:key,type:r.etcKey[0],idx:+r.etcKey.slice(1),std:r.stdIdx,etc:r.etc,rows:[],own:false};out.push(p);}
-    p.rows.push(i);if(r.etcOwn)p.own=true;});
+    p.rows.push(r.key!=null?r.key:i);if(r.etcOwn)p.own=true;});   // 평가 줄 키(필지 번호 또는 구역 'z0')
   return out;
 }
 function renderEtcPairs(rows){
@@ -2830,9 +3096,9 @@ function renderEtcPairs(rows){
     var r={type:p.type,idx:p.idx,c:p.type==='t'?TRADES[p.idx]:APPRS[p.idx]},res=etcPairResult(r,p.std);
     var act=p.type===ETC.type&&p.idx===ETC.idx&&p.std===etcStdIdx();
     return '<div style="margin-top:3px">'+(act?'▶ ':'')+caseLabel(p.type,p.idx)+' ↔ 표준지 '+String.fromCharCode(65+p.std)+' : <b>'+(p.etc?p.etc.toFixed(2):'-')+'</b>'
-      +' <span style="color:#64748b">(기호 '+p.rows.map(landNo).join(', ')+')</span>'
+      +' <span style="color:#64748b">(기호 '+p.rows.map(rowNo).join(', ')+')</span>'
       +(!res.remembered&&!act?' <span style="color:#b91c1c">⚠ 아직 입력 안 함</span>':'')
-      +(act?' <span style="color:#1d4ed8">지금 위 표</span>':' <button class="btn gh sm" style="padding:0 6px" onclick="editEtcPair('+p.rows[0]+')">✎ 위 표에 띄우기</button>')+'</div>';
+      +(act?' <span style="color:#1d4ed8">지금 위 표</span>':' <button class="btn gh sm" style="padding:0 6px" onclick="editEtcPair('+rowArg(p.rows[0])+')">✎ 위 표에 띄우기</button>')+'</div>';
   }).join('');
 }
 // ── 표준지별 그 밖의 요인 블록(2026-10-21 후속) ──
@@ -2842,16 +3108,18 @@ function renderEtcPairs(rows){
 var ETC_MULTI=false,ETC_BLOCKS=[],ETC_BLK_SIG='',ETC_TIME_TRIED=new WeakSet();   // 시점수정 자동 계산은 사례마다 한 번만 시도(날짜 없음 등)
 var ETC_DEF_F={eSaj1:'',eTime:'',eArea:'1.000',eSaj2:'',eArea2:'1.000',eInd2:'',e_f1:'1.00',e_f2:'1.00',e_f3:'1.00',e_f4:'1.00',e_f5:'1.00',e_f6:'1.00',e_opinion:''};
 function etcBlocksOf(){
-  var out=[];if(isLandGroup())return out;
-  LANDS.forEach(function(L,i){if(isOut(L))return;var r=etcRefOf(L),j=landStdOf(L),key=(r?r.type+r.idx:'-')+'|'+j;
+  var out=[];
+  evalKeys().forEach(function(i){var L=rowObj(i);if(isOut(L))return;var r=etcRefOf(L),j=landStdOf(L),key=(r?r.type+r.idx:'-')+'|'+j;
     var b=out.find(function(x){return x.key===key;});
     if(!b){b={key:key,type:r?r.type:'',idx:r?r.idx:-1,std:j,rows:[]};out.push(b);}b.rows.push(i);});
-  return out.sort(function(a,b){return a.std-b.std||a.rows[0]-b.rows[0];});
+  var ek=evalKeys(),ord=function(k){return ek.indexOf(k);};
+  return out.sort(function(a,b){return a.std-b.std||ord(a.rows[0])-ord(b.rows[0]);});
 }
 // calcGongsi 맨 앞 — 표준지가 둘 이상 쓰이면 지금 선정 사례로 필지를 고정(pinEtcPicks)하고 블록 화면으로
 function etcModeSync(){
-  var stds=[];if(!isLandGroup())LANDS.forEach(function(L){if(!isOut(L)&&stds.indexOf(landStdOf(L))<0)stds.push(landStdOf(L));});
-  if(stds.length>1&&LANDS.some(function(L){return !isOut(L)&&!etcOwn(L);}))pinEtcPicks();
+  var stds=[],ks=evalKeys();
+  ks.forEach(function(k){var L=rowObj(k);if(!isOut(L)&&stds.indexOf(landStdOf(L))<0)stds.push(landStdOf(L));});
+  if(stds.length>1&&ks.some(function(k){var L=rowObj(k);return !isOut(L)&&!etcOwn(L);}))pinEtcPicks();
   var blocks=etcBlocksOf(),multi=blocks.length>1;
   if(multi&&!ETC_MULTI)etcMemSave();   // 패널에 띄워 둔 쌍의 입력을 기억으로 넘긴 뒤 블록이 그 기억을 쓴다
   ETC_MULTI=multi;ETC_BLOCKS=blocks;
@@ -2877,7 +3145,7 @@ function etcBlkInput(el){
 // 블록의 적용사례 바꾸기 — 그 블록 필지 전부에 그 사례(L.etcPick)
 function etcBlkCase(n,v){
   var b=ETC_BLOCKS[n];if(!b||!v)return;var c=v[0]==='t'?TRADES[+v.slice(1)]:APPRS[+v.slice(1)];if(!c)return;
-  pinEtcPicks();b.rows.forEach(function(i){LANDS[i].etcPick=caseId(c);});
+  pinEtcPicks();b.rows.forEach(function(i){rowObj(i).etcPick=caseId(c);});
   if(!c.timeMeta)computeCaseTime(c,v[0],document.getElementById('jbStatus')).then(function(){calcGongsi();saveForm();}).catch(function(e){console.error('그 밖의 요인 블록 시점수정',e);});
   renderTrade();renderAppr();calcGongsi();saveForm();
 }
@@ -2919,7 +3187,7 @@ function renderEtcBlocks(){
       +ETC_BLOCKS.map(function(b,n){
       var r=etcBlkRef(b),cur=r?r.type+r.idx:'',tag=String.fromCharCode(65+b.std),bd=stdDaegu(b.std);
       var head='<div class="row" style="margin-bottom:6px;gap:6px;flex-wrap:wrap"><b style="font-size:13px;color:#0f2547">■ 표준지 '+tag+'</b><span class="hint">'+bd+'</span>'
-        +'<span class="hint">(기호 '+b.rows.map(landNo).join(', ')+')</span>'
+        +'<span class="hint">(기호 '+b.rows.map(rowNo).join(', ')+')</span>'
         +'<b style="font-size:12px;margin-left:8px">적용사례</b><select class="box" style="max-width:240px" onchange="etcBlkCase('+n+',this.value)">'
         +(r?'':'<option value="" selected>(선정 안 함)</option>')
         +opts.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+esc(o[1])+'</option>';}).join('')+'</select>'
@@ -2939,7 +3207,7 @@ function renderEtcBlocks(){
         +'<td class="calc-c fixed fac ebt" data-b="'+n+'" data-t="efSum" title="자동 계산(여섯 조건의 곱)">1.000</td></tr>'
         +'<tr><th class="rowh">의견</th><td colspan="'+facSlots(bd).length+'" style="text-align:left"><input class="eb" data-b="'+n+'" data-f="e_opinion" placeholder="표준지는 '+(b.type==='t'?'거래사례':'평가사례')+'와 비교하여 …" style="text-align:left" oninput="etcBlkInput(this)"></td></tr></table></div>'
         +'<div class="tw" style="margin-top:8px"><table><tr><th>산출 비교치</th><th>결정 보정치</th><th>적용 대상토지</th></tr>'
-        +'<tr><td class="calc-c ebt" data-b="'+n+'" data-t="ratio2">-</td><td class="calc-c"><input class="eb" data-b="'+n+'" data-f="dec" placeholder="-" oninput="etcBlkInput(this)"></td><td>'+b.rows.map(landNo).join(', ')+'</td></tr></table></div></div>';
+        +'<tr><td class="calc-c ebt" data-b="'+n+'" data-t="ratio2">-</td><td class="calc-c"><input class="eb" data-b="'+n+'" data-f="dec" placeholder="-" oninput="etcBlkInput(this)"></td><td>'+b.rows.map(rowNo).join(', ')+'</td></tr></table></div></div>';
     }).join('');
   }
   // 값 채우기 — 다시 그리지 않고 칸 값만(입력 중인 칸은 건드리지 않음 → 한글 입력이 안 깨짐)
@@ -2955,9 +3223,9 @@ function renderEtcBlocks(){
 }
 // 필지별 그 밖의 요인 사례 고르기 — '' = 선정 사례 그대로
 // 처음 따로 고르는 순간 나머지 필지도 지금 쓰던 사례로 고정한다 — 그 뒤로 위 패널(ETC)은 편집용이라 바꿔도 다른 필지가 안 흔들린다
-function pinEtcPicks(){var c=etcCase();if(!c||ETC.idx<0)return;LANDS.forEach(function(L){if(!isOut(L)&&!etcOwn(L))L.etcPick=caseId(c);});}
-function pinGaPicks(){var c=TRADES[GA.idx];if(!c)return;LANDS.forEach(function(L){if(!isOut(L)&&!gaOwn(L))L.gaPick=caseId(c);});}
-function setEtcPick(i,v){var L=LANDS[i];if(!L)return;
+function pinEtcPicks(){var c=etcCase();if(!c||ETC.idx<0)return;evalKeys().forEach(function(k){var L=rowObj(k);if(!isOut(L)&&!etcOwn(L))L.etcPick=caseId(c);});}
+function pinGaPicks(){var c=TRADES[GA.idx];if(!c)return;evalKeys().forEach(function(k){var L=rowObj(k);if(!isOut(L)&&!gaOwn(L))L.gaPick=caseId(c);});}
+function setEtcPick(i,v){var L=rowObj(i);if(!L)return;
   if(v)pinEtcPicks();
   var r=v?(v[0]==='t'?{c:TRADES[+v.slice(1)]}:{c:APPRS[+v.slice(1)]}):null;
   if(r&&r.c){L.etcPick=caseId(r.c);
@@ -2970,7 +3238,7 @@ function setEtcStd(v){var c=etcCase();if(c)etcMemSave();ETC.std=v;
   var by=c&&c.etcMemBy&&c.etcMemBy[etcStdIdx()];if(by){memApply(by.f);STDS[etcStdIdx()].etcDecide=by.dec;}
   calcGongsi();saveForm();}
 // 이 필지의 사례 × 표준지 쌍을 위 그 밖의 요인 패널에 띄워 입력·확인
-function editEtcPair(i){var L=LANDS[i],r=etcRefOf(L);
+function editEtcPair(i){var L=rowObj(i),r=etcRefOf(L);
   if(ETC_MULTI){var bn=ETC_BLOCKS.findIndex(function(b){return b.rows.indexOf(i)>=0;}),be=document.getElementById('etcBlk-'+bn);if(be&&be.scrollIntoView)be.scrollIntoView({block:'center'});return;}   // 블록 화면 — 그 필지 블록으로
   if(!r)return;
   pinEtcPicks();   // 패널을 이 쌍으로 바꿔도 다른 필지는 쓰던 사례 그대로
@@ -2987,14 +3255,14 @@ function editEtcPair(i){var L=LANDS[i],r=etcRefOf(L);
   }
   var el=document.getElementById('etcPick');if(el&&el.scrollIntoView)el.scrollIntoView({block:'center'});}
 function etcPickCell(i,val){
-  var L=LANDS[i]||{},own=etcOwn(L),r=etcRefOf(L),cur=own&&r?r.type+r.idx:'';
+  var L=rowObj(i)||{},own=etcOwn(L),r=etcRefOf(L),cur=own&&r?r.type+r.idx:'';
   var opts=[];TRADES.forEach(function(c,k){if(tradeHasData(c))opts.push(['t'+k,'거래 #'+(k+1)]);});
   APPRS.forEach(function(a,k){if(apprHasData(a))opts.push(['a'+k,'평가 '+(a.no||k+1)]);});
   var txt=val?val.toFixed(2):'-';
   if(opts.length<2&&!own)return '<td>'+txt+'</td>';
   return '<td class="jud-c" style="white-space:nowrap">'+txt
-    +' <a href="javascript:void 0" title="이 필지의 사례를 위 그 밖의 요인 표에 띄워 입력·확인" onclick="editEtcPair('+i+')" style="text-decoration:none">✎</a>'
-    +'<br><select class="std-pick" title="이 필지에 쓸 그 밖의 요인 사례 — 「선정」은 위에서 고른 사례" onchange="setEtcPick('+i+',this.value)">'
+    +' <a href="javascript:void 0" title="이 필지의 사례를 위 그 밖의 요인 표에 띄워 입력·확인" onclick="editEtcPair('+rowArg(i)+')" style="text-decoration:none">✎</a>'
+    +'<br><select class="std-pick" title="이 필지에 쓸 그 밖의 요인 사례 — 「선정」은 위에서 고른 사례" onchange="setEtcPick('+rowArg(i)+',this.value)">'
     +'<option value=""'+(own?'':' selected')+'>선정</option>'
     +opts.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===cur?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></td>';
 }
@@ -3023,34 +3291,36 @@ function pickEtc(type,idx){
 // 아직 안 적은 필지(gop 없음)는 예전 공통 의견(g_opinion)을 보여 준다.
 function landGop(L){L=L||{};if(L.gop!=null)return L.gop;var g=document.getElementById('g_opinion');return g?g.value:'';}
 function gopRow(i,span){
-  return '<tr><td colspan="'+(span||8)+'" style="text-align:left"><input value="'+esc(landGop(LANDS[i]))+'" placeholder="본건은 비교표준지와 비교하여 …" aria-label="'+landNo(i)+'번 필지 비교의견" style="text-align:left" oninput="LANDS['+i+'].gop=this.value;saveForm();"></td></tr>';
+  return '<tr><td colspan="'+(span||8)+'" style="text-align:left"><input value="'+esc(landGop(rowObj(i)))+'" placeholder="본건은 비교표준지와 비교하여 …" aria-label="'+rowNo(i)+'번 필지 비교의견" style="text-align:left" oninput="'+rowRef(i)+'.gop=this.value;saveForm();"></td></tr>';
 }
 // 본건-거래사례 개별요인 비교의견 — 공시지가기준법과 같은 방식(LANDS[i].gaop, 없으면 예전 공통 의견 ga_opinion)
 function landGaop(L){L=L||{};if(L.gaop!=null)return L.gaop;var g=document.getElementById('ga_opinion');return g?g.value:'';}
 function gaopRow(i,span){
-  return '<tr><td colspan="'+(span||8)+'" style="text-align:left"><input value="'+esc(landGaop(LANDS[i]))+'" placeholder="본건은 거래사례와 비교하여 …" aria-label="'+landNo(i)+'번 필지 거래사례 비교의견" style="text-align:left" oninput="LANDS['+i+'].gaop=this.value;saveForm();"></td></tr>';
+  return '<tr><td colspan="'+(span||8)+'" style="text-align:left"><input value="'+esc(landGaop(rowObj(i)))+'" placeholder="본건은 거래사례와 비교하여 …" aria-label="'+rowNo(i)+'번 필지 거래사례 비교의견" style="text-align:left" oninput="'+rowRef(i)+'.gaop=this.value;saveForm();"></td></tr>';
 }
 // 개별요인비교 표 「비교표준지」 칸 — 표준지가 둘 이상이면 여기서도 고른다(대상물건 개요 「적용 표준지」와 같은 값)
 function stdPickCell(i,group){
-  var L=LANDS[i]||{},cur=Math.min(L.stdIdx||0,STDS.length-1),tag=String.fromCharCode(65+cur);
+  var L=rowObj(i)||{},cur=Math.min(L.stdIdx||0,STDS.length-1),tag=String.fromCharCode(65+cur);
   if(STDS.length<2)return '<td>'+tag+'</td>';
-  return '<td class="jud-c"><select class="std-pick" title="이 필지와 비교할 표준지" onchange="setLandStd('+i+','+(group?1:0)+',+this.value)">'
+  return '<td class="jud-c"><select class="std-pick" title="이 필지와 비교할 표준지" onchange="setLandStd('+rowArg(i)+','+(group?1:0)+',+this.value)">'
     +STDS.map(function(S,j){return '<option value="'+j+'"'+(j===cur?' selected':'')+'>'+String.fromCharCode(65+j)+'</option>';}).join('')+'</select></td>';
 }
 function setLandStd(i,group,v){
-  if(group)LANDS.forEach(function(L){L.stdIdx=v;});else if(LANDS[i])LANDS[i].stdIdx=v;
+  if(group)grpIdx().forEach(function(q){LANDS[q].stdIdx=v;});else if(rowObj(i))rowObj(i).stdIdx=v;
   renderLands();calcGongsi();saveForm();if(MAPV)mapRestyle();
 }
 // 본건/표준지 개별요인 표 — 표준지별로 표를 나누고, 열은 그 표준지 지대의 조건만(임야지대 = 접근·자연·행정·기타)
+function zoneHeadCell(i,span){return '<td rowspan="'+(span||1)+'" style="white-space:nowrap" title="'+groupWord()+' 중 '+esc(rowNo(i))+' 부분">'+groupWord()+'<br>'+esc(rowNo(i))+'</td>';}
 function renderGaebyeol(){
-  var group=isLandGroup(),gs=facGroups();
+  var gs=facGroups();
   var parts=gs.map(function(g){
     var d=g.daegu,sl=facSlots(d),h=facHead('비교<br>표준지',d);
-    g.idx.forEach(function(i){var L=LANDS[i],f=landFactors(L);
-      var first=group?'<td rowspan="2" style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td>'
+    g.idx.forEach(function(i){var L=rowObj(i),f=landFactors(L),group=isGrpKey(i);
+      var first=group?'<td rowspan="2" style="white-space:nowrap" title="'+groupWord()+' — 필지 '+grpIdx().length+'개 공통">'+groupWord()+'</td>'
+        :isZoneKey(i)?zoneHeadCell(i,2)
         :'<td rowspan="2"'+(isSub(L)?' title="'+landParcelNo(i)+'번 필지의 나눈 줄 '+esc(subReason(L))+'"':'')+'>'+landNo(i)+'</td>';
       h+='<tr>'+first+stdPickCell(i,group)+
-        sl.map(function(k){return '<td class="jud-c"><input class="fac" value="'+esc(f[k])+'" oninput="'+(group?'setGroupFac(\'\','+k+',this.value)':'LANDS['+i+'].gf['+k+']=this.value')+';calcGongsi();saveForm();"></td>';}).join('')+
+        sl.map(function(k){return '<td class="jud-c"><input class="fac" value="'+esc(f[k])+'" oninput="'+(group?'setGroupFac(\'\','+k+',this.value)':rowRef(i)+'.gf['+k+']=this.value')+';calcGongsi();saveForm();"></td>';}).join('')+
         '<td class="calc-c fac">'+facProduct(f,d).toFixed(3)+'</td></tr>'+gopRow(i,sl.length+2);});
     return {cap:'표준지 '+String.fromCharCode(65+g.std)+' — '+d,html:h};});
   if(!parts.length)parts=[{cap:'',html:facHead('비교<br>표준지',stdDaegu(0))}];
@@ -3108,29 +3378,48 @@ function calcGongsi(){
   var h='<tr><th>일련<br>번호</th><th>비교<br>표준지</th><th>공시지가<br>(원/㎡)</th><th>시점<br>수정</th><th>지역<br>요인</th><th>개별<br>요인</th><th>그 밖의<br>요인</th>'
        +'<th>산출단가<br>(원/㎡)</th><th>결정단가<br>(원/㎡)</th><th title="사정면적이 있으면 사정면적, 없으면 공부면적">면적(㎡)</th><th>시산가액(원)</th></tr>';
   var sumTotal=0,sumSize=0,sumGongbu=0,firstApply=0,firstCalcG=0,docRows=[],outSize=0,evalGongbu=0,firstSet=false;
-  var group=isLandGroup();syncGroupRep();   // 묶기면 첫 필지 값이 대표 — 나머지 필지에 복사
+  var group=isLandGroup();syncGroupRep();   // 묶기면 대표 필지 값이 대표 — 나머지 묶음 필지에 복사
+  var zm=zoneMode(),rep=grpRep(),GRP_MARK='\u0001GRP\u0001',grpSize=0,grpTot=0,grpGongbu=0,grpPut=false;
+  // 묶음을 용도지역별로 나눴으면 구역마다 한 줄(표준지·개별요인·그 밖의 요인·결정단가 각각) — 첫 묶음 필지 자리에 그린다
+  var zoneRowsHtml=function(){var hz='';GZONES.forEach(function(Z,k){
+    var key='z'+k,j=landStdOf(Z),Sj=STDS[j]||{},size=zoneEvalArea(k);   // 지분이면 구역 면적 × 지분
+    var er=etcRefOf(Z),own=etcOwn(Z);
+    var price=num(Sj['공시지가']),gfp=facProduct(landFactors(Z),stdDaegu(j)),etc=own?etcPairResult(er,j).decide:etcOf(j);
+    var calc=price*stf*1*gfp*etc;if(!firstSet)firstCalcG=calc;
+    var autoApply=applyAuto(calc),apply=hasV(Z.apply)?num(Z.apply):autoApply;
+    var tot=apply*size;
+    sumTotal+=tot;sumSize+=size;if(!firstSet){firstApply=apply;firstSet=true;}
+    docRows.push({key:key,zone:k,stdIdx:j,price:price,time:stf,area:1,factors:landFactors(Z).slice(),individual:gfp,etc:etc,etcKey:er?er.type+er.idx:'',etcOwn:own,calculated:calc,apply:apply,size:size,gongbu:0,total:tot});
+    hz+='<tr>'+zoneHeadCell(key)+'<td>'+String.fromCharCode(65+j)+'</td>'+
+       '<td>'+(price?won(price):'-')+'</td><td>'+stf.toFixed(5)+'</td><td>1.000</td>'+
+       '<td>'+gfp.toFixed(3)+'</td>'+etcPickCell(key,etc)+
+       '<td class="calc-c">'+(calc?won(calc):'-')+'</td>'+
+       applyCell(Z.apply,autoApply,'GZONES['+k+'].apply=this.value;calcGongsi();saveForm();')+
+       areaCell(size,0)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';});return hz;};
+  // docRows: 필지 줄은 key = 필지 번호(LANDS 순서와 같은 자리), 구역 줄은 key = 'z0'…(이때 묶음 필지 줄은 없다)
   LANDS.forEach(function(L,i){
-    var j=Math.min(L.stdIdx||0,STDS.length-1),Sj=STDS[j]||{};
+    var j=Math.min(L.stdIdx||0,STDS.length-1),Sj=STDS[j]||{},inG=group&&grpIn(L);
     var size=landArea(L),gongbu=isSub(L)?0:num(L['면적']);   // 사정면적이 있으면 그 면적으로 평가 · 나눈 줄은 공부면적 없음(원 필지에 한 번만)
     sumGongbu+=gongbu;
+    if(zm&&inG){evalGongbu+=gongbu;if(!grpPut){grpPut=true;h+=zoneRowsHtml();}return;}   // 묶음 필지는 구역 줄이 대신 평가
     // 감정평가 외 — 단가·금액 없이 면적만(명세표·괄감에 「감정평가 외」로). 시산가액·사정면적 합계에서 뺀다
     if(isOut(L)){
       outSize+=size;
-      docRows.push({stdIdx:j,out:true,price:0,time:stf,area:1,factors:landFactors(L).slice(),individual:0,etc:0,calculated:0,apply:0,size:size,gongbu:gongbu,total:0});
+      docRows.push({key:i,stdIdx:j,out:true,price:0,time:stf,area:1,factors:landFactors(L).slice(),individual:0,etc:0,calculated:0,apply:0,size:size,gongbu:gongbu,total:0});
       h+='<tr class="land-out"><td>'+landNo(i)+'</td><td colspan="8" class="out-c">감정평가 외'+(subReason(L)?' — '+esc(subReason(L)):'')+'</td>'
         +areaCell(size,gongbu)+'<td class="out-c">감정평가 외</td></tr>';
       return;
     }
     evalGongbu+=gongbu;
     // 그 밖의 요인 — 이 필지만 따로 고른 사례가 있으면 그 사례 × 이 필지 표준지 쌍의 결정 보정치, 없으면 종전(표준지별 결정치)
-    var Le=group?LANDS[0]:L,er=etcRefOf(Le),own=etcOwn(Le);
+    var Le=inG?LANDS[rep]:L,er=etcRefOf(Le),own=etcOwn(Le);
     var price=num(Sj['공시지가']),gfp=facProduct(landFactors(L),stdDaegu(j)),etc=own?etcPairResult(er,j).decide:etcOf(j);
     var calc=price*stf*1*gfp*etc;if(!firstSet)firstCalcG=calc;
     var autoApply=applyAuto(calc),apply=hasV(L.apply)?num(L.apply):autoApply;
     var tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(!firstSet){firstApply=apply;firstSet=true;}
-    docRows.push({stdIdx:j,price:price,time:stf,area:1,factors:landFactors(L).slice(),individual:gfp,etc:etc,etcKey:er?er.type+er.idx:'',etcOwn:own,calculated:calc,apply:apply,size:size,gongbu:gongbu,total:tot});
-    if(group)return;   // 묶기면 표는 아래에서 한 줄로 그린다
+    docRows.push({key:i,stdIdx:j,price:price,time:stf,area:1,factors:landFactors(L).slice(),individual:gfp,etc:etc,etcKey:er?er.type+er.idx:'',etcOwn:own,calculated:calc,apply:apply,size:size,gongbu:gongbu,total:tot});
+    if(inG){grpSize+=size;grpTot+=tot;grpGongbu+=gongbu;if(!grpPut){grpPut=true;h+=GRP_MARK;}return;}   // 묶음 필지는 한 줄로(아래)
     h+='<tr><td>'+landNo(i)+'</td><td>'+String.fromCharCode(65+j)+'</td>'+
        '<td>'+(price?won(price):'-')+'</td><td>'+stf.toFixed(5)+'</td><td>1.000</td>'+
        '<td>'+gfp.toFixed(3)+'</td>'+etcPickCell(i,etc)+
@@ -3138,18 +3427,18 @@ function calcGongsi(){
        applyCell(L.apply,autoApply,'LANDS['+i+'].apply=this.value;calcGongsi();saveForm();')+
        areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
-  // 묶기 — 필지 전체를 한 줄로: 개별요인·결정단가 한 세트, 면적은 묶은 면적
-  if(group){
-    var L0=LANDS[0]||{},g0=docRows[0]||{};
-    h+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개를 한 덩어리로 평가">'+groupWord()+'</td><td>'+String.fromCharCode(65+(g0.stdIdx||0))+'</td>'+
+  // 묶기 — 묶음 필지를 한 줄로: 개별요인·결정단가 한 세트, 면적은 묶은 면적(첫 묶음 필지 자리에)
+  if(group&&!zm){
+    var L0=LANDS[rep]||{},g0=docRows.find(function(r){return r.key===rep;})||{};
+    h=h.replace(GRP_MARK,'<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+grpIdx().length+'개를 한 덩어리로 평가">'+groupWord()+'</td><td>'+String.fromCharCode(65+(g0.stdIdx||0))+'</td>'+
        '<td>'+(g0.price?won(g0.price):'-')+'</td><td>'+stf.toFixed(5)+'</td><td>1.000</td>'+
-       '<td>'+(g0.individual||0).toFixed(3)+'</td>'+etcPickCell(0,g0.etc)+
+       '<td>'+(g0.individual||0).toFixed(3)+'</td>'+etcPickCell(rep,g0.etc)+
        '<td class="calc-c">'+(g0.calculated?won(g0.calculated):'-')+'</td>'+
        applyCell(L0.apply,applyAuto(g0.calculated||0),'setGroupApply(\'\',this.value);calcGongsi();saveForm();')+
-       areaCell(roundArea(sumSize),roundArea(sumGongbu))+'<td class="calc-c">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
+       areaCell(roundArea(grpSize),roundArea(grpGongbu))+'<td class="calc-c">'+(grpTot?won(grpTot):'-')+'</td></tr>');
   }
-  else if(LANDS.length>1)
-    h+='<tr class="sumrow"><td colspan="9" class="sum-label">합계</td><td>'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
+  if(zm||partialGroup()||(!group&&LANDS.length>1))
+    h+='<tr class="sumrow"><td colspan="9" class="sum-label">합계</td><td>'+(sumSize?fmtArea(roundArea(sumSize)):'-')+'</td>'
       +'<td class="sum-amt">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblSisan',h);
   sisanHint(firstCalcG);
@@ -3158,7 +3447,7 @@ function calcGongsi(){
   // size = 평가한 사정면적 합(평가외 제외) · outSize = 감정평가 외 면적 합 · gongbuSize = 공부면적 합(평가외 필지 포함, 괄감 공부 칸)
   // evalGongbu = 평가외 필지를 뺀 공부면적 합(의견서 시산가액 표 합계 행 — 표에 나오는 필지만)
   renderEtcPairs(docRows);renderEtcBlocks();
-  window.GONGSI_RESULT={applyUnit:firstApply,total:sumTotal,size:sumSize,gongbuSize:sumGongbu,evalGongbu:evalGongbu,outSize:outSize,rows:docRows,
+  window.GONGSI_RESULT={zones:zm,applyUnit:firstApply,total:sumTotal,size:sumSize,gongbuSize:sumGongbu,evalGongbu:evalGongbu,outSize:outSize,rows:docRows,
     etc:{stdIdx:sj,source:su,sajeong:saj1,time:et,area:ea,individual:ind,out1:o1,price:sp,stdTime:stf2,stdSajeong:saj2,stdArea:ea2,stdIndividual:ind2,out2:o2,ratio:ratio}};
   renderTradePick();
   calcGeorae();sd();
@@ -3184,7 +3473,7 @@ function setGaCaseField(k,id,v){
 }
 // 필지별 사례 고르기 — '' = 선정 사례 그대로. 시점수정치가 아직 없는 사례면 바로 계산해 둔다
 function setGaPick(i,v){
-  var L=LANDS[i];if(!L)return;
+  var L=rowObj(i);if(!L)return;
   var k=v===''?-1:+v;
   if(k>=0)pinGaPicks();   // 처음 따로 고르면 나머지 필지도 선정 사례로 고정(선정을 바꿔도 안 흔들리게)
   if(k>=0&&TRADES[k]){L.gaPick=caseId(TRADES[k]);
@@ -3194,19 +3483,19 @@ function setGaPick(i,v){
   calcGeorae();saveForm();
 }
 function gaPickCell(i){
-  var L=LANDS[i]||{},own=gaOwn(L),k=gaCaseIdx(L);
+  var L=rowObj(i)||{},own=gaOwn(L),k=gaCaseIdx(L);
   var list=TRADES.map(function(c,j){return {c:c,j:j};}).filter(function(x){return tradeHasData(x.c);});
   if(list.length<2&&!own)return '<td>'+(k>=0?'#'+(k+1):'-')+'</td>';
-  return '<td class="jud-c"><select class="std-pick" title="이 필지에 쓸 거래사례 — 「선정」은 위에서 고른 거래사례" onchange="setGaPick('+i+',this.value)">'
+  return '<td class="jud-c"><select class="std-pick" title="이 필지에 쓸 거래사례 — 「선정」은 위에서 고른 거래사례" onchange="setGaPick('+rowArg(i)+',this.value)">'
     +'<option value=""'+(own?'':' selected')+'>선정'+(GA.idx>=0?'(#'+(GA.idx+1)+')':'')+'</option>'
     +list.map(function(x){return '<option value="'+x.j+'"'+(own&&x.j===k?' selected':'')+'>#'+(x.j+1)+'</option>';}).join('')+'</select></td>';
 }
 function calcGeorae(){
-  var group=isLandGroup();
+  var zm=zoneMode(),group=isLandGroup()&&!zm;
   // 쓰는 사례가 하나도 없으면 안내 — 필지별로 따로 고른 사례만 있어도 계산한다
-  var anyCase=group?gaCaseIdx(LANDS[0])>=0:LANDS.some(function(L){return !isOut(L)&&TRADES[gaCaseIdx(L)];});
+  var anyCase=evalKeys().some(function(k){var L=rowObj(k);return !isOut(L)&&TRADES[gaCaseIdx(L)];});
   if(!anyCase){
-    setFacTables('tblGaFactors',[{cap:'',html:'<tr><th>안내</th></tr><tr><td>공시지가기준법 탭에서 거래사례를 먼저 입력·채택하세요.</td></tr>'}]);
+    setFacTables('tblGaFactors',[{cap:'',html:'<tr><th>안내</th></tr><tr><td>위 거래사례 표에 사례를 넣고 왼쪽에서 채택하세요.</td></tr>'}]);
     document.getElementById('tblGaSisan').innerHTML='';
     document.getElementById('resGeorae').textContent='-';window.GEORAE_RESULT={total:0};calcGyeoljeong();return;}
   gaTimeNote();
@@ -3214,10 +3503,10 @@ function calcGeorae(){
   // 개별요인 — 필지별, 표준지별로 표를 나눔(열은 그 필지 표준지 지대의 조건만)
   var hfParts=facGroups().map(function(g){
     var d=g.daegu,sl=facSlots(d),hf=facHead('사례',d);
-    g.idx.forEach(function(i){var L=LANDS[i],f=landGaFactors(L);
-      var first=group?'<td rowspan="2" style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개 공통">'+groupWord()+'</td>':'<td rowspan="2">'+landNo(i)+'</td>';
+    g.idx.forEach(function(i){var L=rowObj(i),f=landGaFactors(L),group=isGrpKey(i);
+      var first=group?'<td rowspan="2" style="white-space:nowrap" title="'+groupWord()+' — 필지 '+grpIdx().length+'개 공통">'+groupWord()+'</td>':isZoneKey(i)?zoneHeadCell(i,2):'<td rowspan="2">'+landNo(i)+'</td>';
       hf+='<tr>'+first+gaPickCell(i)+
-        sl.map(function(k){return '<td class="jud-c"><input class="fac" value="'+esc(f[k])+'" oninput="'+(group?'setGroupFac(\'ga\','+k+',this.value)':'LANDS['+i+'].gaf['+k+']=this.value')+';calcGeorae();saveForm();"></td>';}).join('')+
+        sl.map(function(k){return '<td class="jud-c"><input class="fac" value="'+esc(f[k])+'" oninput="'+(group?'setGroupFac(\'ga\','+k+',this.value)':rowRef(i)+'.gaf['+k+']=this.value')+';calcGeorae();saveForm();"></td>';}).join('')+
         '<td class="calc-c fac">'+facProduct(f,d).toFixed(3)+'</td></tr>'+gaopRow(i,sl.length+2);});
     return {cap:'표준지 '+String.fromCharCode(65+g.std)+' — '+d,html:hf};});
   setFacTables('tblGaFactors',hfParts);facToneAll();
@@ -3227,7 +3516,7 @@ function calcGeorae(){
         +'<th>산정단가<br>(원/㎡)</th><th>적용단가<br>(원/㎡)</th><th title="같은 필지의 공시지가기준법 적용단가와 격차율(거래사례비교법 적용단가 ÷ 공시지가기준법 적용단가 − 1). 10% 이상이면 빨강">공시지가기준법<br>대비</th><th title="사정면적이 있으면 사정면적, 없으면 공부면적">면적(㎡)</th><th>시산가액(원)</th></tr>';
   // 필지별 공시지가기준법 적용단가 대비 격차(2026-10-21 요청) — 공시지가기준법 결과(GONGSI_RESULT)는 이 함수보다 먼저 계산돼 있다
   var gsRows=(window.GONGSI_RESULT&&window.GONGSI_RESULT.rows)||[];
-  var vsCell=function(i,apply){var g=gsRows[i],ga=g&&!g.out?g.apply:0;
+  var vsCell=function(i,apply){var g=gsRows.find(function(r){return r.key===i;}),ga=g&&!g.out?g.apply:0;   // 같은 줄(key)의 공시지가기준법 단가
     if(!ga||!apply)return '<td>-</td>';var pct=(apply/ga-1)*100;
     return '<td title="거래사례비교법 '+won(apply)+' ÷ 공시지가기준법 '+won(ga)+' = '+(apply/ga).toFixed(4)+'">'+won(ga)+'<br><b style="color:'+(Math.abs(pct)>=10?'#b91c1c':'#1d4ed8')+'">'+(pct>=0?'+':'')+pct.toFixed(2)+'%</b></td>';};
   var facCell=function(k,rawVal,id,ph){
@@ -3237,24 +3526,40 @@ function calcGeorae(){
     return {k:k,unit:c?tradeCalc(c).landUnit:0,sj:num(fr.sajRaw)||1,st:num(fr.timeRaw)||1,ar:num(fr.areaRaw)||1,
       sajRaw:hasV(fr.sajRaw)?fr.sajRaw:'1.000',timeRaw:fr.timeRaw,areaRaw:hasV(fr.areaRaw)?fr.areaRaw:'1.000'};};
   var sumTotal=0,sumSize=0,firstCalc=0,docRows=[],sumGongbu=0;
-  syncGroupRep();   // 묶기면 첫 필지 값이 대표
-  var firstSet=false,gv0=null;
+  syncGroupRep();   // 묶기면 대표 필지 값이 대표
+  var firstSet=false,gv0=null,rep=grpRep(),GRP_MARK='\u0001GRP\u0001',grpSize=0,grpTot=0,grpGongbu=0,grpPut=false,gvG=null;
+  var zoneRowsHtml=function(){var hz='';GZONES.forEach(function(Z,k){
+    var gv=caseVals(gaCaseIdx(Z));if(!gv0)gv0=gv;
+    var size=zoneEvalArea(k),gfp=facProduct(landGaFactors(Z),landDaegu(Z));
+    var calc=gv.unit*gv.sj*gv.st*gv.ar*gfp;
+    var autoApply=applyAuto(calc,'ga'),apply=hasV(Z.gaApply)?num(Z.gaApply):autoApply;
+    var tot=apply*size;
+    sumTotal+=tot;sumSize+=size;if(!firstSet){firstCalc=calc;firstSet=true;}
+    docRows.push({key:'z'+k,zone:k,caseIdx:gv.k,source:gv.unit,sajeong:gv.sj,time:gv.st,area:gv.ar,factors:landGaFactors(Z).slice(),individual:gfp,calculated:calc,apply:apply,size:size,gongbu:0,total:tot});
+    hz+='<tr>'+zoneHeadCell('z'+k)+'<td title="거래사례 #'+(gv.k+1)+'">'+(gv.unit?won(gv.unit):'-')+'</td>'
+       +facCell(gv.k,gv.sajRaw,'ga_sajeong','1.000')+facCell(gv.k,gv.timeRaw,'ga_time','자동')+facCell(gv.k,gv.areaRaw,'ga_area','1.000')
+       +'<td>'+gfp.toFixed(3)+'</td>'
+       +'<td class="calc-c">'+(calc?won(calc):'-')+'</td>'
+       +applyCell(Z.gaApply,autoApply,'GZONES['+k+'].gaApply=this.value;calcGeorae();saveForm();')
+       +vsCell('z'+k,apply)+areaCell(size,0)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';});return hz;};
   LANDS.forEach(function(L,i){
-    var gv=caseVals(group?gaCaseIdx(LANDS[0]):gaCaseIdx(L));if(!gv0)gv0=gv;
-    var size=landArea(L),gongbu=isSub(L)?0:num(L['면적']);   // 사정면적이 있으면 그 면적으로 평가 · 나눈 줄은 공부면적 없음
+    var inG=isLandGroup()&&grpIn(L),gongbu=isSub(L)?0:num(L['면적']);
     sumGongbu+=gongbu||0;
+    if(zm&&inG){if(!grpPut){grpPut=true;hs+=zoneRowsHtml();}return;}   // 묶음 필지는 구역 줄이 대신 평가
+    var gv=caseVals(gaCaseIdx(inG?LANDS[rep]:L));if(!gv0)gv0=gv;if(inG&&!gvG)gvG=gv;
+    var size=landArea(L);   // 사정면적이 있으면 그 면적으로 평가 · 나눈 줄은 공부면적 없음
     if(isOut(L)){   // 감정평가 외 — 공시지가기준법 표와 같게 면적만, 금액 없음
-      docRows.push({out:true,caseIdx:gv.k,source:gv.unit,sajeong:gv.sj,time:gv.st,area:gv.ar,factors:landGaFactors(L).slice(),individual:0,calculated:0,apply:0,size:size,gongbu:gongbu,total:0});
-      if(!group)hs+='<tr class="land-out"><td>'+landNo(i)+'</td><td colspan="8" class="out-c">감정평가 외'+(subReason(L)?' — '+esc(subReason(L)):'')+'</td>'
+      docRows.push({key:i,out:true,caseIdx:gv.k,source:gv.unit,sajeong:gv.sj,time:gv.st,area:gv.ar,factors:landGaFactors(L).slice(),individual:0,calculated:0,apply:0,size:size,gongbu:gongbu,total:0});
+      hs+='<tr class="land-out"><td>'+landNo(i)+'</td><td colspan="8" class="out-c">감정평가 외'+(subReason(L)?' — '+esc(subReason(L)):'')+'</td>'
         +areaCell(size,gongbu)+'<td class="out-c">감정평가 외</td></tr>';
       return;}
-    var gfp=facProduct(landGaFactors(L),landDaegu(group?LANDS[0]:L));
+    var gfp=facProduct(landGaFactors(L),landDaegu(inG?LANDS[rep]:L));
     var calc=gv.unit*gv.sj*gv.st*gv.ar*gfp;
     var autoApply=applyAuto(calc,'ga'),apply=hasV(L.gaApply)?num(L.gaApply):autoApply;
     var tot=apply*size;
     sumTotal+=tot;sumSize+=size;if(!firstSet){firstCalc=calc;firstSet=true;}
-    docRows.push({caseIdx:gv.k,source:gv.unit,sajeong:gv.sj,time:gv.st,area:gv.ar,factors:landGaFactors(L).slice(),individual:gfp,calculated:calc,apply:apply,size:size,gongbu:gongbu,total:tot});
-    if(group)return;   // 묶기면 표는 아래에서 한 줄로 그린다
+    docRows.push({key:i,caseIdx:gv.k,source:gv.unit,sajeong:gv.sj,time:gv.st,area:gv.ar,factors:landGaFactors(L).slice(),individual:gfp,calculated:calc,apply:apply,size:size,gongbu:gongbu,total:tot});
+    if(inG){grpSize+=size;grpTot+=tot;grpGongbu+=gongbu;if(!grpPut){grpPut=true;hs+=GRP_MARK;}return;}   // 묶음 필지는 한 줄로(아래)
     hs+='<tr><td>'+landNo(i)+'</td><td title="거래사례 #'+(gv.k+1)+'">'+(gv.unit?won(gv.unit):'-')+'</td>'
        +facCell(gv.k,gv.sajRaw,'ga_sajeong','1.000')+facCell(gv.k,gv.timeRaw,'ga_time','자동')+facCell(gv.k,gv.areaRaw,'ga_area','1.000')
        +'<td>'+gfp.toFixed(3)+'</td>'
@@ -3262,19 +3567,19 @@ function calcGeorae(){
        +applyCell(L.gaApply,autoApply,'LANDS['+i+'].gaApply=this.value;calcGeorae();saveForm();')
        +vsCell(i,apply)+areaCell(size,gongbu)+'<td class="calc-c">'+(tot?won(tot):'-')+'</td></tr>';
   });
-  var cal={landUnit:gv0?gv0.unit:0},sajRaw=gv0?gv0.sajRaw:'1.000',timeRaw=gv0?gv0.timeRaw:'',areaRaw=gv0?gv0.areaRaw:'1.000';
-  // 묶기 — 한 줄로: 개별요인·적용단가 한 세트, 면적은 묶은 면적
-  if(group){
-    var Lg0=LANDS[0]||{},a0=docRows[0]||{};
-    hs+='<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+LANDS.length+'개를 한 덩어리로 평가">'+groupWord()+'</td><td>'+(cal.landUnit?won(cal.landUnit):'-')+'</td>'
-       +facCell(gv0.k,sajRaw,'ga_sajeong','1.000')+facCell(gv0.k,timeRaw,'ga_time','자동')+facCell(gv0.k,areaRaw,'ga_area','1.000')
+  var cal={landUnit:gv0?gv0.unit:0};
+  // 묶기 — 묶음 필지를 한 줄로: 개별요인·적용단가 한 세트, 면적은 묶은 면적(첫 묶음 필지 자리에)
+  if(group&&!zm&&gvG){
+    var Lg0=LANDS[rep]||{},a0=docRows.find(function(r){return r.key===rep;})||{};
+    hs=hs.replace(GRP_MARK,'<tr><td style="white-space:nowrap" title="'+groupWord()+' — 필지 '+grpIdx().length+'개를 한 덩어리로 평가">'+groupWord()+'</td><td>'+(gvG.unit?won(gvG.unit):'-')+'</td>'
+       +facCell(gvG.k,gvG.sajRaw,'ga_sajeong','1.000')+facCell(gvG.k,gvG.timeRaw,'ga_time','자동')+facCell(gvG.k,gvG.areaRaw,'ga_area','1.000')
        +'<td>'+(a0.individual||0).toFixed(3)+'</td>'
        +'<td class="calc-c">'+(a0.calculated?won(a0.calculated):'-')+'</td>'
        +applyCell(Lg0.gaApply,applyAuto(a0.calculated||0,'ga'),'setGroupApply(\'ga\',this.value);calcGeorae();saveForm();')
-       +vsCell(0,a0.apply)+areaCell(roundArea(sumSize),roundArea(sumGongbu))+'<td class="calc-c">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
+       +vsCell(rep,a0.apply)+areaCell(roundArea(grpSize),roundArea(grpGongbu))+'<td class="calc-c">'+(grpTot?won(grpTot):'-')+'</td></tr>');
   }
-  else if(LANDS.length>1)
-    hs+='<tr class="sumrow"><td colspan="9" class="sum-label">합계</td><td>'+(sumSize?sumSize.toLocaleString('ko-KR',{maximumFractionDigits:4}):'-')+'</td>'
+  if(zm||partialGroup()||(!group&&LANDS.length>1))
+    hs+='<tr class="sumrow"><td colspan="9" class="sum-label">합계</td><td>'+(sumSize?fmtArea(roundArea(sumSize)):'-')+'</td>'
        +'<td class="sum-amt">'+(sumTotal?won(sumTotal):'-')+'</td></tr>';
   setTableHtml('tblGaSisan',hs);
   sisanHint(firstCalc,'ga');
@@ -3288,7 +3593,7 @@ function gaVsGongsiNote(gaTotal){
   var el=document.getElementById('gaVsGongsi'),gs=window.GONGSI_RESULT||{};
   if(!el)return;
   if(!gs.total){el.innerHTML='';return;}
-  var unit=gs.applyUnit?won(gs.applyUnit)+' 원/㎡'+((!isLandGroup()&&landEvalCount()>1)?' 외':''):'-';
+  var unit=gs.applyUnit?won(gs.applyUnit)+' 원/㎡'+(landUnitMany()?' 외':''):'-';
   var h='공시지가기준법 : 적용단가 <b>'+unit+'</b> · 시산가액 <b>'+won(gs.total)+' 원</b>';
   if(gaTotal){
     var r=gaTotal/gs.total,pct=(r-1)*100;
@@ -3299,6 +3604,13 @@ function gaVsGongsiNote(gaTotal){
 }
 
 // ================= 2-3. 토지평가액 결정 =================
+// 시산 결과(rows)의 적용단가 — 평가한 줄(apply>0)만, 같은 단가는 한 번
+function gjUnits(R){var rows=(R&&R.rows)||[],list=[];
+  rows.forEach(function(r){var u=num(r&&r.apply);if(u>0&&!(r&&r.out)&&list.indexOf(u)<0)list.push(u);});
+  return {first:list[0]||0,list:list};}
+function gjUnitCell(id,u){var el=document.getElementById(id);if(!el)return;
+  el.textContent=u.first?won(u.first)+(u.list.length>1?' 외':''):'-';
+  el.title=u.list.length>1?u.list.map(won).join(' / '):'';}
 function calcGyeoljeong(){
   var a=(window.GONGSI_RESULT&&window.GONGSI_RESULT.total)||0;
   var b=(window.GEORAE_RESULT&&window.GEORAE_RESULT.total)||0;
@@ -3306,6 +3618,11 @@ function calcGyeoljeong(){
   document.getElementById('gj_b').textContent=b?won(b):'-';
   var diff=(a&&b)?(Math.abs(a-b)/Math.max(a,b)*100):0;
   document.getElementById('gj_diff').textContent=(a&&b)?diff.toFixed(1)+'%':'-';
+  // 적용단가 — 필지마다 단가가 다르면 「첫 단가 외」, 제목에 필지별 단가(2026-11-03 사용자 요청)
+  var ua=gjUnits(window.GONGSI_RESULT),ub=gjUnits(window.GEORAE_RESULT);
+  gjUnitCell('gj_au',ua);gjUnitCell('gj_bu',ub);gjUnitCell('gj_fu',ua);
+  var ud=(ua.first&&ub.first&&ua.list.length===1&&ub.list.length===1)?(Math.abs(ua.first-ub.first)/Math.max(ua.first,ub.first)*100):0;
+  document.getElementById('gj_udiff').textContent=(ua.first&&ub.first&&ua.list.length===1&&ub.list.length===1)?ud.toFixed(1)+'%':'-';
   var chosen=a;   // 토지감정평가액은 항상 공시지가기준법(주방식). 거래사례비교법은 합리성 검토용 (결정기록 2026-09-09)
   document.getElementById('gj_final').textContent=chosen?won(chosen)+' 원':'-';
   document.getElementById('resGyeoljeong').textContent=chosen?won(chosen)+' 원':'-';
@@ -3465,9 +3782,9 @@ var FN_OPINION_LAND='본건은 일반거래(시가참고) 목적으로서 수요
 // 건물만 결정의견 기본 문구 — 건물 전용 의견서 양식의 Ⅳ 문장과 같은 말
 var FN_OPINION_BLD='본건은 일반거래(시가참고) 목적으로서 건물의 구조·용도·사용승인일 및 관리상태 등 건물의 특성을 종합적으로 고려하여 원가법에 의한 시산가액을 감정평가액으로 결정하였음.';
 var FN_OPINIONS={tb:FN_OPINION_TB,land:FN_OPINION_LAND,bld:FN_OPINION_BLD};
-var TAB_LABELS={tb:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'4. 토지건물 평가액 결정',jido:'5. 위치도',yohang:'6. 요항표',doc:'7. 감정평가서 다운로드',cheonggu:'8. 청구서 다운로드'},
-  land:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'3. 토지 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'},
-  bld:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'2. 건물평가',final:'3. 건물 평가액 결정',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드',cheonggu:'7. 청구서 다운로드'}};
+var TAB_LABELS={tb:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'4. 평가액 결정·청구서',jido:'5. 위치도',yohang:'6. 요항표',doc:'7. 감정평가서 다운로드'},
+  land:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'3. 건물평가',final:'3. 평가액 결정·청구서',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드'},
+  bld:{daesang:'1. 대상물건 개요',land:'2. 토지평가',bld:'2. 건물평가',final:'3. 평가액 결정·청구서',jido:'4. 위치도',yohang:'5. 요항표',doc:'6. 감정평가서 다운로드'}};
 var EVAL_TITLES={tb:'토지건물',land:'토지',bld:'건물'};
 function evalKind(){return LAND_ONLY?'land':BLD_ONLY?'bld':'tb';}
 function setLandOnly(v,quiet){setEvalKind(v?'land':'tb',quiet);}   // 종전 호출(토지만 체크) 호환
@@ -3496,9 +3813,11 @@ function setEvalKind(k,quiet){
 // 의견서 양식 — 토지만이면 토지 전용(건물 절·거래사례 건물 칸 없음, Ⅳ 결정표 필지별 행)
 // 서류의 토지 단가 한 칸(괄호감정표 평가내역·의견서 Ⅳ 결정표) — 여러 필지(일단지·묶기 아님)면 필지마다 달라 '-',
 // 1필지·일단지(묶기 포함)는 단가 하나(사용자 2026-09-29)
+function landUnitMany(){return (!isLandGroup()&&landEvalCount()>1)||zoneMode()||partialGroup();}   // 화면 토지 단가 뒤 ' 외'
 function landUnitDoc(){
   var gs=window.GONGSI_RESULT||{};
   // 평가하는 줄이 둘 이상인데 일단지·묶기가 아니거나, 나눠 단가가 다른 줄(구분평가)이 있으면 '-'
+  if(zoneMode()||partialGroup())return '-';   // 용도지역별로 나눴거나 묶음 밖 필지가 있어 단가가 둘 이상
   var ev=LANDS.filter(function(L){return !isOut(L);});
   if(ev.length>1&&(!(ILDANJI||isLandGroup())||ev.some(isSub)))return '-';
   return gs.applyUnit?won(gs.applyUnit):'-';
@@ -3511,7 +3830,7 @@ function calcFinal(){
   var total=land+bld;
   var gs=window.GONGSI_RESULT||{};
   document.getElementById('fn_landSize').textContent=gs.size?fmtArea(gs.size):'-';
-  document.getElementById('fn_landUnit').textContent=gs.applyUnit?(won(gs.applyUnit)+((!isLandGroup()&&landEvalCount()>1)?' 외':'')):'-';
+  document.getElementById('fn_landUnit').textContent=gs.applyUnit?(won(gs.applyUnit)+(landUnitMany()?' 외':'')):'-';
   document.getElementById('fn_landAmt').textContent=land?won(land):'-';
   // 건물 면적은 평가에 적용한 면적(사정면적이 있으면 사정면적)
   document.getElementById('fn_bldSize').textContent=(window.BLD_RESULT&&window.BLD_RESULT.size)?fmtArea(window.BLD_RESULT.size):'-';
@@ -3533,7 +3852,7 @@ function calcFinal(){
   if(BLD_ONLY){checks=checks.slice(4);checks[1][1]='건물';}
   var h='<tr><th>검증 항목</th><th>계산 방법</th><th>값</th></tr>';
   checks.forEach(function(c){h+='<tr><td>'+c[0]+'</td><td>'+c[1]+'</td><td class="calc-c">'+(c[2]==='decided'?(window.LAND_FINAL?won(window.LAND_FINAL)+' 원':'-'):c[2])+'</td></tr>';});
-  document.getElementById('tblCheck').innerHTML=h;
+  var tc=document.getElementById('tblCheck');if(tc)tc.innerHTML=h;   // 검산 패널은 2026-11-03 화면에서 뺌(사용자 요청)
 
   sd();
 }
@@ -3545,6 +3864,7 @@ var KEEP_PH=['-','반올림','자동','kais붙여넣기','⏳ 계산 중…','50
 function hideExamples(){
   var has=!!String((LANDS[0]||{})['소재지']||'').trim();
   document.querySelectorAll('input,textarea').forEach(function(el){
+    if(el.classList.contains('zone-ar'))return;   // 용도지역별 구역 면적 칸 — 「41.2 (자동)」 안내는 zoneHints가 늘 새로 쓴다
     if(el.dataset.ph==null){if(!el.placeholder)return;el.dataset.ph=el.placeholder;}
     // 요항표의 문장형 입력 안내는 실제 소재지가 있어도 계속 표시한다.
     var o=el.dataset.ph,keep=!!el.closest('.y-location')||KEEP_PH.indexOf(o)>=0||/…|Ctrl\+V/.test(o);
@@ -3556,11 +3876,14 @@ function sd(){
   hideExamples();
   document.getElementById('sd_caseNo').textContent=document.getElementById('ov_caseNo').value||'-';
   var L0=LANDS[0]||{};
-  var addr=((L0['소재지']||'')+' '+(L0['지번']||'')).trim();
+  // 시·도부터 전체 지명(「인천광역시 연수구 송도동 7-14」) — 조회 결과(fullAddr) 또는 시군구 칸, 없으면 적힌 동만 (2026-11-15)
+  var loc=landLoc(L0),sgg=String(L0['시군구']||'').trim();
+  if(sgg&&loc&&loc.indexOf(sgg)<0&&loc.indexOf(' ')<0)loc=sgg+' '+loc;
+  var addr=(loc+' '+(L0['지번']||'')).trim();
   document.getElementById('sd_addr').textContent=(addr?addr+(landParcelCount()>1?(' 외 '+(landParcelCount()-1)+'필지'):''):'-');
   document.getElementById('sd_gijun').textContent=document.getElementById('base_gijun').value||'-';
   var gsr=window.GONGSI_RESULT||{};
-  document.getElementById('sd_landUnit').textContent=gsr.applyUnit?(won(gsr.applyUnit)+' 원/㎡'+((!isLandGroup()&&landEvalCount()>1)?' 외':'')):'-';
+  document.getElementById('sd_landUnit').textContent=gsr.applyUnit?(won(gsr.applyUnit)+' 원/㎡'+(landUnitMany()?' 외':'')):'-';
   document.getElementById('sd_landAmt').textContent=window.LAND_FINAL?won(window.LAND_FINAL):'-';
   document.getElementById('sd_bldAmt').textContent=(window.BLD_RESULT&&window.BLD_RESULT.total)?won(window.BLD_RESULT.total):'-';
   var total=(window.LAND_FINAL||0)+((window.BLD_RESULT&&window.BLD_RESULT.total)||0);
@@ -3579,29 +3902,33 @@ function sd(){
 }
 
 // ================= 탭 =================
-var TAB_NAMES=['daesang','gongsi','georae','jido','gyeoljeong','bld','final','yohang','doc','cheonggu'];
-var LAND_TABS=['gongsi','georae','gyeoljeong'];   // 「2. 토지평가」 안의 세 단계
+var TAB_NAMES=['daesang','gongsi','jido','gyeoljeong','bld','final','yohang','doc'];   // 청구서는 final 화면 안(#cheonggu_sec)
+var LAND_TABS=['gongsi','gyeoljeong'];   // 토지평가 단계(거래사례비교법은 2026-11-03부터 공시지가기준법 화면 맨 아래 #georae_sec)
 var LAND_LAST='gongsi';                            // 「2. 토지평가」를 누르면 마지막으로 보던 단계로
 function showTab(name){
   if(name==='land')name=LAND_LAST;                 // 묶음 버튼 → 세 단계 중 마지막으로 본 화면
+  var toGeorae=name==='georae';if(toGeorae)name='gongsi';
+  var toCg=name==='cheonggu';if(toCg)name='final';         // 옛 8번 청구서 탭 → 평가액 결정 화면의 청구서 칸으로   // 옛 2-2 탭 → 공시지가기준법 화면 아래 거래사례비교법 칸으로
   var inLand=LAND_TABS.indexOf(name)>=0;
   if(inLand)LAND_LAST=name;
   TAB_NAMES.forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',n===name);
     var b=document.getElementById('tabbtn-'+n);if(b)b.classList.toggle('active',n===name);
   });
-  document.getElementById('tabbtn-land').classList.toggle('active',inLand);
-  document.getElementById('landTabs').hidden=!inLand;
+  var lb=document.getElementById('tabbtn-land');if(lb)lb.classList.toggle('active',inLand);   // 옛 묶음 버튼(지금은 없음)
+  var lt=document.getElementById('landTabs');if(lt)lt.hidden=!inLand;
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
-  if(name==='georae')autoGaTime(false,true);   // 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
-  if(name==='cheonggu')renderCheonggu();
+  if(name==='gongsi'&&hasV(cgVal('base_gijun')))autoGaTime(false,true);   // 기준시점 없으면 건너뜀(2-1을 열 때마다 오류 기록이 쌓이지 않게)   // (거래사례비교법) 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
+  if(name==='final')renderCheonggu();
   if(name==='yohang'){fillYohangFromData();renderToice();}
   if(name==='jido')mapOpen();
   CUR_TAB=name;updateStepNav();
   window.scrollTo(0,0);
+  if(toGeorae){var g=document.getElementById('georae_sec');if(g&&g.scrollIntoView)g.scrollIntoView();}
+  if(toCg){var q=document.getElementById('cheonggu_sec');if(q&&q.scrollIntoView)q.scrollIntoView();}
 }
 // 하단 ← 이전 / 다음 → — 화면 탭 순서대로(토지평가 세 단계 포함)
-var STEP_ORDER=['daesang','gongsi','georae','gyeoljeong','bld','final','jido','yohang','doc','cheonggu'];
+var STEP_ORDER=['daesang','gongsi','gyeoljeong','bld','final','jido','yohang','doc'];
 var CUR_TAB='daesang';
 function updateStepNav(){
   var o=stepOrder(),i=o.indexOf(CUR_TAB),p=document.getElementById('btnPrevTab'),n=document.getElementById('btnNextTab');
@@ -3619,9 +3946,10 @@ function toggleSide(force){
   try{localStorage.setItem(SIDE_COLLAPSE_KEY,col?'1':'');}catch(e){console.error('side collapse save',e);}
 }
 try{if(localStorage.getItem(SIDE_COLLAPSE_KEY))toggleSide(true);}catch(e){console.error('side collapse load',e);}
+// 옛 내부 탭(거래사례/평가사례/그 밖의 요인) 전환 — 2026-11-03부터 세 카드가 늘 함께 보여 할 일 없음(옛 호출이 깨지지 않게만 남김)
 function sub(i,btn){
   document.querySelectorAll('.sub').forEach(function(s,n){s.classList.toggle('active',n===i);});
-  document.querySelectorAll('.subtabs button').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');
+  document.querySelectorAll('.subtabs button').forEach(function(b){b.classList.remove('active');});if(btn)btn.classList.add('active');
 }
 
 // ================= 저장/복원 =================
@@ -3629,7 +3957,7 @@ function sub(i,btn){
 var GIJUN_BASIS_OLD={'귀 의뢰 요청 날짜인':'의뢰일인','실지조사 완료일인':'현장조사완료일인','가격조사 완료일인':'현장조사완료일인'};
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice'];   // 감정서번호 칸은 2026-09-16 삭제(접수번호와 같은 값) — 옛 저장값은 무시
-var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr'];
+var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr','bt_regText'];
 var GONGSI_IDS=['g_daegu','g_opinion','g_tradeNote','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
@@ -4073,7 +4401,7 @@ function gwalMap(){
   var landOut=LAND_ONLY&&outA;
   return Object.assign(outRow,{
     '의뢰인':cgVal('ov_client'),'소유자':cgVal('ov_owner'),
-    '평가목적':cgVal('ov_purpose')||'일반거래(시가참고)','제출처':cgVal('ov_submit')||'-',
+    '평가목적':(window.arapPurposeDoc?window.arapPurposeDoc(cgVal('ov_purpose'),cgVal('ov_kind')):(cgVal('ov_purpose')||'일반거래(시가참고)')),'제출처':cgVal('ov_submit')||'-',
     '기준가치':cgVal('ov_value')||'시장가치','평가조건':cgVal('ov_cond')||'-',
     '기준시점':docDot(cgVal('base_gijun')),'조사기간':docDot(cgVal('base_josa')),'작성일자':docDot(cgVal('ov_writeDay')||A.today()),
     '기타참고사항':'-',
@@ -4176,6 +4504,7 @@ function etcShareText(label){
 }
 // 본건 필지들의 지분 표기(분수 우선) — 필지마다 다르면 '1/2, 1/3'
 function etcShareLabel(){
+  if(isLandGroup())return groupShare()!==1?groupShareLabel():'';   // 묶음 지분
   if(SAJ_MODE.land!=='share')return '';
   var labels=[];LANDS.forEach(function(L){var s=shareLabel(L);if(s&&labels.indexOf(s)<0)labels.push(s);});
   return labels.join(', ');
@@ -4294,7 +4623,7 @@ function collect(){
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   o.landOnly=LAND_ONLY;   // 평가대상: 토지만(true) / 토지+건물(false·없음)
   o.bldOnly=BLD_ONLY;     // 평가대상: 건물만(true)
-  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;
+  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;o.GZONES=GZONES;o.GROUP_SHARE=GROUP_SHARE;
   return o;
 }
 var saveTimer=null;
@@ -4446,11 +4775,15 @@ function applyForm(o){
     if(id==='ov_orderDay')v=String(v).replace(/^(\d{4})\.(\d{2})\.(\d{2})\.?$/,'$1/$2/$3');   // 의뢰일은 집합건물처럼 2026/06/08
     document.getElementById(id).value=v;});
   if(o.bt)BT_IDS.forEach(function(id){if(o.bt[id]!=null)document.getElementById(id).value=o.bt[id];});
+  if(!(o.bt&&o.bt.bt_regText!=null))document.getElementById('bt_regText').value='';   // 건물등기 칸이 생기기 전 저장건 — 앞 건 내용이 남지 않게
+  if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
   var lm=(o.SAJ_MODE&&o.SAJ_MODE.land)||'direct';
   SAJ_MODE={land:(lm==='share'||lm==='group')?lm:'direct',
             bld:(o.SAJ_MODE&&o.SAJ_MODE.bld==='share')?'share':'direct'};
   GROUP_AREA=(o.GROUP_AREA!=null)?String(o.GROUP_AREA):'';
   ILDANJI=!!o.ILDANJI;
+  GZONES=Array.isArray(o.GZONES)?o.GZONES:[];
+  GROUP_SHARE=o.GROUP_SHARE!=null?String(o.GROUP_SHARE):'';
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
   STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
   renderStds();renderLands();
@@ -4515,7 +4848,8 @@ if(LAND_SYNC)LAND_SYNC.onStatus(function(st){var bar=document.getElementById('sy
   if(bar&&bar.classList.contains('on')!==!!LAND_SYNC.token()){renderSyncBar();return;}
   var el=document.querySelector('#syncBar .arap-sync-st');if(el){el.textContent=st;el.classList.toggle('err',st.indexOf('⚠️')===0);}});
 function renderSyncBar(){var bar=document.getElementById('syncBar');if(!bar||!LAND_SYNC)return;
-  bar.innerHTML=LAND_SYNC.panelHtml();bar.classList.toggle('on',!!LAND_SYNC.token());LAND_SYNC.bindPanel(bar);}
+  bar.innerHTML=LAND_SYNC.panelHtml();bar.classList.toggle('on',!!LAND_SYNC.token());LAND_SYNC.bindPanel(bar);
+  if(window.ArapFileBak){var fb=document.createElement('div');fb.style.margin='0 2px 10px';bar.appendChild(fb);ArapFileBak.mount(fb);}}   // 💾 파일 백업 줄
 function syncHtml(){return '';}   // 저장 목록 안에는 더 두지 않는다(위 #syncBar로 옮김)
 function bindSync(){}
 function eh(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
@@ -4574,7 +4908,8 @@ function clearForm(){
   ['base_gongsi','base_gijun','base_josa'].forEach(function(id){document.getElementById(id).value='';});
   OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
   BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;
+  if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
+  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;GZONES=[];GROUP_SHARE='';
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
@@ -4594,7 +4929,7 @@ function refreshAfterLoad(){fillEtcArea();updatePeriod();sumBld();renderTrade();
 // 그 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로. 손으로 고친 값은 안 건드린다.
 function fixStaleTimes(){
   [['t',TRADES],['a',APPRS]].forEach(function(pr){pr[1].forEach(function(c,i){
-    if(c&&c.timeMeta&&jbStaleReg(c.timeMeta,c.loc))redoCaseTime(pr[0],i,false);});});
+    if(c&&c.timeMeta&&(jbStaleReg(c.timeMeta,c.loc)||staleSgg(c)||staleRegSgg(c)))redoCaseTime(pr[0],i,false);});});
 }
 // 사례 하나의 시점수정치를 다시 계산(force = 같은 기간이어도 새로 조회) — 거래사례 표 시점수정치 칸을 누르면 이것.
 // 예전 값을 그대로 옮겨 적어 둔 칸(거래사례비교법·그 밖의 요인 시점수정)도 새 값으로, 손으로 고친 값은 그대로.
@@ -4798,8 +5133,21 @@ function addMemoImage(url){var l=getMemos();l.unshift({id:Date.now(),type:'image
 function delMemo(id){setMemos(getMemos().filter(function(n){return n.id!==id;}));renderMemos();}
 function memoPaste(e){var items=(e.clipboardData||{}).items;if(!items)return;
   for(var i=0;i<items.length;i++){var it=items[i];
-    if(it.type&&it.type.indexOf('image/')===0){e.preventDefault();var f=it.getAsFile();var r=new FileReader();
-      r.onload=function(ev){addMemoImage(ev.target.result);};r.readAsDataURL(f);return;}}}
+    if(it.type&&it.type.indexOf('image/')===0){e.preventDefault();memoShrinkImage(it.getAsFile(),function(url){if(url)addMemoImage(url);});return;}}}
+// 메모 이미지는 긴 변 1600px 이하로 줄여 [원본 / JPEG(0.85) / 줄인 PNG] 중 가장 작은 것을 저장(집합건물 memoShrinkImage와 같은 규칙). 120KB 미만은 원본.
+// 화면 캡처를 그대로 담아 메모 하나가 4MB가 되며 저장공간을 채운 일(2026-10-28) 뒤 도입
+function memoShrinkImage(file,done){
+  var rd=function(cb){var r=new FileReader();r.onload=function(ev){cb(ev.target.result);};r.onerror=function(){cb(null);};r.readAsDataURL(file);};
+  if(!file||file.size<120000)return rd(done);
+  rd(function(orig){if(!orig)return done(null);var url='';
+    try{url=URL.createObjectURL(file);var im=new Image();
+      im.onload=function(){try{var sc=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(1,Math.round(im.naturalWidth*sc)),h=Math.max(1,Math.round(im.naturalHeight*sc));
+        var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);URL.revokeObjectURL(url);
+        var cands=[orig,c.toDataURL('image/jpeg',0.85)];if(sc<1)cands.push(c.toDataURL('image/png'));
+        done(cands.reduce(function(m,v){return v.length<m.length?v:m;}));}catch(e){URL.revokeObjectURL(url);done(orig);}};
+      im.onerror=function(){URL.revokeObjectURL(url);done(orig);};im.src=url;}
+    catch(e){try{URL.revokeObjectURL(url);}catch(e2){}done(orig);}});
+}
 function memoView(src){var v=document.getElementById('memoViewer');v.querySelector('img').src=src;v.hidden=false;}
 function renderMemos(){var box=document.getElementById('memoList');if(!box)return;
   box.innerHTML=getMemos().map(function(n){
@@ -4838,11 +5186,11 @@ function dragX(handle,onMove,onEnd){
   });
 }
 function initSplits(){
-  var els=document.querySelectorAll('.lr,.cols2,.cols5050');
+  var els=document.querySelectorAll('.lr,.cols2,.cols5050,.gs-grid');   // gs-grid(2-1 공시지가기준법)는 옛 2단(.lr) 저장값을 이어 쓴다
   Array.prototype.forEach.call(els,function(el){
     var kids=Array.prototype.filter.call(el.children,function(c){return c.nodeType===1;});
     if(kids.length!==2)return;
-    var tab=el.closest('.tab'),cls=/\blr\b/.test(el.className)?'lr':(/\bcols2\b/.test(el.className)?'cols2':'cols5050');
+    var tab=el.closest('.tab'),cls=/\b(lr|gs-grid)\b/.test(el.className)?'lr':(/\bcols2\b/.test(el.className)?'cols2':'cols5050');
     var key=SPLIT_PREFIX+(tab?tab.id:'root')+':'+cls;
     var h=document.createElement('div');h.className='split-h';h.title='드래그: 좌우 너비 조절 / 더블클릭: 기본 너비';
     el.insertBefore(h,kids[1]);el.classList.add('split');
@@ -5054,8 +5402,9 @@ function renderMapLab(){
   var el=document.getElementById('mapLabPanel');if(!el)return;
   var h='<div class="mlrow"><b>💬 말풍선</b><button class="btn gh sm" onclick="mapAllBubbles(true)">모두 켜기</button><button class="btn gh sm" onclick="mapAllBubbles(false)">모두 끄기</button>';
   var off=[];
-  [['비교표준지',STDS,function(i){return '표준지 '+(STD_TAG[i]||(i+1));}],['거래사례',TRADES,function(i){return '거래 #'+(i+1);}],['평가사례',APPRS,function(i,a){return '평가 '+(a.no||(i+1));}]].forEach(function(t){
-    t[1].forEach(function(o,i){if(o&&o.labOff)off.push('<span class="mloff" title="눌러서 이 말풍선 켜기" onclick="mapBubbleOn(\''+t[0]+'\','+i+')">💬 '+esc(t[2](i,o))+'</span>');});
+  var hid={'거래사례':opHiddenList('t'),'평가사례':opHiddenList('a')};
+  [['비교표준지',STDS,function(i){return '표준지 '+(STD_TAG[i]||(i+1));}],['거래사례',TRADES,function(i){return '거래 #'+docTradeNo(i);}],['평가사례',APPRS,function(i,a){return '평가 '+(docApprNo(i)||(i+1));}]].forEach(function(t){
+    t[1].forEach(function(o,i){if(hid[t[0]]&&hid[t[0]][i])return;if(o&&o.labOff)off.push('<span class="mloff" title="눌러서 이 말풍선 켜기" onclick="mapBubbleOn(\''+t[0]+'\','+i+')">💬 '+esc(t[2](i,o))+'</span>');});
   });
   if(off.length)h+='<span style="color:#64748b;font-weight:400">끈 말풍선(눌러서 켜기):</span>'+off.join('');
   h+='</div>';
@@ -5070,8 +5419,8 @@ function renderMapLab(){
 // 실제로 쓰는 사례(위치도 강조용) — 필지·표준지별로 고른 사례(그 밖의 요인 etcRefOf, 거래사례비교법 gaCaseIdx)를 모두.
 // 예전엔 위에서 선정한 사례 하나(ETC·GA)만 봐서 표준지 A·B에 사례를 둘씩 골라도 하나만 칠해졌다(2026-10-21 사용자 제보)
 function usedCases(){
-  var u={t:{},a:{}},group=isLandGroup();
-  LANDS.forEach(function(L,i){if(isOut(L)||(group&&i))return;
+  var u={t:{},a:{}};
+  evalKeys().forEach(function(i){var L=rowObj(i);if(isOut(L))return;
     var r=etcRefOf(L);if(r&&r.idx>=0)u[r.type][r.idx]=true;
     var k=gaCaseIdx(L);if(k>=0&&TRADES[k])u.t[k]=true;});
   return u;
@@ -5083,16 +5432,16 @@ function mapItems(){
   LANDS.forEach(function(L,i){
     if(isSub(L))return;   // 나눈 줄은 같은 필지 — 지도에 따로 찍지 않는다
     var loc=String(L.fullAddr||'').trim()||((L['소재지']||'')+' '+(L['지번']||'')).trim();
-    var row=gs.rows&&gs.rows[i];
+    var row=(gs.rows||[]).find(function(r){return r.key===i;});   // 용도지역별로 나눈 묶음 필지는 줄이 없다(단가가 하나가 아님)
     // 일단지면 「본건 1·2」로 나누지 않고 이름표 하나(labelGroup)가 필지 테두리 전부를 가리킨다
-    if(loc)out.push({o:L,kind:'본건',label:(ILDANJI||landParcelCount()<2)?'본건':('본건 '+landParcelNo(i)),color:'#dc2626',loc:loc,region:region,pick:true,poly:true,
-      labelGroup:ILDANJI?'본건':'',
+    if(loc)out.push({o:L,kind:'본건',label:((ILDANJI&&(!isLandGroup()||grpIn(L)))||landParcelCount()<2)?'본건':('본건 '+landParcelNo(i)),color:'#dc2626',loc:loc,region:region,pick:true,poly:true,
+      labelGroup:(ILDANJI&&(!isLandGroup()||grpIn(L)))?'본건':'',
       info:mapInfo([mapUnit(row?row.apply:0,'적용단가'),mapDate(gijun,'기준시점')])});
   });
   STDS.forEach(function(S,i){
     var loc=((S['소재지']||'')+' '+(S['지번']||'')).trim();
     // 본건이 비교표준지로 고른 것(공시지가기준법 표의 '표준지' 칸)은 본건·채택 사례처럼 안쪽을 옅게 칠한다
-    var picked=LANDS.some(function(L){return Math.min(L.stdIdx||0,STDS.length-1)===i;});
+    var picked=evalKeys().some(function(k){return landStdOf(rowObj(k))===i;});
     if(loc)out.push(Object.assign({o:S,kind:'비교표준지',label:'표준지 '+(STD_TAG[i]||(i+1)),color:'#2563eb',loc:loc,region:region,poly:true,
       pick:picked,
       info:mapInfo([mapUnit(num(S['공시지가']),'공시지가'),mapDate(gongsiDay,'공시기준일')])},
@@ -5106,18 +5455,22 @@ function mapItems(){
       out.push(Object.assign({},base,{o:p,label:label,loc:relLoc(o.loc,p.jibun),labelGroup:g,boundaryLeader:true,info:mapInfo([base.info,'함께 '+(base.kind==='거래사례'?'거래':'평가')+' '+p.jibun])}));
     });
   }
+  // 의견서 표시를 끈 사례는 위치도에도 안 찍는다. 이름표 번호는 의견서 번호(남은 사례끼리 차례로)와 같게.
+  var hidT=opHiddenList('t',used.t),hidA=opHiddenList('a',used.a);
   TRADES.forEach(function(c,i){
+    if(hidT[i])return;
     var cal=tradeCalc(c);
     if(hasV(c.loc))pushCase(c,'trade'+i,Object.assign({kind:'거래사례',color:'#16a34a',region:region,poly:true,
       pick:!!used.t[i],
       info:mapInfo([mapUnit(cal.landUnit,'토지단가'),mapDate(c.date,'거래시점')])},
-      mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,road:c.road,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})),'거래 #'+(i+1));
+      mapBubble('거래사례',c,c.loc,{use:c.use,jimok:c.jimok,road:c.road,landA:c.landA,total:c.total,date:c.date,landUnit:cal.landUnit})),'거래 #'+docTradeNo(i));
   });
   APPRS.forEach(function(a,i){
+    if(hidA[i])return;
     if(hasV(a.loc))pushCase(a,'appr'+i,Object.assign({kind:'평가사례',color:'#ea580c',region:region,poly:true,
       pick:!!used.a[i],
       info:mapInfo([mapUnit(leadNum(a.unit),'사례단가'),mapDate(a.base,'기준시점')])},
-      mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,road:a.road,base:a.base,unit:leadNum(a.unit)})),'평가 '+(a.no||(i+1)));
+      mapBubble('평가사례',a,a.loc,{purp:a.purp,use:a.use,jimok:a.jimok,cond:a.cond,road:a.road,base:a.base,unit:leadNum(a.unit)})),'평가 '+(docApprNo(i)||(i+1)));
   });
   return out;
 }
@@ -5140,10 +5493,12 @@ function mapToggleKind(){
 }
 function mapCheckKinds(on){mapKindBoxes().forEach(function(b){b.checked=!!on;});mapToggleKind();}
 </script>
+<script src="arap_purpose_law.js"></script><!-- 의견서 목적 문장: 자산재평가면 외부감사법 문구 -->
 <script src="arap_toji_opinion.js"></script>
 <script src="arap_building_cost_data.js"></script>
 <script src="arap_gijunsiga.js"></script>
 <script src="arap_building_cost.js"></script>
 <script src="arap_toji_documents.js"></script>
+<script src="arap_toji_upload.js"></script><!-- 공부서류·접수 캡처 업로드 → 자동 인식 -->
 </body>
 </html>

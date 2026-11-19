@@ -15,7 +15,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>{dialogs.push(d.message());d.accept();});
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});if(u.startsWith(base))return r.continue();return r.abort();});
     await page.addInitScript(({mode})=>{if(sessionStorage.getItem('init'))return;sessionStorage.setItem('init','1');
-      localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);},{mode});
+      localStorage.setItem('arap-user-name','wdw');localStorage.setItem('arap-jiphap-mode',mode);sessionStorage.setItem('arap-jiphap-mode',mode);},{mode});
     await page.goto(base+'/s3r86w8a.html');
     const scope=page.locator(mode==='single'?'#root':'#root-multi');
     const caseNo=scope.locator('input[placeholder="HI260305-2601"]').first();
