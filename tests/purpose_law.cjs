@@ -41,4 +41,12 @@ const pd=globalThis.arapPurposeDoc;
 assert.equal(pd('','담보'),'담보');assert.equal(pd('일반거래(시가참고)','담보'),'담보');assert.equal(pd('경매','담보'),'경매');
 assert.equal(pd('','증여'),'일반거래(시가참고)');assert.equal(pd('','증여',''),'');assert.equal(pd('담보',''),'담보');
 assert.equal(law.otherUse('담보'),'일반거래나 소송 등');assert.equal(law.otherUse('일반거래(시가참고)'),'담보나 소송 등');
+// 집건 접수 캡처 평가목적 정리 — 증여·양도·상속·특관자매매 → 일반시가(시가참고), 상속·증여면 평가구분 (2026-11-19)
+const fc=globalThis.arapPurposeFromCapture;
+assert.deepEqual(fc('증여'),{purpose:'일반시가(시가참고)',category:'증여'});
+assert.deepEqual(fc('상속목적'),{purpose:'일반시가(시가참고)',category:'상속'});
+for(const x of ['양도','특관자매매','특관매','특수관계자간 매매','상속(증여)','일반시가'])assert.deepEqual(fc(x),{purpose:'일반시가(시가참고)',category:''},x);
+for(const x of ['담보','자산재평가','소송','일반거래(시가참고)','경매'])assert.equal(fc(x).purpose,x,x);
+assert.equal(fc('담보목적').purpose,'담보');assert.equal(fc('').purpose,'');
+assert.equal((src('s3r86w8a.html').match(/window\.arapPurposeFromCapture\(next\.purpose\)/g)||[]).length,2,'집건 단일·여러 호수 둘 다');
 console.log('purpose_law OK');
