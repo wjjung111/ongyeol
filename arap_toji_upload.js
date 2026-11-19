@@ -52,12 +52,12 @@ function moneyWon(v){var t=s(v).replace(/[,\s원]/g,'');if(!t)return null;
   if(!m||!(m[1]||m[2]||m[3]))return null;
   return Math.round((Number(m[1]||0)*1e8)+(Number(m[2]||0)*1e7)+(Number(m[3]||0)*1e4));}
 // 접수 「평가 목적」 → 화면 칸. 토건은 평가구분(ov_kind)에 상속·증여·담보 등을 넣고 평가목적(ov_purpose)은 일반거래(시가참고) 기본값을 쓰는 습관
-//   — 자산재평가만 평가목적 칸으로(arap_purpose_law.js가 평가목적에서 찾음), 일반거래·시가참고면 그대로 둠. 줄임말 「특관매」는 풀어 씀.
+//   — 자산재평가만 평가목적 칸으로(arap_purpose_law.js가 평가목적에서 찾음), 일반거래·시가참고면 그대로 둠. 특관매(특수관계자 매매)는 빈칸.
 function purposeFields(raw){var p=s(raw).replace(/\s*목적$/,'').trim(),o={};
   if(!p)return o;
   if(/자산\s*재평가/.test(p)){o.ov_purpose='자산재평가';return o;}
   if(/^(일반거래|시가참고|일반거래\s*\(시가참고\))$/.test(p))return o;
-  if(/^특관매$|특수관계/.test(p)){o.ov_kind='특수관계자간 매매';return o;}
+  if(/^특관매$|특수관계/.test(p))return o;   // 특수관계자 매매는 평가구분 빈칸(2026-11-19 사용자 결정)
   o.ov_kind=p;return o;}
 // 접수번호 날짜 6자리 → 의뢰일(청구서용, 2026/03/05)
 function orderDayFromCaseNo(no){var m=s(no).match(/[A-Za-z]+(\d{2})(\d{2})(\d{2})/);return m?('20'+m[1]+'/'+m[2]+'/'+m[3]):'';}

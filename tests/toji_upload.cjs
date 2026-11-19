@@ -13,11 +13,11 @@ const U=require('../arap_toji_upload.js');
     landParcels:[{addr:'경기도 안양시 동안구 관양동 1443-5',jimok:'대',area:'330.5'},{addr:'경기도 안양시 동안구 관양동 1443-5',jimok:'대',area:'330.5'}],
     bldSiteAddrs:['경기도 안양시 동안구 관양동 1443-5'],roadAddr:'[도로명주소] 경기도 안양시 동안구 관악대로 1',bldRegText:'철근콘크리트구조\\n1층 100.5㎡'});
   assert.equal(n.ov.ov_orderDay,'2026/11/03');assert.equal(n.ov.base_gijun,'2026.09.25');
-  assert.equal(n.ov.ov_kind,'특수관계자간 매매','옛 evalCategory 키도 읽음');
+  assert.equal(n.ov.ov_kind,undefined,'특수관계자 매매는 평가구분 빈칸(옛 evalCategory 키)');
   // 2026-11-19 접수글(ON261113-210101): 평가목적 특관매·제출처·가평가 20.7억(타업체 제외)·기준시점 26.11.13·특용 기준-하한
   const r2=U.normalize({caseNo:'ON261113-210101',client:'주식회사 만만한부동산닷컴',baseDate:'26.11.13',purpose:'특관매',submitTo:'세무서 및 국세청',
     deskPrice:'20.7억',feeBasis:'하한',feeSpecialMode:'기준-하한',feeSpecial:null,feeDownPayment:'300000'});
-  assert.equal(r2.ov.ov_kind,'특수관계자간 매매');assert.equal(r2.ov.ov_purpose,undefined,'평가목적 칸은 기본값 유지');
+  assert.equal(r2.ov.ov_kind,undefined,'특관매 → 평가구분 빈칸');assert.equal(r2.ov.ov_purpose,undefined,'평가목적 칸은 기본값 유지');
   assert.equal(r2.ov.ov_submit,'세무서 및 국세청');assert.equal(r2.ov.ov_deskPrice,'2,070,000,000');
   assert.equal(r2.ov.base_gijun,'2026.11.13');assert.equal(r2.ov.ov_orderDay,'2026/11/13');
   assert.equal(r2.cg.cg_specialMode,'기준-하한');assert.equal(r2.cg.cg_special,undefined);assert.equal(r2.cg.cg_downPayment,'300,000');

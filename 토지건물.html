@@ -31,6 +31,12 @@
   .side .v.sm{font-size:12px;font-weight:600;color:#e2e8f0;}
   .side .money{font-size:15px;color:#7dd3fc;}
   .side hr{border:none;border-top:1px solid #334155;margin:9px 0;}
+  .sd-lands{max-height:42vh;overflow-y:auto;font-size:11px;color:#e2e8f0;line-height:1.45;word-break:keep-all;overflow-wrap:anywhere;}
+  .sd-lands .sl{padding:4px 0;border-top:1px dashed #334155;}
+  .sd-lands .sl:first-child{border-top:none;padding-top:0;}
+  .sd-lands .sl-a{font-size:12px;font-weight:700;color:#fff;}
+  .sd-lands .sl-n{display:inline-block;min-width:14px;color:#94a3b8;font-weight:600;}
+  .sd-lands .sl-p{color:#7dd3fc;font-weight:700;}
   .side button{width:100%;background:#2563eb;color:#fff;border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;}
 
   .tabs{display:flex;gap:3px;margin-bottom:8px;flex-wrap:wrap;}
@@ -451,6 +457,9 @@
     <h3>접수번호</h3><div class="v" id="sd_caseNo">-</div>
     <h3>소재지</h3><div class="v sm" id="sd_addr">-</div>
     <h3>기준시점</h3><div class="v sm" id="sd_gijun">-</div>
+    <hr>
+    <!-- 본건 토지 정보 — 본건 토지 표 순서대로 주소·개공·도로조건·용도지역·지목 (2026-11-19) -->
+    <h3>토지 정보</h3><div class="sd-lands" id="sd_lands">-</div>
     <hr>
     <h3 class="land-calc">토지 적용단가</h3><div class="v land-calc" id="sd_landUnit">-</div>
     <h3 class="land-calc">토지감정평가액</h3><div class="v money land-calc" id="sd_landAmt">-</div>
@@ -3882,6 +3891,7 @@ function sd(){
   var addr=(loc+' '+(L0['지번']||'')).trim();
   document.getElementById('sd_addr').textContent=(addr?addr+(landParcelCount()>1?(' 외 '+(landParcelCount()-1)+'필지'):''):'-');
   document.getElementById('sd_gijun').textContent=document.getElementById('base_gijun').value||'-';
+  renderSideLands();
   var gsr=window.GONGSI_RESULT||{};
   document.getElementById('sd_landUnit').textContent=gsr.applyUnit?(won(gsr.applyUnit)+' 원/㎡'+(landUnitMany()?' 외':'')):'-';
   document.getElementById('sd_landAmt').textContent=window.LAND_FINAL?won(window.LAND_FINAL):'-';
@@ -3899,6 +3909,24 @@ function sd(){
   if(db){db.hidden=!desk;
     document.getElementById('db_desk').textContent=desk?won(desk)+'원':'-';
     document.getElementById('db_diff').innerHTML=(desk&&total)?('감정평가액: <b>'+won(total)+'원</b> · 탁상가 대비 <b>'+sign+pct.toFixed(2)+'%</b>'):'';}
+}
+
+// 왼쪽 「토지 정보」 — 본건 토지 표 순서(나눈 줄 제외) · 주소지 / 개공 / 도로조건 · 용도지역 · 지목 (2026-11-19 사용자 요청)
+function sideLandItems(){
+  var t=function(v){return String(v==null?'':v).trim();};
+  return landParcels().map(function(L,i){
+    var gp=t(L['공시지가']);if(gp&&/^[\d,.]+$/.test(gp))gp=won(num(gp));
+    return {no:i+1,addr:(t(L['소재지'])+' '+t(L['지번'])).trim(),gongsi:gp,road:t(L['도로교통']),zone:t(L['용도지역']),jimok:t(L['지목'])};
+  }).filter(function(x){return x.addr||x.gongsi||x.road||x.zone||x.jimok;});
+}
+function renderSideLands(){
+  var el=document.getElementById('sd_lands');if(!el)return;
+  var e=function(v){return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;');};
+  var items=sideLandItems();
+  el.innerHTML=items.length?items.map(function(x){
+    var meta=[x.road,x.zone,x.jimok].filter(Boolean).map(function(v){return '<span style="white-space:nowrap">'+e(v)+'</span>';}).join(' · ');
+    return '<div class="sl"><div class="sl-a">'+(items.length>1?'<span class="sl-n">'+x.no+'</span>':'')+e(x.addr||'-')+'</div>'+
+      '<div class="sl-p">개공 '+(x.gongsi?e(x.gongsi)+'원':'-')+'</div>'+(meta?'<div class="sl-m">'+meta+'</div>':'')+'</div>';}).join(''):'-';
 }
 
 // ================= 탭 =================
