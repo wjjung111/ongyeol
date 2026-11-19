@@ -88,9 +88,9 @@ function preTSV(text){var r='',q=false;
     if(c==='"')q=!q;else if(c==='\n'&&q)r+=' ';else r+=c;}
   return r;}
 function parseTSV(text){
-  var lines=preTSV(String(text||'')).split('\n').filter(function(l){return l.trim();});
+  var lines=preTSV(String(text||'').replace(/\r/g,'')).split('\n').filter(function(l){return l.trim();});
   if(lines.length<2)return {h:[],rows:[]};
-  var h=lines[0].split('\t').map(function(x){return x.replace(/"/g,'').trim();});
+  var h=lines[0].split('\t').map(function(x){return x.replace(/"/g,'').replace(/\s+/g,' ').trim();});
   var rows=lines.slice(1).map(function(l){
     var cells=l.split('\t').map(function(c){return c.trim();}),o={};
     h.forEach(function(k,i){o[k]=cells[i]||'';});return o;});
