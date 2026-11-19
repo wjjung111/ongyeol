@@ -1963,6 +1963,8 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          {const ec=String(result.evalCategory||"").trim();if(/^(상속|증여)$/.test(ec)){next.evalCategory=ec;autoF.evalCategory=true;}}
          // 평가목적·제출처·탁상가격(가평가)도 접수 이미지에서 — 주황 표시로 검토 유도 (2026-11-15 「제출처 등 잘 캐치 못함」)
          for(const k of ["purpose","submitTo"]){const v=result[k];if(v!=null&&String(v).trim()){next[k]=String(v).trim();autoF[k]=true;}}
+         // 증여·양도·상속·특관자매매 등 → 평가목적 「일반시가(시가참고)」, 상속·증여면 평가구분도(2026-11-19)
+         if(autoF.purpose&&window.arapPurposeFromCapture){const pc=window.arapPurposeFromCapture(next.purpose);if(pc.purpose)next.purpose=pc.purpose;if(pc.category&&!String(next.evalCategory||"").trim()){next.evalCategory=pc.category;autoF.evalCategory=true;}}
          {const dp=String(result.deskPrice??"").replace(/[^0-9]/g,"");if(dp&&+dp>0){next.deskPrice=dp;autoF.deskPrice=true;}}
          next.autoFields=autoF;}
         // landParcels는 배열이라 위 문자열 루프에서 제외 — 별도 처리 (명세표 다중 필지용)
@@ -3752,7 +3754,7 @@ async function downloadYohangHwpx(ov,propType,opt={}){
 // 여러 호수 화면(#root-multi, 다른 babel 블록)이 같은 요항표 엔진·접면도로 문장 규칙을 쓴다(2026-11-17)
 window.ArapYohang={download:downloadYohangHwpx,RoadCard:YohangRoadCard,roadText:yohangRoadNr,roadByInput:yohangRoadByInput,roadCnt:yohangRoadCnt,ROAD_RES:YOHANG_ROAD_RES,josaRo:yohangJosaRo,josaNeun:yohangJosaNeun};
 window.ArapSingleDocuments={MYEONGSE_TPL_B64};  // 여러호수 명세표(arap_multi_myeongse.js)가 같은 xlsx 템플릿을 쓴다
-try{window.buildEvalHwpxV2=buildEvalHwpxV2;window.V2NROPIN_TPL_B64=V2NROPIN_TPL_B64;window.V2_IDS_NR=V2_IDS_NR;window.buildV2TokenMap=buildV2TokenMap;window.buildCheongguTokenMap=buildCheongguTokenMap;window.buildTokenHwpx=buildTokenHwpx;window.V2CHEONGGU_TPL_B64=V2CHEONGGU_TPL_B64;window.V2CHEONGGU_BLUE2BLACK=V2CHEONGGU_BLUE2BLACK;}catch(e){console.error('v2 엔진 전역 노출 실패',e);}
+try{window.buildEvalHwpxV2=buildEvalHwpxV2;window.V2NROPIN_TPL_B64=V2NROPIN_TPL_B64;window.V2_IDS_NR=V2_IDS_NR;window.V2GWAL_TPL_B64=V2GWAL_TPL_B64;window.V2_IDS_SPLIT=V2_IDS_SPLIT;window.V2OPIN_TPL_B64=V2OPIN_TPL_B64;window.V2_IDS_OPIN=V2_IDS_OPIN;window.buildV2TokenMap=buildV2TokenMap;window.buildCheongguTokenMap=buildCheongguTokenMap;window.buildTokenHwpx=buildTokenHwpx;window.V2CHEONGGU_TPL_B64=V2CHEONGGU_TPL_B64;window.V2CHEONGGU_BLUE2BLACK=V2CHEONGGU_BLUE2BLACK;}catch(e){console.error('v2 엔진 전역 노출 실패',e);}
 
 // [v2.0] 대표 샘플 건 — 압구정동 현대아파트 (처음 방문자에게 자동 로드되는 예시. 지수·사례 일부는 예시값)
 const V2_SAMPLE={
@@ -6297,6 +6299,8 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          {const ec=String(result.evalCategory||"").trim();if(/^(상속|증여)$/.test(ec)){next.evalCategory=ec;autoF.evalCategory=true;}}
          // 평가목적·제출처도 접수 이미지에서 (탁상가격은 호별 — 아래 units 처리에서 호가 하나일 때만)
          for(const k of ["purpose","submitTo"]){const v=result[k];if(v!=null&&String(v).trim()){next[k]=String(v).trim();autoF[k]=true;}}
+         // 증여·양도·상속·특관자매매 등 → 평가목적 「일반시가(시가참고)」, 상속·증여면 평가구분도(2026-11-19)
+         if(autoF.purpose&&window.arapPurposeFromCapture){const pc=window.arapPurposeFromCapture(next.purpose);if(pc.purpose)next.purpose=pc.purpose;if(pc.category&&!String(next.evalCategory||"").trim()){next.evalCategory=pc.category;autoF.evalCategory=true;}}
          next.autoFields=autoF;}
         // landParcels는 배열이라 위 문자열 루프에서 제외 — 별도 처리 (명세표 다중 필지용)
         if(Array.isArray(result.landParcels)&&result.landParcels.length){
