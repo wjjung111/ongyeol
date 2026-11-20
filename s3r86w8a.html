@@ -1799,7 +1799,8 @@ async function recognizePDFs(files){
   "mainUse": "주용도 - 표제부 기준 (예: 공동주택(아파트), 공동주택(다세대주택))",
   "mainUseJeonyu": "주용도 - 전유부 기준 (예: 아파트, 다세대주택, 오피스텔, 판매시설)",
   "feeDownPayment": "기납부 착수금 (원 단위 숫자만, 예: '착수금 100만원 입금완료'→1000000). 접수내용 이미지에만 있음 — 없으면 null",
-  "feeSpecial": "특별용역비(특용비) (원 단위 숫자만, '특용비 없음'이면 0). 접수내용 이미지에만 있음 — 없으면 null",
+  "feeSpecial": "특별용역비(특용비) 금액 (원 단위 숫자만, '특용비 없음'이면 0). '특용 (기준 - 하한)'처럼 금액 대신 방식만 적혀 있으면 null. 접수내용 이미지에만 있음 — 없으면 null",
+  "feeSpecialMode": "특용비 계산 방식 — 접수내용에 '특용 (기준 - 하한)'·'특용 상한-하한'·'상한-기준'처럼 적혀 있으면 그 표현('기준-하한' 등), 아니면 null",
   "feeBasis": "수수료 요율 기준 — '하한요율'이면 '하한', '기준요율'이면 '기준', '상한요율'이면 '상한'. 접수내용 이미지에만 있음 — 없으면 null",
   "caseNo": "감정서번호/접수번호 (예: HI260305-2601) — 접수내용 캡처 이미지에만 있음. 없으면 null",
   "purpose": "평가목적 — 접수내용 캡처 이미지의 '평가목적' 표현 그대로, 끝의 '목적'만 뗀다 (예: '담보목적'→'담보', '일반거래(시가참고)'→그대로). 이미지에 없으면 null",
@@ -1830,7 +1831,7 @@ async function recognizePDFs(files){
 - 사용승인일은 총괄표제부(을)의 인허가 시기에서
 - mainUse는 총괄표제부 또는 표제부의 주용도에서 추출 (예: "공동주택(아파트)")
 - mainUseJeonyu는 전유부의 주용도에서 추출 (예: "다세대주택", "아파트"). 전유부 건물명세 혹은 부동산 표시란에 기재된 용도
-- feeDownPayment/feeSpecial/feeBasis는 접수내용 캡처 이미지(첨부된 경우)에서만 추출 — '하감 바름 각각 착수금 100만원'처럼 병기되면 이 건의 착수금은 1000000. 금액은 만원→원 환산한 숫자만
+- feeDownPayment/feeSpecial/feeSpecialMode/feeBasis는 접수내용 캡처 이미지(첨부된 경우)에서만 추출 — '하감 바름 각각 착수금 100만원'처럼 병기되면 이 건의 착수금은 1000000. 금액은 만원→원 환산한 숫자만
 - caseNo/client/requestDate/baseDate/evalCategory/purpose/submitTo/deskPrice도 접수내용 캡처 이미지에서만 추출 (공부서류 PDF에서 추측 금지). 제출처는 '담당자'(중개사 등)·의뢰인과 혼동하지 말 것
 - evalCategory는 '상속'/'증여' 중 하나가 확실할 때만. 조금이라도 애매하면 null`});
 
@@ -1967,6 +1968,12 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          if(autoF.purpose&&window.arapPurposeFromCapture){const pc=window.arapPurposeFromCapture(next.purpose);if(pc.purpose)next.purpose=pc.purpose;if(pc.category&&!String(next.evalCategory||"").trim()){next.evalCategory=pc.category;autoF.evalCategory=true;}}
          {const dp=String(result.deskPrice??"").replace(/[^0-9]/g,"");if(dp&&+dp>0){next.deskPrice=dp;autoF.deskPrice=true;}}
          next.autoFields=autoF;}
+        // 특용비 방식 — 접수글 「특용 (기준 - 하한)」 → 방식 드롭다운(수수료 차액 자동), 금액만 있으면 직접입력(2026-11-20 「특용비 자동인식 못함」)
+        {const sm=window.ArapFee&&window.ArapFee.specialMode?window.ArapFee.specialMode(String(result.feeSpecialMode??"")+" "+String(result.feeSpecial??"")):"";
+         const sp=String(result.feeSpecial??"").replace(/[^0-9]/g,"");
+         if(sm){next.specialFeeModeSel=sm;next.feeSpecial="";}
+         else if(sp!==""&&/^[\s0-9,원.]*$/.test(String(result.feeSpecial))){next.specialFeeModeSel="직접입력";next.feeSpecial=sp;}
+         else if(result.feeSpecial!=null&&!sp)next.feeSpecial=prev.feeSpecial??"";}
         // landParcels는 배열이라 위 문자열 루프에서 제외 — 별도 처리 (명세표 다중 필지용)
         if(Array.isArray(result.landParcels)&&result.landParcels.length){
           next.landParcels=result.landParcels.map(p=>({jibun:String((p&&p.jibun)||"").trim(),area:(()=>{const n=parseFloat(String((p&&p.area)||"").replace(/,/g,""));return isNaN(n)?"":n;})()})).filter(p=>p.jibun);
@@ -6098,7 +6105,8 @@ JSON으로만 응답하세요. 마크다운 백틱 없이 순수 JSON만 출력.
   "deskPrice": "탁상가격(가평가) — 접수내용 캡처 이미지의 '가평가 9억 희망'·'탁상 8.5억'·'예상가액 9억' 같은 금액을 원 단위 숫자만 (9억→900000000, 8억5천→850000000). 이미지에 없으면 null",
   "client": "의뢰인 성명 — 접수내용 캡처 이미지 기준. 없으면 null",
   "feeBasis": "수수료 요율 기준 — '하한요율'이면 '하한', '기준요율'이면 '기준', '상한요율'이면 '상한'. 접수내용 이미지에만 있음 — 없으면 null",
-  "feeSpecial": "특별용역비(특용비) (원 단위 숫자만, '특용비 없음'이면 0). 접수내용 이미지에만 있음 — 없으면 null",
+  "feeSpecial": "특별용역비(특용비) 금액 (원 단위 숫자만, '특용비 없음'이면 0). '특용 (기준 - 하한)'처럼 금액 대신 방식만 적혀 있으면 null. 접수내용 이미지에만 있음 — 없으면 null",
+  "feeSpecialMode": "특용비 계산 방식 — 접수내용에 '특용 (기준 - 하한)'·'특용 상한-하한'·'상한-기준'처럼 적혀 있으면 그 표현('기준-하한' 등), 아니면 null",
   "feeDownPayment": "기납부 착수금 (원 단위 숫자만, 예: '착수금 100만원 입금완료'→1000000). 접수내용 이미지에만 있음 — 없으면 null",
   "requestDate": "의뢰일 — 감정서번호(접수번호)의 날짜 6자리를 YYYY/MM/DD로 변환 (예: HI260305-2601 → 2026/03/05). 접수번호가 없으면 null",
   "baseDate": "기준시점(가격시점) — 접수내용 캡처 이미지에 날짜가 명시된 경우만 YYYY.MM.DD로. 없으면 null",
@@ -6300,6 +6308,12 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          // 증여·양도·상속·특관자매매 등 → 평가목적 「일반거래(시가참고)」(2026-11-20), 상속·증여면 평가구분도(2026-11-19)
          if(autoF.purpose&&window.arapPurposeFromCapture){const pc=window.arapPurposeFromCapture(next.purpose);if(pc.purpose)next.purpose=pc.purpose;if(pc.category&&!String(next.evalCategory||"").trim()){next.evalCategory=pc.category;autoF.evalCategory=true;}}
          next.autoFields=autoF;}
+        // 특용비 방식 — 접수글 「특용 (기준 - 하한)」 → 방식 드롭다운(수수료 차액 자동), 금액만 있으면 직접입력(2026-11-20 「특용비 자동인식 못함」)
+        {const sm=window.ArapFee&&window.ArapFee.specialMode?window.ArapFee.specialMode(String(result.feeSpecialMode??"")+" "+String(result.feeSpecial??"")):"";
+         const sp=String(result.feeSpecial??"").replace(/[^0-9]/g,"");
+         if(sm){next.specialFeeModeSel=sm;next.feeSpecial="";}
+         else if(sp!==""&&/^[\s0-9,원.]*$/.test(String(result.feeSpecial))){next.specialFeeModeSel="직접입력";next.feeSpecial=sp;}
+         else if(result.feeSpecial!=null&&!sp)next.feeSpecial=prev.feeSpecial??"";}
         // landParcels는 배열이라 위 문자열 루프에서 제외 — 별도 처리 (명세표 다중 필지용)
         if(Array.isArray(result.landParcels)&&result.landParcels.length){
           next.landParcels=result.landParcels.map(p=>({jibun:String((p&&p.jibun)||"").trim(),area:(()=>{const n=parseFloat(String((p&&p.area)||"").replace(/,/g,""));return isNaN(n)?"":n;})()})).filter(p=>p.jibun);

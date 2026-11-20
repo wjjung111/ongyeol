@@ -89,5 +89,10 @@ function scanSaved(){
   }catch(e){}
   return rows;
 }
-window.ArapFee={calc:calc,statementText:statementText,parse:parse,check:check,scanSaved:scanSaved,TABLE:TABLE};
+// 접수글 「특용 (기준 - 하한)」·「특용비 상한-하한요율」 → 특용비 방식 '기준-하한' 등(집건 접수 인식, 2026-11-20). 없으면 ''
+function specialMode(text){
+  var t=String(text==null?'':text).replace(/[\s()（）\[\]]/g,'').replace(/요율|수수료/g,'').replace(/[‐‑‒–—−~∼～]/g,'-');
+  var m=t.match(/(상한|기준)-?(하한|기준)/);return m&&m[1]!==m[2]?m[1]+'-'+m[2]:'';
+}
+window.ArapFee={specialMode:specialMode,calc:calc,statementText:statementText,parse:parse,check:check,scanSaved:scanSaved,TABLE:TABLE};
 })();
