@@ -4473,12 +4473,12 @@ async function downloadAllDocs(){
     calcGongsi();renderBldCalc();calcFinal();
     var br=bldResult();
     if(br.size&&!br.total&&!confirm('건물 재조달원가가 입력되지 않아 괄호감정표·의견서의 건물가액이 빈칸으로 나갑니다.\n건물 탭에서 층별 재조달원가를 입력하세요.\n\n그래도 지금 받으시겠습니까?'))return;
-    var who=cgVal('ov_client')||'의뢰인';
+    var who=cgVal('ov_client')||'의뢰인',warned=[];
     var jobs=[
       {name:'1. 표지_'+who+'.hwpx',make:async function(){return A.buildTokenHwpx(await fetchTplB64('템플릿/토건 표지 템플릿.hwpx'),pyojiMap(),{});}},
       {name:'2. 괄호감정표_'+who+'.hwpx',make:async function(){return A.buildTokenHwpx(await gwalTplB64(),gwalMap(),{});}},
       {name:'3. 의견서(산출근거)_'+who+'.hwpx',make:async function(){return ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data());}},
-      {name:'4. 명세표_'+who+'.xlsx',make:async function(){return ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());}},
+      {name:'4. 명세표_'+who+'.xlsx',make:async function(){var b=await ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());var w=ArapTojiDocuments.lastWarn();if(w)warned.push('4. 명세표 — '+w);return b;}},
       {name:'5. 요항표_'+who+'.hwpx',make:async function(){return ArapTojiDocuments.buildYohang();}}
     ];
     var made=[],failed=[];
@@ -4492,7 +4492,7 @@ async function downloadAllDocs(){
       if(k<made.length-1)await new Promise(function(r){setTimeout(r,600);});
     }
     if(st){st.className='status'+(failed.length?' err':'');
-      st.textContent=(made.length?made.length+'개 파일을 받았습니다. 한글에서 열어 확인하세요.':'')+(failed.length?' 못 만든 문서: '+failed.join(' / '):'');}
+      st.textContent=(made.length?made.length+'개 파일을 받았습니다. 한글에서 열어 확인하세요.':'')+(failed.length?' 못 만든 문서: '+failed.join(' / '):'')+(warned.length?' ⚠️ '+warned.join(' / '):'');}
   }catch(e){console.error('일괄 받기 실패',e);if(st){st.className='status err';st.textContent='일괄 받기 실패: '+e.message;}}
   finally{btn.disabled=false;}
 }
