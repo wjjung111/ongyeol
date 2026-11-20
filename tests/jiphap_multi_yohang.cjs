@@ -1,5 +1,5 @@
 // 집합건물 여러 호수 요항표(2026-11-17) — 단일호수 요항표 엔진(window.ArapYohang)으로 호수 전부를 한 장에.
-// 1. 건물의 구조 「… 중 제1층 제101호, 제2층 제201호…로서」, 2. 이용상태는 호수 주용도(전유부)별로 묶어 「…는 근린생활시설로, …는 다세대주택으로 이용중임.」
+// 1. 건물의 구조 「… 중 제1층 제101호, 제2층 제201호…로서」, 2. 이용상태는 호수 주용도(전유부)별로 묶어 「…는 근린생활시설로, …는 다세대주택으로 이용 중임.」
 // 접면도로 입력칸(방향·노폭)도 여러 호수 ② 화면에 생김. 📦 일괄 받기에 요항표 포함. 단일호수 요항표 회귀(조사 「로」 유지)도 확인.
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/jiphap_multi_yohang.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -36,17 +36,17 @@ const ov={caseNo:'TESTMULTI',client:'검증 의뢰인',owner:'검증 소유자',
     const r=await grab(scope,'요항표','multi_yohang.hwpx');
     assert.match(r.name,/^5\. 요항표_검증 의뢰인\.hwpx$/);assert.deepEqual([...new Set(r.x.match(/\{\{[^}]+\}\}/g)||[])],[]);
     assert.ok(r.t.includes('지상5층 중 제1층 제101호, 제2층 제201호, 제3층 제301호, 제3층 제302호, 제4층 제401호, 제4층 제402호, 제5층 제501호로서'),'건물의 구조');
-    assert.ok(r.t.includes('제1층 제101호, 제2층 제201호는 근린생활시설로, 제3층 제301호, 제3층 제302호, 제4층 제401호, 제4층 제402호, 제5층 제501호는 다세대주택으로 이용중임.'),'이용상태');
+    assert.ok(r.t.includes('제1층 제101호, 제2층 제201호는 근린생활시설로, 제3층 제301호, 제3층 제302호, 제4층 제401호, 제4층 제402호, 제5층 제501호는 다세대주택으로 이용 중임.'),'이용상태');
     assert.ok(r.t.includes('본건 남측으로 노폭 약 8m 내외의 포장도로에 접함.'),'접면도로');
     assert.ok(r.t.includes('본건 주위는 다세대주택, 단독주택 및 근린생활시설 등이 혼재하는 주거지대로서'),'부근상황');
     assert.ok(!/<hp:p [^>]*><hp:run charPrIDRef="\d+"\/>(<hp:linesegarray>(<hp:lineseg [^>]*\/>)*<\/hp:linesegarray>)?<\/hp:p><\/hs:sec>$/.test(r.x),'끝 빈 문단 없음(빈 쪽 방지)');
     const names=[];page.on('download',d=>names.push(d.suggestedFilename()));
     await scope.getByRole('button',{name:'📦 일괄 받기',exact:true}).click();await page.waitForTimeout(8000);
     assert.ok(names.some(n=>n.includes('요항표')),'일괄 받기에 요항표: '+names.join(', '));
-    // 단일호수 회귀 — 샘플(아파트) 「공동주택(아파트)로 이용중임.」
+    // 단일호수 회귀 — 샘플(아파트) 「공동주택(아파트)로 이용 중임.」
     await page.goto(base+'/s3r86w8a.html?last=1&mode=single');const s1=page.locator('#root');
     await s1.getByText('3. 위치도 · 청구서',{exact:true}).click({timeout:90000});
-    const s=await grab(s1,'요항표','single_yohang.hwpx');assert.deepEqual([...new Set(s.x.match(/\{\{[^}]+\}\}/g)||[])],[]);assert.match(s.t,/아파트\)로 이용중임\./,'단일 조사');
+    const s=await grab(s1,'요항표','single_yohang.hwpx');assert.deepEqual([...new Set(s.x.match(/\{\{[^}]+\}\}/g)||[])],[]);assert.match(s.t,/아파트\)로 이용 중임\./,'단일 조사');
     assert.deepEqual(errors,[]);console.log('PASS');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

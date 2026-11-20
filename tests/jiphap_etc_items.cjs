@@ -70,10 +70,10 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
       const x=unzip(fs.readFileSync(file))['Contents/section0.xml'].toString('utf8');
       assert.ok(await page.evaluate(s=>!new DOMParser().parseFromString(s,'application/xml').getElementsByTagName('parsererror').length,x),'XML 정상');
       assert.deepEqual([...new Set(x.match(/\{\{[^}]+\}\}/g)||[])],[],'남은 토큰 없음');
-      const t=T(x).replace(/\| \|/g,'| '),k=t.indexOf('업무진행 시 참고 바람');
+      const t=T(x).replace(/\| \|/g,'| '),k=t.indexOf('업무 진행 시 참고 바람.');
       const after=t.slice(k,t.indexOf('대상물건 개요',k));
       const want=(share?'|마.| 지분 문구':'')+'|'+L0+'.| 본건은 경서3구역 도시개발지구 내 구분소유건물로서';
-      assert.ok(after.startsWith('업무진행 시 참고 바람'+want),'그 밖의 사항 순서 '+after.slice(0,160));
+      assert.ok(after.startsWith('업무 진행 시 참고 바람.'+want),'그 밖의 사항 순서 '+after.slice(0,160));
       assert.ok(after.includes('|'+L1+'.| 직접 쓴 문구 &amp; &lt;확인&gt; 둘째 줄|'),'직접 쓴 문구 그대로(줄바꿈은 한 칸) '+after.slice(0,600));
       assert.ok(!after.includes(share?'|아.|':'|사.|'),'지운 항목 없음');
       // 저장 → 새로고침해도 남음
@@ -99,8 +99,8 @@ const JIBUN='인천광역시 서해구 경서동 경서3구역도시개발지구
         const es=await h.parseZip(res.bytes.buffer);const x=new TextDecoder().decode(es.find(e=>e.name==='Contents/section0.xml').data);
         return {x,ok:!new DOMParser().parseFromString(x,'application/xml').getElementsByTagName('parsererror').length};});
       assert.ok(r.ok,'여러호수 XML 정상');
-      const t=T(r.x).replace(/\| \|/g,'| '),k=t.indexOf('업무진행 시 참고 바람');
-      assert.ok(t.slice(k).startsWith('업무진행 시 참고 바람|마.| 첫째 문구 &amp; 확인|바.| 둘째 문구|'),'여러호수 그 밖의 사항 '+t.slice(k,k+120));
+      const t=T(r.x).replace(/\| \|/g,'| '),k=t.indexOf('업무 진행 시 참고 바람.');
+      assert.ok(t.slice(k).startsWith('업무 진행 시 참고 바람.|마.| 첫째 문구 &amp; 확인|바.| 둘째 문구|'),'여러호수 그 밖의 사항 '+t.slice(k,k+120));
       assert.deepEqual([...new Set(r.x.match(/\{\{그밖의[^}]+\}\}/g)||[])],[],'여러호수 남은 토큰 없음');
       assert.deepEqual(errors,[]);await ctx.close();console.log('여러호수 OK');}
     console.log('PASS');
