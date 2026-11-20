@@ -47,9 +47,16 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     // 한 줄로 붙여넣어도(PDF 복사) 같은 결과
     const one=await page.evaluate(()=>ArapTojiDocuments.parseRegBld('철근콘크리트구조 (철근)콘크리트지붕 4층 근린생활시설 1층 148.26㎡ 2층 234.79㎡ 지1층 294.39㎡ 옥탑1 28.35㎡'));
     assert.deepEqual(one.struct,['철근콘크리트구조 (철근)콘크리트지붕 4층']);assert.equal(one.use,'근린생활시설');assert.equal(one.floors.length,4);
-    // 등기에 없는 층이 대장에 있으면 막는다
-    const err=await page.evaluate(()=>{document.getElementById('bt_regText').value='철근콘크리트구조\n근린생활시설\n1층 148.26㎡';try{ArapTojiDocuments.statementRows();return '';}catch(e){return e.message;}});
-    assert(/건물등기 건물내역에 없습니다/.test(err),err);
+    // 등기와 대장 층이 달라도 막지 않고 등기 기준(2026-11-19): 등기 층 순서대로 + 등기에 없는 대장 층은 뒤에 붙여 합계 유지 + 대장에 없는 등기 층은 면적만
+    const mm=await page.evaluate(()=>{document.getElementById('bt_regText').value='철근콘크리트구조\n근린생활시설\n1층 148.26㎡\n5층 50.5㎡';const r=ArapTojiDocuments.statementRows();return {rows:r,warn:ArapTojiDocuments.lastWarn()};});
+    const lab=mm.rows.slice(2).map(r=>r['명세_지역구조']);
+    assert.deepEqual(lab.slice(0,2),['1층','5층'],'등기 층이 먼저, 등기 순서');
+    const f5=mm.rows[3];assert.equal(f5['명세_공부면적'],50.5);assert.equal(f5['명세_단가'],null);assert.equal(f5['명세_평가액'],0);
+    assert.equal(tot(mm.rows),tot(plain),'대장에만 있는 층도 붙여 합계 같음');
+    assert(/건물평가에만 있는 층/.test(mm.warn)&&/5층/.test(mm.warn),mm.warn);
+    assert.equal(mm.rows[1]['명세_지목용도'],'근린생활시설','머리행 용도는 등기');
+    {const dl0=page.waitForEvent('download');await page.evaluate(()=>document.getElementById('btnMyeongse').click());const f0=path.join(out,'명세표_층불일치.xlsx');await (await dl0).saveAs(f0);
+     const st=await page.evaluate(()=>document.getElementById('doc_status').textContent);assert(/파일을 받았습니다/.test(st)&&/건물평가에만 있는 층/.test(st),st);console.log('saved',f0,st);}
     await page.evaluate(t=>{document.getElementById('bt_regText').value=t;},reg);
     const dl=page.waitForEvent('download');await page.evaluate(()=>document.getElementById('btnMyeongse').click());
     const file=path.join(out,'명세표_등기.xlsx');await (await dl).saveAs(file);console.log('saved',file);
