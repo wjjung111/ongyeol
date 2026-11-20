@@ -234,7 +234,7 @@ function esc(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return 
 function dt(v){var m=String(v||'').match(/(\d{4})\D?(\d{2})\D?(\d{2})/);return m?(m[1]+'-'+m[2]+'-'+m[3]):'';}
 function n1(v){var x=Number(v);return (v===''||v==null||isNaN(x))?'':x.toLocaleString('ko-KR',{maximumFractionDigits:4});}
 function txt(v){return String(v==null?'':v).trim();}
-function joinPurps(main,etc){var a=txt(main),b=txt(etc);return b?(a?a+'('+b+')':b):a;}
+function joinPurps(main,etc){var a=txt(main),b=txt(etc);if(!b)return a;if(!a||b===a||b.indexOf(a)===0)return b;return a+'('+b+')';}   // 같으면 한 번만(arap_bldrgst.js와 같은 규칙)
 
 var STATE={addr:'',pnu:'',titles:[],recap:null,flrs:[],jijigu:[],atch:[],atchOld:false,dongIdx:0,hoList:[],hoRows:[],hoDong:'',hoNm:'',hoAll:null,proxyOld:false};
 

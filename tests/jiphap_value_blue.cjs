@@ -38,7 +38,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     assert.deepEqual(r.blueInTbl,[],'표 안은 파랑 없음');
     assert.ok(r.blueOut.includes('일반거래(시가참고)'),'평가목적 값 파랑 '+JSON.stringify(r.blueOut));
     assert.ok(r.blueOut.some(t=>/^\d{4}\.\d{2}\.\d{2}$/.test(t)),'기준시점 값 파랑');
-    assert.ok(r.out.some(t=>t.startsWith('「감정평가에 관한 규칙」제9조에 의거 기준시점은')&&!t.endsWith('#0000FF')),'고정 문구는 원래 색');
+    assert.ok(r.out.some(t=>t.startsWith('「감정평가에 관한 규칙」 제9조에 의거 기준시점은')&&!t.endsWith('#0000FF')),'고정 문구는 원래 색');
     const zg=await get('괄감');const g=await page.evaluate(check,[zg['Contents/header.xml'].toString('utf8'),zg['Contents/section0.xml'].toString('utf8')]);
     assert.ok(g.ok,'괄감 글자모양');assert.deepEqual(g.blueInTbl,[],'괄감 표 안 파랑 없음');
     assert.deepEqual(errors,[]);

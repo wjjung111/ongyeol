@@ -41,7 +41,14 @@ function items(d){
   var it=b&&b.items&&b.items.item;
   return it?(Array.isArray(it)?it:[it]):[];
 }
-function joinPurps(main,etc){var a=txt(main),b=txt(etc);return b?(a?a+'('+b+')':b):a;}
+// 주구조·주용도 + 기타(세부) — 같으면 한 번만, 세부가 주값으로 시작하면 세부만(「철근콘크리트구조(철근콘크리트구조)」→「철근콘크리트구조」,
+// 「공동주택(공동주택(아파트))」→「공동주택(아파트)」, 2026-11-20 ON261117-1632 검수)
+function joinPurps(main,etc){var a=txt(main),b=txt(etc);if(!b)return a;if(!a||b===a||b.indexOf(a)===0)return b;return a+'('+b+')';}
+// 이미 저장된 「A(A)」「A(A(B))」 꼴을 서류에 찍기 전에 정리(맨 앞 낱말 하나만 봄 — 뒤의 지붕 등은 그대로)
+function cleanPurps(v){var s=txt(v),m=s.match(/^([^()\s]+)\(/);if(!m)return s;var a=m[1],i=a.length,d=0,j=i;
+  for(;j<s.length;j++){if(s[j]==='(')d++;else if(s[j]===')'){d--;if(!d)break;}}
+  if(j>=s.length)return s;var inner=s.slice(i+1,j).trim(),rest=s.slice(j+1);
+  return (inner===a||inner.indexOf(a+'(')===0)?inner+rest:s;}
 function dot(v){var m=String(v||'').match(/(\d{4})\D?(\d{2})\D?(\d{2})/);return m?(m[1]+'.'+m[2]+'.'+m[3]):'';}
 function numStr(v){var x=Number(v);if(v===''||v==null||isNaN(x))return'';return String(Number(x.toFixed(4)));}
 function stripDong(s){return txt(s).replace(/^제/,'').replace(/동$/,'').trim();}
@@ -303,6 +310,6 @@ function Panel(props){
   );
 }
 
-window.ArapBldrgst={buildingNameOnly:buildingNameOnly,search:search,load:load,buildingFields:buildingFields,hoList:hoList,unitFields:unitFields,firstParcel:firstParcel,Panel:Panel,
+window.ArapBldrgst={buildingNameOnly:buildingNameOnly,search:search,load:load,buildingFields:buildingFields,cleanPurps:cleanPurps,hoList:hoList,unitFields:unitFields,firstParcel:firstParcel,Panel:Panel,
   _internal:{stripDong:stripDong,stripHo:stripHo,looksRoad:looksRoad,numStr:numStr,dot:dot}};
 })();
