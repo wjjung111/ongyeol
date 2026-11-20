@@ -137,6 +137,8 @@
     .js-grp span i{font-style:normal;font-weight:400;color:#64748b;margin-right:4px;}
     .js-grp.res{background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:2px 10px;margin-left:auto;}
     .js-grp.res span strong{font-size:14px;}
+    .js-float{position:fixed;z-index:9000;background:#fff;border-radius:6px;box-shadow:0 4px 14px rgba(15,23,42,.18);}
+    .js-float .js-grp.res{margin:0;padding:5px 12px;border-right:1px solid #bfdbfe;}
     .js-badge{font-size:11px;font-weight:700;border-radius:8px;padding:0 6px;margin-left:6px;}
     .js-badge.ok{background:#ecfdf5;color:#047857;}
     .js-badge.todo{background:#fffbeb;color:#b45309;border:1px solid #f59e0b;}
@@ -1515,6 +1517,20 @@ function SummaryBar({ov,step,res,children}){
   const grp=(name,arr)=>arr.length?<div className="js-grp"><b>{name}</b>{arr.map((x,i)=><span key={i} style={x.color?{color:x.color}:null}>{x.l?<i>{x.l}</i>:null}{x.v}</span>)}</div>:null;
   const fT=(res&&res.fT)||0,fU=(res&&res.fU)||0;
   const showRow=step>0&&(g1.length||g2.length||g3.length||fT>0);
+  // 「지금 결과」 상자 — 스크롤로 화면 위로 사라지면 위쪽에 떠서 계속 보이게(2026-11-20 사용자). 화면 밖 판정은 IntersectionObserver(본문 안쪽 스크롤도 잡힘)
+  const resBox=ref=>step>=1&&fT>0?<div ref={ref} className="js-grp res"><b>지금 결과</b>
+        {fU>0?<span><i>결정단가</i>{fmt(fU)}</span>:null}
+        <span><i>감정평가액</i><strong>{fmt(fT)}</strong></span>
+        {desk?<span><i>탁상 대비</i>{((fT/desk-1)*100).toFixed(2)}%</span>:null}
+      </div>:null;
+  const [resEl,setResEl]=useState(null),[resFloat,setResFloat]=useState(null);
+  useEffect(()=>{if(!resEl||!window.IntersectionObserver){setResFloat(null);return;}
+    const mb=document.getElementById("mode-bar"),topH=mb?mb.getBoundingClientRect().height:0;
+    const io=new IntersectionObserver(([e])=>{const r=e.boundingClientRect;
+      if(!e.isIntersecting&&r.height>0&&r.bottom<=topH+2){const bar=resEl.closest(".js-bar"),br=bar?bar.getBoundingClientRect():r;
+        setResFloat({top:topH+6,right:Math.max(8,window.innerWidth-br.right)});}else setResFloat(null);},
+      {rootMargin:`-${Math.round(topH)}px 0px 0px 0px`});
+    io.observe(resEl);return()=>io.disconnect();},[resEl]);
   return(<div className="js-bar">
     <div className="js-head">
       {ov.caseNo?<span className="js-no">{ov.caseNo}{String(ov.caseNo).startsWith("SAMPLE-")?" (샘플)":""}</span>:null}
@@ -1525,12 +1541,9 @@ function SummaryBar({ov,step,res,children}){
     </div>
     {showRow?<div className="js-row">
       {grp("물건",g1)}{grp("접수",g2)}{grp("탁상",g3)}
-      {step>=1&&fT>0?<div className="js-grp res"><b>지금 결과</b>
-        {fU>0?<span><i>결정단가</i>{fmt(fU)}</span>:null}
-        <span><i>감정평가액</i><strong>{fmt(fT)}</strong></span>
-        {desk?<span><i>탁상 대비</i>{((fT/desk-1)*100).toFixed(2)}%</span>:null}
-      </div>:null}
+      {resBox(setResEl)}
     </div>:null}
+    {resFloat&&step>=1&&fT>0?<div className="js-float" style={{top:resFloat.top,right:resFloat.right}}>{resBox(null)}</div>:null}
   </div>);
 }
 
@@ -5820,6 +5833,20 @@ function SummaryBar({ov,step,res,children}){
   const grp=(name,arr)=>arr.length?<div className="js-grp"><b>{name}</b>{arr.map((x,i)=><span key={i} style={x.color?{color:x.color}:null}>{x.l?<i>{x.l}</i>:null}{x.v}</span>)}</div>:null;
   const fT=(res&&res.fT)||0,fU=(res&&res.fU)||0;
   const showRow=step>0&&(g1.length||g2.length||g3.length||fT>0);
+  // 「지금 결과」 상자 — 스크롤로 화면 위로 사라지면 위쪽에 떠서 계속 보이게(2026-11-20 사용자). 화면 밖 판정은 IntersectionObserver(본문 안쪽 스크롤도 잡힘)
+  const resBox=ref=>step>=1&&fT>0?<div ref={ref} className="js-grp res"><b>지금 결과</b>
+        {fU>0?<span><i>결정단가</i>{fmt(fU)}</span>:null}
+        <span><i>감정평가액</i><strong>{fmt(fT)}</strong></span>
+        {desk?<span><i>탁상 대비</i>{((fT/desk-1)*100).toFixed(2)}%</span>:null}
+      </div>:null;
+  const [resEl,setResEl]=useState(null),[resFloat,setResFloat]=useState(null);
+  useEffect(()=>{if(!resEl||!window.IntersectionObserver){setResFloat(null);return;}
+    const mb=document.getElementById("mode-bar"),topH=mb?mb.getBoundingClientRect().height:0;
+    const io=new IntersectionObserver(([e])=>{const r=e.boundingClientRect;
+      if(!e.isIntersecting&&r.height>0&&r.bottom<=topH+2){const bar=resEl.closest(".js-bar"),br=bar?bar.getBoundingClientRect():r;
+        setResFloat({top:topH+6,right:Math.max(8,window.innerWidth-br.right)});}else setResFloat(null);},
+      {rootMargin:`-${Math.round(topH)}px 0px 0px 0px`});
+    io.observe(resEl);return()=>io.disconnect();},[resEl]);
   return(<div className="js-bar">
     <div className="js-head">
       {ov.caseNo?<span className="js-no">{ov.caseNo}{String(ov.caseNo).startsWith("SAMPLE-")?" (샘플)":""}</span>:null}
@@ -5830,12 +5857,9 @@ function SummaryBar({ov,step,res,children}){
     </div>
     {showRow?<div className="js-row">
       {grp("물건",g1)}{grp("접수",g2)}{grp("탁상",g3)}
-      {step>=1&&fT>0?<div className="js-grp res"><b>지금 결과</b>
-        {fU>0?<span><i>결정단가</i>{fmt(fU)}</span>:null}
-        <span><i>감정평가액</i><strong>{fmt(fT)}</strong></span>
-        {desk?<span><i>탁상 대비</i>{((fT/desk-1)*100).toFixed(2)}%</span>:null}
-      </div>:null}
+      {resBox(setResEl)}
     </div>:null}
+    {resFloat&&step>=1&&fT>0?<div className="js-float" style={{top:resFloat.top,right:resFloat.right}}>{resBox(null)}</div>:null}
   </div>);
 }
 
