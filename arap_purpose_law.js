@@ -6,7 +6,9 @@
  * 평가목적이나 평가구분에 「담보」가 들어가면 → 「…으로서, {{담보목적}} 목적의 감정평가임.」({{담보목적}} = 담보, {{평가목적}} 런 글자모양)
  *   상증세법·평가구분·「재산에 대한」·평가목적을 통째로 뺀다(2026-11-16 사용자 「담보면 상속/증여가 아니라」). 자산재평가가 먼저.
  * arapPurposeDoc(평가목적,평가구분) = 서류에 찍을 평가목적(평가구분 담보 + 평가목적 기본값 → 담보). 각 엔진이 「평가목적」 값으로 씀.
- * arapPurposeFromCapture(접수 평가목적) = 증여·양도·상속·특관자매매 등 → 평가목적 「일반시가(시가참고)」 + 상속·증여면 평가구분(집건 접수 인식).
+ * arapPurposeFromCapture(접수 평가목적) = 증여·양도·상속·특관자매매 등 → 평가목적 「일반거래(시가참고)」 + 상속·증여면 평가구분(집건 접수 인식).
+ *   (2026-11-20 사용자: 「일반시가(시가참고)」→「일반거래(시가참고)」. 이미 저장된 옛 값은 arapPurposeFixOv(화면 불러올 때)·arapPurposeDoc(서류)이 바꿔 줌)
+ * 평가구분이 빈칸이면(자산재평가·담보 아님) → 「…으로서, 「상속세 및 증여세법」에 의한 {{평가목적}} 목적의 감정평가임.」(2026-11-20)
  * 그 밖의 평가목적은 손대지 않는다. 토큰 치환 전 section XML 문자열에 쓴다.
  *   양식 두 가지: 토큰마다 런이 나뉜 것(토건 3종·집건 여러 호수 — 토큰 런 글자모양을 그대로 빌림) / 한 런 안에 다 있는 것(집건 단일)
  * 쓰는 곳: arap_toji_opinion.js(토건 3종), s3r86w8a.html buildEvalHwpxV2(집건 단일), arap_multi_hwpx.js(집건 여러 호수)
@@ -21,7 +23,10 @@
   function apply(xml,purpose,category){
     if(isLoan(purpose,category))return String(xml).replace(RE_LOAN,function(m,a,b,c){
       return c?'</hp:t></hp:run><hp:run'+c+'><hp:t>{{담보목적}}':'{{담보목적}}';});
-    if(!isAudit(purpose))return xml;
+    // 평가구분 빈칸 → 「상속세 및 증여세법」에 의한 {{평가목적}} 목적 (2026-11-20 사용자: 「상 재산에 대한」이 어색)
+    if(!isAudit(purpose)){if(String(category==null?'':category).trim())return xml;
+      return String(xml).replace(RE,function(m,tok,txt){var last=txt||tok;
+        return '「상속세 및 증여세법」에 의한 '+(last?'</hp:t></hp:run><hp:run'+last+'><hp:t>':'');});}
     return String(xml).replace(RE,function(m,tok,txt){
       if(tok&&txt){var T='</hp:t></hp:run><hp:run'+tok+'><hp:t>',N='</hp:t></hp:run><hp:run'+txt+'><hp:t>';
         return T+'{{근거법령}}'+N+'상 '+T+'{{재평가대상}}'+N+'에 대한 ';}
@@ -30,20 +35,23 @@
   }
   // 서류에 찍을 평가목적 — 평가구분에 「담보」가 있고 평가목적이 비었거나 기본값(일반거래(시가참고))이면 「담보」(2026-11-16 사용자 결정:
   // 평가구분=담보면 평가목적도 담보 — 표지·괄감·의견서 목적 문장·6. 그 밖의 사항이 서로 맞게). dflt = 비었을 때 값(기본 일반거래(시가참고))
-  function purposeDoc(purpose,category,dflt){var p=String(purpose||'').trim();
+  var OLD_TAX='일반시가(시가참고)',NEW_TAX='일반거래(시가참고)';   // 2026-11-19 접수 인식 옛 값 → 2026-11-20 일반거래(시가참고)
+  function fixPurpose(p){return String(p==null?'':p).trim()===OLD_TAX?NEW_TAX:p;}
+  function fixOv(ov){return ov&&String(ov.purpose||'').trim()===OLD_TAX?Object.assign({},ov,{purpose:NEW_TAX}):ov;}
+  function purposeDoc(purpose,category,dflt){var p=String(fixPurpose(purpose)||'').trim();
     if(/담보/.test(String(category||''))&&(!p||p==='일반거래(시가참고)'))return '담보';
     return p||(dflt==null?'일반거래(시가참고)':dflt);}
   // 「6. 그 밖의 사항」 「담보나 소송 등 다른 목적」 — 평가목적이 담보·소송이면 그 말을 빼고 일반거래로(arap_etc_items.js otherUse와 같은 규칙)
   function otherUse(purpose){var p=String(purpose||'');if(/담보/.test(p))return '일반거래나 소송 등';if(/소송/.test(p))return '담보나 일반거래 등';return '담보나 소송 등';}
-  // 접수 캡처 「평가목적」 정리(2026-11-19 사용자: 증여·양도·상속·특관자매매 등이면 평가목적 칸은 「일반시가(시가참고)」)
+  // 접수 캡처 「평가목적」 정리(2026-11-19 사용자: 증여·양도·상속·특관자매매 등이면 평가목적 칸 정리 — 2026-11-20 「일반거래(시가참고)」로)
   // → {purpose, category}: 상속·증여면 category(평가구분)도 그 말로. 담보·자산재평가·소송·일반거래 등은 그대로(category 없음)
   var TAX_RE=/증여|상속|양도|특관|특수\s*관계|매매|시가\s*참고|일반\s*시가/;
   function fromCapture(raw){var p=String(raw==null?'':raw).trim().replace(/\s*목적$/,'');if(!p)return {purpose:'',category:''};
     if(/담보|자산\s*재평가|소송|경매|공매|보상/.test(p)||p==='일반거래(시가참고)')return {purpose:p,category:''};
     if(!TAX_RE.test(p))return {purpose:p,category:''};
     var c=/증여/.test(p)&&!/상속/.test(p)?'증여':(/상속/.test(p)&&!/증여/.test(p)?'상속':'');
-    return {purpose:'일반시가(시가참고)',category:c};}
+    return {purpose:NEW_TAX,category:c};}
   apply.fromCapture=fromCapture;g.arapPurposeFromCapture=fromCapture;
-  g.arapPurposeDoc=purposeDoc;apply.purposeDoc=purposeDoc;apply.otherUse=otherUse;
+  g.arapPurposeDoc=purposeDoc;g.arapPurposeFixOv=fixOv;apply.fixOv=fixOv;apply.purposeDoc=purposeDoc;apply.otherUse=otherUse;
   g.arapPurposeLaw=apply;apply.isAudit=isAudit;apply.isLoan=isLoan;apply.VALUES=VALUES;
 })(typeof window!=='undefined'?window:globalThis);

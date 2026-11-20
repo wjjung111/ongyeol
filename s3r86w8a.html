@@ -1963,7 +1963,7 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          {const ec=String(result.evalCategory||"").trim();if(/^(상속|증여)$/.test(ec)){next.evalCategory=ec;autoF.evalCategory=true;}}
          // 평가목적·제출처·탁상가격(가평가)도 접수 이미지에서 — 주황 표시로 검토 유도 (2026-11-15 「제출처 등 잘 캐치 못함」)
          for(const k of ["purpose","submitTo"]){const v=result[k];if(v!=null&&String(v).trim()){next[k]=String(v).trim();autoF[k]=true;}}
-         // 증여·양도·상속·특관자매매 등 → 평가목적 「일반시가(시가참고)」, 상속·증여면 평가구분도(2026-11-19)
+         // 증여·양도·상속·특관자매매 등 → 평가목적 「일반거래(시가참고)」(2026-11-20), 상속·증여면 평가구분도(2026-11-19)
          if(autoF.purpose&&window.arapPurposeFromCapture){const pc=window.arapPurposeFromCapture(next.purpose);if(pc.purpose)next.purpose=pc.purpose;if(pc.category&&!String(next.evalCategory||"").trim()){next.evalCategory=pc.category;autoF.evalCategory=true;}}
          {const dp=String(result.deskPrice??"").replace(/[^0-9]/g,"");if(dp&&+dp>0){next.deskPrice=dp;autoF.deskPrice=true;}}
          next.autoFields=autoF;}
@@ -4045,7 +4045,8 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
     "사용승인일":ov.approvalDate||"","동":dongSlot,"층_호":ov.floor||"","호":ov.ho||"",
     "전유면적":ov.area||"","공용면적":ov.commonArea||"",
     "계약면적":ov.area&&ov.commonArea?String((pNum(ov.area)+pNum(ov.commonArea)).toFixed(3)):"-",
-    "대지지분":ov.landArea||"","주용도_표제부":ov.mainUse||"",
+    "대지지분":(window.ArapJiphapParcels&&ArapJiphapParcels.landRightText?ArapJiphapParcels.landRightText(ov,ov.landArea):ov.landArea)||"",   // 분모≠대지면적이면 대지면적×분자/분모(2026-11-20)
+    "주용도_표제부":ov.mainUse||"",
     "주용도_전유부":ov.mainUseJeonyu||"",
     "기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"",
     "기준시점근거":ov.baseDateBasis||"의뢰일인",
@@ -4930,7 +4931,7 @@ function App(){
         try{
           const r=storageGet(caseKey(lastId));
           if(r&&r.value){const d=JSON.parse(r.value);
-            if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases);if(d.precs)setPrecs(d.precs);if(d.propType)setPropType(d.propType);
+            if(d.ov)setOv((window.arapPurposeFixOv?window.arapPurposeFixOv(d.ov):d.ov));if(d.cases)setCases(d.cases);if(d.precs)setPrecs(d.precs);if(d.propType)setPropType(d.propType);
             if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
             window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),lastId);setCurrentId(lastId);
           }
@@ -5009,7 +5010,7 @@ function App(){
     try{
       const r=storageGet(caseKey(id));
       if(r&&r.value){const d=JSON.parse(r.value);
-        if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
+        if(d.ov)setOv((window.arapPurposeFixOv?window.arapPurposeFixOv(d.ov):d.ov));if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
         if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
         setCaseRevision(v=>v+1);resetHist();
         window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),id);setCurrentId(id);setStep(0);setShowList(false);
@@ -6296,7 +6297,7 @@ function Step2({ov,setOv,propType,setPropType,pushUndo}){
          {const ec=String(result.evalCategory||"").trim();if(/^(상속|증여)$/.test(ec)){next.evalCategory=ec;autoF.evalCategory=true;}}
          // 평가목적·제출처도 접수 이미지에서 (탁상가격은 호별 — 아래 units 처리에서 호가 하나일 때만)
          for(const k of ["purpose","submitTo"]){const v=result[k];if(v!=null&&String(v).trim()){next[k]=String(v).trim();autoF[k]=true;}}
-         // 증여·양도·상속·특관자매매 등 → 평가목적 「일반시가(시가참고)」, 상속·증여면 평가구분도(2026-11-19)
+         // 증여·양도·상속·특관자매매 등 → 평가목적 「일반거래(시가참고)」(2026-11-20), 상속·증여면 평가구분도(2026-11-19)
          if(autoF.purpose&&window.arapPurposeFromCapture){const pc=window.arapPurposeFromCapture(next.purpose);if(pc.purpose)next.purpose=pc.purpose;if(pc.category&&!String(next.evalCategory||"").trim()){next.evalCategory=pc.category;autoF.evalCategory=true;}}
          next.autoFields=autoF;}
         // landParcels는 배열이라 위 문자열 루프에서 제외 — 별도 처리 (명세표 다중 필지용)
@@ -7137,7 +7138,8 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
     "사용승인일":ov.approvalDate||"","동":dongSlot,"층_호":ov.floor||"","호":ov.ho||"",
     "전유면적":ov.area||"","공용면적":ov.commonArea||"",
     "계약면적":ov.area&&ov.commonArea?String((pNum(ov.area)+pNum(ov.commonArea)).toFixed(3)):"-",
-    "대지지분":ov.landArea||"","주용도_표제부":ov.mainUse||"",
+    "대지지분":(window.ArapJiphapParcels&&ArapJiphapParcels.landRightText?ArapJiphapParcels.landRightText(ov,ov.landArea):ov.landArea)||"",   // 분모≠대지면적이면 대지면적×분자/분모(2026-11-20)
+    "주용도_표제부":ov.mainUse||"",
     "주용도_전유부":ov.mainUseJeonyu||"",
     "기준시점":ov.baseDate||"","조사기간":ov.surveyDate||ov.baseDate||"",
     "기준시점근거":ov.baseDateBasis||"의뢰일인",
@@ -8604,7 +8606,7 @@ function App(){
         try{
           const r=storageGet(caseKey(lastId));
           if(r&&r.value){const d=JSON.parse(r.value);
-            if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases);if(d.precs)setPrecs(d.precs);if(d.propType)setPropType(d.propType);
+            if(d.ov)setOv((window.arapPurposeFixOv?window.arapPurposeFixOv(d.ov):d.ov));if(d.cases)setCases(d.cases);if(d.precs)setPrecs(d.precs);if(d.propType)setPropType(d.propType);
             if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
             window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),lastId);setCurrentId(lastId);
           }
@@ -8648,7 +8650,7 @@ function App(){
     try{
       const r=storageGet(caseKey(id));
       if(r&&r.value){const d=JSON.parse(r.value);
-        if(d.ov)setOv(d.ov);if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
+        if(d.ov)setOv((window.arapPurposeFixOv?window.arapPurposeFixOv(d.ov):d.ov));if(d.cases)setCases(d.cases||[]);if(d.precs)setPrecs(d.precs||[]);if(d.propType)setPropType(d.propType||"주거용");
         if(d.rnd){if(d.rnd.uD)setUD(d.rnd.uD);if(d.rnd.uM)setUM(d.rnd.uM);if(d.rnd.tD)setTD(d.rnd.tD);if(d.rnd.tM)setTM(d.rnd.tM);if(d.rnd.manU!=null)setManU(d.rnd.manU);}
         setCaseRevision(v=>v+1);
         window.ArapCaseBak.seen((LIST_KEY.indexOf("v2:")===0?"v2:":""),id);setCurrentId(id);setStep(0);setShowList(false);
