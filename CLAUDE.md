@@ -56,7 +56,7 @@
 | `arap_map.js` | 위치도 엔진(브이월드 주소→좌표·필지 경계, 카카오맵 기본) — **토지건물 위치도 탭 · p9v3xk2m · 집건 ③ 위치도(본건·사례·전례)가 같이 씀** |
 | `arap_kais.js` | KAIS 복붙 파서 **사본**(원본: 토지건물 `parseTradeText`, 집건 `parseKaisRow`) — 위치도 페이지용 |
 | `arap_gijunsiga.js` | 국세청 건물 기준시가 엔진(기준시가.html + 토지건물 ③ 건물평가 카드) |
-| `arap_jiphap_parcels.js` | 집건 필지 목록(토지이용계획·위치도 공용) |
+| `arap_jiphap_parcels.js` | 집건 필지 목록(토지이용계획·위치도 공용) + `landRightText` 대지권 면적(분모≠대지면적이면 대지면적×분자÷분모 — 의견서 개요 대지권 칸) |
 | `arap_etc_items.js` | 집건 ① 「의견서 문구 — 6. 그 밖의 사항」 박스 + 의견서 끼우기(대지권미등기 등 문구 버튼). 단일·여러 호수 공용 |
 | `arap_multi_hwpx.js` / `arap_multi_myeongse.js` | 집건 여러 호수 한글 평가서 / 명세표(xlsx) |
 | `arap_toji_upload.js` | 토건 공부서류(등기 PDF)·접수 캡처 업로드 → 자동 인식(집건과 같은 API 키) |

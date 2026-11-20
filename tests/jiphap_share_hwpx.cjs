@@ -17,7 +17,7 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
   const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||undefined});
   const T=x=>(x.match(/<hp:t>[^<]*<\/hp:t>/g)||[]).map(s=>s.slice(6,-7)).join('|');
   try{
-    for(const share of [true,false]){
+    for(const [share,den] of [[true,false],[false,false],[true,true]]){
     const ctx=await browser.newContext({acceptDownloads:true,viewport:{width:1300,height:900}}),page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
     await ctx.route('**/*',r=>{const u=r.request().url();if(u.includes('arap_access.js')||u.includes('arap_user.js'))return r.fulfill({body:'',contentType:'text/javascript'});return u.startsWith(base)?r.continue():r.abort();});
     await page.addInitScript(()=>{localStorage.setItem('arap-user-name','wdw');(localStorage.setItem('arap-jiphap-mode','single'),sessionStorage.setItem('arap-jiphap-mode','single'));});
@@ -26,18 +26,22 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     if(share){
       await scope.locator('select').filter({has:page.locator('option[value="share"]')}).first().selectOption('share');
       await scope.locator('input[placeholder="분자"]').fill('1');await scope.locator('input[placeholder="분모"]').fill('4');
+      if(den){   // 2026-11-20 대지권비율 분모 ≠ 대지면적(서초삼풍 163672분의 73.47, 대지 144012.4㎡) + 2/10 지분 → 대지권 64.65 × 2/10 = 12.93
+        const fx=lb=>scope.locator('xpath=.//*[normalize-space(text())="'+lb+'"]/following::input[1]').first();
+        await fx('대지권비율 분자').fill('73.47');await fx('대지권비율 분모').fill('163672');await fx('대지면적(㎡)').fill('144012.4');
+        await scope.locator('input[placeholder="분자"]').fill('2');await scope.locator('input[placeholder="분모"]').fill('10');}
       // 그 밖의 사항 문구: 처음엔 지분·사정면적 따라가는 자동 문구 → 고치면 그 글, ↺ 자동 문구로 복귀
       const ta=scope.getByLabel('지분평가 그 밖의 사항 문구');
-      assert.match(await ta.inputValue(),/^본건은 귀 의뢰인의 요청에 의거하여 귀 의뢰지분\(1\/4, 사정면적 [\d.]+㎡\)만을 평가하였으며/,'자동 문구');
+      if(!den)assert.match(await ta.inputValue(),/^본건은 귀 의뢰인의 요청에 의거하여 귀 의뢰지분\(1\/4, 사정면적 [\d.]+㎡\)만을 평가하였으며/,'자동 문구');
       await ta.fill('임시');await scope.getByRole('button',{name:'↺ 자동 문구'}).click();
-      assert.match(await ta.inputValue(),/귀 의뢰지분\(1\/4/,'자동 문구 복귀');
+      if(!den)assert.match(await ta.inputValue(),/귀 의뢰지분\(1\/4/,'자동 문구 복귀');
       await ta.fill('지분 위치 특정 불가 & 전체 기준 평가');
     }
     await scope.getByText('3. 위치도 · 청구서',{exact:true}).click();
     // 2026-10-28부터 표지·괄감·의견서가 따로 — 의견서(x)·괄감(x0)을 각각 받는다
     const get=async(name,fname)=>{const btn=scope.getByRole('button',{name,exact:true});await btn.waitFor();for(let i=0;i<30&&await btn.isDisabled();i++)await page.waitForTimeout(500);
       const [dl]=await Promise.all([page.waitForEvent('download',{timeout:60000}),btn.click()]);const file=path.join(process.env.OUT||require('os').tmpdir(),fname);await dl.saveAs(file);return unzip(fs.readFileSync(file));};
-    const tag=(share?'주거_단일호수_지분_출력예시.hwpx':'주거_단일호수_출력예시.hwpx').replace('.hwpx','');
+    const tag=(den?'주거_단일호수_지분_대지권분모_출력예시.hwpx':share?'주거_단일호수_지분_출력예시.hwpx':'주거_단일호수_출력예시.hwpx').replace('.hwpx','');
     const z=await get('의견서',tag+'_의견서.hwpx'),zg=await get('괄감',tag+'_괄감.hwpx'),zp=await get('표지',tag+'_표지.hwpx');
     assert.ok(!z['Contents/section1.xml']&&!zg['Contents/section1.xml']&&!zp['Contents/section1.xml'],'파일마다 구역 하나');
     assert.ok(T(zp['Contents/section0.xml'].toString('utf8')).includes('Appraisal Report')&&!zp['Contents/section0.xml'].toString('utf8').includes('chapter'),'표지만');
@@ -53,7 +57,9 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     // 개별요인 의견: ■ 네 줄(각각 문단)
     const ops=t.split('|').filter(s=>s.startsWith('■ '));
     assert.deepEqual(ops.map(s=>s.split(':')[0]),['■ 단지외부요인','■ 단지내부요인','■ 호별요인','■ 기타요인'],'■ 네 줄 '+JSON.stringify(ops));
-    if(share){
+    if(den){
+      assert.match(t,/\|64\.65 × 2\/10\|= 12\.93\|/,'대지권 = 144012.4×73.47÷163672 = 64.65, 2/10 = 12.93 '+(t.match(/[^|]*\|[^|]*× 2\/10\|[^|]*/)||[''])[0]);
+    }else if(share){
       assert.ok(!t.includes('귀 제시 지분(1/4)만을 감정평가하였으며'),'4. 감정평가방법 라. 문단 없음');
       assert.ok(!t.includes('합리성 검토를 생략하였음.|라.|'),'4. 다. 뒤 라. 없음');
       { const k=t.indexOf('업무진행 시 참고 바람');assert.ok(k>0&&t.slice(k).replace(/\| \|/g,'| ').startsWith('업무진행 시 참고 바람|마.| 지분 위치 특정 불가 &amp; 전체 기준 평가|'),'그 밖의 사항 마. 문구 '+t.slice(k,k+80)); }
