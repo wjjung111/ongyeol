@@ -3864,6 +3864,15 @@ function calcFinal(){
   var tc=document.getElementById('tblCheck');if(tc)tc.innerHTML=h;   // 검산 패널은 2026-11-03 화면에서 뺌(사용자 요청)
 
   sd();
+  cgRefreshSoon();
+}
+// 감정평가액이 바뀌면 청구서도 따라 다시 계산(2026-11-20) — 전에는 4번 탭을 열 때만 계산해서, 저장건을 다시 열고
+// 시점수정·지가변동률이 뒤늦게 들어오면 평가액은 바뀌어도 청구서는 빈 채(평가수수료 「-」, 받기 버튼 꺼짐)로 남았다.
+// 한 박자 뒤(setTimeout)에 하는 건 저장건을 여는 도중(여비 직접입력 여부를 아직 안 읽음)에 칸을 자동값으로 덮지 않기 위해서.
+var CG_REFRESH_T=null;
+function cgRefreshSoon(){
+  clearTimeout(CG_REFRESH_T);
+  CG_REFRESH_T=setTimeout(function(){CG_REFRESH_T=null;if(typeof renderCheonggu==='function')try{renderCheonggu();}catch(e){console.error('청구서 다시 계산',e);}},0);
 }
 
 // ================= 좌측 요약 사이드바 =================
@@ -4120,7 +4129,8 @@ function renderCheonggu(){
 }
 // 자동 계산 상자 — 예상평가액·구간·하한/기준/상한. 계산서를 붙여넣었으면 자동값과 맞는지, 예상평가액이 지금 감정평가액과 같은지 알려 준다.
 function cgRenderAuto(){
-  var box=document.getElementById('cg_autoBox');if(!box||!window.ArapFee)return;
+  var box=document.getElementById('cg_autoBox');if(!box)return;
+  if(!window.ArapFee){box.innerHTML='<span class="warn">⚠ 수수료 자동 계산 파일을 못 불러왔습니다 — 새로고침(F5)해 주세요.</span>';return;}
   var w=function(n){return n==null?'-':won(n);},amt=cgAmount(),a=ArapFee.calc(amt),src=cgFeeSrc(),h='';
   if(src&&src._src==='paste'){
     var ck=ArapFee.check(cgVal('cg_feeText'));
