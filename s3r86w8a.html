@@ -1494,10 +1494,13 @@ function PreflightList({items,goStep}){
 
 // ── 탭 위 요약 띠 (2026-11-12 화면 개편 — 예전 왼쪽 「📋 대상물건」 + 탁상가격 띠 + 건 관리 바를 한 줄로) ──
 // 「1. 접수 · 대상물건」에서는 바로 아래 입력칸과 겹치므로 첫 줄(번호·물건명·주소)만, 나머지 탭에서는 물건 / 접수 / 탁상 묶음을 펼친다. res = Step4가 알려 준 결정단가·감정평가액
+// 등기 표시 그대로: 「경기도 안산시 단원구 초지동 801 안산롯데캐슬더퍼스트 제103동 제4층 제403호」(2026-11-20 사용자)
+const regTitleOf=(jibun,name,dong,floor,ho)=>{const je=(v,u)=>{v=String(v==null?"":v).trim();if(!v)return "";v=v.replace(/^제/,"");if(!v.endsWith(u))v+=u;return "제"+v;};
+  return [String(jibun||"").trim(),String(name||"").trim(),je(dong,"동"),je(floor,"층"),je(ho,"호")].filter(Boolean).join(" ");};
 function SummaryBar({ov,step,res,children}){
   const effArea=getEffArea(ov);
   const desk=pNum(ov.deskPrice);
-  const title=[ov.buildingName,ov.dong?ov.dong+"동":"",ov.ho?ov.ho+"호":"",ov.floor?`(${ov.floor}층)`:""].filter(Boolean).join(" ");
+  const title=(ov.buildingName||ov.dong||ov.ho)?regTitleOf(ov.jibun,ov.buildingName,ov.dong,ov.floor,ov.ho):"";
   const g1=[{l:"전유",v:ov.area?ov.area+"㎡":""},
     {l:"평가면적",v:effArea&&effArea!==pNum(ov.area)?effArea+"㎡":"",color:"#dc2626"},
     {l:"용도지역",v:ov.zoning},
@@ -1516,7 +1519,7 @@ function SummaryBar({ov,step,res,children}){
     <div className="js-head">
       {ov.caseNo?<span className="js-no">{ov.caseNo}{String(ov.caseNo).startsWith("SAMPLE-")?" (샘플)":""}</span>:null}
       <span className={"js-nm"+(title?"":" empty")}>{title||"새 평가서"}</span>
-      {ov.jibun?<span className="js-ad">{ov.jibun}</span>:null}
+      {ov.jibun&&!title?<span className="js-ad">{ov.jibun}</span>:null}
       {deskNode}
       <span className="js-tools">{children}</span>
     </div>
@@ -5789,13 +5792,16 @@ function PreflightList({items,goStep}){
 
 // ── 탭 위 요약 띠 (2026-11-12 화면 개편 — 예전 왼쪽 「📋 대상물건」 + 탁상가격 띠 + 건 관리 바를 한 줄로) ──
 // 「1. 접수 · 대상물건」에서는 바로 아래 입력칸과 겹치므로 첫 줄(번호·물건명·주소)만, 나머지 탭에서는 물건 / 접수 / 탁상 묶음을 펼친다. res = Step4가 알려 준 결정단가·감정평가액
+// 등기 표시 그대로: 「경기도 안산시 단원구 초지동 801 안산롯데캐슬더퍼스트 제103동 제4층 제403호」(2026-11-20 사용자)
+const regTitleOf=(jibun,name,dong,floor,ho)=>{const je=(v,u)=>{v=String(v==null?"":v).trim();if(!v)return "";v=v.replace(/^제/,"");if(!v.endsWith(u))v+=u;return "제"+v;};
+  return [String(jibun||"").trim(),String(name||"").trim(),je(dong,"동"),je(floor,"층"),je(ho,"호")].filter(Boolean).join(" ");};
 function SummaryBar({ov,step,res,children}){
   const effArea=getEffArea(ov);
   const desk=getTotalDeskPrice(ov);
   const units=(ov.units&&ov.units.length>0)?ov.units:[{dong:ov.dong,floor:ov.floor,ho:ov.ho,area:ov.area}];
   const multi=units.filter(un=>un&&(un.dong||un.floor||un.ho||un.area)).length>1;
   const u0=units[0]||{};
-  const title=[ov.buildingName,u0.dong?u0.dong+"동":"",u0.ho?u0.ho+"호":"",multi?`외 ${units.length-1}호`:(u0.floor?`(${u0.floor}층)`:"")].filter(Boolean).join(" ");
+  const title=(ov.buildingName||u0.dong||u0.ho)?regTitleOf(ov.jibun,ov.buildingName,u0.dong,u0.floor,u0.ho)+(multi?` 외 ${units.length-1}호`:""):"";
   const unitTxt=units.slice(0,6).map((un,i)=>`${multi?"("+SYM(i)+") ":""}${[un.dong,un.floor,un.ho].filter(Boolean).join("/")||"-"}${un.area?" "+un.area+"㎡":""}`).join(" · ")+(units.length>6?` … 외 ${units.length-6}호`:"");
   const g1=[{l:multi?`호수 ${units.length}건`:"전유",v:multi?unitTxt:(u0.area?u0.area+"㎡":"")},
     {l:"평가면적(가호)",v:effArea&&effArea!==pNum(ov.area)?effArea+"㎡":"",color:"#dc2626"},
@@ -5818,7 +5824,7 @@ function SummaryBar({ov,step,res,children}){
     <div className="js-head">
       {ov.caseNo?<span className="js-no">{ov.caseNo}{String(ov.caseNo).startsWith("SAMPLE-")?" (샘플)":""}</span>:null}
       <span className={"js-nm"+(title?"":" empty")}>{title||"새 평가서"}</span>
-      {ov.jibun?<span className="js-ad">{ov.jibun}</span>:null}
+      {ov.jibun&&!title?<span className="js-ad">{ov.jibun}</span>:null}
       {deskNode}
       <span className="js-tools">{children}</span>
     </div>

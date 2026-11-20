@@ -78,7 +78,7 @@ const TABS=['1. 접수 · 대상물건','2. 사례 · 가격산출','3. 위치�
         assert((await item.innerText()).includes('압구정동'),'목록 둘째 줄에 동 이름');
         assert((await item.innerText()).includes('이유진'),'목록 셋째 줄에 의뢰인');
         await item.click();
-        await sc.locator('.js-nm',{hasText:'현대아파트 77동 904호'}).waitFor();
+        await sc.locator('.js-nm',{hasText:'현대아파트 제77동 제9층 제904호'}).waitFor();
         assert(await sc.locator('.jr-item.cur').count()===1,'연 건이 목록에서 표시됨');
         assert.equal(await sc.locator('.js-row').count(),0,'열면 1번 탭 — 요약 한 줄');
         { const d=await sc.locator('.js-desk').innerText();assert(d.includes('7,900,000,000원')&&d.includes('50,203,355/㎡'),'1번 탭 요약 띠에 탁상가격·탁상단가: '+d); }
