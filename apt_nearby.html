@@ -70,6 +70,9 @@
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
   .chips button{padding:4px 10px;font-size:12px}
   .hidden{display:none}
+  th[data-sk]{cursor:pointer;user-select:none}
+  th[data-sk]:hover{color:var(--ink)}
+  th .ar{display:inline-block;width:1em;color:var(--accent);font-size:11px}
 </style>
 </head>
 <body>
@@ -134,8 +137,17 @@
     </div>
 
     <div class="card">
-      <h2>단지 목록<span class="hint">거리순. 체크를 풀면 집계에서 빠짐. 줄을 누르면 거래 내역</span></h2>
+      <h2>단지 목록<span class="hint">거리순. 제목을 누르면 정렬(다시 누르면 반대로). 체크를 풀면 집계에서 빠짐. 줄을 누르면 거래 내역</span></h2>
       <div class="tbl"><table id="list"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>실거래 목록<span class="hint">위 최저, 중위, 최고의 근거 거래(건수가 짝수면 중위 = 가운데 두 건 평균). 처음엔 거래가 낮은 순. 제목을 누르면 정렬. 체크를 풀면 그 거래만 집계에서 빠짐</span></h2>
+      <div class="row" style="margin-bottom:8px">
+        <label><input type="checkbox" id="showOff"> 집계에서 빠진 거래도 보기 (직거래, 해제, 뺀 단지)</label>
+        <span class="hint" id="trCnt"></span>
+      </div>
+      <div class="tbl"><table id="trades"></table></div>
     </div>
   </div>
 </main>
@@ -160,7 +172,7 @@ function readDate(v){
   return m ? m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') : null;
 }
 const vkey = () => { try { return localStorage.getItem('exact-vworld-key') || VKEY_DEFAULT; } catch (e) { return VKEY_DEFAULT; } };
-let R = null, OFF = new Set(), OPEN = new Set();
+let R = null, OFF = new Set(), OPEN = new Set(), OFFT = new Set(), TROWS = []; // OFFT: 집계에서 뺀 거래(거래 객체), TROWS: 실거래 목록 화면 줄
 
 /* ── 호출 ── */
 async function getJson(url, ms){
@@ -347,7 +359,7 @@ async function search(pick){
 }
 
 /* ── 화면 ── */
-const tradeOk = t => !t.cancelled && !($('noDirect').checked && t.direct);
+const tradeOk = t => !t.cancelled && !($('noDirect').checked && t.direct) && !OFFT.has(t);
 function cxOn(c){
   if (OFF.has(c.id)) return false;
   if (c.hhld == null) return $('unkH').checked;
@@ -358,6 +370,36 @@ const st = list => N.stat(list.map(x => x.t.price));
 const nCx = list => new Set(list.map(x => x.c.id)).size;
 const ipjOf = v => N.ipj(v, $('kwon').value, $('bun').value, $('paid').value);
 const scopeText = () => { const P = R.params; return `${R.subject.addr} 반경 ${P.radiusKm}km, 전용 ${P.area}±${P.tol}㎡, ${P.minYear}년 이후 준공, ${P.from} ~ ${P.date} 계약`; };
+
+/* 표 머리 클릭 정렬 (아파트시점수정.html과 같은 방식): 처음 누르면 오름, 다시 누르면 내림.
+   원값 비교(금액, 날짜), 빈 값은 항상 맨 아래, 같으면 원래 순서. 구분, 기준 칸은 원래 순서(대단지→소규모, 저층→고층).
+   표마다 따로 기억, 새로 조회해도 유지. 엑셀 단지, 거래목록 시트도 화면 단지 순서. */
+const SORT = {trades: {k: 'price', dir: 1}};
+function sortBy(id, list, val){
+  const s = SORT[id]; if (!s) return list;
+  const get = val || ((r, k) => r[k]);
+  return list.map((r, i) => [r, i]).sort(([a, i], [b, j]) => {
+    const x = get(a, s.k), y = get(b, s.k);
+    const ex = x == null || x === '' || Number.isNaN(x), ey = y == null || y === '' || Number.isNaN(y);
+    if (ex || ey) return ex === ey ? i - j : (ex ? 1 : -1);
+    const c = typeof x === 'string' ? x.localeCompare(y, 'ko') : x - y;
+    return c ? c * s.dir : i - j;
+  }).map(([r]) => r);
+}
+function headRow(id, cols){
+  const s = SORT[id];
+  return '<tr>' + cols.map(([k, t]) => `<th data-sk="${k}">${t}<span class="ar">${s && s.k === k ? (s.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('') + '</tr>';
+}
+function listRows(){
+  const rows = R.complexes.map(c => {
+    const ok = c.trades.filter(tradeOk), s = N.stat(ok.map(t => t.price)), last = ok[0];
+    return {c, s, last, sc: N.scale(c.hhld)};
+  });
+  return sortBy('list', rows, ({c, s, last}, k) => ({
+    on: cxOn(c) ? 0 : 1, dist: c.dist, name: c.name, addr: `${c.sgg} ${c.umd} ${c.jibun}`, built: c.built, hhld: c.hhld, flr: c.flr,
+    n: s.n, min: s.n ? s.min : null, mid: s.n ? s.mid : null, max: s.n ? s.max : null,
+    lastDate: last ? last.date : null, lastPrice: last ? last.price : null})[k]);
+}
 
 function render(){
   if (!R) return;
@@ -370,21 +412,22 @@ function render(){
   $('ownBox').classList.toggle('hidden', !own.n);
   if (own.n) { const x = ipjOf(own.mid); $('ownBox').innerHTML = `<span class="tag own">본건 단지</span> 같은 단지 거래 ${own.n}건: 최저 <b>${eok(own.min)}억</b> / 중위 <b>${eok(own.mid)}억</b> / 최고 <b>${eok(own.max)}억</b>${x != null ? ' (입주권 환산 중위 ' + eok(x) + '억)' : ''}<div class="hint" style="margin-top:4px">본건 단지 거래가 있으면 이 값이 우선이고, 아래 주변 단지 집계는 참고용입니다.</div>`; }
 
-  const head = '<tr><th>구분</th><th>단지 수</th><th>건수</th><th>최저</th><th>중위</th><th>최고</th></tr>';
-  const rows = (names, fn) => names.map(nm => { const l = u.filter(x => fn(x) === nm), s = st(l);
-    return s.n ? `<tr><td>${nm}</td><td class="n">${nCx(l)}</td><td class="n">${s.n}</td><td class="n">${eok(s.min)}</td><td class="n"><b>${eok(s.mid)}</b></td><td class="n">${eok(s.max)}</td></tr>` : ''; }).join('');
-  $('byScale').innerHTML = head + rows(N.SCALES, x => N.scale(x.c.hhld));
-  $('byFloor').innerHTML = head + rows(N.BANDS, x => N.band(x.t.floor));
+  const GH = [['i', '구분'], ['nc', '단지 수'], ['n', '건수'], ['min', '최저'], ['mid', '중위'], ['max', '최고']];
+  const grpRows = (id, names, fn) => sortBy(id, names.map((nm, i) => { const l = u.filter(x => fn(x) === nm), s = st(l); return s.n ? {i, nm, nc: nCx(l), n: s.n, min: s.min, mid: s.mid, max: s.max} : null; }).filter(Boolean))
+    .map(r => `<tr><td>${r.nm}</td><td class="n">${r.nc}</td><td class="n">${r.n}</td><td class="n">${eok(r.min)}</td><td class="n"><b>${eok(r.mid)}</b></td><td class="n">${eok(r.max)}</td></tr>`).join('');
+  $('byScale').innerHTML = headRow('byScale', GH) + grpRows('byScale', N.SCALES, x => N.scale(x.c.hhld));
+  $('byFloor').innerHTML = headRow('byFloor', GH) + grpRows('byFloor', N.BANDS, x => N.band(x.t.floor));
 
   const bun = parseFloat($('bun').value);
-  $('ipjT').innerHTML = ipjOf(0) == null ? '' : '<tr><th>기준</th><th>준공 후 가치</th><th>프레미엄</th><th>입주권</th></tr>' +
-    [['전체 최저', all.min], ['전체 중위', all.mid], ['전체 최고', all.max],
+  $('ipjT').innerHTML = ipjOf(0) == null ? '' : headRow('ipjT', [['i', '기준'], ['v', '준공 후 가치'], ['prem', '프레미엄'], ['ipj', '입주권']]) +
+    sortBy('ipjT', [['전체 최저', all.min], ['전체 중위', all.mid], ['전체 최고', all.max],
      ...N.SCALES.map(sc => { const s = st(u.filter(x => N.scale(x.c.hhld) === sc)); return s.n ? [sc + ' 중위', s.mid] : null; }).filter(Boolean)]
-    .map(([k, v]) => v == null ? '' : `<tr><td>${k}</td><td class="n">${eok(v)}</td><td class="n">${eok(v - bun * 1e8)}</td><td class="n"><b>${eok(ipjOf(v))}</b></td></tr>`).join('');
+      .filter(([, v]) => v != null).map(([k, v], i) => ({i, k, v, prem: v - bun * 1e8, ipj: ipjOf(v)})))
+    .map(r => `<tr><td>${r.k}</td><td class="n">${eok(r.v)}</td><td class="n">${eok(r.prem)}</td><td class="n"><b>${eok(r.ipj)}</b></td></tr>`).join('');
 
-  let h = '<tr><th></th><th>거리</th><th>단지</th><th>법정동 지번</th><th>준공</th><th>세대수</th><th>최고층</th><th>건수</th><th>최저</th><th>중위</th><th>최고</th><th>최근 계약</th><th>최근 거래가</th></tr>';
-  for (const c of R.complexes){
-    const ok = c.trades.filter(tradeOk), s = N.stat(ok.map(t => t.price)), last = ok[0], sc = N.scale(c.hhld);
+  let h = headRow('list', [['on', ''], ['dist', '거리'], ['name', '단지'], ['addr', '법정동 지번'], ['built', '준공'], ['hhld', '세대수'], ['flr', '최고층'],
+    ['n', '건수'], ['min', '최저'], ['mid', '중위'], ['max', '최고'], ['lastDate', '최근 계약'], ['lastPrice', '최근 거래가']]);
+  for (const {c, s, last, sc} of listRows()){
     h += `<tr class="cx ${cxOn(c) ? '' : 'off'}" data-id="${esc(c.id)}"><td class="c"><input type="checkbox" data-ck="${esc(c.id)}" ${OFF.has(c.id) ? '' : 'checked'}></td>
       <td class="n">${c.dist >= 1000 ? (c.dist / 1000).toFixed(2) + 'km' : c.dist + 'm'}</td>
       <td>${c.own ? '<span class="tag own">본건 단지</span> ' : ''}${esc(c.name)}<span class="tag ${sc === '대단지' ? 'big3' : sc === '소규모' ? 'small' : ''}">${sc}</span></td>
@@ -397,13 +440,44 @@ function render(){
         <td></td><td class="n">${t.area.toFixed(2)}㎡</td><td class="n">${t.floor ?? '-'}층</td><td></td><td></td><td class="n"><b>${eok(t.price)}</b></td><td></td><td colspan="2" class="n">㎡당 ${Math.round(t.price / t.area / 1e4).toLocaleString('ko-KR')}만원</td></tr>`;
   }
   $('list').innerHTML = h;
+  renderTrades(u, all);
+}
+
+/* 실거래 목록: 집계에 든 거래(+ 원하면 빠진 거래). 최저, 중위(짝수면 가운데 두 건), 최고 거래에 표시 */
+function renderTrades(u, all){
+  const byPrice = u.slice().sort((a, b) => a.t.price - b.t.price), mark = new Map();
+  if (byPrice.length){
+    const n = byPrice.length;
+    (n % 2 ? [byPrice[(n - 1) / 2]] : [byPrice[n / 2 - 1], byPrice[n / 2]]).forEach(x => mark.set(x.t, '중위'));
+    mark.set(byPrice[0].t, '최저'); mark.set(byPrice[n - 1].t, '최고');
+  }
+  const showOff = $('showOff').checked;
+  const rows = [];
+  for (const c of R.complexes) for (const t of c.trades){
+    const on = cxOn(c) && tradeOk(t);
+    if (on || showOff || OFFT.has(t)) rows.push({c, t, on}); // 직접 뺀 거래는 다시 켤 수 있게 늘 보임
+  }
+  TROWS = sortBy('trades', rows, ({c, t, on}, k) => ({
+    on: on ? 0 : 1, date: t.date, name: c.name, dist: c.dist, built: c.built, hhld: c.hhld, dong: t.dong, floor: t.floor, area: t.area,
+    price: t.price, unit: t.price / t.area, kind: t.kind, note: mark.get(t) || ''})[k]);
+  $('trCnt').textContent = `집계 ${u.length}건${showOff ? `, 빠진 거래 ${rows.length - u.length}건 같이 표시` : ''}`;
+  const markTag = m => m ? `<span class="tag ${m === '중위' ? 'own' : 'big3'}">${m}</span>` : '';
+  $('trades').innerHTML = headRow('trades', [['on', ''], ['date', '계약일'], ['name', '단지'], ['dist', '거리'], ['built', '준공'], ['hhld', '세대수'],
+    ['dong', '동'], ['floor', '층'], ['area', '전용㎡'], ['price', '거래가(억)'], ['unit', '㎡당(만원)'], ['kind', '구분'], ['note', '비고']]) +
+    TROWS.map(({c, t, on}, i) => `<tr class="${on ? '' : 'off'}"><td class="c"><input type="checkbox" data-ti="${i}" ${OFFT.has(t) ? '' : 'checked'}></td>
+      <td class="c">${t.date}</td><td>${c.own ? '<span class="tag own">본건 단지</span> ' : ''}${esc(c.name)}</td>
+      <td class="n">${c.dist >= 1000 ? (c.dist / 1000).toFixed(2) + 'km' : c.dist + 'm'}</td><td class="c">${c.built ?? '전매'}</td>
+      <td class="n">${c.hhld != null ? c.hhld.toLocaleString('ko-KR') : '-'}</td><td class="c">${esc(t.dong || '')}</td><td class="n">${t.floor ?? '-'}</td>
+      <td class="n">${t.area.toFixed(2)}</td><td class="n"><b>${eok(t.price)}</b></td><td class="n">${Math.round(t.price / t.area / 1e4).toLocaleString('ko-KR')}</td>
+      <td class="c">${t.kind === '매매' ? '매매' : esc(t.kind) + ' 전매'}</td>
+      <td>${markTag(on && mark.get(t))}${t.direct ? '<span class="tag">직거래</span>' : ''}${t.cancelled ? '<span class="tag bad">해제</span>' : ''}${!cxOn(c) ? '<span class="tag">뺀 단지</span>' : ''}</td></tr>`).join('');
 }
 
 function showMsg(list, cls){ $('msg').innerHTML = (list || []).map(m => `<div class="msg ${cls}">${esc(m)}</div>`).join(''); }
 async function go(pick){
   $('go').disabled = true; $('go').textContent = '조회 중...'; showMsg([]);
   try {
-    R = await search(pick); OFF = new Set(); OPEN = new Set();
+    R = await search(pick); OFF = new Set(); OPEN = new Set(); OFFT = new Set();
     showMsg(R.warns, 'warn');
     const cd = $('cands');
     cd.classList.toggle('hidden', !R.candidates.length);
@@ -462,13 +536,14 @@ async function buildXlsx(){
     ['기준', '준공 후 가치(억원)', '입주권(억원)'], [['최저', E(a.min), E(ipjOf(a.min))], ['중위', E(a.mid), E(ipjOf(a.mid))], ['최고', E(a.max), E(ipjOf(a.max))]]);
 
   const ws2 = wb.addWorksheet('단지', {views: [{showGridLines: false, state: 'frozen', ySplit: 3}]});
-  title(ws2, '단지 목록 (거리순)');
+  const cxs = listRows().map(r => r.c);
+  title(ws2, SORT.list ? '단지 목록 (화면 정렬 순)' : '단지 목록 (거리순)');
   table(ws2, 3, ['집계', '거리(m)', '시군구', '법정동', '지번', '단지', '준공', '세대수', '최고층', '규모', '건수', '최저(억원)', '중위(억원)', '최고(억원)'],
-    R.complexes.map(c => { const s = N.stat(c.trades.filter(tradeOk).map(t => t.price)); return [cxOn(c) ? 'O' : '', c.dist, c.sgg, c.umd, c.jibun, (c.own ? '[본건 단지] ' : '') + c.name, c.built, c.hhld, c.flr, N.scale(c.hhld), s.n, E(s.min), E(s.mid), E(s.max)]; }));
+    cxs.map(c => { const s = N.stat(c.trades.filter(tradeOk).map(t => t.price)); return [cxOn(c) ? 'O' : '', c.dist, c.sgg, c.umd, c.jibun, (c.own ? '[본건 단지] ' : '') + c.name, c.built, c.hhld, c.flr, N.scale(c.hhld), s.n, E(s.min), E(s.mid), E(s.max)]; }));
   const ws3 = wb.addWorksheet('거래목록', {views: [{showGridLines: false, state: 'frozen', ySplit: 3}]});
   title(ws3, '거래 목록');
   const th = ['집계', '거리(m)', '법정동', '단지', '준공', '세대수', '구분', '계약일', '거래가(억원)', '전용(㎡)', '층', '동', '거래유형', '해제', '㎡당(만원)'];
-  const tr = R.complexes.flatMap(c => c.trades.map(t => [cxOn(c) && tradeOk(t) ? 'O' : '', c.dist, c.umd, c.name, c.built, c.hhld, t.kind, t.date, E(t.price), Math.round(t.area * 100) / 100 + 1e-9, t.floor, t.dong, t.direct ? '직거래' : '중개', t.cancelled ? '해제' : '', Math.round(t.price / t.area / 1e4)]));
+  const tr = cxs.flatMap(c => c.trades.map(t => [cxOn(c) && tradeOk(t) ? 'O' : '', c.dist, c.umd, c.name, c.built, c.hhld, t.kind, t.date, E(t.price), Math.round(t.area * 100) / 100 + 1e-9, t.floor, t.dong, t.direct ? '직거래' : '중개', t.cancelled ? '해제' : '', Math.round(t.price / t.area / 1e4)]));
   table(ws3, 3, th, tr);
   ws3.autoFilter = {from: {row: 3, column: 1}, to: {row: 3 + tr.length, column: th.length}};
   return wb.xlsx.writeBuffer();
@@ -486,6 +561,17 @@ document.querySelectorAll('.grid input').forEach(i => i.addEventListener('keydow
 $('cands').onclick = e => { const p = e.target.dataset.pnu; if (p) go(p); };
 ['noDirect', 'unkH'].forEach(id => $(id).onchange = render);
 ['minH', 'kwon', 'bun', 'paid'].forEach(id => $(id).oninput = render);
+$('result').addEventListener('click', e => {
+  const th = e.target.closest('th[data-sk]'); if (!th || !R) return;
+  const id = th.closest('table').id, k = th.dataset.sk, s = SORT[id];
+  SORT[id] = s && s.k === k ? {k, dir: -s.dir} : {k, dir: 1};
+  render();
+});
+$('trades').onclick = e => {
+  const i = e.target.dataset.ti; if (i == null) return;
+  const t = TROWS[+i].t; e.target.checked ? OFFT.delete(t) : OFFT.add(t); render();
+};
+$('showOff').onchange = render;
 $('list').onclick = e => {
   const ck = e.target.dataset.ck;
   if (ck) { e.target.checked ? OFF.delete(ck) : OFF.add(ck); render(); return; }
