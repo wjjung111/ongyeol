@@ -75,7 +75,16 @@ async function check(page,bytesArr){return page.evaluate(async bytes=>{
       // 토지 관련 절·문단 없음
       ['토지가액 산출근거','공시지가기준법에 의한 시산가액','평가대상 토지','비교표준지','본건 토지는','"공시지가기준법','토지 및 건물'].forEach(w=>assert(!r.text.includes(w),mode+' 없어야 함: '+w));
       assert(r.text.includes('부동산(건물)으로서'),'목적 문장');
-      assert(r.text.includes('「상속세 및 증여세법」상'),'기본 목적 문장 = 상증세법');
+      // 평가구분 빈칸(새 건 기본) → 「상속세 및 증여세법」에 의한 {{평가목적}} 목적 (2026-11-20, 「상 재산에 대한」 뺌)
+      assert(r.text.includes('부동산(건물)으로서, 「상속세 및 증여세법」에 의한 일반거래(시가참고) 목적의 감정평가임'),'기본 목적 문장(평가구분 빈칸) = 상증세법에 의한');
+      assert(!r.text.includes('「상속세 및 증여세법」상'),'평가구분 빈칸 — 「상 … 재산에 대한」 없음');
+      if(mode==='road'){   // 평가구분 있으면 종전 문장 「…상 {{평가구분}} 재산에 대한 …」 그대로
+        await page.evaluate(()=>{document.getElementById('ov_kind').value='상속';});
+        const rk=await check(page,await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data()))));
+        assert.deepEqual(rk.left,[],'평가구분 상속 남은 토큰');
+        assert(/부동산\(건물\)으로서, 「상속세 및 증여세법」상 상속 ?재산에 대한 일반거래\(시가참고\) 목적의 감정평가임/.test(rk.text),'평가구분 상속 목적 문장');
+        await page.evaluate(()=>{document.getElementById('ov_kind').value='';});
+      }
       if(mode==='road'){   // 평가목적 자산재평가 → 외부감사법 문구 (arap_purpose_law.js, 2026-11-15)
         await page.evaluate(()=>{document.getElementById('ov_purpose').value='자산재평가';});
         const rab=await page.evaluate(async()=>Array.from(await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),ArapTojiOpinion.data())));
