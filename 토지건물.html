@@ -937,8 +937,12 @@
             <span style="font-size:12px;font-weight:600;color:#555">수수료 요율</span>
             <select id="cg_feeBasis" style="max-width:110px" title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됩니다">
               <option value="하한">하한요율</option><option value="기준">기준요율</option><option value="상한">상한요율</option></select>
-            <span class="mul-x">×</span>
-            <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" title="수수료 배수(할증) — 예: 1.5. (가)평가수수료 = 요율 수수료 × 배수(천원 미만 절사). 이 값을 고치면 특별용역비 배수도 같은 값으로 따라갑니다." oninput="cgFeeMulIn(this.value)">
+            <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">할증 사유</span>
+            <select id="cg_surReason" style="max-width:170px" onchange="cgSurIn()" title="보수기준 할증 — 제5조② 특수평가(소급·선하지·임야·도로) ×1.5, 제5조④ 지분감정평가 150% 이내 협의(×1.1·×1.5). 평가수수료 = 요율 수수료 × 배수(최저 375,000원), 천원 미만 절사. 할증은 하나만. 특별용역비 배수도 같은 값으로 따라갑니다(그 뒤 따로 고칠 수 있음). 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
+              <option value="">할증 사유 없음</option><option value="소급">6개월 이상 소급 ×1.5</option><option value="선하지">선하지 ×1.5</option><option value="임야">임야(산림) ×1.5</option><option value="도로">도로·구거 등 ×1.5</option><option value="지분1.1">지분평가 ×1.1</option><option value="지분1.5">지분평가 ×1.5</option></select>
+            <!-- 예전 직접 배수 칸(2026-11-22 전 저장건) — 값이 1이 아닌 옛 건에서만 보이고, 할증 사유를 고르면 그쪽이 우선 -->
+            <span class="mul-x" id="cg_feeMulX" hidden>×</span>
+            <input type="text" id="cg_feeMul" class="mul-in" placeholder="1" hidden title="예전에 직접 적은 수수료 배수 — 할증 사유를 고르거나 이 칸을 비우면 사라집니다" oninput="cgFeeMulIn(this.value)">
             <span class="hint" id="cg_mulNote" style="margin-left:2px"></span>
             <span style="font-size:12px;font-weight:600;color:#555;margin-left:6px">특별용역비 방식</span>
             <select id="cg_specialMode" style="max-width:120px" title="상한-하한·기준-하한·상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산합니다(채워진 값은 직접 고칠 수 있음)">
@@ -4020,7 +4024,7 @@ var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결�
 var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
 var Y_IDS=['y_dong','y_near','y_surroundings','y_trafficNear','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_roadCnt','y_road1dir','y_road1w','y_road2dir','y_road2w','y_roadFree','y_struct','y_wall','y_window','y_usestate','y_usestateMore'];
-var CG_IDS=['cg_feeText','cg_feeBasis','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_specialApplied','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
+var CG_IDS=['cg_feeText','cg_feeBasis','cg_surReason','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_specialApplied','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
 var CG_SPECIAL_MANUAL=false;  // 특별용역비 적용액(차액 × 배수)을 평가사가 직접 고쳤는지 — 고쳤으면 자동값으로 덮지 않는다
 var CG_TRAVEL_MANUAL=false;   // 사건별로 직접 입력 여부를 저장하여 자동값과 구분
 
@@ -4046,7 +4050,15 @@ function cheongguAddr(){
 // "엔진에 넣기 전 값"에 곱하는 방식 — 평가수수료는 요율 수수료에, 특별용역비는 적어 둔 금액에 곱한다.
 // (평가수수료의 천원 미만 절사는 곱한 뒤에 엔진이 그대로 한다.)
 function cgMul(id){var v=num(cgVal(id));return (v>0&&isFinite(v))?v:1;}
-function cgFeeMul(){return cgMul('cg_feeMul');}
+// 할증 사유(집건과 같은 목록, 2026-11-22) — 특수평가 ×1.5 / 지분평가 ×1.1·×1.5. 고르면 예전 직접 배수 칸보다 우선
+function cgSurReason(){var r=cgVal('cg_surReason')||'';return /^(소급|선하지|임야|도로|지분1\.1|지분1\.5)$/.test(r)?r:'';}
+function cgSurMul(r){var m=/^지분([\d.]+)$/.exec(r||'');return m?+m[1]:r?1.5:1;}
+function cgFeeMul(){var r=cgSurReason();return r?cgSurMul(r):cgMul('cg_feeMul');}
+function cgSurWhy(){var r=cgSurReason();if(!r)return cgMul('cg_feeMul')!==1?'수수료':'';return /^지분/.test(r)?'지분평가':r==='소급'?'6개월 이상 소급':r==='임야'?'임야(산림)':r==='도로'?'도로·구거 등':r;}
+// 할증 사유를 고르면 특별용역비 배수도 같은 값으로(그 뒤 따로 고칠 수 있음) · 예전 직접 배수는 비운다
+function cgSurIn(){var fm=document.getElementById('cg_feeMul');if(fm&&cgSurReason())fm.value='';
+  var m=cgFeeMul(),sp=document.getElementById('cg_specialMul');if(sp){sp.value=m===1?'':String(m);CG_SPECIAL_MANUAL=false;}
+  renderCheonggu();saveForm();}
 function cgSpecialMul(){return cgMul('cg_specialMul');}
 // 특별용역비(청구서·합계에 나가는 값)
 //  · 직접입력: 칸에 적은 금액 그대로(배수 없음 — 평가사가 원하는 액수를 바로 적는 방식)
@@ -4075,8 +4087,8 @@ function cgFeeSrc(){
 // 수수료 계산서 인식 + 실비/착수금으로 청구금액 계산 (없으면 null)
 function cgFee(){var A=window.ArapCheonggu;if(!A)return null;
   var fee=cgFeeSrc();if(!fee||!fee.하한수수료)return null;
-  var m=cgFeeMul();
-  if(m!==1)fee={하한수수료:fee.하한수수료*m,기준수수료:(fee.기준수수료||0)*m,상한수수료:(fee.상한수수료||0)*m};
+  var m=cgFeeMul(),up=function(v){v=(v||0)*m;return m>1&&v>0&&v<375000?375000:v;};   // 할증이면 최저 375,000원(제4조③)
+  if(m!==1)fee={하한수수료:up(fee.하한수수료),기준수수료:up(fee.기준수수료),상한수수료:up(fee.상한수수료)};
   return A.computeCheonggu(fee,cgVal('cg_downPayment'),String(cgSpecialApplied()),cgVal('cg_feeBasis'),
     cgEmptyNull('cg_travel'),cgEmptyNull('cg_survey'),cgEmptyNull('cg_doc'),cgEmptyNull('cg_etc'));
 }
@@ -4123,8 +4135,10 @@ function renderCheonggu(){
   // 배수(할증) 칸 — 1이 아니면 파랗게. 특별용역비는 직접입력이면 배수 칸을 숨기고(적은 금액 그대로),
   // 차액 방식이면 '= 적용액' 입력칸을 칸 아래에 보여준다(자동 채움, 평가사가 고치면 그 값 유지)
   var fmul=cgFeeMul(),smul=cgSpecialMul(),direct=cgSpecialIsDirect();
-  var fMulEl=document.getElementById('cg_feeMul'),sMulEl=document.getElementById('cg_specialMul');
-  if(fMulEl)fMulEl.classList.toggle('on',fmul!==1);
+  var fMulEl=document.getElementById('cg_feeMul'),sMulEl=document.getElementById('cg_specialMul'),legacy=!cgSurReason()&&cgMul('cg_feeMul')!==1;
+  if(fMulEl){fMulEl.classList.toggle('on',fmul!==1);if(document.activeElement!==fMulEl)fMulEl.hidden=!legacy;}
+  var fMulX=document.getElementById('cg_feeMulX');if(fMulX&&fMulEl)fMulX.hidden=fMulEl.hidden;
+  var surEl=document.getElementById('cg_surReason');if(surEl){surEl.style.color=cgSurReason()?'#2563eb':'';surEl.style.fontWeight=cgSurReason()?'700':'';}
   if(sMulEl){sMulEl.classList.toggle('on',!direct&&smul!==1);sMulEl.hidden=direct;}
   var sMulX=document.getElementById('cg_specialMulX');if(sMulX)sMulX.hidden=direct;
   var eq=document.getElementById('cg_specialEq'),ap=document.getElementById('cg_specialApplied');
@@ -4134,7 +4148,8 @@ function renderCheonggu(){
     ap.classList.toggle('on',CG_SPECIAL_MANUAL);
   }
   var mulNote=document.getElementById('cg_mulNote');
-  if(mulNote)mulNote.textContent=fmul!==1?('평가수수료 '+fmul+'배 적용'):'';
+  if(mulNote){var fs0=cgFeeSrc(),bk=cgVal('cg_feeBasis')==='기준'?'기준수수료':cgVal('cg_feeBasis')==='상한'?'상한수수료':'하한수수료',raw=fs0?(fs0[bk]||0):0;
+    mulNote.textContent=fmul!==1?(cgSurWhy()+' 할증 — 평가수수료 '+fmul+'배 적용'+(fmul>1&&raw&&raw*fmul<375000?' (최저 375,000원)':'')):'';}
   if(!c){
     if(btn)btn.disabled=true;if(res)res.textContent='-';
     if(st){st.textContent='감정평가액이 정해지면 평가수수료 자동 계산';st.style.color='';}
@@ -4870,7 +4885,7 @@ function applyForm(o){
   delete document.getElementById('y_struct').dataset.autoStruct;
   applyRoadCnt();renderUsestate();
   TOICE=o.TOICE||{};
-  if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];});
+  if(o.cg)CG_IDS.forEach(function(id){var el=document.getElementById(id);if(el&&o.cg[id]!=null)el.value=o.cg[id];else if(el&&id==='cg_surReason')el.value='';});   // 할증 사유가 없던 옛 건은 「없음」
   // Legacy 40,000 was the automatic fallback. Preserve other custom amounts.
   CG_TRAVEL_MANUAL=typeof o.cgTravelManual==='boolean'?o.cgTravelManual:
     (hasV(cgVal('cg_travel'))&&num(cgVal('cg_travel'))!==40000&&num(cgVal('cg_travel'))!==cgTravelAuto());

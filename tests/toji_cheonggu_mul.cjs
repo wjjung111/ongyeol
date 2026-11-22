@@ -131,6 +131,33 @@ const FEE=['1  예상평가액  1,775,270,360',
   console.log('⑨ 직접입력 복귀',back);
   assert.ok(back.eqHidden&&back.spMulHidden);assert.equal(back.doc,615580);
 
+  // ⑩ 할증 사유 드롭다운(집건과 같은 목록, 2026-11-22) — 지분평가 ×1.1·×1.5 / 특수평가 ×1.5, 특별용역비 배수도 따라감
+  await setup(FEE);
+  await set('cg_surReason','지분1.1');
+  const s11=await read();const s11x=await page.evaluate(()=>({box:document.getElementById('cg_feeMul').hidden,sel:cgVal('cg_surReason')}));
+  console.log('⑩ 지분 1.1',s11,s11x);
+  assert.equal(s11.fee,'1,663,000 원');   // 1,512,680 × 1.1 = 1,663,948 → 천원 절사
+  assert.equal(s11.spMul,'1.1');assert.ok(s11.note.includes('지분평가 할증'));assert.ok(s11x.box,'예전 배수 칸은 숨김');
+  await set('cg_surReason','소급');
+  const s15=await read();assert.equal(s15.fee,'2,269,000 원');assert.equal(s15.spMul,'1.5');assert.ok(s15.note.includes('6개월 이상 소급 할증'));
+  // 저장·복원
+  const rt=await page.evaluate(()=>{const o=JSON.parse(JSON.stringify(collect()));document.getElementById('cg_surReason').value='';applyForm(o);renderCheonggu();
+    return {sel:cgVal('cg_surReason'),fee:document.getElementById('cgv_fee').textContent.trim()};});
+  assert.deepEqual(rt,{sel:'소급',fee:'2,269,000 원'});
+  // 옛 건: 할증 사유 없이 직접 배수 1.5 → 배수 칸이 보이고 그대로 1.5배 / 사유를 고르면 직접 배수는 비워짐
+  await set('cg_surReason','');await set('cg_feeMul','1.5');
+  const lg=await page.evaluate(()=>({box:document.getElementById('cg_feeMul').hidden,fee:document.getElementById('cgv_fee').textContent.trim()}));
+  assert.deepEqual(lg,{box:false,fee:'2,269,000 원'});
+  await set('cg_surReason','지분1.1');
+  const lg2=await page.evaluate(()=>({mul:document.getElementById('cg_feeMul').value,box:document.getElementById('cg_feeMul').hidden,fee:document.getElementById('cgv_fee').textContent.trim()}));
+  assert.deepEqual(lg2,{mul:'',box:true,fee:'1,663,000 원'});
+  // 할증 최저 375,000원(제4조③) — 소액 건(3천만원) 지분 ×1.1
+  const sm=await page.evaluate(()=>{document.getElementById('cg_feeText').value='';window.LAND_FINAL=30000000;window.BLD_RESULT={total:0,rows:[]};renderCheonggu();
+    return {raw:ArapFee.calc(30000000).하한수수료,fee:cgFee().평가수수료,note:document.getElementById('cg_mulNote').textContent};});
+  console.log('⑩ 소액',sm);
+  assert.ok(sm.raw*1.1<375000);assert.equal(sm.fee,375000);assert.ok(sm.note.includes('최저 375,000원'));
+  await set('cg_surReason','');
+
   if(errs.length){console.log('페이지 오류',errs);throw new Error('page errors');}
   console.log('✅ 모두 통과');
   await browser.close();server.close();

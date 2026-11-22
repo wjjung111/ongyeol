@@ -2540,14 +2540,20 @@ function parseFeeStatement(text){
 function feeMulOf(v){const n=parseFloat(String(v==null?"":v).replace(/[^\d.]/g,""));return n>0&&isFinite(n)?n:1;}
 // 수수료 할증(「감정평가법인등의 보수에 관한 기준」 2026.2.9.) — 제5조② 특수평가는 100분의 150, 제5조④ 지분감정평가는 150% 이내 협의(1.1·1.5)
 // 하나의 물건이 둘 이상에 해당해도 할증은 한 번만(제5조② 단서) → 사유 할증과 지분 할증 중 큰 배수 하나만 쓴다(2026-10-26 결정)
-const FEE_SUR_REASONS=[["","할증 사유 없음"],["소급","6개월 이상 소급 ×1.5"],["선하지","선하지 ×1.5"],["임야","임야(산림) ×1.5"],["도로","도로·구거 등 ×1.5"]];
-// full = 지분평가의 '전체 토지등 감정평가액'(제5조④ 단서: 지분 수수료는 전체 평가액 기준 수수료를 넘지 못함) — 지분 할증이 적용될 때만 의미
+const FEE_SUR_REASONS=[["","할증 사유 없음"],["소급","6개월 이상 소급 ×1.5"],["선하지","선하지 ×1.5"],["임야","임야(산림) ×1.5"],["도로","도로·구거 등 ×1.5"],["지분1.1","지분평가 ×1.1"],["지분1.5","지분평가 ×1.5"]];
+// 2026-11-22: 지분평가 할증(×1.1·×1.5)도 할증 사유 목록 하나에 — 지분 설정과 상관없이 고를 수 있다(할증은 어차피 하나만).
+// 옛 저장건(② 면적 「지분평가」 + ov.feeMul)은 「지분평가 ×배수」 사유로 읽고, 다른 사유와 같이 있었으면 큰 배수 하나(종전 규칙).
+function feeSurMul(r){const m=/^지분([\d.]+)$/.exec(r||"");return m?parseFloat(m[1]):r?1.5:1;}
+function feeSurOf(ov){
+  const ok=r=>FEE_SUR_REASONS.some(x=>x[0]&&x[0]===r);
+  const sur=ok(ov.feeSurReason)?ov.feeSurReason:"";
+  const old=ov.areaOption==="share"&&feeMulOf(ov.feeMul)>1?"지분"+feeMulOf(ov.feeMul):"";
+  return ok(old)&&!/^지분/.test(sur)&&feeSurMul(old)>=feeSurMul(sur)?old:sur;
+}
+// full = 지분평가의 '전체 토지등 감정평가액'(제5조④ 단서: 지분 수수료는 전체 평가액 기준 수수료를 넘지 못함) — 지분 사유일 때만 의미
 function feeAdjOf(ov,full){
-  const share=ov.areaOption==="share"?feeMulOf(ov.feeMul):1;
-  const sur=FEE_SUR_REASONS.some(r=>r[0]&&r[0]===ov.feeSurReason)?1.5:1;
-  const mul=Math.max(share,sur);
-  const byShare=share>1&&share>=sur;
-  return{mul,full:byShare?(full||0):0,why:mul===1?"":byShare?"지분평가":FEE_SUR_REASONS.find(r=>r[0]===ov.feeSurReason)[1].replace(/ ×1\.5$/,"")};
+  const r=feeSurOf(ov),mul=feeSurMul(r),byShare=/^지분/.test(r);
+  return{mul,reason:r,full:byShare?(full||0):0,why:mul===1?"":FEE_SUR_REASONS.find(x=>x[0]===r)[1].replace(/ ×[\d.]+$/,"")};
 }
 function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee,docFee,etcFee,feeAdj){
   // 평가수수료=ROUNDDOWN(요율기준 수수료,-3) — 접수내용의 하한/기준/상한요율에 따름. 특별용역비=평가사 수동 결정값
@@ -4670,20 +4676,16 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           return ck.ok?<div style={{color:"#16a34a"}}>붙여넣은 계산서 = 자동 계산과 같음 ✓</div>:<div style={{color:"#dc2626",fontWeight:600}}>⚠ 붙여넣은 계산서가 자동 계산과 다릅니다: {ck.diffs.map(k=>k.replace("수수료","")+" "+fmt(ck.site[k])+" ↔ 자동 "+fmt(ck.auto[k])).join(", ")}</div>;})()}
       </div>
       <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeTextRaw} onChange={e=>setFeeText(e.target.value)} placeholder={"(선택) 수수료 사이트 계산서1을 붙여넣으면 그 값을 씁니다 — 비워 두면 감정평가액으로 자동 계산"}/>
-      {/* 수수료 요율 / 특수평가 할증 / 지분평가 할증 / 특별용역비 방식 — 「이름표 | 칸」 2열로 줄 맞춤(2026-11-09) */}
+      {/* 수수료 요율 / 할증 사유(특수평가·지분평가) / 특별용역비 방식 — 「이름표 | 칸」 2열로 줄 맞춤(2026-11-09) */}
       <div style={{display:"grid",gridTemplateColumns:"104px minmax(0,220px)",gap:"6px 10px",alignItems:"center",marginTop:8}}>
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
         <select style={{...S.sel2,width:"100%"}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
-        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특수평가 할증</span>
-        <select style={{...S.sel2,width:"100%",...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
+        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>할증 사유</span>
+        <select style={{...S.sel2,width:"100%",...(feeSurOf(ov)?{color:"#2563eb",fontWeight:700}:{})}} value={feeSurOf(ov)} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value,feeMul:""}))} title="보수기준 할증 — 제5조② 특수평가(소급·선하지·임야·도로) ×1.5, 제5조④ 지분감정평가 150% 이내 협의(×1.1·×1.5). 평가수수료 = 요율 수수료 × 배수(최저 375,000원), 천원 미만 절사. 할증은 하나만. 지분평가로 둔 건이면 전체 평가액 기준 수수료를 넘지 않음. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
           {FEE_SUR_REASONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
         </select>
-        {ov.areaOption==="share"&&<><span style={{fontSize:12,fontWeight:600,color:"#555"}}>지분평가 할증</span>
-        <select style={{...S.sel2,width:"100%",...(feeMulOf(ov.feeMul)!==1?{color:"#2563eb",fontWeight:700}:{})}} value={String(feeMulOf(ov.feeMul))} onChange={e=>setOv(p=>({...p,feeMul:e.target.value==="1"?"":e.target.value}))} title="지분평가 시 평가수수료 배수 (요율 수수료 × 배수, 천원 미만 절사). 특별용역비를 차액 방식으로 계산할 때도 같은 배수가 적용됩니다.">
-          {["1","1.1","1.5"].map(o=><option key={o} value={o}>{o==="1"?"할증 없음":"×"+o+"배"}</option>)}
-        </select></>}
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특별용역비 방식</span>
         <select style={{...S.sel2,width:"100%"}} value={specialFeeMode} onChange={e=>setSpecialFeeMode(e.target.value)} title="상한-하한/기준-하한/상한-기준은 붙여넣은 계산서의 수수료끼리 차감해 자동 계산(채워진 값은 직접 고칠 수 있음)">
           {["상한-하한","기준-하한","상한-기준","직접입력"].map(o=><option key={o} value={o}>{o}</option>)}
@@ -8003,14 +8005,20 @@ function parseFeeStatement(text){
 function feeMulOf(v){const n=parseFloat(String(v==null?"":v).replace(/[^\d.]/g,""));return n>0&&isFinite(n)?n:1;}
 // 수수료 할증(「감정평가법인등의 보수에 관한 기준」 2026.2.9.) — 제5조② 특수평가는 100분의 150, 제5조④ 지분감정평가는 150% 이내 협의(1.1·1.5)
 // 하나의 물건이 둘 이상에 해당해도 할증은 한 번만(제5조② 단서) → 사유 할증과 지분 할증 중 큰 배수 하나만 쓴다(2026-10-26 결정)
-const FEE_SUR_REASONS=[["","할증 사유 없음"],["소급","6개월 이상 소급 ×1.5"],["선하지","선하지 ×1.5"],["임야","임야(산림) ×1.5"],["도로","도로·구거 등 ×1.5"]];
-// full = 지분평가의 '전체 토지등 감정평가액'(제5조④ 단서: 지분 수수료는 전체 평가액 기준 수수료를 넘지 못함) — 지분 할증이 적용될 때만 의미
+const FEE_SUR_REASONS=[["","할증 사유 없음"],["소급","6개월 이상 소급 ×1.5"],["선하지","선하지 ×1.5"],["임야","임야(산림) ×1.5"],["도로","도로·구거 등 ×1.5"],["지분1.1","지분평가 ×1.1"],["지분1.5","지분평가 ×1.5"]];
+// 2026-11-22: 지분평가 할증(×1.1·×1.5)도 할증 사유 목록 하나에 — 지분 설정과 상관없이 고를 수 있다(할증은 어차피 하나만).
+// 옛 저장건(② 면적 「지분평가」 + ov.feeMul)은 「지분평가 ×배수」 사유로 읽고, 다른 사유와 같이 있었으면 큰 배수 하나(종전 규칙).
+function feeSurMul(r){const m=/^지분([\d.]+)$/.exec(r||"");return m?parseFloat(m[1]):r?1.5:1;}
+function feeSurOf(ov){
+  const ok=r=>FEE_SUR_REASONS.some(x=>x[0]&&x[0]===r);
+  const sur=ok(ov.feeSurReason)?ov.feeSurReason:"";
+  const old=ov.areaOption==="share"&&feeMulOf(ov.feeMul)>1?"지분"+feeMulOf(ov.feeMul):"";
+  return ok(old)&&!/^지분/.test(sur)&&feeSurMul(old)>=feeSurMul(sur)?old:sur;
+}
+// full = 지분평가의 '전체 토지등 감정평가액'(제5조④ 단서: 지분 수수료는 전체 평가액 기준 수수료를 넘지 못함) — 지분 사유일 때만 의미
 function feeAdjOf(ov,full){
-  const share=ov.areaOption==="share"?feeMulOf(ov.feeMul):1;
-  const sur=FEE_SUR_REASONS.some(r=>r[0]&&r[0]===ov.feeSurReason)?1.5:1;
-  const mul=Math.max(share,sur);
-  const byShare=share>1&&share>=sur;
-  return{mul,full:byShare?(full||0):0,why:mul===1?"":byShare?"지분평가":FEE_SUR_REASONS.find(r=>r[0]===ov.feeSurReason)[1].replace(/ ×1\.5$/,"")};
+  const r=feeSurOf(ov),mul=feeSurMul(r),byShare=/^지분/.test(r);
+  return{mul,reason:r,full:byShare?(full||0):0,why:mul===1?"":FEE_SUR_REASONS.find(x=>x[0]===r)[1].replace(/ ×[\d.]+$/,"")};
 }
 function computeCheonggu(fee,downPayment,specialFee,feeBasis,travelFee,surveyFee,docFee,etcFee,feeAdj){
   // 평가수수료=ROUNDDOWN(요율기준 수수료,-3) — 접수내용의 하한/기준/상한요율에 따름. 특별용역비=평가사 수동 결정값
@@ -8441,14 +8449,14 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           return ck.ok?<div style={{color:"#16a34a"}}>붙여넣은 계산서 = 자동 계산과 같음 ✓</div>:<div style={{color:"#dc2626",fontWeight:600}}>⚠ 붙여넣은 계산서가 자동 계산과 다릅니다: {ck.diffs.map(k=>k.replace("수수료","")+" "+fmt(ck.site[k])+" ↔ 자동 "+fmt(ck.auto[k])).join(", ")}</div>;})()}
       </div>
       <textarea style={{...S.inp,width:"100%",minHeight:70,resize:"vertical",fontFamily:"inherit",fontSize:12}} value={feeTextRaw} onChange={e=>setFeeText(e.target.value)} placeholder={"(선택) 수수료 사이트 계산서1을 붙여넣으면 그 값을 씁니다 — 비워 두면 감정평가액으로 자동 계산"}/>
-      {/* 수수료 요율 / 특수평가 할증 / 지분평가 할증 / 특별용역비 방식 — 「이름표 | 칸」 2열로 줄 맞춤(2026-11-09) */}
+      {/* 수수료 요율 / 할증 사유(특수평가·지분평가) / 특별용역비 방식 — 「이름표 | 칸」 2열로 줄 맞춤(2026-11-09) */}
       <div style={{display:"grid",gridTemplateColumns:"104px minmax(0,220px)",gap:"6px 10px",alignItems:"center",marginTop:8}}>
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>수수료 요율</span>
         <select style={{...S.sel2,width:"100%"}} value={feeBasis} onChange={e=>setFeeBasis(e.target.value)} title="접수내용의 요율 기준 — 평가수수료가 이 요율의 절사값으로 계산됨">
           {["하한","기준","상한"].map(o=><option key={o} value={o}>{o}요율</option>)}
         </select>
-        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특수평가 할증</span>
-        <select style={{...S.sel2,width:"100%",...(ov.feeSurReason?{color:"#2563eb",fontWeight:700}:{})}} value={ov.feeSurReason||""} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value}))} title="보수기준 제5조② 특수평가 할증(100분의 150). 평가수수료 = 요율 수수료 × 1.5(최저 375,000원), 천원 미만 절사. 지분평가 할증과 겹치면 큰 배수 하나만 적용. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
+        <span style={{fontSize:12,fontWeight:600,color:"#555"}}>할증 사유</span>
+        <select style={{...S.sel2,width:"100%",...(feeSurOf(ov)?{color:"#2563eb",fontWeight:700}:{})}} value={feeSurOf(ov)} onChange={e=>setOv(p=>({...p,feeSurReason:e.target.value,feeMul:""}))} title="보수기준 할증 — 제5조② 특수평가(소급·선하지·임야·도로) ×1.5, 제5조④ 지분감정평가 150% 이내 협의(×1.1·×1.5). 평가수수료 = 요율 수수료 × 배수(최저 375,000원), 천원 미만 절사. 할증은 하나만. 지분평가로 둔 건이면 전체 평가액 기준 수수료를 넘지 않음. 특별용역 결과를 이용해 평가했으면 할증하지 않음(제5조③)">
           {FEE_SUR_REASONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
         </select>
         <span style={{fontSize:12,fontWeight:600,color:"#555"}}>특별용역비 방식</span>
