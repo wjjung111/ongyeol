@@ -86,6 +86,8 @@
   }
   function eligible(el){return el&&el.tagName==="INPUT"&&el.hasAttribute("data-date")&&!el.closest("table")&&!el.readOnly&&!el.disabled;}
   document.addEventListener("focusin",function(e){if(eligible(e.target))open(e.target);else if(pop&&!pop.contains(e.target))close();});
+  // 이미 커서가 있는 칸을 다시 눌러도 열리게(날짜 고른 뒤·Esc·직접 입력 후엔 칸에 커서가 남아 focusin이 안 생김 — 2026-11-22)
+  document.addEventListener("click",function(e){if(!pop&&eligible(e.target)&&document.activeElement===e.target)open(e.target);});
   document.addEventListener("focusout",function(e){if(e.target===target)setTimeout(function(){if(document.activeElement!==target)close();},0);});
   document.addEventListener("keydown",function(e){if(pop&&e.key==="Escape")close();},true);
   document.addEventListener("input",function(e){if(pop&&e.target===target){var m=String(target.value||"").match(/^(\d{4})\D?(\d{1,2})\D?(\d{1,2})$/);if(m){ym={y:+m[1],mo:+m[2]-1};}draw();}});
