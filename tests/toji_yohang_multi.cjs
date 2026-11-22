@@ -104,15 +104,16 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     await page.evaluate(()=>setSajMode('land','direct'));
     assert.equal(await page.locator('.y-kiho:visible').count(),3,'직접 → 기호별 머리 3곳');
     assert.equal(await page.locator('.y-kiho').first().textContent(),'(1) 기호1 : ');
-    // 「일단지」 체크만 켜도(사정면적은 직접) 공히 — 이 앱에서 일단지와 묶기는 따로 켠다
+    // 「일단지」 체크 → 사정면적 「묶기」도 자동으로 켜짐(2026-11-22) → 공히
     await page.evaluate(()=>setIldanji(true));
+    assert.equal(await page.evaluate(()=>SAJ_MODE.land),'group','일단지 체크 → 묶기 자동');
     assert.equal(await page.locator('.y-kiho:visible').count(),2,'일단지 체크 → 공히 머리 2곳');
     assert.equal(await page.locator('.y-kiho').first().textContent(),'[기호1,2,3 공히] ');
     const ild=await page.evaluate(async()=>{const bytes=await ArapTojiDocuments.buildYohang();const es=await ArapCheonggu.parseZip(bytes.buffer);
       return new TextDecoder().decode(es.find(e=>e.name==='Contents/section0.xml').data).replace(/<[^>]+>/g,'');});
     assert(ild.includes('[기호1,2,3 공히] 전으로 이용중임.')&&!ild.includes('(2) 기호2'),'일단지 체크 출력 = 공히');
     // 불러오기·되돌리기 뒤(refreshAfterLoad)에도 머리가 상태를 따라간다
-    await page.evaluate(()=>{ILDANJI=false;refreshAfterLoad();});
+    await page.evaluate(()=>{ILDANJI=false;SAJ_MODE.land='direct';refreshAfterLoad();});
     assert.equal(await page.locator('.y-kiho').first().textContent(),'(1) 기호1 : ','불러온 뒤 다시 그림');
     await page.evaluate(()=>{SAJ_MODE.land='direct';ILDANJI=false;});
     // 조사 로/으로 — 판단 함수 + 화면 + 출력
