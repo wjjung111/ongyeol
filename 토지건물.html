@@ -162,11 +162,12 @@
   /* 필지들을 하나로 묶는 ] 꺾쇠 — 세로줄 + 위아래 팔이 공부면적 칸 쪽(왼쪽)으로 뻗는다 */
   .grp-br{position:absolute;z-index:2;left:-18px;top:5px;bottom:5px;width:17px;border:3px solid #dc2626;border-left:none;border-radius:0 4px 4px 0;pointer-events:none;}
   .grp-lab{font-size:10px;color:#b91c1c;font-weight:700;margin-bottom:2px;}
-  /* 묶음 용도지역별 나누기 — 묶음 칸 오른쪽, 구역마다 한 줄(용도지역 · 면적) */
+  /* 묶음 나누기 — 묶음 칸 오른쪽, 맨 위 나눈 이유 + 구역마다 한 줄(용도지역 · 면적) */
   td.zone-c{vertical-align:middle;text-align:left;min-width:200px;}
   .zone-r{display:flex;align-items:center;gap:4px;margin:2px 0;}
   .zone-r input.zone-nm{width:140px;text-align:left;}
   .zone-r input.zone-ar{width:70px;text-align:right;}
+  .zone-r input.zone-why{width:226px;text-align:left;border:1px solid #cbd5e1;border-radius:4px;background:#fff;}
   /* 토지 평가구분 — 나눈 줄(구분평가·일부 평가외)은 연한 바탕, 평가외 줄은 회색 기울임 */
   #landTbl tr.land-sub td{background:#f8fafc;}
   #landTbl tr.land-sub td.jud-c{background:#fff9e6;}
@@ -1282,6 +1283,7 @@ function isLandGroup(){return SAJ_MODE.land==='group';}
 // 각각 표준지·개별요인·그 밖의 요인·단가를 따로 산정한다. 나눈 구역은 GZONES(건별 저장) — 필지(LANDS)와 별개라
 // 명세표·요항표·위치도의 필지 줄은 그대로다. 평가하는 줄을 가리키는 키: 필지 = LANDS 번호(숫자), 구역 = 'z0'·'z1'(글자).
 var GZONES=[];
+var ZONE_WHY='';   // 나눈 이유(자유 입력 — 용도지역 상이·도시계획시설 저촉 등, 2026-11-22) · 건별 저장
 function zoneMode(){return isLandGroup()&&GZONES.length>1;}
 function isZoneKey(k){return typeof k==='string'&&k.charAt(0)==='z';}
 function rowObj(k){return isZoneKey(k)?GZONES[+k.slice(1)]:LANDS[k];}
@@ -1327,7 +1329,7 @@ function addZones(){
 function delZone(k){
   if(!GZONES[k])return;
   try{histFlush();}catch(e){console.error('undo flush',e);}   // 지우기 직전 상태를 되돌리기 기록에
-  if(GZONES.length<=2){if(!confirm('용도지역별 나누기를 끝내고 묶음 한 줄로 평가할까요?')){return;}GZONES=[];}
+  if(GZONES.length<=2){if(!confirm('나누기를 끝내고 묶음 한 줄로 평가할까요?')){return;}GZONES=[];}
   else{GZONES.splice(k,1);zoneMemSplice(k,1,false);}
   renderLands();calcGongsi();saveForm();sd();
 }
@@ -1344,12 +1346,15 @@ function zoneHints(){
   var s=0;GZONES.forEach(function(_,k){s+=zoneArea(k);});s=roundArea(s);var t=groupTotal(),ok=Math.abs(s-t)<0.00005;
   h.style.color=ok?'#64748b':'#b91c1c';h.textContent=ok?'합계 '+fmtArea(s)+'㎡ = 묶은 면적':'⚠ 합계 '+fmtArea(s)+'㎡ ≠ 묶은 면적 '+fmtArea(t)+'㎡';
 }
-var ZONE_TITLE='용도지역별 나누기 — 묶은 면적이 용도지역 두 개 이상에 걸치면 지번과 상관없이 용도지역별 면적으로 나눠, 각각 표준지·개별요인·그 밖의 요인·단가를 따로 산정합니다. 마지막 줄 면적을 비우면 묶은 면적 − 나머지로 자동.';
+var ZONE_TITLE='나누기 — 묶은 면적을 용도지역이 다르거나 도시계획시설에 저촉되는 등의 이유로 지번과 상관없이 면적으로 나눠, 각각 표준지·개별요인·그 밖의 요인·단가를 따로 산정합니다. 마지막 줄 면적을 비우면 묶은 면적 − 나머지로 자동.';
 function zoneCell(rows){
   var h='<td class="zone-c" rowspan="'+rows+'" title="'+ZONE_TITLE+'">';
-  if(GZONES.length<2)return h+'<button class="btn gh sm" style="white-space:nowrap" onclick="addZones()">＋ 용도지역별 나누기</button></td>';
+  if(GZONES.length<2)return h+'<button class="btn gh sm" style="white-space:nowrap" onclick="addZones()" title="'+ZONE_TITLE+'">＋ 나누기</button></td>';
   var dl='<datalist id="zoneUseDl">'+zoneUseList().map(function(s){return '<option value="'+esc(s)+'">';}).join('')+'</datalist>';
-  return h+dl+GZONES.map(function(Z,k){
+  var why='<datalist id="zoneWhyDl"><option value="용도지역 상이"><option value="도시계획시설(도로) 저촉"><option value="도시계획시설 저촉"></datalist>'
+    +'<div class="zone-r"><input class="zone-why" value="'+esc(ZONE_WHY)+'" placeholder="나눈 이유 (예: 용도지역 상이)" title="나눈 이유 — 칸을 누르면 「용도지역 상이」·「도시계획시설(도로) 저촉」 등을 고를 수 있고, 직접 적어도 됩니다" list="zoneWhyDl" aria-label="나눈 이유"'
+    +' oninput="ZONE_WHY=this.value;saveForm();"></div>';
+  return h+dl+why+GZONES.map(function(Z,k){
     return '<div class="zone-r"><input class="zone-nm" value="'+esc(Z.name)+'" placeholder="용도지역" list="zoneUseDl" aria-label="구역 '+(k+1)+' 용도지역"'
       +' oninput="GZONES['+k+'].name=this.value;zoneChanged();">'
       +'<input class="zone-ar" data-k="'+k+'" value="'+esc(Z.area)+'" placeholder="'+(zoneAreaAuto(k)?fmtArea(zoneAreaAuto(k))+' (자동)':'면적')+'" aria-label="구역 '+(k+1)+' 면적"'
@@ -1561,7 +1566,7 @@ function renderLands(){
   var gb=!group;   // 평가구분 열 — 묶기와는 같이 쓰지 않으므로 묶기면 숨긴다
   var h='<tr><th>일련<br>번호</th>'+LAND_COLS.map(function(c){
         var t=(c==='면적'&&group?'<th title="'+GRPIN_TITLE+'" style="width:40px">묶음</th>':'')+'<th>'+(c==='면적'?'공부면적(㎡)':c==='공시지가'?'개별공시지가<br>(원/㎡)':c)+'</th>';
-        if(c==='면적')t+='<th style="min-width:96px">'+sajHead('land')+'</th>'+(group?'<th title="'+ZONE_TITLE+'">용도지역별<br>나누기</th>':'')+(share?'<th>지분(%)</th>':'')
+        if(c==='면적')t+='<th style="min-width:96px">'+sajHead('land')+'</th>'+(group?'<th title="'+ZONE_TITLE+'">나누기</th>':'')+(share?'<th>지분(%)</th>':'')
           +(gb?'<th title="'+GUBUN_TITLE+'" style="min-width:104px">평가<br>구분</th>':'');
         return t;}).join('')
        +(multiStd?'<th>적용<br>표준지</th>':'')+'<th></th></tr>';
@@ -3888,6 +3893,7 @@ function hideExamples(){
   var has=!!String((LANDS[0]||{})['소재지']||'').trim();
   document.querySelectorAll('input,textarea').forEach(function(el){
     if(el.classList.contains('zone-ar'))return;   // 용도지역별 구역 면적 칸 — 「41.2 (자동)」 안내는 zoneHints가 늘 새로 쓴다
+    if(el.classList.contains('zone-why')||el.classList.contains('zone-nm'))return;   // 나누기 칸(나눈 이유·용도지역) 안내는 늘 보인다 — 빈칸이 안 보이면 적을 곳을 못 찾음
     if(el.dataset.ph==null){if(!el.placeholder)return;el.dataset.ph=el.placeholder;}
     // 요항표의 문장형 입력 안내는 실제 소재지가 있어도 계속 표시한다.
     var o=el.dataset.ph,keep=!!el.closest('.y-location')||KEEP_PH.indexOf(o)>=0||/…|Ctrl\+V/.test(o);
@@ -4668,7 +4674,7 @@ function collect(){
   o.TRADES=TRADES;o.APPRS=APPRS;o.ETC=ETC;o.GA=GA;o.BLD_STATE=window.BLD_STATE||{};
   o.landOnly=LAND_ONLY;   // 평가대상: 토지만(true) / 토지+건물(false·없음)
   o.bldOnly=BLD_ONLY;     // 평가대상: 건물만(true)
-  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;o.GZONES=GZONES;o.GROUP_SHARE=GROUP_SHARE;
+  o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;o.GZONES=GZONES;o.ZONE_WHY=ZONE_WHY;o.GROUP_SHARE=GROUP_SHARE;
   return o;
 }
 var saveTimer=null;
@@ -4827,7 +4833,7 @@ function applyForm(o){
             bld:(o.SAJ_MODE&&o.SAJ_MODE.bld==='share')?'share':'direct'};
   GROUP_AREA=(o.GROUP_AREA!=null)?String(o.GROUP_AREA):'';
   ILDANJI=!!o.ILDANJI;ILDANJI_PREV_MODE=null;
-  GZONES=Array.isArray(o.GZONES)?o.GZONES:[];
+  GZONES=Array.isArray(o.GZONES)?o.GZONES:[];ZONE_WHY=o.ZONE_WHY!=null?String(o.ZONE_WHY):'';
   GROUP_SHARE=o.GROUP_SHARE!=null?String(o.GROUP_SHARE):'';
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
   STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
@@ -4954,7 +4960,7 @@ function clearForm(){
   OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
   BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
-  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;ILDANJI_PREV_MODE=null;GZONES=[];GROUP_SHARE='';
+  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;ILDANJI_PREV_MODE=null;GZONES=[];ZONE_WHY='';GROUP_SHARE='';
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
