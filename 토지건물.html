@@ -2155,6 +2155,13 @@ async function roneCumulative(reg,use,g,e,progressCb){
     if(!jbState.useF&&rows.length)jbDetect(rows);   // 파일로 준비된 경우 표 구조 판별이 아직 안 돼 있음
     var hit=rows.find(function(r){var d=jbSplit(r);return d.reg===reg&&d.use===use;});
     if(hit&&hit.DTA_VAL!=null&&hit.DTA_VAL!=='')rates[ym]=parseFloat(hit.DTA_VAL);
+    // 파일 밖 옛 달(예 2021.06)에 신설 구(효행구) 값이 없으면 같은 달 표의 상위 지역(화성시) 값 — arm_시점수정.html과 같은 규칙
+    // (전에는 상위 지역을 파일에서만 찾아, 파일 시작월 이전 거래는 「2021.06월 변동률이 없습니다」로 멈췄다 — 2026-11-22 사용자 제보)
+    for(var pr=reg;!(ym in rates)&&pr.indexOf('>')>=0;){
+      pr=pr.split('>').slice(0,-1).map(function(x){return x.trim();}).join(' > ');
+      var ph=rows.find(function(r){var d=jbSplit(r);return d.reg===pr&&d.use===use;});
+      if(ph&&ph.DTA_VAL!=null&&ph.DTA_VAL!==''){rates[ym]=parseFloat(ph.DTA_VAL);cum=null;}
+    }
   }
   parentFill(0);
   return jbFactor(rates,g,e,cum);
