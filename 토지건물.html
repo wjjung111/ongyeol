@@ -1266,8 +1266,13 @@ function shareLabel(L){
 var GROUP_AREA='';   // 묶은 면적 — 자동으로 공부면적 합계가 채워지고, 자유 수정 가능
 var ILDANJI=false;   // 일단지 여부(체크박스)
 function groupWord(){return ILDANJI?'일단지':'묶음';}
+// 일단지를 체크하면 사정면적 「묶기」도 자동으로 켠다 → 개별요인·단가·면적이 「일단지」 한 줄(사용자 2026-11-22, 09-22 「따로 켜기」를 뒤집음).
+// 묶기 없이 면적만 묶는 경우(일단지 아님)는 종전대로 드롭다운에서 「묶기」. 체크를 끄면 일단지 체크로 켠 묶기만 원래 모드로 되돌린다.
+var ILDANJI_PREV_MODE=null;   // 일단지 체크로 묶기를 켰을 때 그 전 사정면적 모드(저장 안 함)
 function setIldanji(v){
   ILDANJI=!!v;
+  if(ILDANJI&&!isLandGroup()&&landParcelCount()>1){var prev=SAJ_MODE.land;setSajMode('land','group');ILDANJI_PREV_MODE=isLandGroup()?prev:null;}
+  else if(!ILDANJI&&ILDANJI_PREV_MODE&&isLandGroup()){var pm=ILDANJI_PREV_MODE;ILDANJI_PREV_MODE=null;setSajMode('land',pm);}
   renderLands();calcGongsi();saveForm();renderYohangLands();   // 요항표 기호별 ↔ [기호… 공히] 전환
   if(MAPV)mapOpen();   // 위치도를 이미 열었으면 본건 이름표(하나/여럿)를 바로 다시 그린다
 }
@@ -4821,7 +4826,7 @@ function applyForm(o){
   SAJ_MODE={land:(lm==='share'||lm==='group')?lm:'direct',
             bld:(o.SAJ_MODE&&o.SAJ_MODE.bld==='share')?'share':'direct'};
   GROUP_AREA=(o.GROUP_AREA!=null)?String(o.GROUP_AREA):'';
-  ILDANJI=!!o.ILDANJI;
+  ILDANJI=!!o.ILDANJI;ILDANJI_PREV_MODE=null;
   GZONES=Array.isArray(o.GZONES)?o.GZONES:[];
   GROUP_SHARE=o.GROUP_SHARE!=null?String(o.GROUP_SHARE):'';
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
@@ -4949,7 +4954,7 @@ function clearForm(){
   OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
   BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
-  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;GZONES=[];GROUP_SHARE='';
+  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;ILDANJI_PREV_MODE=null;GZONES=[];GROUP_SHARE='';
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
