@@ -166,6 +166,7 @@
   td.zone-c{vertical-align:middle;text-align:left;min-width:200px;}
   .zone-r{display:flex;align-items:center;gap:4px;margin:2px 0;}
   .zone-r input.zone-nm{width:140px;text-align:left;}
+  .zone-r input.zone-lb{width:120px;text-align:left;}
   .zone-r input.zone-ar{width:70px;text-align:right;}
   .zone-r input.zone-why{width:226px;text-align:left;border:1px solid #cbd5e1;border-radius:4px;background:#fff;}
   /* 토지 평가구분 — 나눈 줄(구분평가·일부 평가외)은 연한 바탕, 평가외 줄은 회색 기울임 */
@@ -1290,7 +1291,10 @@ function rowObj(k){return isZoneKey(k)?GZONES[+k.slice(1)]:LANDS[k];}
 function rowRef(k){return isZoneKey(k)?'GZONES['+(+k.slice(1))+']':'LANDS['+k+']';}   // 표 안 입력칸 oninput에 쓰는 이름
 function rowArg(k){return isZoneKey(k)?'\''+k+'\'':String(k);}                      // 함수 인자로 넘길 때
 function zoneName(k){var Z=GZONES[k]||{};return String(Z.name||'').trim()||('구역'+(k+1));}
-function rowNo(k){return isZoneKey(k)?zoneName(+k.slice(1)):isGrpKey(k)?groupWord():landNo(k);}
+// 나눈 줄의 구분 이름(도로저촉 부분·잔여 부분 등, 2026-11-22) — 없으면 '' · 화면·서류 번호 칸은 구분 이름이 있으면 그것, 없으면 용도지역
+function zoneLabel(k){return String((GZONES[k]||{}).label||'').trim();}
+function zoneTag(k){return zoneLabel(k)||zoneName(k);}
+function rowNo(k){return isZoneKey(k)?zoneTag(+k.slice(1)):isGrpKey(k)?groupWord():landNo(k);}
 // 평가하는 줄의 키 — 구역으로 나눴으면 구역들, 아니면 종전처럼 필지 전부(평가외·묶기 대표는 부르는 쪽이 거른다)
 // 묶기(나누지 않음)면 대표 필지 하나 + 묶음 밖 필지, 용도지역별로 나눴으면 구역들 + 묶음 밖 필지
 function evalKeys(){
@@ -1321,20 +1325,21 @@ function zoneMemSplice(at,del,add){TRADES.forEach(function(c){var m=c&&c.gaMem;i
   ['zgaf','zgaApply','zgaop'].forEach(function(p){if(!Array.isArray(m[p]))return;if(add)m[p].splice(at,0,null);else m[p].splice(at,del);});});}
 function addZones(){
   try{histFlush();}catch(e){console.error('undo flush',e);}
-  if(GZONES.length<2){var nm=zoneUseList();if(nm.length<2)nm=[nm[0]||'',''];
+  var ul=zoneUseList();
+  if(GZONES.length<2){var nm=ul;if(nm.length<2)nm=[nm[0]||'',nm[0]||''];   // 용도지역이 하나면(도시계획시설 저촉 등으로 나눔) 두 줄 다 그 용도지역
     GZONES=nm.map(newZone);TRADES.forEach(function(c){if(c&&c.gaMem){delete c.gaMem.zgaf;delete c.gaMem.zgaApply;delete c.gaMem.zgaop;}});}
-  else{GZONES.push(newZone(''));zoneMemSplice(GZONES.length-1,0,true);}
-  renderLands();calcGongsi();saveForm();sd();
+  else{GZONES.push(newZone(ul.length===1?ul[0]:''));zoneMemSplice(GZONES.length-1,0,true);}
+  renderLands();calcGongsi();saveForm();sd();etcSyncGubun();
 }
 function delZone(k){
   if(!GZONES[k])return;
   try{histFlush();}catch(e){console.error('undo flush',e);}   // 지우기 직전 상태를 되돌리기 기록에
   if(GZONES.length<=2){if(!confirm('나누기를 끝내고 묶음 한 줄로 평가할까요?')){return;}GZONES=[];}
   else{GZONES.splice(k,1);zoneMemSplice(k,1,false);}
-  renderLands();calcGongsi();saveForm();sd();
+  renderLands();calcGongsi();saveForm();sd();etcSyncGubun();
 }
 // 구역 이름·면적 입력 — 본건 토지 표는 다시 그리지 않는다(입력 중 커서·한글 조합 유지). 자동 면적 안내만 바꾼다
-function zoneChanged(){calcGongsi();saveForm();sd();zoneHints();}
+function zoneChanged(){calcGongsi();saveForm();sd();zoneHints();etcSyncGubun();}
 function zoneHints(){
   var last=GZONES.length-1,el=document.querySelector('#landTbl input.zone-ar[data-k="'+last+'"]');
   if(el)el.placeholder=zoneAreaAuto(last)?fmtArea(zoneAreaAuto(last))+' (자동)':'면적';
@@ -1353,9 +1358,12 @@ function zoneCell(rows){
   var dl='<datalist id="zoneUseDl">'+zoneUseList().map(function(s){return '<option value="'+esc(s)+'">';}).join('')+'</datalist>';
   var why='<datalist id="zoneWhyDl"><option value="용도지역 상이"><option value="도시계획시설(도로) 저촉"><option value="도시계획시설 저촉"></datalist>'
     +'<div class="zone-r"><input class="zone-why" value="'+esc(ZONE_WHY)+'" placeholder="나눈 이유 (예: 용도지역 상이)" title="나눈 이유 — 칸을 누르면 「용도지역 상이」·「도시계획시설(도로) 저촉」 등을 고를 수 있고, 직접 적어도 됩니다" list="zoneWhyDl" aria-label="나눈 이유"'
-    +' oninput="ZONE_WHY=this.value;saveForm();"></div>';
+    +' oninput="ZONE_WHY=this.value;saveForm();etcSyncGubun();"></div>';
   return h+dl+why+GZONES.map(function(Z,k){
-    return '<div class="zone-r"><input class="zone-nm" value="'+esc(Z.name)+'" placeholder="용도지역" list="zoneUseDl" aria-label="구역 '+(k+1)+' 용도지역"'
+    return '<div class="zone-r"><input class="zone-lb" value="'+esc(Z.label||'')+'" placeholder="구분 (예: 도로저촉 부분)" aria-label="구역 '+(k+1)+' 구분 이름"'
+      +' title="이 줄의 구분 이름 — 화면·의견서 번호 칸, 명세표 비고, 그 밖의 사항 문구에 나갑니다. 비우면 용도지역 이름"'
+      +' oninput="GZONES['+k+'].label=this.value;zoneChanged();">'
+      +'<input class="zone-nm" value="'+esc(Z.name)+'" placeholder="용도지역" list="zoneUseDl" aria-label="구역 '+(k+1)+' 용도지역"'
       +' oninput="GZONES['+k+'].name=this.value;zoneChanged();">'
       +'<input class="zone-ar" data-k="'+k+'" value="'+esc(Z.area)+'" placeholder="'+(zoneAreaAuto(k)?fmtArea(zoneAreaAuto(k))+' (자동)':'면적')+'" aria-label="구역 '+(k+1)+' 면적"'
       +' oninput="GZONES['+k+'].area=this.value;zoneChanged();"><span class="hint">㎡</span><span class="hint zone-ev" data-k="'+k+'" style="color:#1d4ed8;white-space:nowrap"></span>'
@@ -1489,7 +1497,7 @@ function setSajMode(kind,v){
   if(kind==='land'){
     if(SAJ_MODE.land==='share')LANDS.forEach(function(L,i){if(hasV(L['지분']))recalcLandSaj(i);});
     if(SAJ_MODE.land==='group'){recalcGroupArea();syncGroupRep();}
-    renderLands();calcGongsi();saveForm();sd();etcSyncShare();renderYohangLands();
+    renderLands();calcGongsi();saveForm();sd();etcSyncShare();etcSyncGubun();renderYohangLands();
   }else{
     if(SAJ_MODE.bld==='share')document.querySelectorAll('#bldBody tr').forEach(recalcBldSaj);
     applyBldSajMode();sumBld();saveForm();renderBldCalc();
@@ -3893,7 +3901,7 @@ function hideExamples(){
   var has=!!String((LANDS[0]||{})['소재지']||'').trim();
   document.querySelectorAll('input,textarea').forEach(function(el){
     if(el.classList.contains('zone-ar'))return;   // 용도지역별 구역 면적 칸 — 「41.2 (자동)」 안내는 zoneHints가 늘 새로 쓴다
-    if(el.classList.contains('zone-why')||el.classList.contains('zone-nm'))return;   // 나누기 칸(나눈 이유·용도지역) 안내는 늘 보인다 — 빈칸이 안 보이면 적을 곳을 못 찾음
+    if(el.classList.contains('zone-why')||el.classList.contains('zone-nm')||el.classList.contains('zone-lb'))return;   // 나누기 칸(나눈 이유·용도지역) 안내는 늘 보인다 — 빈칸이 안 보이면 적을 곳을 못 찾음
     if(el.dataset.ph==null){if(!el.placeholder)return;el.dataset.ph=el.placeholder;}
     // 요항표의 문장형 입력 안내는 실제 소재지가 있어도 계속 표시한다.
     var o=el.dataset.ph,keep=!!el.closest('.y-location')||KEEP_PH.indexOf(o)>=0||/…|Ctrl\+V/.test(o);
@@ -4593,7 +4601,16 @@ function etcGubunTexts(){
       out.push(kiho+'의 일부'+(a?'(약 '+fmtArea(a)+'㎡)':'')+'는 '+why+(isOut(L)?'감정평가 외 하였음.':'구분평가하였음.'));}
     else out.push(kiho+josaEun(kiho)+' '+why+'감정평가 외 하였음.');
   });
+  var zt=etcZoneText();if(zt)out.push(zt);
   return out;
+}
+// 일단지(묶음) 나누기 문구 — 「나눈 이유」를 적었을 때만(2026-11-22). 예: 본건 일단지는 도시계획시설(도로) 저촉인바 평가목적 등을 고려하여
+// 도로저촉 부분(약 40㎡), 잔여 부분(약 250㎡)으로 구분평가하였음. — 구역 면적은 지분 적용 전(묶은 면적 기준)
+function etcZoneText(){
+  if(!zoneMode())return '';var why=String(ZONE_WHY||'').trim();if(!why)return '';
+  var parts=GZONES.map(function(Z,k){var a=zoneArea(k);return zoneTag(k)+(a?'(약 '+fmtArea(a)+'㎡)':'');}),last=parts[parts.length-1]||'';
+  var ro=/㎡\)$/.test(last)?'로':(josaRo(last)||'로');
+  return (ILDANJI?'본건 일단지':'본건 토지')+'는 '+why+'인바 평가목적 등을 고려하여 '+parts.join(', ')+ro+' 구분평가하였음.';
 }
 function etcSyncGubun(){
   var want=etcGubunTexts();

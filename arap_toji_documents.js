@@ -395,7 +395,9 @@ function zoneStatementRows(gs,loc){
   var brOf=function(k,len){return len<2||k>=len?null:k===0?'top':k===len-1?'end':'mid';};
   for(var k=0;k<n;k++){var L=ps[k],z=k<zs.length,g=z?(gs.rows.find(function(r){return r.key==='z'+k;})||{}):{};
     var pn=String(L&&L['비고']||'').trim();if(pn==='-')pn='';
-    var note=z?[ILDANJI?'일단지':'',useLines(zoneName(k))].filter(Boolean).join('\n'):'';
+    // 비고 = 일단지 / 구분 이름(없으면 용도지역) / 첫 줄에만 나눈 이유(2026-11-22)
+    var why=k===0&&typeof ZONE_WHY!=='undefined'?String(ZONE_WHY||'').trim():'';
+    var note=z?[ILDANJI?'일단지':'',(typeof zoneLabel==='function'&&zoneLabel(k))||useLines(zoneName(k)),why].filter(Boolean).join('\n'):'';
     if(pn)note=note?note+'\n'+pn:pn;
     // 사정면적 = 구역 평가면적(지분이면 구역 면적 × 지분)
     var o={'명세_사정면적':z?zoneEvalArea(k):null,'명세_단가':z?g.apply:null,'명세_평가액':z?g.total:0,'명세_비고':note,

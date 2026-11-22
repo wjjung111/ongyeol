@@ -48,7 +48,8 @@ function evalArea(L,row){
   return size?area(size):(mark(L['면적'])||area(L['면적']));
 }
 // 용도지역별 구역의 서류 번호 칸 — 좁은 일련번호 칸이라 줄임말(일반상업·3종일주)
-function zoneDocNo(k){var n=zoneName(k);return typeof shortY==='function'?shortY(n):n;}
+function zoneDocNo(k){var lb=typeof zoneLabel==='function'?zoneLabel(k):'';if(lb)return lb;   // 구분 이름(도로저촉 부분 등)이 있으면 그대로
+  var n=zoneName(k);return typeof shortY==='function'?shortY(n):n;}
 // 평가 줄 찾기 — docRows의 key(필지 번호 또는 구역 'z0'), key가 없던 옛 결과면 같은 자리
 function rowOfKey(rows,k){rows=rows||[];var r=rows.find(function(x){return x.key===k;});return r||(typeof k==='number'?rows[k]:null);}
 // 서류 번호 칸에 쓸 평가 줄 이름 — 구역은 줄임말(일반상업), 묶음 필지는 「일단지」, 그 밖은 필지 번호

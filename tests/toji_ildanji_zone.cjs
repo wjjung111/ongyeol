@@ -87,7 +87,7 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   });
   console.log('④ 명세표',m.rows,'서식',m.fmts,'세로선',m.lines);
   assert.deepEqual(m.rows,[
-    ['2'.replace('2','1'),'247-1',45.2,60.1,30000000,30000000*60.1,'일단지\n일반상업지역','top','top'],
+    ['2'.replace('2','1'),'247-1',45.2,60.1,30000000,30000000*60.1,'일단지\n일반상업지역\n용도지역 상이','top','top'],
     ['2','247-3',56.1,41.2,18000000,18000000*41.2,'일단지\n제3종\n일반주거지역','end','end']]);
   assert.deepEqual(m.use,['일반상업지역\n제3종\n일반주거지역','일반상업지역\n제3종\n일반주거지역']);
   assert.equal(m.fmts,4);   // 공부 < > · 사정 < >assert.ok(m.lines>=6);
@@ -129,6 +129,37 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   assert.equal(sh.total,c.total/2);assert.deepEqual(sh.ev,['→ 30.05','→ 20.6']);assert.match(sh.sum,/지분 1\/2 → 평가 50\.65/);
   assert.ok(sh.etc);assert.deepEqual(sh.st,[30.05,20.6]);assert.equal(sh.gwal,'50.65');assert.equal(sh.saved,'1/2');
   await page.evaluate(()=>{const inp=document.querySelector('#landTbl input.grp-sh');inp.value='';inp.dispatchEvent(new Event('input'));});
+
+  // ⑥-3 나눈 이유 → 그 밖의 사항 자동 문구 / 구분 이름(도로저촉 부분·잔여 부분) → 화면·의견서 번호, 명세표 비고 (2026-11-22)
+  const lb=await page.evaluate(async()=>{
+    const sub=ILDANJI?'본건 일단지':'본건 토지';
+    const before=ETC_ITEMS.filter(t=>/구분평가하였음\.$/.test(t));
+    const w=document.querySelector('#landTbl input.zone-why');w.value='도시계획시설(도로) 저촉';w.dispatchEvent(new Event('input'));
+    const lbs=[...document.querySelectorAll('#landTbl input.zone-lb')];
+    lbs[0].value='도로저촉 부분';lbs[0].dispatchEvent(new Event('input'));lbs[1].value='잔여 부분';lbs[1].dispatchEvent(new Event('input'));
+    const etc=ETC_ITEMS.filter(t=>/구분평가하였음\.$/.test(t));
+    const st=ArapTojiDocuments.statementRows().filter(r=>r.hbr).map(r=>r['명세_비고']);
+    const d=ArapTojiOpinion.data();
+    const bytes=await ArapTojiOpinion.build(await fetchTplB64(opinionTplPath()),d);
+    const ents=await ArapCheonggu.parseZip((bytes.buffer||bytes));const plain=new TextDecoder().decode(ents.find(e=>/section0\.xml$/.test(e.name)).data).replace(/<[^>]+>/g,'');
+    return {sub,before,etc,st,no:d.parcels.map(p=>[p['공시개별_번호'],p['토지_용도지역']]),
+      head:[...document.querySelectorAll('#tblSisan tr')].slice(1,3).map(tr=>tr.cells[0].textContent),
+      ph:document.querySelector('#landTbl input.zone-lb').placeholder,
+      inDoc:plain.includes('도로저촉 부분(약 60.1㎡), 잔여 부분(약 41.2㎡)로 구분평가하였음.'),saved:JSON.parse(JSON.stringify(collect())).GZONES.map(Z=>Z.label)};
+  });
+  console.log('⑥-3 구분 이름·나눈 이유',lb);
+  assert.deepEqual(lb.before,[lb.sub+'는 용도지역 상이인바 평가목적 등을 고려하여 일반상업지역(약 60.1㎡), 제3종일반주거지역(약 41.2㎡)로 구분평가하였음.']);
+  assert.deepEqual(lb.etc,[lb.sub+'는 도시계획시설(도로) 저촉인바 평가목적 등을 고려하여 도로저촉 부분(약 60.1㎡), 잔여 부분(약 41.2㎡)로 구분평가하였음.'],'자동 문구는 바뀌어 하나만');
+  assert.deepEqual(lb.st,['일단지\n도로저촉 부분\n도시계획시설(도로) 저촉','일단지\n잔여 부분'],'명세표 비고 = 구분 이름 + 첫 줄 나눈 이유');
+  assert.deepEqual(lb.no,[['도로저촉 부분','일반상업지역'],['잔여 부분','제3종일반주거지역']],'의견서 번호 칸 = 구분 이름, 용도지역은 그대로');
+  assert.deepEqual(lb.head,['일단지도로저촉 부분','일단지잔여 부분']);
+  assert.equal(lb.ph,'구분 (예: 도로저촉 부분)');assert.ok(lb.inDoc,'의견서 그 밖의 사항에 문구');
+  assert.deepEqual(lb.saved,['도로저촉 부분','잔여 부분']);
+  // 나눈 이유를 지우면 자동 문구도 빠진다
+  const gone=await page.evaluate(()=>{const w=document.querySelector('#landTbl input.zone-why');w.value='';w.dispatchEvent(new Event('input'));
+    document.querySelectorAll('#landTbl input.zone-lb').forEach(e=>{e.value='';e.dispatchEvent(new Event('input'));});
+    return ETC_ITEMS.filter(t=>/구분평가하였음\.$/.test(t)).length;});
+  assert.equal(gone,0,'이유 지우면 문구 빠짐');
 
   // ⑦ 구역 하나 지우기 → 묶음 한 줄로 복귀
   const back=await page.evaluate(()=>{delZone(1);return {n:GZONES.length,rows:GONGSI_RESULT.rows.length,sisan:document.querySelectorAll('#tblSisan tr').length};});
