@@ -604,6 +604,8 @@
             <span class="fld"><label>주용도</label><input type="text" id="bt_purps" placeholder="근린생활시설"></span>
             <span class="fld"><label>층수(지상/지하)</label><input type="text" id="bt_flrs" placeholder="6/1"></span>
             <span class="fld"><label>사용승인일</label><input type="text" id="bt_useApr" data-date placeholder="1993.10.09"></span>
+            <span class="fld"><label title="건축물대장 표제부 「주구조(기타구조)」 — 요항표 1. 건물의 구조에 들어갑니다">주구조(대장)</label><input type="text" id="bt_mainStrct" placeholder="철근콘크리트구조"></span>
+            <span class="fld"><label title="건축물대장 표제부 「지붕(기타지붕)」 — 요항표 1. 건물의 구조에 들어갑니다(끝에 「지붕」이 없으면 붙여서)">지붕(대장)</label><input type="text" id="bt_roof" placeholder="(철근)콘크리트"></span>
             <span class="fld" style="grid-column:1/-1"><label>도로명주소 (명세표 건물란)</label><input type="text" id="bt_roadAddr" placeholder="서울특별시 강남구 압구정로 165"></span>
             <span class="fld" style="grid-column:1/-1;align-items:flex-start"><label title="건물 등기사항전부증명서 표제부 「건물내역」을 그대로 붙여넣으면 명세표 건물란(구조·용도·층별 면적)이 등기대로 나갑니다. 비우면 건축물대장 층별 목록대로">건물등기 건물내역<br>(명세표용)</label><textarea id="bt_regText" rows="4" style="flex:1;min-width:0;border:1px solid #e2e5ea;border-radius:3px;padding:4px 7px;font-size:12px;font-family:inherit;resize:vertical" placeholder="등기 표제부 건물내역을 붙여넣기 (비우면 건축물대장대로)&#10;철근콘크리트구조&#10;(철근)콘크리트지붕 4층&#10;근린생활시설&#10;1층 148.26㎡&#10;2층 234.79㎡ …&#10;지1층 294.39㎡&#10;옥탑1 28.35㎡"></textarea></span>
             <span class="hint" id="bt_regHint" style="grid-column:1/-1"></span>
@@ -1831,6 +1833,7 @@ function copyBldExcel(){
   lines.push(['대지위치',addr].join('\t'));
   lines.push(['구조',val('bt_strct'),'','주용도',val('bt_purps')].join('\t'));
   lines.push(['층수(지상/지하)',val('bt_flrs'),'','사용승인일',val('bt_useApr')].join('\t'));
+  lines.push(['주구조',val('bt_mainStrct'),'','지붕',val('bt_roof')].join('\t'));
   lines.push('');
   lines.push(head.join('\t'));
   var sum=0,sajSum=0;
@@ -1979,6 +1982,10 @@ function fetchBuilding(){
     if(titleItems.length){
       var t=titleItems[0];
       document.getElementById('bt_strct').value=t.strctCdNm||'';
+      // 대장 표제부 주구조(기타구조)·지붕(기타지붕) — 건축물대장 화면과 같은 표기(같으면 한 번, 다르면 「A(B)」) (2026-11-22)
+      var jp=function(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!b)return a;if(!a||b===a||b.indexOf(a)===0)return b;return a+'('+b+')';};
+      document.getElementById('bt_mainStrct').value=jp(t.strctCdNm,t.etcStrct);
+      document.getElementById('bt_roof').value=jp(t.roofCdNm,t.etcRoof);
       document.getElementById('bt_purps').value=t.mainPurpsCdNm||'';
       document.getElementById('bt_flrs').value=(t.grndFlrCnt||'0')+'/'+(t.ugrndFlrCnt||'0');
       document.getElementById('bt_useApr').value=dot(t.useAprDay||'');
@@ -4017,7 +4024,7 @@ function sub(i,btn){
 var GIJUN_BASIS_OLD={'귀 의뢰 요청 날짜인':'의뢰일인','실지조사 완료일인':'현장조사완료일인','가격조사 완료일인':'현장조사완료일인'};
 var OV_IDS=['ov_caseNo','ov_client','ov_orderDay','ov_purpose','ov_submit','ov_kind','ov_gijunBasis',
             'ov_writeDay','ov_value','ov_owner','ov_cond','ov_deskPrice'];   // 감정서번호 칸은 2026-09-16 삭제(접수번호와 같은 값) — 옛 저장값은 무시
-var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr','bt_regText'];
+var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr','bt_regText','bt_mainStrct','bt_roof'];
 var GONGSI_IDS=['g_daegu','g_opinion','g_tradeNote','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
@@ -4232,7 +4239,7 @@ function fillYohangFromData(){
   }else set('y_use',L['이용상황']);
   // 건물 구조 = 구조 + 층수(지하가 있으면 "지하 1층 지상 4층"). 옛 자동값(지상만)이 남아 있으면 새 자동값으로 바꾼다.
   var st=document.getElementById('y_struct'),auto=yohangStructAuto();
-  if(st&&auto&&(!st.value.trim()||st.value===yohangStructAuto(true)||st.value===st.dataset.autoStruct)){st.value=auto;st.dataset.autoStruct=auto;}
+  if(st&&auto&&(!st.value.trim()||st.value===yohangStructAuto(true)||st.value===yohangStructAuto(false,true)||st.value===yohangStructAuto(true,true)||st.value===st.dataset.autoStruct)){st.value=auto;st.dataset.autoStruct=auto;}
   set('y_usestate',cgVal('bt_purps'));
   // 기호2부터(여러 필지) — 빈 칸만 그 필지의 지세·형상·이용상황으로
   if(yohangMulti())landParcels().forEach(function(Li,i){if(!i)return;var y=Li.yh||(Li.yh={});
@@ -4328,8 +4335,14 @@ function floorsText(groundOnly){
   var f=String(cgVal('bt_flrs')||'').split('/'),up=(f[0]||'').trim(),dn=(f[1]||'').trim();
   return [(!groundOnly&&dn&&dn!=='0')?'지하 '+dn+'층':'',up&&up!=='0'?'지상 '+up+'층':''].filter(Boolean).join(' ');
 }
-function yohangStructAuto(groundOnly){
-  return [cgVal('bt_strct'),floorsText(groundOnly)].filter(Boolean).join(' ');
+// 요항표 1. 건물의 구조 = 주구조 + 지붕 + 층수 (예: 벽돌구조 평슬래브지붕 지하 1층 지상 2층) — 주구조·지붕은 건축물대장 표제부(2026-11-22).
+// 지붕은 「(철근)콘크리트(평슬래브)」처럼 기타지붕이 괄호에 있으면 기타지붕(평슬래브), 끝에 지붕·슬래브가 없으면 「지붕」을 붙인다(집건과 같은 규칙).
+// noRoof = 지붕을 넣기 전 옛 자동값(그 값 그대로 남아 있으면 새 자동값으로 바꾼다)
+function roofYohang(v){v=String(v||'').trim();var m=v.match(/^(.*?)\(([^()]*)\)$/);if(m&&m[1]&&m[2])v=m[2].trim();
+  return v&&!/지붕|슬래브|슬라브/.test(v)?v+'지붕':v;}
+function yohangStructAuto(groundOnly,noRoof){
+  var main=noRoof?cgVal('bt_strct'):(cgVal('bt_mainStrct').trim()||cgVal('bt_strct'));
+  return [main,noRoof?'':roofYohang(cgVal('bt_roof')),floorsText(groundOnly)].filter(Boolean).join(' ');
 }
 // 접면도로 수 — 한 면만 접하면 화면에서 ② 칸과 "각각"을 숨긴다(출력은 arap_toji_documents.js가 같은 값을 읽어 문구를 뺀다)
 // 이용상태 여러 항목(가·나·다). 첫 항목은 y_usestate, 나머지는 y_usestateMore(JSON 배열).
@@ -4857,7 +4870,7 @@ function applyForm(o){
     if(id==='ov_gijunBasis')v=GIJUN_BASIS_OLD[v]||v;                     // 옛 선택지 문구 → 집합건물과 같은 선택지
     if(id==='ov_orderDay')v=String(v).replace(/^(\d{4})\.(\d{2})\.(\d{2})\.?$/,'$1/$2/$3');   // 의뢰일은 집합건물처럼 2026/06/08
     document.getElementById(id).value=v;});
-  if(o.bt)BT_IDS.forEach(function(id){if(o.bt[id]!=null)document.getElementById(id).value=o.bt[id];});
+  if(o.bt)BT_IDS.forEach(function(id){if(o.bt[id]!=null)document.getElementById(id).value=o.bt[id];else if(id==='bt_mainStrct'||id==='bt_roof')document.getElementById(id).value='';});   // 주구조·지붕이 없던 옛 건은 빈칸
   if(!(o.bt&&o.bt.bt_regText!=null))document.getElementById('bt_regText').value='';   // 건물등기 칸이 생기기 전 저장건 — 앞 건 내용이 남지 않게
   if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
   var lm=(o.SAJ_MODE&&o.SAJ_MODE.land)||'direct';
