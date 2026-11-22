@@ -33,16 +33,18 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
     renderStds();renderLands();document.getElementById('bldBody').innerHTML='';calcGongsi();
     const sel=document.getElementById('landSajMode');sel.value='group';sel.dispatchEvent(new Event('change'));
   });
-  // ① 용도지역별 나누기 버튼 → 용도지역 칸에서 이름 두 개, 첫 줄 면적 입력 → 둘째 줄 자동
+  // ① 「나누기」 버튼(2026-11-22 이름 변경) → 용도지역 칸에서 이름 두 개, 첫 줄 면적 입력 → 둘째 줄 자동
   const z=await page.evaluate(()=>{
-    const btn=[...document.querySelectorAll('#landTbl td.zone-c button')].find(b=>/용도지역별 나누기/.test(b.textContent));btn.click();
+    const btn=[...document.querySelectorAll('#landTbl td.zone-c button')].find(b=>/나누기/.test(b.textContent));btn.click();
     const a=document.querySelector('#landTbl input.zone-ar[data-k="0"]');a.value='60.1';a.dispatchEvent(new Event('input'));
-    return {names:GZONES.map(Z=>Z.name),ph:document.querySelector('#landTbl input.zone-ar[data-k="1"]').placeholder,hint:document.getElementById('zoneSumHint').textContent,
+    const w=document.querySelector('#landTbl input.zone-why');w.value='용도지역 상이';w.dispatchEvent(new Event('input'));
+    return {why:ZONE_WHY,btn:btn.textContent.trim(),head:[...document.querySelectorAll('#landTbl th')].some(th=>th.textContent==='나누기'),names:GZONES.map(Z=>Z.name),ph:document.querySelector('#landTbl input.zone-ar[data-k="1"]').placeholder,hint:document.getElementById('zoneSumHint').textContent,
       sisan:document.querySelectorAll('#tblSisan tr').length,fac:document.querySelectorAll('#tblGaebyeol tr').length,
       size:GONGSI_RESULT.size,gongbu:GONGSI_RESULT.gongbuSize,rows:GONGSI_RESULT.rows.length};
   });
   console.log('①',z);
   assert.deepEqual(z.names,['일반상업지역','제3종일반주거지역']);
+  assert.equal(z.btn,'＋ 나누기');assert.equal(z.head,true,'열 머리 「나누기」');assert.equal(z.why,'용도지역 상이','나눈 이유 칸');
   assert.match(z.ph,/41\.2/);assert.match(z.hint,/= 묶은 면적/);
   assert.equal(z.sisan,4);   // 머리 + 구역 2 + 합계
   assert.equal(z.fac,5);     // 머리 + (요인+의견)×2 — 개별요인 2줄
@@ -67,10 +69,10 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
   assert.equal(c.ga,2);assert.equal(c.unitDoc,'-');
 
   // ③ 저장·복원
-  const sv=await page.evaluate(()=>{const o=JSON.parse(JSON.stringify(collect()));GZONES=[];applyForm(o);refreshAfterLoad();
-    return {n:GZONES.length,names:GZONES.map(Z=>Z.name),total:GONGSI_RESULT.total,zoneRows:document.querySelectorAll('#landTbl .zone-r input.zone-nm').length};});
+  const sv=await page.evaluate(()=>{const o=JSON.parse(JSON.stringify(collect()));GZONES=[];ZONE_WHY='';applyForm(o);refreshAfterLoad();
+    return {why:ZONE_WHY,whyInp:document.querySelector('#landTbl input.zone-why').value,n:GZONES.length,names:GZONES.map(Z=>Z.name),total:GONGSI_RESULT.total,zoneRows:document.querySelectorAll('#landTbl .zone-r input.zone-nm').length};});
   console.log('③',sv);
-  assert.equal(sv.n,2);assert.equal(sv.zoneRows,2);assert.equal(sv.total,c.total);
+  assert.equal(sv.n,2);assert.equal(sv.zoneRows,2);assert.equal(sv.why,'용도지역 상이');assert.equal(sv.whyInp,'용도지역 상이');assert.equal(sv.total,c.total);
 
   // ④ 명세표 — 필지 줄(2) + 구역 줄(2)을 나란히: 공부 45.2</56.1>, 사정 <60.1/>41.2, 비고 「일단지 / 일반상업지역」
   const m=await page.evaluate(async()=>{
