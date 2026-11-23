@@ -46,6 +46,10 @@ const server=http.createServer((req,res)=>{const f=path.join(root,decodeURICompo
     const ok=await page.evaluate(([a,b])=>[a,b].every(s=>!new DOMParser().parseFromString(s,'application/xml').getElementsByTagName('parsererror').length),[x,x0]);
     assert.ok(ok,'XML 정상');
     assert.deepEqual([...new Set((x+x0).match(/\{\{[^}]+\}\}/g)||[])],[],'남은 토큰 없음');
+    { // 괄감 평가내역 수량: 비주거는 「1개호」(2026-11-23), 지분이면 사정 칸 「1개호 × 1/4」
+      const tg=T(x0);assert.ok(!tg.includes('세대'),'괄감에 「세대」 없음');
+      assert.equal((tg.match(/\|1개호\|/g)||[]).length,process.env.SHARE?1:2,'공부·사정 칸 1개호');
+      if(process.env.SHARE)assert.ok(tg.includes('|1개호 × 1/4|'),'지분 사정 칸');}
     const t=(x.match(/<hp:t>[^<]*<\/hp:t>/g)||[]).map(s=>s.slice(6,-7)).join('|');
     assert.ok(t.includes('가. 자본수익률(|집합 상가|)'),'시점수정 제목');
     assert.ok(t.includes('[출처: 한국부동산원 임대동향조사]'));assert.ok(!t.includes('매매가격지수'),'매매가격지수 문구 없음');
