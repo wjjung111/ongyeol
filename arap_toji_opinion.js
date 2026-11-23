@@ -1063,6 +1063,8 @@ async function buildOpinion(b64,data){
   // 표시해 둔 글자모양 쌍둥이(빨강·굵게·밑줄)를 header.xml에 추가하고 본문 표시를 실제 id로
   var head=entries.find(function(e){return e.name==='Contents/header.xml';});
   if(head){var r=addTwinCharPrs(dec.decode(head.data),xmls);head.data=enc.encode(r.header);xmls=r.sections;}
+  // 표 테두리 통일(겉 0.4mm·본문 #A6A6A6·본문 줄 사이 0.12mm — 사용자 서식 2026-11-23, arap_tbl_border.js)
+  if(head&&window.ArapTblBorder){var tb=ArapTblBorder.apply(dec.decode(head.data),xmls);head.data=enc.encode(tb.header);xmls=tb.sections;}
   secs.forEach(function(e,i){e.data=enc.encode(xmls[i]);});
   // 미리보기에는 원본 템플릿의 토큰이나 예전 샘플이 남지 않게 한다.
   entries=entries.filter(function(e){return e.name!=='Preview/PrvImage.png';});

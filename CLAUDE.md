@@ -62,6 +62,7 @@
 | `arap_multi_hwpx.js` / `arap_multi_myeongse.js` | 집건 여러 호수 한글 평가서 / 명세표(xlsx) |
 | `arap_toji_upload.js` | 토건 공부서류(등기 PDF)·접수 캡처 업로드 → 자동 인식(집건과 같은 API 키) |
 | `arap_toji_opinion.js` / `arap_toji_documents.js` | 토지건물 의견서 엔진 / 요항표·명세표 등 서류 |
+| `arap_tbl_border.js` | 한글 표 테두리 통일(겉 0.4mm·본문 #A6A6A6·본문 줄 사이 0.12mm, 사용자 서식 2026-11-23) — 출력 직전 온결 양식 표만. 토건 의견서·표지·괄감 |
 | `arap_building_cost.js` + `_data.js` | 건물 재조달원가 표준단가(2025 자료집) — 토지건물 |
 | `arap_index_data.js` / `arap_jibyun_data.js` | 매매가격지수·자본수익률 / 지가변동률 — **자동생성, 직접 수정 금지** |
 
@@ -109,6 +110,7 @@
 | 프록시 op 추가 | `문서/클라우드플레어_프록시.js` 판 올리고 사용자에게 재배포 안내, 화면엔 구판 감지 안내 |
 | 토건 필지 수 | `landParcelCount()`/`landParcels()` 사용(나눈 줄 제외) — `LANDS.length` 쓰지 말 것. 평가 줄 키 = 필지 번호 또는 구역 `'z0'`(`rowObj`·`rowRef`·`evalKeys`) |
 | 토건 의견서·위치도의 사례 번호 | 화면 번호(`i+1`, `a.no`) 말고 `docTradeNo(i)`/`docApprNo(i)` — 「의견서 표시」 끈 사례(`_hide`, `caseHidden`)를 빼고 다시 매긴 번호 |
+| 토건 명세표 묶음(나눈 필지·용도지역별 일단지) | 셀 글자(┌│└·<>)로 그리지 말 것 — 사정면적 H열 「왼쪽 대괄호」 도형(`bracketXml`) |
 | 토건 개별요인 | 지대별 칸 수가 다름(`FAC_SLOTS`·`facProduct(arr,지대)`) — 저장은 6칸 그대로 |
 | 토건 토지 결정단가·토지가액을 서류에 쓸 때 | `GONGSI_RESULT` 줄 단가 말고 `landDecided(row)`·`landUnitDoc()`·`LAND_FINAL` — 2-2 탭 가중평균(`LAND_DECIDED`)을 켜면 공시지가기준법 단가와 다름 |
 

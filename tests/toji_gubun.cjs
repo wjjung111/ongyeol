@@ -85,6 +85,7 @@ const outDir=process.env.TOJI_OUT||'';   // 지정하면 만든 서류를 저장
     let b='';const u=new Uint8Array(bytes.buffer||bytes);for(let i=0;i<u.length;i++)b+=String.fromCharCode(u[i]);
     return {rows:rows.map(r=>({no:r['명세_기호'],loc:r['명세_소재지'],gb:r['명세_공부면적'],saj:r['명세_사정면적'],unit:r['명세_단가'],amt:r['명세_평가액'],note:r['명세_비고'],br:r.br})),
       fmts:(st.match(/formatCode="&quot;[┌│└]&quot;\* [^"]*"/g)||[]),hasLine:sh.includes('<t>│</t>'),b64:btoa(b),
+      dr:dec.decode(ents.find(e=>/drawing1\.xml$/.test(e.name)).data),
       jFormulas:(sh.match(/<f>\+I\d+\*H\d+<\/f>/g)||[]).length};
   });
   console.log('① 명세표',m1.rows,m1.fmts,'│ 줄',m1.hasLine,'금액 수식',m1.jFormulas);
@@ -96,7 +97,10 @@ const outDir=process.env.TOJI_OUT||'';   // 지정하면 만든 서류를 저장
   assert.deepEqual(m1.rows.map(r=>r.unit),[320000,272000]);
   assert.deepEqual(m1.rows.map(r=>r.br),['top','end']);
   assert.equal(m1.rows[1].note,'하천 저촉 부분');
-  assert.equal(m1.fmts.length,3);assert.ok(m1.hasLine);assert.equal(m1.jFormulas,2);
+  // 묶음 기호는 셀 글자가 아니라 사정면적(H열) 「왼쪽 대괄호」 도형 하나(2026-11-23 사용자 샘플)
+  assert.equal(m1.fmts.length,0);assert.ok(!m1.hasLine);assert.equal(m1.jFormulas,2);
+  const bk1=[...m1.dr.matchAll(/<xdr:from><xdr:col>(\d+)<\/xdr:col><xdr:colOff>\d+<\/xdr:colOff><xdr:row>(\d+)<\/xdr:row>(?:(?!<\/xdr:twoCellAnchor>).)*?<xdr:row>(\d+)<\/xdr:row>(?:(?!<\/xdr:twoCellAnchor>).)*?prst="leftBracket"/g)].map(x=>x.slice(1).map(Number));
+  assert.equal(bk1.length,1,'대괄호 도형 1개');assert.equal(bk1[0][0],7,'H열');assert.ok(bk1[0][2]>bk1[0][1],'원 필지 줄 ~ 나눈 줄');
   if(outDir)fs.writeFileSync(path.join(outDir,'구산동_명세표.xlsx'),Buffer.from(m1.b64,'base64'));
 
   // 괄감(토지만) — 구분평가만 있으면 사정은 한 줄(949), 단가 '-'(샘플)

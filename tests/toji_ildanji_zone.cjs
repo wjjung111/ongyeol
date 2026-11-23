@@ -83,14 +83,20 @@ const near=(a,b,d)=>assert.ok(Math.abs(a-b)<(d||0.0001),a+' ≒ '+b+' 아님');
     let b='';const u=new Uint8Array(bytes.buffer||bytes);for(let i=0;i<u.length;i++)b+=String.fromCharCode(u[i]);
     window._use=rows.map(r=>r['명세_지역구조']);
     return {use:window._use,rows:rows.map(r=>[r['명세_기호'],r['명세_지번'],r['명세_공부면적'],r['명세_사정면적'],r['명세_단가'],r['명세_평가액'],r['명세_비고'],r.gbr,r.hbr]),
-      fmts:(st.match(/formatCode="[^"]*&quot;(&lt;|&gt;)&quot;[^"]*"/g)||[]).length,lines:(sh.match(/<t>│<\/t>/g)||[]).length,b64:btoa(b)};
+      fmts:(st.match(/formatCode="[^"]*&quot;(&lt;|&gt;)&quot;[^"]*"/g)||[]).length,lines:(sh.match(/<t>│<\/t>/g)||[]).length,b64:btoa(b),
+      bk:[...dec.decode(ents.find(e=>/drawing1\.xml$/.test(e.name)).data).matchAll(/<xdr:from><xdr:col>(\d+)<\/xdr:col><xdr:colOff>\d+<\/xdr:colOff><xdr:row>(\d+)<\/xdr:row>(?:(?!<\/xdr:twoCellAnchor>).)*?<xdr:row>(\d+)<\/xdr:row>(?:(?!<\/xdr:twoCellAnchor>).)*?prst="leftBracket"/g)].map(x=>x.slice(1).map(Number)),
+      h:[...sh.matchAll(/<c r="H(\d+)"[^>]*><v>([\d.]+)<\/v>/g)].map(x=>[+x[1],+x[2]])};
   });
   console.log('④ 명세표',m.rows,'서식',m.fmts,'세로선',m.lines);
   assert.deepEqual(m.rows,[
     ['2'.replace('2','1'),'247-1',45.2,60.1,30000000,30000000*60.1,'일단지\n일반상업지역\n용도지역 상이','top','top'],
     ['2','247-3',56.1,41.2,18000000,18000000*41.2,'일단지\n제3종\n일반주거지역','end','end']]);
   assert.deepEqual(m.use,['일반상업지역\n제3종\n일반주거지역','일반상업지역\n제3종\n일반주거지역']);
-  assert.equal(m.fmts,4);   // 공부 < > · 사정 < >assert.ok(m.lines>=6);
+  // 묶음 기호 = 사정면적 왼쪽 「왼쪽 대괄호」 도형 하나(2026-11-23 사용자 샘플) — 셀 글자 꺾쇠·세로선 없음, 공부면적 칸엔 표시 없음
+  assert.equal(m.fmts,0);assert.equal(m.lines,0);
+  assert.equal(m.bk.length,1,'대괄호 도형 1개');assert.equal(m.bk[0][0],7,'H열');
+  const hr=m.h.filter(x=>x[1]===60.1||x[1]===41.2).map(x=>x[0]);
+  assert.deepEqual([m.bk[0][1]+1,m.bk[0][2]+1],hr,'첫 사정면적 줄 ~ 마지막 사정면적 줄');
   if(outDir)fs.writeFileSync(path.join(outDir,'광희동_명세표.xlsx'),Buffer.from(m.b64,'base64'));
 
   // ⑤ 의견서 — 산출근거 표는 구역 2줄(번호 일반상업·3종일주), 평가대상 토지 표는 필지 2줄
