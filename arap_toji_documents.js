@@ -393,7 +393,7 @@ function useLines(v){return String(v||'').split(/\s*[,，]\s*/).filter(Boolean).
 function zoneStatementRows(gs,loc){
   var ps=grpIdx().map(function(i){return LANDS[i];}),zs=GZONES,n=Math.max(ps.length,zs.length),out=[];
   var brOf=function(k,len){return len<2||k>=len?null:k===0?'top':k===len-1?'end':'mid';};
-  for(var k=0;k<n;k++){var L=ps[k],z=k<zs.length,g=z?(gs.rows.find(function(r){return r.key==='z'+k;})||{}):{};
+  for(var k=0;k<n;k++){var L=ps[k],z=k<zs.length,g=z?(landDec(gs.rows.find(function(r){return r.key==='z'+k;}))||{}):{};
     var pn=String(L&&L['비고']||'').trim();if(pn==='-')pn='';
     // 비고 = 일단지 / 구분 이름(없으면 용도지역) / 첫 줄에만 나눈 이유(2026-11-22)
     var why=k===0&&typeof ZONE_WHY!=='undefined'?String(ZONE_WHY||'').trim():'';
@@ -407,6 +407,8 @@ function zoneStatementRows(gs,loc){
     out.push(o);}
   return out;
 }
+// 토지 줄 결정 값 — 「토지평가액 결정」에서 가중평균을 켰으면 결정단가·금액(토지건물.html landDecided), 아니면 공시지가기준법 그대로
+function landDec(r){return typeof landDecided==='function'?landDecided(r):r;}
 var LAST_WARN='';
 function statementRows(){
   LAST_WARN='';
@@ -427,7 +429,7 @@ function statementRows(){
   var zput=false;
   var rows=bldOnly()?[]:[].concat.apply([],LANDS.map(function(l,i){
     if(zm&&grpIn(l)){if(zput)return [];zput=true;return zoneStatementRows(gs,loc);}
-    var g=gs.rows.find(function(r){return r.key===i;})||gs.rows[i]||{},hasSub=!sub(l)&&sub(LANDS[i+1]);
+    var g=landDec(gs.rows.find(function(r){return r.key===i;})||gs.rows[i])||{},hasSub=!sub(l)&&sub(LANDS[i+1]);
     var br=hasSub?'top':sub(l)?(sub(LANDS[i+1])?'mid':'end'):null;
     var note=String(l['비고']||'');if(out(l)&&note.trim()==='-')note='';
     var common={'명세_사정면적':landArea(l),'명세_단가':out(l)?'-':g.apply,'명세_평가액':out(l)?0:g.total,'명세_비고':note,br:br,out:out(l)};

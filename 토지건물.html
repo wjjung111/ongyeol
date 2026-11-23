@@ -862,8 +862,18 @@
           <tr><td>공시지가기준법</td><td id="gj_au">-</td><td id="gj_a">-</td></tr>
           <tr><td>거래사례비교법</td><td id="gj_bu">-</td><td id="gj_b">-</td></tr>
           <tr><td style="text-align:right;font-weight:700">차이</td><td class="calc-c" id="gj_udiff">-</td><td class="calc-c" id="gj_diff">-</td></tr>
+          <tr id="gj_wtRow" style="display:none"><td style="text-align:right;font-weight:700">가중평균</td><td class="calc-c" id="gj_wu">-</td><td class="calc-c" id="gj_w">-</td></tr>
           <tr><td style="text-align:right;font-weight:700">토지감정평가액</td><td class="calc-c" id="gj_fu">-</td><td class="calc-c" id="gj_final" style="font-size:14px">-</td></tr>
         </table></div>
+        <!-- 가중평균 결정(2026-11-23 사용자 요청) — 끄면 종전대로 공시지가기준법 시산가액이 토지감정평가액 -->
+        <div style="margin-top:12px;border-top:1px dashed #cbd5e1;padding-top:10px">
+          <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+            <label style="font-size:13px;font-weight:700;color:#334155;cursor:pointer;user-select:none"><input type="checkbox" id="gj_wtOn" onchange="gjWtSet('on',this.checked)" style="vertical-align:-2px"> 두 방법 가중평균으로 결정</label>
+            <span id="gj_wtInputs" style="display:none;font-size:13px">공시지가기준법 <input class="box" id="gj_wtA" inputmode="decimal" style="width:58px;text-align:right" placeholder="20" oninput="gjWtSet('a',this.value)"> %
+              <span style="color:#94a3b8">·</span> 거래사례비교법 <input class="box" id="gj_wtB" inputmode="decimal" style="width:58px;text-align:right" placeholder="80" oninput="gjWtSet('b',this.value)"> %</span>
+          </div>
+          <div id="gj_wtBox" style="margin-top:8px"><div id="gj_wtMsg" class="hint"></div><div class="tw" id="gj_wtTw" style="display:none"><table id="gj_wtTbl"></table></div><div id="gj_wtNote" class="hint"></div></div>
+        </div>
       </div>
     </div>
 
@@ -3668,11 +3678,85 @@ function calcGyeoljeong(){
   gjUnitCell('gj_au',ua);gjUnitCell('gj_bu',ub);gjUnitCell('gj_fu',ua);
   var ud=(ua.first&&ub.first&&ua.list.length===1&&ub.list.length===1)?(Math.abs(ua.first-ub.first)/Math.max(ua.first,ub.first)*100):0;
   document.getElementById('gj_udiff').textContent=(ua.first&&ub.first&&ua.list.length===1&&ub.list.length===1)?ud.toFixed(1)+'%':'-';
-  var chosen=a;   // 토지감정평가액은 항상 공시지가기준법(주방식). 거래사례비교법은 합리성 검토용 (결정기록 2026-09-09)
+  // 토지감정평가액 = 공시지가기준법 시산가액(주방식, 결정기록 2026-09-09). 「가중평균」을 켜면 두 방법의 적용단가를 가중평균한 단가 × 면적(2026-11-23)
+  var D=gjDecide();window.LAND_DECIDED=D;
+  var chosen=D?D.total:a;
+  gjWtRender(D,a,b);
+  if(D)gjUnitCell('gj_fu',gjUnits(D));
   document.getElementById('gj_final').textContent=chosen?won(chosen)+' 원':'-';
   document.getElementById('resGyeoljeong').textContent=chosen?won(chosen)+' 원':'-';
   window.LAND_FINAL=BLD_ONLY?0:chosen;   // 건물만 — 토지 입력이 남아 있어도 토지가액은 0
   calcFinal();
+}
+
+// ── 가중평균 결정(2026-11-23) ── LAND_WT = {on, a(공시지가기준법 %), units:{줄키: 직접 고친 결정단가}} · 건별 저장
+// 줄마다 결정단가 = 반올림(공시 적용단가 × a% + 거래 적용단가 × (100−a)%) — 반올림은 공시지가기준법 결정단가와 같은 설정
+// 결과 LAND_DECIDED = {wa, wb, rows:[{key,apply,size,total,gs,ga,auto}], applyUnit, total} — 끄면 null(종전: 공시지가기준법 그대로)
+var LAND_WT={on:false,a:'',units:{}};
+function gjWtA(){var v=String(LAND_WT.a==null?'':LAND_WT.a).replace(/[^\d.]/g,'');return v===''?null:Math.max(0,Math.min(100,parseFloat(v)));}
+// 줄 키 — 묶기(일단지·나누지 않음)면 묶음 필지들은 한 줄('g'), 나머지는 시산 줄 키 그대로
+function gjRowKey(r){return (typeof r.key==='number'&&!zoneMode()&&isLandGroup()&&grpIn(LANDS[r.key]))?'g':String(r.key);}
+function gjDecide(){
+  if(!LAND_WT||!LAND_WT.on||BLD_ONLY)return null;
+  var wa=gjWtA();if(wa==null)return null;
+  var gs=window.GONGSI_RESULT||{},ga=window.GEORAE_RESULT||{},gr=gs.rows||[],ar=ga.rows||[];
+  if(!gr.length||!gs.total)return null;
+  var wb=100-wa,rows=[],total=0,miss=[];
+  gr.forEach(function(r){
+    if(r.out||!(num(r.apply)>0)){rows.push({key:r.key,apply:r.apply,size:r.size,total:r.out?0:r.total,out:r.out});total+=r.out?0:(r.total||0);return;}
+    var g=ar.find(function(x){return x.key===r.key&&!x.out;}),gu=g?num(g.apply):0;
+    var k=gjRowKey(r),auto=gu>0?applyAuto((num(r.apply)*wa+gu*wb)/100):num(r.apply);
+    if(!(gu>0)&&miss.indexOf(k)<0)miss.push(k);
+    var ov=LAND_WT.units&&LAND_WT.units[k],u=hasV(ov)?num(ov):auto;
+    var t=u*(r.size||0);total+=t;
+    rows.push({key:r.key,rk:k,apply:u,auto:auto,gs:num(r.apply),ga:gu,size:r.size,total:t});
+  });
+  var first=rows.find(function(x){return !x.out&&x.apply>0;});
+  return {wa:wa,wb:wb,rows:rows,applyUnit:first?first.apply:0,total:total,miss:miss};
+}
+// 서류·화면이 쓰는 토지 줄 결정 값 — 가중평균이면 결정단가·금액으로 바꾼 사본, 아니면 공시지가기준법 줄 그대로(명세표·위치도)
+function landDecided(r){var D=window.LAND_DECIDED;if(!D||!r)return r;
+  var d=D.rows.find(function(x){return x.key===r.key;});return d?Object.assign({},r,{apply:d.apply,total:d.total}):r;}
+function gjWtSet(k,v){
+  if(k==='on')LAND_WT.on=!!v;
+  else if(k==='a'){LAND_WT.a=v;var a=gjWtA(),el=document.getElementById('gj_wtB');if(el)el.value=a==null?'':String(Math.round((100-a)*100)/100);}
+  else if(k==='b'){var b=parseFloat(String(v).replace(/[^\d.]/g,''));LAND_WT.a=isNaN(b)?'':String(Math.round((100-Math.max(0,Math.min(100,b)))*100)/100);
+    var ea=document.getElementById('gj_wtA');if(ea)ea.value=LAND_WT.a;}
+  calcGyeoljeong();saveForm();
+}
+function gjWtUnit(rk,v){LAND_WT.units=LAND_WT.units||{};if(hasV(v))LAND_WT.units[rk]=v;else delete LAND_WT.units[rk];calcGyeoljeong();saveForm();}
+function gjWtLabel(rk){if(rk==='g')return groupWord();if(/^z\d+$/.test(rk))return (typeof zoneDocNo==='function'?zoneDocNo(+rk.slice(1)):rk);
+  var i=+rk;return LANDS[i]?String(landParcelNo(i)):rk;}
+function gjWtRender(D,a,b){
+  var on=!!(LAND_WT&&LAND_WT.on);
+  var cb=document.getElementById('gj_wtOn');if(cb)cb.checked=on;
+  var inp=document.getElementById('gj_wtInputs');if(inp)inp.style.display=on?'':'none';
+  var ea=document.getElementById('gj_wtA'),eb=document.getElementById('gj_wtB'),wa=gjWtA();
+  if(ea&&document.activeElement!==ea)ea.value=LAND_WT.a==null?'':LAND_WT.a;
+  if(eb&&document.activeElement!==eb)eb.value=wa==null?'':String(Math.round((100-wa)*100)/100);
+  var row=document.getElementById('gj_wtRow');if(row)row.style.display=D?'':'none';
+  var msg=document.getElementById('gj_wtMsg'),tw=document.getElementById('gj_wtTw'),note=document.getElementById('gj_wtNote');if(!msg)return;
+  tw.style.display=D?'':'none';note.innerHTML='';
+  if(!on){msg.innerHTML='켜면 「공시지가기준법 20% · 거래사례비교법 80%」처럼 두 방법의 적용단가를 가중평균한 단가로 토지감정평가액을 정합니다. 끄면 공시지가기준법 시산가액이 토지감정평가액입니다.';return;}
+  if(!D){msg.innerHTML=wa==null?'<span style="color:#b91c1c">공시지가기준법 가중치(%)를 넣어 주세요.</span>':'공시지가기준법 계산을 먼저 입력해 주세요.';return;}
+  msg.innerHTML='';
+  document.getElementById('gj_wu').textContent=D.applyUnit?won(D.applyUnit)+(gjUnits(D).list.length>1?' 외':''):'-';
+  document.getElementById('gj_wu').title='공시 '+D.wa+'% · 거래 '+D.wb+'%';
+  document.getElementById('gj_w').textContent=D.total?won(D.total):'-';
+  var seen={},order=[],h='<tr><th>기호</th><th>공시지가기준법<br>적용단가</th><th>거래사례비교법<br>적용단가</th><th>결정단가(원/㎡)<br><span class="hint">공시 '+D.wa+'% · 거래 '+D.wb+'%</span></th><th>면적(㎡)</th><th>금액(원)</th></tr>';
+  D.rows.forEach(function(r){if(r.out||!r.rk)return;
+    if(seen[r.rk]){seen[r.rk].size+=r.size||0;seen[r.rk].total+=r.total;return;}
+    seen[r.rk]={size:r.size||0,total:r.total,r:r};order.push(r.rk);});
+  order.forEach(function(k){var x=seen[k],r=x.r;
+    h+='<tr><td>'+esc(gjWtLabel(k))+'</td><td>'+won(r.gs)+'</td><td>'+(r.ga?won(r.ga):'<span style="color:#b91c1c">없음</span>')+'</td>'
+      +applyCell(LAND_WT.units&&LAND_WT.units[k],r.auto,'gjWtUnit(\''+k+'\',this.value)')
+      +'<td>'+fmtArea(roundArea(x.size))+'</td><td class="calc-c">'+won(x.total)+'</td></tr>';});
+  if(order.length>1)h+='<tr class="sumrow"><td colspan="4" class="sum-label">합계</td><td>'+fmtArea(roundArea(order.reduce(function(a,k){return a+seen[k].size;},0)))+'</td><td class="sum-amt">'+won(D.total)+'</td></tr>';
+  setTableHtml('gj_wtTbl',h);
+  var n='';
+  if(D.miss.length)n+='<div style="color:#b91c1c">거래사례비교법 적용단가가 없는 줄('+D.miss.map(gjWtLabel).join(', ')+')은 공시지가기준법 단가 그대로 씁니다.</div>';
+  n+='<div style="margin-top:4px">결정단가 = 공시 적용단가 × '+D.wa+'% + 거래 적용단가 × '+D.wb+'% → 반올림은 공시지가기준법 결정단가 설정을 따릅니다(칸은 직접 고칠 수 있음, 비우면 자동). 의견서 「합리성 검토 및 토지감정평가액의 결정」 문장도 가중평균으로 바뀝니다.</div>';
+  note.innerHTML=n;
 }
 
 // ================= 건물 원가법 =================
@@ -3865,6 +3949,7 @@ function landUnitDoc(){
   if(zoneMode()||partialGroup())return '-';   // 용도지역별로 나눴거나 묶음 밖 필지가 있어 단가가 둘 이상
   var ev=LANDS.filter(function(L){return !isOut(L);});
   if(ev.length>1&&(!(ILDANJI||isLandGroup())||ev.some(isSub)))return '-';
+  var D=window.LAND_DECIDED;if(D)return D.applyUnit?won(D.applyUnit):'-';   // 가중평균 결정단가(2026-11-23)
   return gs.applyUnit?won(gs.applyUnit):'-';
 }
 function opinionTplPath(){return LAND_ONLY?'템플릿/토지 의견서(산출근거) 템플릿.hwpx':BLD_ONLY?'템플릿/건물 의견서(산출근거) 템플릿.hwpx':'템플릿/토건 의견서(산출근거) 템플릿.hwpx';}
@@ -3875,7 +3960,8 @@ function calcFinal(){
   var total=land+bld;
   var gs=window.GONGSI_RESULT||{};
   document.getElementById('fn_landSize').textContent=gs.size?fmtArea(gs.size):'-';
-  document.getElementById('fn_landUnit').textContent=gs.applyUnit?(won(gs.applyUnit)+(landUnitMany()?' 외':'')):'-';
+  var lu=window.LAND_DECIDED?window.LAND_DECIDED.applyUnit:gs.applyUnit;
+  document.getElementById('fn_landUnit').textContent=lu?(won(lu)+(landUnitMany()?' 외':'')):'-';
   document.getElementById('fn_landAmt').textContent=land?won(land):'-';
   // 건물 면적은 평가에 적용한 면적(사정면적이 있으면 사정면적)
   document.getElementById('fn_bldSize').textContent=(window.BLD_RESULT&&window.BLD_RESULT.size)?fmtArea(window.BLD_RESULT.size):'-';
@@ -3889,7 +3975,7 @@ function calcFinal(){
     ['토지 필지 수 / 면적 합계',landParcelCount()+'필지'+(gs.outSize?(' · 평가외 '+fmtArea(gs.outSize)+' ㎡'):'')+((gs.gongbuSize&&Math.abs(gs.gongbuSize-gs.size)>0.00005)?(' (공부 '+fmtArea(gs.gongbuSize)+' ㎡)'):''),(gs.size?fmtArea(gs.size)+' ㎡':'-')],
     ['공시지가기준법 시산가액','Σ(적용단가 × 면적)',document.getElementById('resGongsi').textContent],
     ['거래사례비교법 시산가액','사례단가 × 사정보정 × 시점수정 × 지역요인 × 개별요인 × 면적',document.getElementById('resGeorae').textContent],
-    ['토지감정평가액','공시지가기준법 시산가액 (거래사례비교법은 합리성 검토)','decided'],
+    ['토지감정평가액',window.LAND_DECIDED?('가중평균 (공시지가기준법 '+window.LAND_DECIDED.wa+'% · 거래사례비교법 '+window.LAND_DECIDED.wb+'%)'):'공시지가기준법 시산가액 (거래사례비교법은 합리성 검토)','decided'],
     ['건물가액','Σ(면적 × 재조달원가 × 잔가율)',document.getElementById('resBld').textContent],
     ['감정평가액','토지 + 건물',total?won(total)+' 원':'-']
   ];
@@ -3939,7 +4025,8 @@ function sd(){
   document.getElementById('sd_gijun').textContent=document.getElementById('base_gijun').value||'-';
   renderSideLands();
   var gsr=window.GONGSI_RESULT||{};
-  document.getElementById('sd_landUnit').textContent=gsr.applyUnit?(won(gsr.applyUnit)+' 원/㎡'+(landUnitMany()?' 외':'')):'-';
+  var slu=window.LAND_DECIDED?window.LAND_DECIDED.applyUnit:gsr.applyUnit;
+  document.getElementById('sd_landUnit').textContent=slu?(won(slu)+' 원/㎡'+(landUnitMany()?' 외':'')):'-';
   document.getElementById('sd_landAmt').textContent=window.LAND_FINAL?won(window.LAND_FINAL):'-';
   document.getElementById('sd_bldAmt').textContent=(window.BLD_RESULT&&window.BLD_RESULT.total)?won(window.BLD_RESULT.total):'-';
   var total=(window.LAND_FINAL||0)+((window.BLD_RESULT&&window.BLD_RESULT.total)||0);
@@ -4727,6 +4814,7 @@ function collect(){
   o.landOnly=LAND_ONLY;   // 평가대상: 토지만(true) / 토지+건물(false·없음)
   o.bldOnly=BLD_ONLY;     // 평가대상: 건물만(true)
   o.SAJ_MODE={land:SAJ_MODE.land,bld:SAJ_MODE.bld};o.GROUP_AREA=GROUP_AREA;o.ILDANJI=ILDANJI;o.GZONES=GZONES;o.ZONE_WHY=ZONE_WHY;o.GROUP_SHARE=GROUP_SHARE;
+  o.LAND_WT=LAND_WT;
   return o;
 }
 var saveTimer=null;
@@ -4887,6 +4975,7 @@ function applyForm(o){
   ILDANJI=!!o.ILDANJI;ILDANJI_PREV_MODE=null;
   GZONES=Array.isArray(o.GZONES)?o.GZONES:[];ZONE_WHY=o.ZONE_WHY!=null?String(o.ZONE_WHY):'';
   GROUP_SHARE=o.GROUP_SHARE!=null?String(o.GROUP_SHARE):'';
+  LAND_WT=(o.LAND_WT&&typeof o.LAND_WT==='object')?{on:!!o.LAND_WT.on,a:o.LAND_WT.a!=null?String(o.LAND_WT.a):'',units:o.LAND_WT.units||{}}:{on:false,a:'',units:{}};   // 없던 옛 건 = 끔(공시지가기준법)
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
   STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
   renderStds();renderLands();
@@ -5012,7 +5101,7 @@ function clearForm(){
   OV_IDS.forEach(function(id){var el=document.getElementById(id);if(!el)return;el.value=(el.tagName==='SELECT'?el.options[0].value:'');});
   BT_IDS.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   if(window.ArapTojiDocuments&&ArapTojiDocuments.regHint)ArapTojiDocuments.regHint();
-  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;ILDANJI_PREV_MODE=null;GZONES=[];ZONE_WHY='';GROUP_SHARE='';
+  SAJ_MODE={land:'direct',bld:'direct'};GROUP_AREA='';ILDANJI=false;ILDANJI_PREV_MODE=null;GZONES=[];ZONE_WHY='';GROUP_SHARE='';LAND_WT={on:false,a:'',units:{}};
   LANDS=[{}];STDS=[{}];renderStds();renderLands();
   document.getElementById('bldBody').innerHTML='';addBldRow({});addBldRow({});applyBldSajMode();
   ['period','region','use','rate','factor'].forEach(function(k){document.getElementById('jb_'+k).value='';});
@@ -5535,7 +5624,7 @@ function mapItems(){
   LANDS.forEach(function(L,i){
     if(isSub(L))return;   // 나눈 줄은 같은 필지 — 지도에 따로 찍지 않는다
     var loc=String(L.fullAddr||'').trim()||((L['소재지']||'')+' '+(L['지번']||'')).trim();
-    var row=(gs.rows||[]).find(function(r){return r.key===i;});   // 용도지역별로 나눈 묶음 필지는 줄이 없다(단가가 하나가 아님)
+    var row=landDecided((gs.rows||[]).find(function(r){return r.key===i;}));   // 용도지역별로 나눈 묶음 필지는 줄이 없다(단가가 하나가 아님) · 가중평균이면 결정단가
     // 일단지면 「본건 1·2」로 나누지 않고 이름표 하나(labelGroup)가 필지 테두리 전부를 가리킨다
     if(loc)out.push({o:L,kind:'본건',label:((ILDANJI&&(!isLandGroup()||grpIn(L)))||landParcelCount()<2)?'본건':('본건 '+landParcelNo(i)),color:'#dc2626',loc:loc,region:region,pick:true,poly:true,
       labelGroup:(ILDANJI&&(!isLandGroup()||grpIn(L)))?'본건':'',
