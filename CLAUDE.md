@@ -108,6 +108,7 @@
 | 토건 필지 수 | `landParcelCount()`/`landParcels()` 사용(나눈 줄 제외) — `LANDS.length` 쓰지 말 것. 평가 줄 키 = 필지 번호 또는 구역 `'z0'`(`rowObj`·`rowRef`·`evalKeys`) |
 | 토건 의견서·위치도의 사례 번호 | 화면 번호(`i+1`, `a.no`) 말고 `docTradeNo(i)`/`docApprNo(i)` — 「의견서 표시」 끈 사례(`_hide`, `caseHidden`)를 빼고 다시 매긴 번호 |
 | 토건 개별요인 | 지대별 칸 수가 다름(`FAC_SLOTS`·`facProduct(arr,지대)`) — 저장은 6칸 그대로 |
+| 토건 토지 결정단가·토지가액을 서류에 쓸 때 | `GONGSI_RESULT` 줄 단가 말고 `landDecided(row)`·`landUnitDoc()`·`LAND_FINAL` — 2-2 탭 가중평균(`LAND_DECIDED`)을 켜면 공시지가기준법 단가와 다름 |
 
 ## 6. hwpx 템플릿·엔진
 

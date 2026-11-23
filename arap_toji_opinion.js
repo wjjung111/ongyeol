@@ -422,7 +422,8 @@ function opinionData(){
     if(dmap.length>1)daeguBlocks=dmap.map(function(b){return {daegu:b.daegu,label:'표준지 '+b.stds.join(', ')+' (기호 '+b.nos.join(', ')+')'};});
   }
   var etcDaegu=typeof stdDaegu==='function'?stdDaegu(own&&etcPairs.length?etcPairs[0].std:etc.stdIdx):'';
-  return {global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,groupRun:groupRun,parcelRuns:parcelRuns,zoneRuns:zoneRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
+  var LD=window.LAND_DECIDED;
+  return {landWeight:LD?{wa:LD.wa,wb:LD.wb}:null,global:m,detail:detail,etcDaegu:etcDaegu,etcBlocks:etcBlocks,daeguBlocks:daeguBlocks,etcRows:etcRows,gaTimes:gaTimes,parcels:parcels,parcelsGa:parcelsGa,subject:subject,landGroup:group,groupRun:groupRun,parcelRuns:parcelRuns,zoneRuns:zoneRuns,landOnly:typeof LAND_ONLY!=='undefined'&&!!LAND_ONLY,standards:standards,buildings:buildingMaps(br.rows||[]),
     appraisals:APPRS.map(function(a,i){return {a:a,i:i};}).filter(function(x){return apprHasData(x.a)&&!opHid('a',x.i);})
       .map(function(x){return appraisalMap(Object.assign({},x.a,{no:aNo(x.i)}));}),floors:(br.rows||[]).map(floorMap),newCosts:newCostMaps(),
     trades:TRADES.map(function(c,i){return {data:c,index:i,no:tNo(i)};}).filter(function(x){return !opHid('t',x.index);}),stdSajeong:etc.stdSajeong,stdArea:etc.stdArea,
@@ -785,6 +786,9 @@ function plainAgeCols(tbl){
   clearLines(tbl);
 }
 function blankMap(el){var m={};(el.textContent.match(tokenRE)||[]).forEach(function(s){m[s.slice(2,-2)]='';});return m;}
+// replacePlain + 바뀐 문단의 줄배치 캐시 제거(문장 길이가 달라져 겹치지 않게)
+function replaceLine(root,from,to){descendants(root,'t').forEach(function(t){if(t.textContent.indexOf(from)<0)return;t.textContent=t.textContent.split(from).join(to);
+  var p=t.parentNode;while(p&&p.localName!=='p')p=p.parentNode;if(p)clearLines(p);});}
 function replacePlain(root,from,to){descendants(root,'t').forEach(function(t){if(t.textContent.indexOf(from)>=0)t.textContent=t.textContent.split(from).join(to);});}
 // 개별요인 표 열을 지대에 맞춘다(2026-10-21) — 양식은 6조건(가로·접근·환경·획지·행정적·기타). 농경지대는 가로 열을 빼고 환경 → 자연,
 // 임야지대는 가로·획지 열을 뺀다. 표 전체 너비는 그대로 두고 뺀 너비를 남은 조건·계 열에 나눠 준다(양식 파일은 안 건드림, 출력 때만).
@@ -1019,6 +1023,12 @@ function opinionXml(xml,data){
   if(window.arapPurposeLaw&&window.arapPurposeLaw.otherUse)replacePlain(doc,' 목적의 감정평가로서, 담보나 소송 등 다른 목적',' 목적의 감정평가로서, '+window.arapPurposeLaw.otherUse(tojiPurpose())+' 다른 목적');   // 담보 목적인데 「담보나 소송 등」(2026-11-16)
   replacePlain(doc,'한국부동산원, 2025년',val('op_costSource')||'[건물신축단가표 출처·연도 기입]');
   replacePlain(doc,'헙계','합계');
+  // 토지감정평가액을 가중평균으로 정했으면(토지건물.html LAND_DECIDED, 2026-11-23) 「합리성 검토」·「토지감정평가액의 결정」 문장을 그에 맞게
+  if(data.landWeight){var w=data.landWeight;
+    replaceLine(doc,'공시지가기준법에 의한 시산가액과 거래사례비교법에 의한 시산가액이 유사하게 산정되고 있으므로, 공시지가기준법에 의한 시산가액의 합리성이 인정됨.',
+      '공시지가기준법에 의한 시산가액과 거래사례비교법에 의한 시산가액은 각각 대상토지의 가격수준을 반영하고 있어 그 합리성이 인정되므로, 두 시산가액을 함께 고려하여 토지감정평가액을 결정하였음.');
+    replaceLine(doc,'공시지가기준법에 의한 시산가액을 토지감정평가액으로 결정하였음.',
+      '공시지가기준법에 의한 시산가액('+w.wa+'%)과 거래사례비교법에 의한 시산가액('+w.wb+'%)을 가중평균한 가액을 토지감정평가액으로 결정하였음.');}
   if(ETC.type==='a')replacePlain(doc,'상기와 같이 거래사례를 기준한','상기와 같이 평가사례를 기준한');
   descendants(doc,'p').filter(function(p){return p.parentNode===doc.documentElement;}).forEach(function(p){
     if(p.textContent.indexOf('본건은 ')===0&&/(토지( 및 건물의|의)?|건물의) 특성/.test(p.textContent)&&val('fn_opinion')){   // 토지 전용 양식은 '토지의 특성', 건물만 양식은 '건물의 특성'
