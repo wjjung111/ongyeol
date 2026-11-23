@@ -3354,6 +3354,8 @@ function v2ExpandLines(xml,map,toks){
 function v2NrTokens(v,ov,sc){
   const det=String(sc&&sc.timeAdjDetail||"");const L=det.split("\n").map(s=>s.trim()).filter(Boolean);
   const kind=(L[0]&&!/[:：0-9(]/.test(L[0]))?L[0]:(ov.nrType||"");
+  // 감정평가표(괄감) 평가내역 수량 — 비주거는 「1세대」 대신 「1개호」(2026-11-23 사용자 요청, 지분이면 「1개호 × 1/2」). 여러 호수는 이미 「N개호」
+  for(const t of ["세대","세대_사정"])if(v[t])v[t]=String(v[t]).replace(/^1세대/,"1개호");
   v["자본수익률_유형"]=kind.replace(/(집합|중대형|소규모)상가$/,"$1 상가");
   v["자본_기간"]=(sc&&sc.tradeDate?fmtDate(sc.tradeDate):"")+" ~ "+String(ov.baseDate||"").replace(/\.$/,"");
   const qd=(y,q)=>Math.round((new Date(y,q*3,0)-new Date(y,(q-1)*3,1))/86400000)+1;
