@@ -279,20 +279,58 @@
     if (!addr.jibun && !aptPick && complexes.length > 1)
       return { trades: [], complexes, message: `단지가 ${complexes.length}개예요. 지번이나 단지명을 넣거나 아래 후보에서 고르세요.` };
     const trades = [];
-    for (const r of cand) {
-      const y = +r.dealYear, mo = +r.dealMonth, d = +r.dealDay;
-      const price = parseInt(String(r.dealAmount || '').replace(/,/g, ''), 10) * 10000, area = parseFloat(r.excluUseAr);
-      if (!y || !mo || !d || !isFinite(price) || !isFinite(area)) continue;
-      trades.push({
-        date: `${pad(y, 4)}-${pad(mo)}-${pad(d)}`, price, area,
-        floor: /^-?\d+$/.test(String(r.floor || '').trim()) ? +r.floor : null,
-        cancelled: String(r.cdealType || '').trim().toUpperCase() === 'O',
-        direct: String(r.dealingGbn || '').trim() === '직거래',
-        apt: r.aptNm || '', dong: r.aptDong || '', pnu: pnuFromRtms(r), src: '국토부 실거래',
-      });
-    }
+    for (const r of cand) { const t = rtmsTrade(r); if (t) trades.push(t); }
     trades.sort((a, b) => (a.date < b.date ? 1 : -1));
     return { trades, complexes, message: null };
+  }
+  /** 국토부 실거래 행 하나 → 계산용 거래(날짜, 금액, 면적이 이상하면 null) */
+  function rtmsTrade(r) {
+    const y = +r.dealYear, mo = +r.dealMonth, d = +r.dealDay;
+    const price = parseInt(String(r.dealAmount || '').replace(/,/g, ''), 10) * 10000, area = parseFloat(r.excluUseAr);
+    if (!y || !mo || !d || !isFinite(price) || !isFinite(area)) return null;
+    return {
+      date: `${pad(y, 4)}-${pad(mo)}-${pad(d)}`, price, area,
+      floor: /^-?\d+$/.test(String(r.floor || '').trim()) ? +r.floor : null,
+      cancelled: String(r.cdealType || '').trim().toUpperCase() === 'O',
+      direct: String(r.dealingGbn || '').trim() === '직거래',
+      apt: r.aptNm || '', dong: r.aptDong || '', pnu: pnuFromRtms(r), src: '국토부 실거래',
+      umd: String(r.umdNm || '').trim(), jibun: String(r.jibun || '').trim(), built: parseInt(r.buildYear, 10) || null,
+    };
+  }
+
+  /* ── 주변 유사 단지 (2026-11-23) ── */
+  /**
+   * 한 시군구 실거래 행들 → 지번별 단지 [{id: 'code|법정동|지번', code, umd, jibun, name, names, built, pnu, trades}]
+   * 같은 지번에 단지명이 여럿(현대1차, 현대2차)이면 한 단지로 묶고 거래 많은 이름을 대표로(names에 전부). from~to(YYYY-MM-DD) 밖 계약은 뺌
+   */
+  function groupComplexes(items, code, from, to) {
+    const m = new Map();
+    for (const r of items || []) {
+      const t = rtmsTrade(r);
+      if (!t || !t.jibun || (from && t.date < from) || (to && t.date > to)) continue;
+      const id = [code, t.umd, t.jibun].join('|');
+      if (!m.has(id)) m.set(id, { id, code, umd: t.umd, jibun: t.jibun, cnt: new Map(), built: null, pnu: null, trades: [] });
+      const c = m.get(id);
+      c.trades.push(t);
+      c.cnt.set(t.apt, (c.cnt.get(t.apt) || 0) + 1);
+      if (t.built && (!c.built || t.built < c.built)) c.built = t.built;
+      if (!c.pnu && t.pnu) c.pnu = t.pnu;
+    }
+    return [...m.values()].map(c => {
+      const names = [...c.cnt.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n).filter(Boolean);
+      c.trades.sort((a, b) => (a.date < b.date ? 1 : -1));
+      return { id: c.id, code: c.code, umd: c.umd, jibun: c.jibun, name: names[0] || c.jibun, names, built: c.built, pnu: c.pnu, trades: c.trades };
+    });
+  }
+  /** 면적 종류 중 본건 면적 ±pct(0.1 = 10%) 안인 것 */
+  function areasNear(types, area, pct) {
+    const a = +area; if (!(a > 0)) return [];
+    return (types || []).map(t => +t.area).filter(x => Math.abs(x / a - 1) <= (pct ?? 0.1) + 1e-9);
+  }
+  /** 날짜 'YYYY-MM-DD'에서 months개월 전 같은 날(말일 보정 없이 달만 당김, 조회 기간 첫날) */
+  function monthsBefore(iso, months) {
+    const ym = ymAdd(iso.slice(0, 4) + iso.slice(5, 7), -months);
+    return ym.slice(0, 4) + '-' + ym.slice(4) + '-01';
   }
 
   /* ── 계산 ── */
@@ -444,7 +482,7 @@
     return v.length ? { n: v.length, total: rows.length, min: v[0], mid: median(v), max: v[v.length - 1] } : { n: 0, total: rows.length, min: null, mid: null, max: null };
   }
 
-  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, pnuFromRtms, matchDong, matchHo, aptHasDong, unitPnus, nearestAreaType, LOOKBACK, LOOKBACK_LONG };
+  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, pnuFromRtms, matchDong, matchHo, aptHasDong, unitPnus, nearestAreaType, rtmsTrade, groupComplexes, areasNear, monthsBefore, LOOKBACK, LOOKBACK_LONG };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   g.ArapAptSise = api;
 })(typeof window !== 'undefined' ? window : globalThis);
