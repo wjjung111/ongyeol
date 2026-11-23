@@ -82,10 +82,17 @@
   <div id="result">
     <!-- 총괄표제부 — 여러 동 단지(대단지 아파트 등)면 맨 위에. 동별 개요 줄을 누르면 아래 동 드롭다운이 그 동으로 -->
     <div class="card" id="recapPanel" style="display:none">
-      <h2>총괄표제부 <span class="hint" style="font-weight:400" id="recapHint"></span></h2>
+      <h2>총괄표제부 <span class="hint" style="font-weight:400" id="recapHint"></span>
+        <span class="row" style="margin-left:auto">
+          <button class="btn gh sm" onclick="copyRecap()">📋 엑셀 복사</button>
+          <button class="btn gh sm" id="btnRecapDongCopy" onclick="copyRecap(true)">📋 동별만 복사</button>
+        </span>
+      </h2>
       <div class="tw"><table id="tblRecap"></table></div>
       <div class="tw" id="recapDongWrap" style="margin-top:8px;max-height:320px;overflow:auto"><table id="tblRecapDong"></table></div>
       <div class="hint" id="recapDongHint" style="margin-top:4px">동 줄을 누르면 아래 호별 전유면적·동명세가 그 동으로 바뀝니다.</div>
+      <div class="note">「엑셀 복사」 = 총괄표제부 개요 + 동별 목록, 「동별만 복사」 = 동별 목록(머리글 + 동마다 한 줄 + 합계). 엑셀에서 <b>Ctrl+V</b>.</div>
+      <div class="status" id="recapCopyMsg"></div>
     </div>
 
     <!-- 집합건물 호별 전유면적 — 동 → 호를 고르면 그 호의 전유·공용 내역 -->
@@ -473,11 +480,33 @@ function renderRecap(){
   document.getElementById('tblRecapDong').innerHTML=showDong?h:'';
   document.getElementById('recapDongWrap').style.display=showDong?'':'none';
   document.getElementById('recapDongHint').style.display=showDong?'':'none';
+  document.getElementById('btnRecapDongCopy').style.display=showDong?'':'none';
   document.getElementById('recapHint').textContent=(r&&txt(r.bldNm)?txt(r.bldNm)+' · ':'')+'동 '+ts.length+'개';
   Array.prototype.forEach.call(document.querySelectorAll('#tblRecapDong .recap-dong'),function(tr){
     tr.onclick=function(){pickDong(+tr.getAttribute('data-i'));};
   });
   p.style.display='block';
+}
+// 총괄표제부 엑셀 복사 — 개요(화면과 같은 4칸: 항목·값·항목·값) + 빈 줄 + 동별 목록. onlyDong이면 동별 목록만.
+// 동별 목록은 엑셀에서 계산되게 층수·세대·호를 칸으로 나누고 연면적은 숫자 그대로(쉼표 없음)
+function recapDongLines(){
+  var ts=STATE.titles,sum=0,lines=[['#','주/부','동명칭','주용도','지상층수','지하층수','세대','호','연면적(㎡)','사용승인일'].join('\t')];
+  ts.forEach(function(t,i){var a=Number(t.totArea);if(!isNaN(a))sum+=a;
+    lines.push([i+1,txt(t.mainAtchGbCdNm).slice(0,1)||'-',txt(t.dongNm)||txt(t.bldNm)||'-',joinPurps(t.mainPurpsCdNm,t.etcPurps),
+      Number(t.grndFlrCnt)||0,Number(t.ugrndFlrCnt)||0,Number(t.hhldCnt)||0,Number(t.hoCnt)||0,
+      (t.totArea==null||t.totArea===''||isNaN(a))?'':a,dt(t.useAprDay)||'-'].join('\t'));});
+  lines.push(['','','',ts.length+'개 동 연면적 합계','','','','',Math.round(sum*10000)/10000,''].join('\t'));
+  return lines;
+}
+function copyRecap(onlyDong){
+  var msg=document.getElementById('recapCopyMsg'),ts=STATE.titles,lines=[];
+  if(!onlyDong){
+    Array.prototype.forEach.call(document.querySelectorAll('#tblRecap tr'),function(tr){
+      lines.push(Array.prototype.map.call(tr.children,function(c){return c.textContent.trim().replace(/\s+/g,' ');}).join('\t'));});
+  }
+  if(ts.length>1){if(lines.length)lines.push('');lines=lines.concat(recapDongLines());}
+  if(!lines.length){alert('복사할 총괄표제부 내용이 없습니다.');return;}
+  clipboardCopy(lines.join('\n'),msg,'✅ 복사 완료 — 엑셀에서 Ctrl+V 하세요'+(ts.length>1?' (동 '+ts.length+'개)':''));
 }
 // 동별 개요 줄 클릭 → 동명세 드롭다운 + (집합건물이면) 호별 전유면적의 동 드롭다운을 같은 동으로
 function pickDong(i){
