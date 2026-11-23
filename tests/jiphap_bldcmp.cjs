@@ -108,6 +108,10 @@ const PNU_S='4113510900103050005',PNU_C='4113510900103120003';
       for(const w of ['한라쇼핑','범한프라자','3,804.04','10,775.62','2.83배 작음','▼ 열세','＝ 대등','211.3㎡','112.2㎡','주차 여유 부족','1993.09.14 · 33.2년','공실 현황'])assert.ok(txt.includes(w),mode+' 표에 '+w);
       assert.ok(queries.includes('경기도 성남시 분당구 서현동 312-3'),'사례 주소에 본건 시·구: '+queries.join(' | '));
       assert.equal(await panel.locator('[data-bldcmp-draft]').innerText(),D);
+      // 넓은 화면 배치(2026-11-23 「시선이 좌우로 분산」): 거래사례 | 평가전례 좌우, 건물 비교 왼쪽 | 거래정보·요인 표 오른쪽
+      const bx=sel=>scope.locator(sel).first().boundingBox();
+      {const tr=await bx('.s3-tr'),pr=await bx('.s3-pr');assert.ok(pr.x>=tr.x+tr.width-2&&Math.abs(pr.y-tr.y)<4,mode+' 거래사례|평가전례 좌우 '+JSON.stringify({tr,pr}));}
+      if(mode==='single'){const fl=await bx('.fac-l'),fr=await bx('.fac-r');assert.ok(fr.x>=fl.x+fl.width-2&&Math.abs(fr.y-fl.y)<4,'건물 비교 왼쪽|요인 오른쪽 '+JSON.stringify({fl,fr}));}
       // 현장조사 칸: 사례 공실 + 열세 → 초안에 붙음
       await panel.locator('input[aria-label="본건 공실 현황"]').fill('2개 호 공실');
       await panel.locator('input[aria-label="사례 공실 현황"]').fill('공실 없음');
@@ -125,6 +129,7 @@ const PNU_S='4113510900103050005',PNU_C='4113510900103120003';
       }
       // 접기/펼치기
       await panel.locator('summary').click();await page.waitForTimeout(150);assert.equal(await panel.locator('text=본건 기준 비교').count(),0);
+      if(mode==='single'){const fl=await bx('.fac-l'),fr=await bx('.fac-r');assert.ok(fr.y>fl.y&&Math.abs(fr.width-fl.width)<4,'접으면 요인 표가 전체 폭 '+JSON.stringify({fl,fr}));}
       await panel.locator('summary').click();await panel.locator('text=본건 기준 비교').waitFor();
       if(process.env.SHOT)await panel.screenshot({path:process.env.SHOT+'_'+mode+'.png'});
       assert.deepEqual(errors,[]);
