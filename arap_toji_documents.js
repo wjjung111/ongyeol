@@ -420,10 +420,10 @@ function statementRows(){
   var loc=function(L){return (typeof landLoc==='function')?landLoc(L):String((L||{})['소재지']||'');};
   // 건물만 — 토지 행 없이 건물 행만(지번은 '상동' 대신 실제 지번)
   // 구분평가·평가외로 나눈 필지(토지건물.html isSub/isOut): 원 필지 줄 아래 나눈 줄을 같은 기호로 잇는다 — 기호·소재지~공부 칸은 비우고
-  // (소재지는 원 필지 줄에서 흘러내림) 사정면적·단가·금액·비고만. 사정면적은 괄호선 ┌ │ └로 묶는다(br). 평가외는 단가 '-', 금액 「감정평가 외」.
+  // (소재지는 원 필지 줄에서 흘러내림) 사정면적·단가·금액·비고만. 사정면적은 「왼쪽 대괄호」 도형으로 묶는다(br — buildStatement bracketXml). 평가외는 단가 '-', 금액 「감정평가 외」.
   var sub=function(l){return typeof isSub==='function'&&isSub(l);},out=function(l){return typeof isOut==='function'&&isOut(l);};
   // 일단지를 용도지역별로 나눴으면(토지건물.html zoneMode) 필지 줄과 구역 줄을 나란히 — k번째 줄 = k번째 필지(기호~공부면적) +
-  // k번째 구역(사정면적·단가·금액·비고 「일단지 / 일반상업지역」). 공부면적·사정면적은 각각 꺾쇠(<, │, >)로 묶는다(사용자 샘플 2026-10-29)
+  // k번째 구역(사정면적·단가·금액·비고 「일단지 / 일반상업지역」). 사정면적만 「왼쪽 대괄호」 도형으로 묶는다(사용자 샘플 2026-11-23 — 셀 글자 꺾쇠는 폐기)
   var zm=!bldOnly()&&typeof zoneMode==='function'&&zoneMode();
   // 묶음 밖 필지는 일반 필지 줄 그대로(묶기 중 일부 필지만 일단지인 건 — 2026-10-29), 묶음 줄은 첫 묶음 필지 자리에
   var zput=false;
@@ -509,45 +509,16 @@ function chunks(v,n){return String(v||'').split('\n').flatMap(function(line){
   if(cur)out.push(cur);
   return out.length?out:[''];
 });}
-// 나눈 필지(구분평가·평가외)의 사정면적 괄호선 서식 — 사정면적 칸 서식(baseId)을 복제해 숫자 서식만 바꾼다:
-//   top = "┌"를 칸 왼쪽 끝에 붙인 숫자, mid = "│", end = "└", line = 칸 왼쪽의 "│" 글자(값 줄 사이 빈 줄)
-// 숫자는 그대로 숫자라 금액 수식(단가×사정)이 깨지지 않는다. 출력 파일의 서식 목록 끝에만 덧붙이고 기존 서식 번호는 건드리지 않는다.
-// 용도지역별로 나눈 일단지(gbase 있음)는 공부면적 칸에도 꺾쇠: gtop = 숫자 뒤 "<", gmid = "│", gend = ">", gline = 칸 오른쪽 "│"
-// 사정면적 칸은 htop = 칸 왼쪽 "<", hmid = "│", hend = ">" (사용자 샘플 2026-10-29 광희동2가 247-1·247-3: 45.2< <60.1 / 56.1> >41.2)
-function addBracketStyles(entries,baseId,dec,enc,gBaseId){
-  var e=entries.find(function(x){return x.name==='xl/styles.xml';});if(!e)return null;
-  var d=xml(dec.decode(e.data)),ss=d.documentElement;
-  var fmts=nodes(d,'numFmts')[0];
-  if(!fmts){fmts=d.createElementNS(X,'numFmts');ss.insertBefore(fmts,ss.firstElementChild);}
-  var used=nodes(fmts,'numFmt').map(function(n){return +n.getAttribute('numFmtId');}),next=Math.max(184,...used)+1;
-  var xfs=nodes(d,'cellXfs')[0],list=Array.from(xfs.children).filter(function(n){return n.localName==='xf';});
-  var base=list[+baseId]||list[0],out={};
-  var codeOf=function(b){var f=nodes(fmts,'numFmt').find(function(n){return n.getAttribute('numFmtId')===b.getAttribute('numFmtId');});return f?f.getAttribute('formatCode'):'#,##0.00##';};
-  var numCode=codeOf(base);
-  var add=function(key,fmtId,left,from){
-    var x=(from||base).cloneNode(true);x.setAttribute('numFmtId',String(fmtId));x.setAttribute('applyNumberFormat','1');
-    if(left){var al=Array.from(x.children).find(function(n){return n.localName==='alignment';});
-      if(!al){al=d.createElementNS(X,'alignment');x.appendChild(al);}al.setAttribute('horizontal',left);x.setAttribute('applyAlignment','1');}
-    xfs.appendChild(x);out[key]=String(Array.from(xfs.children).filter(function(n){return n.localName==='xf';}).length-1);
-  };
-  [['top','┌'],['mid','│'],['end','└']].forEach(function(p){
-    var f=d.createElementNS(X,'numFmt');f.setAttribute('numFmtId',String(next));f.setAttribute('formatCode','"'+p[1]+'"* '+numCode);fmts.appendChild(f);
-    add(p[0],next,false);next++;});
-  add('line',49,'left');
-  if(gBaseId!=null){
-    var gb=list[+gBaseId]||base,gCode=codeOf(gb);
-    [['htop','<'],['hmid','│'],['hend','>']].forEach(function(p){
-      var f=d.createElementNS(X,'numFmt');f.setAttribute('numFmtId',String(next));f.setAttribute('formatCode','"'+p[1]+'"* '+numCode);fmts.appendChild(f);
-      add(p[0],next,false);next++;});
-    [['gtop','<'],['gmid','│'],['gend','>']].forEach(function(p){
-      var f=d.createElementNS(X,'numFmt');f.setAttribute('numFmtId',String(next));f.setAttribute('formatCode',gCode+'"'+p[1]+'"');fmts.appendChild(f);
-      add(p[0],next,false,gb);next++;});
-    add('gline',49,'right',gb);
-  }
-  fmts.setAttribute('count',String(nodes(fmts,'numFmt').length));
-  xfs.setAttribute('count',String(Array.from(xfs.children).filter(function(n){return n.localName==='xf';}).length));
-  e.data=enc.encode(ser(d));
-  return out;
+// 묶음 기호 = 사정면적(H열) 왼쪽의 「왼쪽 대괄호」 도형(사용자 샘플 2026-11-23 발산리 406-1·407-9 일단지). 셀에 ┌│└·<>
+// 글자를 넣던 방식은 폐기 — 칸 값은 숫자 그대로 두고 그림 층(drawing1.xml)에 도형만 얹는다. 첫 값 줄 가운데 ~ 마지막 값 줄 가운데.
+// from·to = 엑셀 행 번호(1부터). 위치·크기·선(검정 0.75pt)·흰 채움은 샘플 파일 도형 그대로.
+function bracketXml(id,from,to){
+  return '<xdr:twoCellAnchor><xdr:from><xdr:col>7</xdr:col><xdr:colOff>150091</xdr:colOff><xdr:row>'+(from-1)+'</xdr:row><xdr:rowOff>196273</xdr:rowOff></xdr:from>'+
+    '<xdr:to><xdr:col>7</xdr:col><xdr:colOff>392546</xdr:colOff><xdr:row>'+(to-1)+'</xdr:row><xdr:rowOff>207819</xdr:rowOff></xdr:to>'+
+    '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="'+id+'" name="왼쪽 대괄호 '+(id-1)+'"/><xdr:cNvSpPr/></xdr:nvSpPr>'+
+    '<xdr:spPr><a:prstGeom prst="leftBracket"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>'+
+    '<a:ln w="9525" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:prstDash val="solid"/><a:round/></a:ln><a:effectLst/></xdr:spPr>'+
+    '<xdr:txBody><a:bodyPr rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="l"/><a:endParaRPr lang="ko-KR" altLang="en-US" sz="1100"/></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>';
 }
 async function buildStatement(rows){
   var raw=await fetchTplB64('템플릿/토건 명세표 템플릿.xlsx'),entries=await A.parseZip(Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);}).buffer),dec=new TextDecoder(),enc=new TextEncoder();
@@ -562,9 +533,8 @@ async function buildStatement(rows){
   var footer=original.find(function(row){return nodes(row,'f').some(function(f){return /^SUM\(/.test(f.textContent);});});
   if(!sample||!footer)throw Error('명세표 양식에서 플레이스홀더 행 또는 합계행을 찾지 못했습니다.');
   var style={};nodes(sample,'c').forEach(function(c){style[c.getAttribute('r').replace(/\d/g,'')]=c.getAttribute('s');});
-  // 구분평가·평가외로 나눈 필지가 있을 때만 — 사정면적 괄호선 서식을 출력 파일의 서식 목록 끝에 덧붙인다(양식 파일·기존 서식은 그대로).
-  var zoned=rows.some(function(x){return x.gbr||x.hbr;});
-  var brStyle=(zoned||rows.some(function(x){return x.br;}))?addBracketStyles(entries,style.H,dec,enc,zoned?style.G:null):null;
+  // 묶음(나눈 필지 br · 용도지역별 일단지 hbr) — 첫 값 줄·마지막 값 줄 행 번호를 모아 두었다가 끝에 대괄호 도형으로
+  var brackets=[],brOpen=null;
   var start=+sample.getAttribute('r'),base=+footer.getAttribute('r');
   var rowAttrs=['ht','customHeight','spans','x14ac:dyDescent'].map(function(a){return [a,sample.getAttribute(a)];}).filter(function(p){return p[1]!=null;});
   // B~K 열 순서. J(금액)는 값이 아니라 단가×사정면적 수식으로 넣는다(양식과 동일).
@@ -577,9 +547,6 @@ async function buildStatement(rows){
   rows.forEach(function(item,ii){
     // 토지 필지 행(둘째 필지부터)은 위에 빈 줄 한 줄 — 필지 사이 간격(사용자 요청 2026-09-29)
     if(ii>0&&!item.header&&item['명세_기호']&&!carry.length){var gap=newRow(r);cols.forEach(function(c){
-        // 용도지역별 일단지 — 꺾쇠가 이어지는 칸은 빈 줄에도 세로선
-        if(brStyle&&c==='G'&&item.gbr&&item.gbr!=='top'){gap.append(cell(d,'G'+r,brStyle.gline,'│'));return;}
-        if(brStyle&&c==='H'&&item.hbr&&item.hbr!=='top'){gap.append(cell(d,'H'+r,brStyle.line,'│'));return;}
         gap.append(cell(d,c+r,style[c],null));});sd.insertBefore(gap,footer);r++;}
     var split={};cols.forEach(function(c){var k=keys[c];
       if(!k){split[c]=[];return;}
@@ -594,22 +561,11 @@ async function buildStatement(rows){
     if(split.C){carry=split.C.slice(height);split.C=split.C.slice(0,height);}
     else split.C=carry.splice(0,height);
     var hasUnit=typeof item['명세_단가']==='number';   // 평가외 '-'·머리행 null이면 금액 수식 없음
+    var bk=item.hbr||item.br;
+    if(bk==='top')brOpen=r;else if(bk==='end'&&brOpen!=null){brackets.push([brOpen,r]);brOpen=null;}
     for(var j=0;j<height;j++){var row=newRow(r);
       (function(rr,first){cols.forEach(function(c){
         if(c==='J'){row.append(first&&item.out?cell(d,'J'+rr,style.J,'감정평가 외'):cell(d,'J'+rr,style.J,null,(first&&hasUnit)?'+I'+rr+'*H'+rr:null));return;}
-        // 사정면적 괄호선: 값 줄은 ┌(원 필지)·│(가운데 나눈 줄)·└(마지막 나눈 줄) 서식, 그 사이 빈 줄은 │
-        if(brStyle&&c==='G'&&item.gbr){
-          if(first&&split.G[0]!=null){row.append(cell(d,'G'+rr,brStyle['g'+item.gbr],split.G[0]));return;}
-          if(item.gbr!=='end'){row.append(cell(d,'G'+rr,brStyle.gline,'│'));return;}
-        }
-        if(brStyle&&c==='H'&&item.hbr){
-          if(first&&split.H[0]!=null){row.append(cell(d,'H'+rr,brStyle['h'+item.hbr],split.H[0]));return;}
-          if(item.hbr!=='end'){row.append(cell(d,'H'+rr,brStyle.line,'│'));return;}
-        }
-        if(c==='H'&&item.br&&brStyle){
-          if(first){row.append(cell(d,'H'+rr,brStyle[item.br],split.H[0]));return;}
-          if(item.br!=='end'){row.append(cell(d,'H'+rr,brStyle.line,'│'));return;}
-        }
         row.append(cell(d,c+rr,style[c],split[c][j]));
       });})(r,j===0);
       sd.insertBefore(row,footer);r++;}
@@ -632,6 +588,10 @@ async function buildStatement(rows){
   nodes(bd,'definedName').forEach(function(n){if(n.getAttribute('name')==='_xlnm.Print_Area'&&shift)n.textContent=n.textContent.replace(/\d+$/,function(v){return +v+shift;});});
   var cp=nodes(bd,'calcPr')[0]||bd.documentElement.appendChild(bd.createElementNS(X,'calcPr'));cp.setAttribute('fullCalcOnLoad','1');book.data=enc.encode(ser(bd));
   if(shift)entries.filter(function(e){return /^xl\/drawings\/drawing\d+\.xml$/.test(e.name);}).forEach(function(e){var drawing=xml(dec.decode(e.data));Array.from(drawing.getElementsByTagNameNS('*','row')).forEach(function(n){if(+n.textContent>=base-1)n.textContent=String(+n.textContent+shift);});e.data=enc.encode(ser(drawing));});
+  // 묶음 대괄호 도형 — 행 번호는 이미 최종 위치(합계행 이동과 무관). 도형 번호는 기존 최대 + 1부터.
+  if(brackets.length){var de=entries.find(function(e){return /^xl\/drawings\/drawing\d+\.xml$/.test(e.name);});
+    if(de){var ds=dec.decode(de.data),nid=Math.max.apply(null,[1].concat((ds.match(/cNvPr id="\d+"/g)||[]).map(function(x){return +x.match(/\d+/)[0];})))+1;
+      de.data=enc.encode(ds.replace(/<\/xdr:wsDr>\s*$/,brackets.map(function(b,i){return bracketXml(nid+i,b[0],b[1]);}).join('')+'</xdr:wsDr>'));}}
   return A.createZipStored(entries);
 }
 async function run(button,action,statusId){var st=$(statusId||'doc_status');button.disabled=true;if(st)st.textContent='문서를 만드는 중…';
