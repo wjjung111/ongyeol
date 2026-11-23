@@ -27,7 +27,9 @@ const FLR=[{dongNm:'101동',flrGbCdNm:'지상',flrNo:'1',flrNoNm:'1층',mainAtch
           if(op==='getBrTitleInfo')return r.fulfill({json:hub(TITLES)});
           if(op==='getBrRecapTitleInfo')return r.fulfill({json:hub(oldProxy?FLR:[RECAP])});
           if(op==='getBrExposInfo'){const d=sp.get('dongNm');exposDongs.push(d);return r.fulfill({json:hub([{dongNm:d,hoNm:'101호',flrNo:'1',flrGbCdNm:'지상'},{dongNm:d,hoNm:'102호',flrNo:'1',flrGbCdNm:'지상'}])});}
-          if(op==='getBrJijiguInfo'||op==='getBrAtchJibunInfo')return r.fulfill({json:hub([])});
+          // 관련지번 2필지(동마다 같은 지번이 반복돼 옴 → 중복 제거)
+          if(op==='getBrAtchJibunInfo')return r.fulfill({json:hub([11,12,11].map(b=>({atchBjdongCd:'11000',atchPlatGbCd:'0',atchBun:String(b).padStart(4,'0'),atchJi:'0000'})))});
+          if(op==='getBrJijiguInfo')return r.fulfill({json:hub([])});
           return r.fulfill({json:hub(FLR)});}
         return r.abort();});
       await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');}catch(e){}
@@ -41,6 +43,7 @@ const FLR=[{dongNm:'101동',flrGbCdNm:'지상',flrNo:'1',flrNoNm:'1층',mainAtch
       assert.equal(order[0],'recapPanel');assert.equal(order[1],'hoPanel');
       const info=await page.$eval('#tblRecap',e=>e.innerText);
       if(!oldProxy){
+        assert.match(info,/10 외 2필지/);assert.match(info,/관련지번 \(2필지\)\s+11, 12/);   // 외 N필지를 바로 아래에 전부
         assert.match(info,/31,234\.5/);assert.match(info,/300세대/);assert.match(info,/3동/);assert.match(info,/450대/);
       }else assert.match(info,/총괄표제부가 없습니다/);
       // 총괄표제부 엑셀 복사 — 개요(4칸) + 빈 줄 + 동별(층수·세대·호 칸 나눔, 연면적 숫자) + 합계 / 동별만
@@ -49,7 +52,7 @@ const FLR=[{dongNm:'101동',flrGbCdNm:'지상',flrNo:'1',flrNoNm:'1층',mainAtch
       const clip=await page.evaluate(()=>window.__clip);
       assert.equal(clip.length,2);
       const all=clip[0].split('\n'),only=clip[1].split('\n');
-      if(!oldProxy){assert.equal(all[0].split('\t')[0],'대지위치');assert.match(clip[0],/연면적\(㎡\)\t31,234\.5/);}
+      if(!oldProxy){assert.equal(all[0].split('\t')[0],'대지위치');assert.equal(all[1],'관련지번 (2필지)\t11, 12');assert.match(clip[0],/연면적\(㎡\)\t31,234\.5/);}
       else assert.match(all[0],/총괄표제부가 없습니다/);
       assert.equal(only[0],'#\t주/부\t동명칭\t주용도\t지상층수\t지하층수\t세대\t호\t연면적(㎡)\t사용승인일');
       assert.equal(only[1],'1\t주\t101동\t공동주택\t25\t2\t100\t0\t10000\t2000-01-01');
