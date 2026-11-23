@@ -31,9 +31,16 @@ const ARAP_TRAVEL_FEES={"서울특별시 종로구":40000,"서울특별시 중�
 function arapTravelFee(addr){
   // Official addresses split city and district; the fee table joins them without 시.
   // 표에 구가 없는 시(화성시 — 2026.02 만세·효행·병점·동탄구 신설)는 「경기도 화성시」 한 줄뿐이라 시를 남긴 주소(a0)로도 찾는다
-  const base=s=>String(s||'').replace(/\s+/g,'').replace(/^경기(?:도)?/,'경기도').replace(/^강원(?:특별자치도|도)?/,'강원도').replace(/^(?:전북(?:특별자치도)?|전라북도)/,'전라북도').replace(/^서울(?:특별시|시)?/,'서울특별시'),normalize=s=>base(s).replace(/시(?=[가-힣]+구)/g,'');
+  // 행정구역 개편(표는 서울지회 여비 2024.07.26 이름 그대로): 전남광주통합특별시(2026.07) → 광주 5개 구는 광주광역시, 나머지는 전라남도 /
+  // 인천(2026.07) 제물포구 → 중구, 영종구 → 중구 영종도, 서해구·검단구 → 서구 / 대구 군위군(2023.07 편입) → 경상북도 군위군
+  const base=s=>String(s||'').replace(/\s+/g,'').replace(/^경기(?:도)?/,'경기도').replace(/^강원(?:특별자치도|도)?/,'강원도').replace(/^(?:전북(?:특별자치도)?|전라북도)/,'전라북도').replace(/^서울(?:특별시|시)?/,'서울특별시')
+    .replace(/^(?:전남광주(?:통합)?특별시|광주특별시)(?=(?:동구|서구|남구|북구|광산구))/,'광주광역시').replace(/^(?:전남광주(?:통합)?특별시|광주특별시)/,'전라남도')
+    .replace(/^인천(?:광역시)?/,'인천광역시').replace(/^인천광역시제물포구/,'인천광역시중구').replace(/^인천광역시영종구/,'인천광역시중구영종도').replace(/^인천광역시(?:서해구|검단구)/,'인천광역시서구')
+    .replace(/^대구(?:광역시)?군위군/,'경상북도군위군'),normalize=s=>base(s).replace(/시(?=[가-힣]+구)/g,'');
   const a=normalize(addr),a0=base(addr);let best=null,bl=0;
   for(const k in ARAP_TRAVEL_FEES){const key=normalize(k);if((a.indexOf(key)>=0||a0.indexOf(key)>=0)&&key.length>bl){bl=key.length;best=ARAP_TRAVEL_FEES[k];}}
+  // 구가 있는 시인데 주소에 구가 없으면(「경기도 수원시」) 그 시의 구들이 모두 같은 금액일 때만 그 금액
+  if(best==null){const hit=new Set();for(const k in ARAP_TRAVEL_FEES){const key=normalize(k);if(!/구$/.test(key))continue;for(let i=3;i<key.length-1;i++){if(a0.indexOf(key.slice(0,i)+'시')===0){hit.add(ARAP_TRAVEL_FEES[k]);break;}}}if(hit.size===1)best=[...hit][0];}
   return best;
 }
 
