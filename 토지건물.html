@@ -872,7 +872,14 @@
             <span id="gj_wtInputs" style="display:none;font-size:13px">공시지가기준법 <input class="box" id="gj_wtA" inputmode="decimal" style="width:58px;text-align:right" placeholder="20" oninput="gjWtSet('a',this.value)"> %
               <span style="color:#94a3b8">·</span> 거래사례비교법 <input class="box" id="gj_wtB" inputmode="decimal" style="width:58px;text-align:right" placeholder="80" oninput="gjWtSet('b',this.value)"> %</span>
           </div>
-          <div id="gj_wtBox" style="margin-top:8px"><div id="gj_wtMsg" class="hint"></div><div class="tw" id="gj_wtTw" style="display:none"><table id="gj_wtTbl"></table></div><div id="gj_wtNote" class="hint"></div></div>
+          <div id="gj_wtBox" style="margin-top:8px"><div id="gj_wtMsg" class="hint"></div><div class="tw" id="gj_wtTw" style="display:none"><table id="gj_wtTbl"></table></div><div id="gj_wtNote" class="hint"></div>
+            <!-- 의견서 문장(감칙 제12조 제3항 시산가액 조정, 2026-11-23) — 비워 두면/「자동 문구로」면 비율·차이가 바뀔 때 따라 바뀜, 고치면 고친 대로 -->
+            <div id="gj_wtTxt" style="display:none;margin-top:10px">
+              <div class="fld"><label style="display:flex;align-items:center;gap:8px">의견서 「2) 시산가액의 합리성 검토」 문단 <button class="btn gh sm" type="button" onclick="gjWtTextSet(1,'',true)">자동 문구로</button><span class="hint" id="gj_wtT1h"></span></label>
+                <textarea class="box" id="gj_wtT1" rows="5" style="width:100%;resize:vertical;font-size:12px;line-height:1.5" oninput="gjWtTextSet(1,this.value)"></textarea></div>
+              <div class="fld" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px">의견서 「3) 토지감정평가액의 결정」 문단 <button class="btn gh sm" type="button" onclick="gjWtTextSet(2,'',true)">자동 문구로</button><span class="hint" id="gj_wtT2h"></span></label>
+                <textarea class="box" id="gj_wtT2" rows="4" style="width:100%;resize:vertical;font-size:12px;line-height:1.5" oninput="gjWtTextSet(2,this.value)"></textarea></div>
+            </div></div>
         </div>
       </div>
     </div>
@@ -3712,7 +3719,9 @@ function gjDecide(){
     rows.push({key:r.key,rk:k,apply:u,auto:auto,gs:num(r.apply),ga:gu,size:r.size,total:t});
   });
   var first=rows.find(function(x){return !x.out&&x.apply>0;});
-  return {wa:wa,wb:wb,rows:rows,applyUnit:first?first.apply:0,total:total,miss:miss};
+  var D={wa:wa,wb:wb,rows:rows,applyUnit:first?first.apply:0,total:total,miss:miss};
+  D.texts=gjWtTexts(D);
+  return D;
 }
 // 서류·화면이 쓰는 토지 줄 결정 값 — 가중평균이면 결정단가·금액으로 바꾼 사본, 아니면 공시지가기준법 줄 그대로(명세표·위치도)
 function landDecided(r){var D=window.LAND_DECIDED;if(!D||!r)return r;
@@ -3724,6 +3733,22 @@ function gjWtSet(k,v){
     var ea=document.getElementById('gj_wtA');if(ea)ea.value=LAND_WT.a;}
   calcGyeoljeong();saveForm();
 }
+// 의견서 문장 — 「감정평가에 관한 규칙」 제12조(감정평가방법의 적용 및 시산가액 조정) ② 합리성 검토 → ③ 합리성이 없다고 판단되면 시산가액을 조정하여 결정
+function gjPurpose(){var pu=document.getElementById('ov_purpose').value,k=document.getElementById('ov_kind').value;
+  return (window.arapPurposeDoc?window.arapPurposeDoc(pu,k,''):pu)||'일반거래(시가참고)';}
+function gjWtAuto(n,D){
+  var gs=(window.GONGSI_RESULT||{}).total||0,ga=(window.GEORAE_RESULT||{}).total||0;
+  if(n===1){var diff=(gs&&ga)?(Math.abs(gs-ga)/Math.max(gs,ga)*100).toFixed(1):'';
+    return '대상물건의 감정평가는 대상물건별로 정한 주된 감정평가방법을 적용하여 감정평가 하되, 「감정평가에 관한 규칙」 제12조 제2항에 의거 다른 감정평가방식에 속하는 하나 이상의 감정평가방법으로 산출한 시산가액과 비교하여 합리성을 검토하였음. '
+      +'대상부동산의 각 방법에 의한 시산가액을 검토하여 보면 공시지가기준법에 의한 시산가액('+won(gs)+'원)은 거래사례비교법에 의한 시산가액('+won(ga)+'원)과 약 '+diff+'%의 차이를 보이고 있어, '
+      +'인근지역의 거래가격 수준 및 대상토지의 시장성 등에 비추어 볼 때 공시지가기준법에 의한 시산가액만으로는 그 합리성이 충분히 인정된다고 보기 어려움.';}
+  return '본건은 '+gjPurpose()+' 목적으로서 수요성, 환가성, 공시지가와 인근지역의 현지조사 가격수준 등을 종합적으로 고려하여, 「감정평가에 관한 규칙」 제12조 제3항에 의거 '
+    +'주된 방법인 공시지가기준법에 의한 시산가액과 거래사례비교법에 의한 시산가액을 조정하되, 각각 '+D.wa+'%와 '+D.wb+'%의 가중치를 부여하여 가중평균한 가액을 토지감정평가액으로 결정하였음.';
+}
+function gjWtTexts(D){if(!D)return null;var o={};[1,2].forEach(function(n){var v=LAND_WT['t'+n];o['t'+n]=hasV(v)?String(v):gjWtAuto(n,D);});return o;}
+// reset = 「자동 문구로」 버튼 — 칸에 커서가 있어도 자동 문구를 다시 채운다
+function gjWtTextSet(n,v,reset){LAND_WT['t'+n]=v;var el=document.getElementById('gj_wtT'+n);if(reset&&el&&document.activeElement===el)el.blur();
+  calcGyeoljeong();saveForm();}
 function gjWtUnit(rk,v){LAND_WT.units=LAND_WT.units||{};if(hasV(v))LAND_WT.units[rk]=v;else delete LAND_WT.units[rk];calcGyeoljeong();saveForm();}
 function gjWtLabel(rk){if(rk==='g')return groupWord();if(/^z\d+$/.test(rk))return (typeof zoneDocNo==='function'?zoneDocNo(+rk.slice(1)):rk);
   var i=+rk;return LANDS[i]?String(landParcelNo(i)):rk;}
@@ -3737,6 +3762,10 @@ function gjWtRender(D,a,b){
   var row=document.getElementById('gj_wtRow');if(row)row.style.display=D?'':'none';
   var msg=document.getElementById('gj_wtMsg'),tw=document.getElementById('gj_wtTw'),note=document.getElementById('gj_wtNote');if(!msg)return;
   tw.style.display=D?'':'none';note.innerHTML='';
+  var tx=document.getElementById('gj_wtTxt');if(tx)tx.style.display=D?'':'none';
+  if(D)[1,2].forEach(function(n){var el=document.getElementById('gj_wtT'+n),own=hasV(LAND_WT['t'+n]);
+    if(el&&document.activeElement!==el)el.value=D.texts['t'+n];
+    var h=document.getElementById('gj_wtT'+n+'h');if(h)h.innerHTML=own?'<span style="color:#dc2626">직접 고친 문구</span>':'자동 문구(비율·차이가 바뀌면 따라 바뀜)';});
   if(!on){msg.innerHTML='켜면 「공시지가기준법 20% · 거래사례비교법 80%」처럼 두 방법의 적용단가를 가중평균한 단가로 토지감정평가액을 정합니다. 끄면 공시지가기준법 시산가액이 토지감정평가액입니다.';return;}
   if(!D){msg.innerHTML=wa==null?'<span style="color:#b91c1c">공시지가기준법 가중치(%)를 넣어 주세요.</span>':'공시지가기준법 계산을 먼저 입력해 주세요.';return;}
   msg.innerHTML='';
@@ -3755,7 +3784,7 @@ function gjWtRender(D,a,b){
   setTableHtml('gj_wtTbl',h);
   var n='';
   if(D.miss.length)n+='<div style="color:#b91c1c">거래사례비교법 적용단가가 없는 줄('+D.miss.map(gjWtLabel).join(', ')+')은 공시지가기준법 단가 그대로 씁니다.</div>';
-  n+='<div style="margin-top:4px">결정단가 = 공시 적용단가 × '+D.wa+'% + 거래 적용단가 × '+D.wb+'% → 반올림은 공시지가기준법 결정단가 설정을 따릅니다(칸은 직접 고칠 수 있음, 비우면 자동). 의견서 「합리성 검토 및 토지감정평가액의 결정」 문장도 가중평균으로 바뀝니다.</div>';
+  n+='<div style="margin-top:4px">결정단가 = 공시 적용단가 × '+D.wa+'% + 거래 적용단가 × '+D.wb+'% → 반올림은 공시지가기준법 결정단가 설정을 따릅니다(칸은 직접 고칠 수 있음, 비우면 자동). 의견서 「합리성 검토 및 토지감정평가액의 결정」 문장은 아래 칸 문구로 들어갑니다(감칙 제12조 제3항 시산가액 조정).</div>';
   note.innerHTML=n;
 }
 
@@ -4975,7 +5004,7 @@ function applyForm(o){
   ILDANJI=!!o.ILDANJI;ILDANJI_PREV_MODE=null;
   GZONES=Array.isArray(o.GZONES)?o.GZONES:[];ZONE_WHY=o.ZONE_WHY!=null?String(o.ZONE_WHY):'';
   GROUP_SHARE=o.GROUP_SHARE!=null?String(o.GROUP_SHARE):'';
-  LAND_WT=(o.LAND_WT&&typeof o.LAND_WT==='object')?{on:!!o.LAND_WT.on,a:o.LAND_WT.a!=null?String(o.LAND_WT.a):'',units:o.LAND_WT.units||{}}:{on:false,a:'',units:{}};   // 없던 옛 건 = 끔(공시지가기준법)
+  LAND_WT=(o.LAND_WT&&typeof o.LAND_WT==='object')?{on:!!o.LAND_WT.on,a:o.LAND_WT.a!=null?String(o.LAND_WT.a):'',units:o.LAND_WT.units||{},t1:o.LAND_WT.t1||'',t2:o.LAND_WT.t2||''}:{on:false,a:'',units:{}};   // 없던 옛 건 = 끔(공시지가기준법)
   LANDS=(o.LANDS&&o.LANDS.length)?o.LANDS:[{}];
   STDS=(o.STDS&&o.STDS.length)?o.STDS:[{}];
   renderStds();renderLands();
