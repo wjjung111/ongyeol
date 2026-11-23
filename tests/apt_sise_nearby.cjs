@@ -127,6 +127,16 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     // 체크 하나 끄면 다시 계산
     await page.click('#nTbody tr:not(.off) input');
     assert.equal((await row('한양1'))[4],'2');
+    // 상세 거래표 정렬(본건 표와 같게): 거래가 오름 → 내림, 다른 단지를 열어도 정렬 유지
+    const prices=()=>page.$$eval('#nTbody tr',rs=>rs.map(r=>r.children[4].textContent.trim()));
+    await page.click('#nDetail th[data-dk=price]');
+    assert.deepEqual(await prices(),['44억원','45억원','79억원','80억원','85억원']);
+    assert.match(await page.textContent('#nDetail th[data-dk=price]'),/▲/);
+    await page.click('#nDetail th[data-dk=price]');
+    assert.deepEqual(await prices(),['85억원','80억원','79억원','45억원','44억원']);
+    await page.click('#nDetail th[data-dk=include]');
+    assert.deepEqual(await page.$$eval('#nTbody tr',rs=>rs.map(r=>r.classList.contains('off'))),[false,false,true,true,true],'집계 먼저');
+    await page.click('#nDetail th[data-dk=date]');await page.click('#nDetail th[data-dk=date]');
     // 닫기
     await page.click('#nClose');assert.ok(await page.isHidden('#nDetail'));
 
