@@ -39,6 +39,7 @@
   .msg{padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:13px}
   .msg.err{background:var(--danger-bg);color:var(--danger);border:1px solid #f1c9c4}
   .msg.warn{background:var(--warn-bg);color:var(--warn);border:1px solid #f0dca8}
+  .msg.ok{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
   .big{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   @media (max-width:600px){.big{grid-template-columns:1fr}}
   .big .b{background:var(--surface);border:1px solid var(--line);border-radius:var(--t-radius);padding:14px 16px}
@@ -110,7 +111,7 @@
 </aside>
 <main class="page">
   <h1>아파트 실거래 시점수정</h1>
-  <p class="lede">단지 주소와 본건 면적만 넣으면 작성일 기준 최근 3년(체크하면 5년) 실거래를 부동산원 월간 아파트 매매가격지수로 시점수정해 본건 최저, 중간, 최고 가격을 보여줍니다. <a href="apt_nearby.html" style="color:var(--accent)">인근 유사 신축 실거래 →</a></p>
+  <p class="lede">단지 주소와 동, 호(또는 본건 면적)만 넣으면 작성일 기준 최근 3년(체크하면 5년) 실거래를 부동산원 월간 아파트 매매가격지수로 시점수정해 본건 최저, 중간, 최고 가격을 보여줍니다. <a href="apt_nearby.html" style="color:var(--accent)">인근 유사 신축 실거래 →</a></p>
 
   <div class="card">
     <div class="grid">
@@ -119,7 +120,7 @@
       <div><label>동</label><input id="dong" placeholder="101"></div>
       <div><label>호</label><input id="ho" placeholder="1203"></div>
       <div><label>층</label><input id="floor" inputmode="numeric" placeholder="12"></div>
-      <div><label>본건 전용면적(㎡)</label><input id="area" inputmode="decimal" placeholder="비우면 고르기"></div>
+      <div><label>본건 전용면적(㎡)</label><input id="area" inputmode="decimal" placeholder="비우면 동, 호로 자동"></div>
       <div><label>작성일 <span class="hint" id="baseHint"></span></label><input id="wdate" data-date placeholder="2026.11.11" autocomplete="off"></div>
       <div><label>조회 기간</label><label class="bandonly" style="height:36px;margin:0;color:var(--ink);white-space:nowrap"><input type="checkbox" id="long5"> 5년까지 (기본 3년)</label></div>
       <div><button class="primary" id="go" type="button">계산</button></div>
@@ -189,7 +190,7 @@
 <script>window.ARAP_DATE_POPUP=true;</script><script src="arap_date.js"></script><!-- 작성일 칸 누르면 집건과 같은 달력 -->
 <script src="arap_sgg_codes.js?v=20261111"></script>
 <script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
-<script src="arap_apt_sise.js?v=20261111g"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script src="arap_apt_sise.js?v=20261123a"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
 'use strict';
@@ -276,10 +277,35 @@ async function rtmsMonth(lawd, ym){
   return items;
 }
 
+/* 본건 동, 호 → 건축물대장 전유면적(집건 「건축물대장 불러오기」와 같은 모듈 ArapBldrgst).
+   표제부에서 동 이름 → 전유부에서 호 이름 → 전유공용면적의 전유 합계. 같은 필지, 동, 호는 한 번만 조회 */
+const unitCache = {};
+function unitAreaAt(pnu, dong, ho){
+  const key = pnu + '|' + dong + '|' + ho;
+  if (!unitCache[key]) unitCache[key] = (async () => {
+    const st = await ArapBldrgst.load(pnu, '');
+    const dn = A.matchDong(st.dongs, dong);
+    if (dn == null) return null;
+    const hl = await ArapBldrgst.hoList(pnu, dn);
+    const hn = A.matchHo(hl.list.map(x => x.hoNm), ho);
+    if (!hn) return null;
+    const u = await ArapBldrgst.unitFields(pnu, dn, hn);
+    const area = parseFloat(u.area);
+    return area > 0 ? {area, dongNm: dn, hoNm: hn, floor: u.floor, pnu} : null;
+  })().catch(() => { delete unitCache[key]; return null; });
+  return unitCache[key];
+}
+async function findUnitArea(pnus, dong, ho, first){
+  if (first){ const u = await first; if (u) return u; }
+  for (const p of pnus){ const u = await unitAreaAt(p, dong, ho); if (u) return u; }
+  return null;
+}
+const unitLabel = (d, h) => [d && String(d).replace(/동$/, '') + '동', h && String(h).replace(/호$/, '') + '호'].filter(Boolean).join(' ');
+
 async function calc(aptPick, parcel, keepSort){
   showMsg(''); $('pick').classList.add('hidden'); $('areaPick').classList.add('hidden');
-  const area = parseFloat(String($('area').value).replace(/,/g, '')) || null; // 비우면 단지 면적 종류에서 고르기
-  const subjectFloor = parseInt($('floor').value, 10) || A.floorFromHo($('ho').value);
+  let area = parseFloat(String($('area').value).replace(/,/g, '')) || null; // 비우면 동, 호로 건축물대장 조회 → 없으면 단지 면적 종류에서 고르기
+  let subjectFloor = parseInt($('floor').value, 10) || A.floorFromHo($('ho').value);
   const writeIso = readDate($('wdate').value) || todayIso();
   const histInput = inputNow(); // 조회 기록용(누른 순간의 입력)
   $('go').disabled = true; $('go').textContent = '계산 중...';
@@ -299,6 +325,10 @@ async function calc(aptPick, parcel, keepSort){
     }
     if (!addr) addr = A.resolveAddress(q, SGG);
     curParcel = parcel ? {id: parcel.id, addr: parcel.addr, q: $('address').value.trim()} : null;
+    // 면적이 비었고 호가 있으면 건축물대장 전유면적 조회 시작(실거래 받는 동안 같이). 주소로 찾은 필지부터
+    const uDong = $('dong').value.trim(), uHo = $('ho').value.trim();
+    const needUnit = !area && !!uHo && !!window.ArapBldrgst;
+    const unitFirst = needUnit && curParcel ? unitAreaAt(curParcel.id, uDong, uHo) : null;
     // 기준월: 규칙상 공표월, 자료 없으면 한 달씩 당김
     const ov = $('baseOverride').value.trim();
     const ruleYm = /^\d{6}$/.test(ov) ? ov : A.baseMonthByRule(writeIso);
@@ -330,6 +360,27 @@ async function calc(aptPick, parcel, keepSort){
     const idx = (cls, ym) => { const t = tbls[ym]; const v = t && t.vals.get(Number(cls)); return v || null; };
     const ats = A.areaTypes(trades);
     selAreas = selAreas.filter(a => ats.some(t => Math.abs(t.area - a) < 1e-9)); // 이 단지에 없는 면적은 버림
+    // 건축물대장 전유면적 → 면적 칸에 넣고, 같은(±0.5㎡) 실거래 면적 칩을 골라 둠. 주소 필지에 그 동이 없으면 실거래 단지 필지에서 찾음
+    let unitNote = null;
+    if (needUnit){
+      $('go').textContent = '건축물대장 면적 확인 중...';
+      const u = await findUnitArea(A.unitPnus(trades, curParcel && curParcel.id, uDong, 4), uDong, uHo, unitFirst);
+      const lbl = unitLabel(uDong, uHo);
+      if (u){
+        area = u.area;
+        $('area').value = u.area; $('area').dataset.auto = '1';
+        histInput.area = String(u.area); histInput.areaAuto = true;
+        if (/^\d+$/.test(String(u.floor || '')) && ($('floor').value === '' || $('floor').dataset.auto === '1')){
+          $('floor').value = u.floor; $('floor').dataset.auto = '1'; subjectFloor = +u.floor; histInput.floor = u.floor;
+        }
+        const near = A.nearestAreaType(ats, u.area, 0.5);
+        if (near != null && !selAreas.length) selAreas = [near];
+        unitNote = {kind: 'ok', text: `건축물대장 ${lbl} 전용면적 ${u.area}㎡를 넣었어요.` + (near != null ? ` 실거래 ${near}㎡ 거래를 같은 면적으로 골랐습니다.` : ' 실거래에 같은 면적이 없어 ±3% 면적대로 집계합니다.')};
+      } else {
+        unitNote = {kind: 'warn', text: `건축물대장에서 ${lbl} 전용면적을 못 찾았어요(동, 호 이름 확인). 아래에서 본건 면적을 고르세요.`};
+      }
+      $('go').textContent = '계산 중...';
+    }
     const res = A.calculate(trades, area, writeIso, chain, baseYm, idx, {subjectFloor, sameAreas: selAreas, lookback});
     res.areaTypes = ats;
     res.parcel = curParcel;
@@ -337,10 +388,11 @@ async function calc(aptPick, parcel, keepSort){
     res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
     res.subject = {dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: subjectFloor || null};
     last = res; if (!keepSort) { sortK = null; sortDir = 1; }
-    if (warns.length) showMsg(warns.join(' / '), 'warn');
+    if (warns.length) showMsg(warns.join(' / ') + (unitNote ? ' / ' + unitNote.text : ''), 'warn');
+    else if (unitNote) showMsg(unitNote.text, unitNote.kind);
     render();
     histRecord(histInput);
-    try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, mode, long5: $('long5').checked})); } catch (e) {}
+    try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, areaAuto: $('area').dataset.auto === '1', mode, long5: $('long5').checked})); } catch (e) {}
   } catch (e){
     if (e && e.candidates){ showRegionPick(e.message, e.candidates); return; }
     showMsg(e && e.name === 'AbortError' ? '응답이 늦어 중단했어요. 다시 눌러주세요.' : (e.message || String(e)));
@@ -368,7 +420,8 @@ function histSave(list){
 function inputNow(){
   return {address: $('address').value.trim(), dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: $('floor').value.trim(),
     area: $('area').value.trim(), wdate: $('wdate').value.trim(), mode, paste: mode === 'paste' ? $('paste').value : '',
-    caseArea: $('caseArea').value.trim(), baseOverride: $('baseOverride').value.trim(), long5: $('long5').checked};
+    caseArea: $('caseArea').value.trim(), baseOverride: $('baseOverride').value.trim(), long5: $('long5').checked,
+    areaAuto: $('area').dataset.auto === '1'}; // 면적이 건축물대장 자동값인지(동, 호를 바꾸면 다시 조회)
 }
 const histKeyOf = (i, pick) => {
   const area = parseFloat(String(i.area || '').replace(/,/g, '')) || '';
@@ -426,6 +479,7 @@ function histOpen(id){
   ['address', 'dong', 'ho', 'floor', 'area', 'wdate', 'caseArea', 'baseOverride'].forEach(k => { $(k).value = i[k] || ''; });
   $('long5').checked = !!i.long5;
   $('floor').dataset.auto = '1';
+  $('area').dataset.auto = i.areaAuto ? '1' : '';
   if (i.mode === 'paste') $('paste').value = i.paste || '';
   document.querySelector(`[data-mode=${i.mode === 'paste' ? 'paste' : 'api'}]`).click();
   paintBaseHint();
@@ -648,9 +702,14 @@ $('bandOnly').addEventListener('change', () => {
   if (last) render();
 });
 
-$('address').addEventListener('input', () => { curParcel = null; selAreas = []; });
+// 면적 칸이 건축물대장 자동값이면 주소, 동, 호를 바꿀 때 비움(다음 계산 때 새 동, 호로 다시 조회). 직접 친 면적은 그대로
+function clearAutoArea(){ const a = $('area'); if (a.dataset.auto === '1'){ a.value = ''; a.dataset.auto = ''; selAreas = []; } }
+$('area').addEventListener('input', () => { $('area').dataset.auto = ''; });
+$('dong').addEventListener('input', clearAutoArea);
+$('address').addEventListener('input', () => { curParcel = null; selAreas = []; clearAutoArea(); });
 // 호수를 넣으면 층 자동(1105 → 11). 층을 직접 고쳤으면 그 값을 우선.
 $('ho').addEventListener('input', () => {
+  clearAutoArea();
   const f = $('floor');
   if (f.value === '' || f.dataset.auto === '1'){ const v = A.floorFromHo($('ho').value); f.value = v || ''; f.dataset.auto = v ? '1' : ''; }
 });
@@ -684,7 +743,7 @@ $('histToggle').onclick = () => $('histPanel').classList.toggle('open');
 paintHist();
 try {
   const l = JSON.parse(localStorage.getItem('arap-apt-sise-last') || 'null');
-  if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); $('long5').checked = !!l.long5; $('floor').dataset.auto = '1'; /* 불러온 층은 자동값(호수를 새로 치면 바뀜) */ if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
+  if (l){ ['address', 'dong', 'ho', 'floor', 'area'].forEach(k => $(k).value = l[k] || ''); $('long5').checked = !!l.long5; $('floor').dataset.auto = '1'; $('area').dataset.auto = l.areaAuto ? '1' : ''; /* 불러온 층은 자동값(호수를 새로 치면 바뀜) */ if (l.mode === 'paste') document.querySelector('[data-mode=paste]').click(); }
 } catch (e) {}
 })();
 </script>

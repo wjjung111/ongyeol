@@ -288,7 +288,7 @@
         floor: /^-?\d+$/.test(String(r.floor || '').trim()) ? +r.floor : null,
         cancelled: String(r.cdealType || '').trim().toUpperCase() === 'O',
         direct: String(r.dealingGbn || '').trim() === '직거래',
-        apt: r.aptNm || '', dong: r.aptDong || '', src: '국토부 실거래',
+        apt: r.aptNm || '', dong: r.aptDong || '', pnu: pnuFromRtms(r), src: '국토부 실거래',
       });
     }
     trades.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -306,6 +306,64 @@
     const d = String(ho || '').replace(/\D/g, '');
     return d.length >= 3 ? parseInt(d.slice(0, -2), 10) || null : null;
   }
+  /* ── 본건 동, 호 → 건축물대장 전용면적 (2026-11-23) ── */
+  /** 국토부 실거래 행 → 필지번호(PNU 19자리). landCd 0 대지, 1 산, 2 블록(블록은 PNU 없음) */
+  function pnuFromRtms(r) {
+    const sgg = String(r.sggCd || '').trim(), umd = String(r.umdCd || '').trim(), lc = String(r.landCd ?? '').trim();
+    const bon = String(r.bonbun || '').trim(), bu = String(r.bubun || '').trim();
+    if (!/^\d{5}$/.test(sgg) || !/^\d{5}$/.test(umd) || !/^\d{1,4}$/.test(bon) || (bu && !/^\d{1,4}$/.test(bu)) || lc === '2') return null;
+    if (!+bon) return null;
+    return sgg + umd + (lc === '1' ? '2' : '1') + pad(+bon, 4) + pad(+(bu || 0), 4);
+  }
+  /** 동, 호 이름 정리: '제10동' '10 동' '010' → '10', '204호' → '204' */
+  const normUnit = (s, suf) => {
+    let v = String(s ?? '').replace(/\s+/g, '').replace(/^제/, '').replace(new RegExp(suf + '$'), '').toLowerCase();
+    if (/^\d+$/.test(v)) v = String(+v);
+    return v;
+  };
+  /** 대장의 동 이름 목록에서 입력한 동 찾기(없으면 null). 동이 하나뿐인 건물은 동을 비워도 그 동 */
+  function matchDong(names, dong) {
+    const list = (names || []).map(x => String(x ?? '').trim());
+    const want = normUnit(dong, '동');
+    if (!want) return list.length === 1 ? list[0] : null;
+    return list.find(x => normUnit(x, '동') === want) ?? null;
+  }
+  /** 대장의 호 이름 목록에서 입력한 호 찾기(없으면 null) */
+  function matchHo(names, ho) {
+    const want = normUnit(ho, '호');
+    if (!want) return null;
+    return (names || []).find(x => normUnit(x, '호') === want) ?? null;
+  }
+  /** 실거래 단지명 괄호 안 동 목록에 본건 동이 있나: '현대2차(10,11,20,23,24,25동)' + '10' → true */
+  function aptHasDong(aptNm, dong) {
+    const want = normUnit(dong, '동'), m = String(aptNm || '').match(/\(([^)]*)\)/);
+    if (!want || !m) return false;
+    return m[1].split(/[,，·\s]+/).some(x => normUnit(x, '동') === want);
+  }
+  /** 대장을 찾아볼 필지 순서: 본건 동이 든 단지의 필지 → 주소로 찾은 필지 → 나머지(거래 많은 순). 최대 n개 */
+  function unitPnus(trades, parcelPnu, dong, n) {
+    const score = new Map();
+    for (const t of trades || []) {
+      if (!t.pnu) continue;
+      const hit = (dong && normUnit(t.dong, '동') === normUnit(dong, '동')) || aptHasDong(t.apt, dong);
+      const s = score.get(t.pnu) || { hit: false, n: 0 };
+      s.hit = s.hit || hit; s.n++; score.set(t.pnu, s);
+    }
+    const out = [];
+    const add = p => { if (p && /^\d{19}$/.test(p) && !out.includes(p)) out.push(p); };
+    [...score.entries()].filter(([, s]) => s.hit).sort((a, b) => b[1].n - a[1].n).forEach(([p]) => add(p));
+    add(parcelPnu);
+    [...score.entries()].sort((a, b) => b[1].n - a[1].n).forEach(([p]) => add(p));
+    return out.slice(0, n || 4);
+  }
+  /** 대장 면적과 가장 가까운 실거래 면적 종류(차이 tol㎡ 이내, 없으면 null) */
+  function nearestAreaType(types, area, tol) {
+    const a = +area; if (!(a > 0)) return null;
+    let best = null;
+    for (const t of types || []) { const d = Math.abs(+t.area - a); if (d <= (tol ?? 0.5) + 1e-9 && (!best || d < best.d)) best = { area: +t.area, d }; }
+    return best ? best.area : null;
+  }
+
   /** 거래들의 전용면적 종류 [{area, n}] (해제 제외, 신고 면적 그대로, 작은 면적부터) */
   function areaTypes(trades) {
     const m = new Map();
@@ -386,7 +444,7 @@
     return v.length ? { n: v.length, total: rows.length, min: v[0], mid: median(v), max: v[v.length - 1] } : { n: 0, total: rows.length, min: null, mid: null, max: null };
   }
 
-  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, LOOKBACK, LOOKBACK_LONG };
+  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, pnuFromRtms, matchDong, matchHo, aptHasDong, unitPnus, nearestAreaType, LOOKBACK, LOOKBACK_LONG };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   g.ArapAptSise = api;
 })(typeof window !== 'undefined' ? window : globalThis);

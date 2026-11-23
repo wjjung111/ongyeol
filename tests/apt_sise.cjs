@@ -179,4 +179,36 @@ assert.deepEqual(r.sameAreas, [84.94, 84.96, 84.99]);
 r = A.calculate(mt, 84.94, '2026-11-11', [{cls: 1, path: 'x'}], '202609', flat);
 assert.deepEqual(r.rows.map(x => x.band), ['동일', '동일', '동일', '동일', '상이'], '고르지 않으면 ±3% 그대로');
 
+// 본건 동, 호 → 건축물대장 전용면적 (2026-11-23)
+assert.equal(A.pnuFromRtms({sggCd: '11680', umdCd: '11000', landCd: '0', bonbun: '0369', bubun: '0001'}), '1168011000103690001');
+assert.equal(A.pnuFromRtms({sggCd: '41480', umdCd: '10400', landCd: '1', bonbun: '12', bubun: ''}), '4148010400200120000', '산 → PNU 11번째 2');
+assert.equal(A.pnuFromRtms({sggCd: '41480', umdCd: '10400', landCd: '2', bonbun: '0012', bubun: '0000'}), null, '블록은 PNU 없음');
+assert.equal(A.pnuFromRtms({aptNm: '옛 자료'}), null);
+assert.equal(A.matchDong(['제10동', '제11동', '제110동'], '10'), '제10동');
+assert.equal(A.matchDong(['10동', '11동'], '10동'), '10동');
+assert.equal(A.matchDong(['101', '102'], '제101동'), '101');
+assert.equal(A.matchDong(['A동', 'B동'], 'a'), 'A동');
+assert.equal(A.matchDong(['제10동', '제11동'], '12'), null);
+assert.equal(A.matchDong([''], ''), '', '동 하나뿐인 건물은 동 비워도 됨');
+assert.equal(A.matchDong(['101동', '102동'], ''), null, '동이 여럿인데 동을 안 넣으면 못 고름');
+assert.equal(A.matchHo(['203호', '204호', '1204호'], '204'), '204호');
+assert.equal(A.matchHo(['제204호'], '204호'), '제204호');
+assert.equal(A.matchHo(['0204'], '204'), '0204');
+assert.equal(A.matchHo(['204호'], ''), null);
+assert.ok(A.aptHasDong('현대2차(10,11,20,23,24,25동)', '10') && !A.aptHasDong('현대2차(10,11,20,23,24,25동)', '12') && !A.aptHasDong('현대1차(110동)', '10'));
+const ut = [
+  {pnu: 'P1'.padEnd(19, '1'), apt: '현대1차(12,13동)', dong: ''}, {pnu: 'P1'.padEnd(19, '1'), apt: '현대1차(12,13동)', dong: ''},
+  {pnu: '2'.repeat(19), apt: '현대2차(10,11동)', dong: ''}, {pnu: null, apt: 'x'},
+].map(t => Object.assign({}, t, {pnu: t.pnu && t.pnu.replace(/\D/g, '1')}));
+assert.deepEqual(A.unitPnus(ut, '3'.repeat(19), '10'), ['2'.repeat(19), '3'.repeat(19), '1'.repeat(19)], '본건 동이 든 단지 필지 → 주소 필지 → 나머지');
+assert.deepEqual(A.unitPnus(ut, null, '99', 1), ['1'.repeat(19)]);
+const ats = [{area: 131.48, n: 10}, {area: 160.28, n: 12}, {area: 160.29, n: 4}];
+assert.equal(A.nearestAreaType(ats, 160.28), 160.28);
+assert.equal(A.nearestAreaType(ats, 160.2849), 160.28);
+assert.equal(A.nearestAreaType(ats, 160.6), 160.29, '0.5㎡ 안 가장 가까운 것');
+assert.equal(A.nearestAreaType(ats, 170), null);
+const fr = A.filterRtms([{umdNm: '압구정동', jibun: '369-1', aptNm: '현대2차(10,11동)', dealYear: '2026', dealMonth: '10', dealDay: '16', dealAmount: '900,000', excluUseAr: '160.28', floor: '11',
+  sggCd: '11680', umdCd: '11000', landCd: '0', bonbun: '0369', bubun: '0001'}], {umd: '압구정동', jibun: '369-1'});
+assert.equal(fr.trades[0].pnu, '1168011000103690001', '실거래 거래에 필지번호');
+
 console.log('apt_sise: OK');
