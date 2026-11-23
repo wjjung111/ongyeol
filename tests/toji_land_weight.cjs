@@ -69,8 +69,17 @@ const won=n=>Math.round(n).toLocaleString('ko-KR');
     assert.equal(st['명세_단가'],exp);assert.equal(st['명세_평가액'],exp*100);
     // 의견서 문장
     const on=await opinionText(page);
-    assert(on.includes('공시지가기준법에 의한 시산가액(20%)과 거래사례비교법에 의한 시산가액(80%)을 가중평균한 가액을 토지감정평가액으로 결정하였음.'),'켬 = 가중평균 문장');
+    assert(on.includes('「감정평가에 관한 규칙」 제12조 제3항에 의거 주된 방법인 공시지가기준법에 의한 시산가액과 거래사례비교법에 의한 시산가액을 조정하되, 각각 20%와 80%의 가중치를 부여하여 가중평균한 가액을 토지감정평가액으로 결정하였음.'),'켬 = 감칙 12조③ 결정 문장');
+    assert(on.includes('합리성이 충분히 인정된다고 보기 어려움.'),'켬 = 합리성 검토 문장');
     assert(!on.includes('공시지가기준법에 의한 시산가액의 합리성이 인정됨.'));
+    assert(!on.includes('공시지가기준법에 의한 시산가액을 토지감정평가액으로 결정하였음.'));
+    // 화면 문구 칸 — 자동 문구가 보이고, 고치면 의견서에 고친 대로
+    assert((await page.locator('#gj_wtT2').inputValue()).includes('각각 20%와 80%'));
+    await page.locator('#gj_wtT2').fill('직접 쓴 결정 문구 검증.');
+    const own=await opinionText(page);
+    assert(own.includes('직접 쓴 결정 문구 검증.')&&!own.includes('가중평균한 가액을 토지감정평가액으로'),'고친 문구가 의견서에');
+    await page.locator('#gj_wtTxt button').nth(1).click();
+    assert((await page.locator('#gj_wtT2').inputValue()).includes('각각 20%와 80%'),'자동 문구로 되돌림');
     assert(on.includes(won(exp*100)));
     // 결정단가 직접 고치기
     await page.evaluate(()=>gjWtUnit('0','2,000,000'));
