@@ -69,12 +69,20 @@ const won=n=>Math.round(n).toLocaleString('ko-KR');
     assert.equal(st['명세_단가'],exp);assert.equal(st['명세_평가액'],exp*100);
     // 의견서 문장
     const on=await opinionText(page);
-    assert(on.includes('「감정평가에 관한 규칙」 제12조 제3항에 의거 주된 방법인 공시지가기준법에 의한 시산가액과 거래사례비교법에 의한 시산가액을 조정하되, 각각 20%와 80%의 가중치를 부여하여 가중평균한 가액을 토지감정평가액으로 결정하였음.'),'켬 = 감칙 12조③ 결정 문장');
+    assert(on.includes('「감정평가에 관한 규칙」 제12조 제2항 및 제3항에 의거 주된 방법인 공시지가기준법에 의한 시산가액과 거래사례비교법에 의한 시산가액을 조정하였음.'),'켬 = 감칙 12조②③ 결정 문장');
+    assert(on.includes('실제 거래가격 수준을 보다 직접적으로 반영하고 있다고 판단되는바, 공시지가기준법에 의한 시산가액에 20%, 거래사례비교법에 의한 시산가액에 80%의 가중치를 적용하여 가중평균한 가액을 토지감정평가액으로 결정하였음.'),'거래 쪽이 크면 그 이유');
+    // 50:50 = 동일한 가중치 · 공시 쪽이 크면 객관성·안정성
+    await page.locator('#gj_wtA').fill('50');
+    assert((await page.locator('#gj_wtT2').inputValue()).includes('두 시산가액의 신뢰성이 대등하다고 판단되는바, 각각 동일한 가중치(50%)를 적용하여'),'50:50 문구');
+    assert.equal(await page.evaluate(()=>LAND_FINAL),await page.evaluate(([a,b])=>applyAuto((a+b)/2)*100,[f.gs,f.ga]),'50:50 토지가액');
+    await page.locator('#gj_wtA').fill('70');
+    assert((await page.locator('#gj_wtT2').inputValue()).includes('객관성과 안정성이 높다고 판단되는바, 공시지가기준법에 의한 시산가액에 70%'),'공시 쪽이 크면');
+    await page.locator('#gj_wtA').fill('20');
     assert(on.includes('합리성이 충분히 인정된다고 보기 어려움.'),'켬 = 합리성 검토 문장');
     assert(!on.includes('공시지가기준법에 의한 시산가액의 합리성이 인정됨.'));
     assert(!on.includes('공시지가기준법에 의한 시산가액을 토지감정평가액으로 결정하였음.'));
     // 화면 문구 칸 — 자동 문구가 보이고, 고치면 의견서에 고친 대로
-    assert((await page.locator('#gj_wtT2').inputValue()).includes('각각 20%와 80%'));
+    assert((await page.locator('#gj_wtT2').inputValue()).includes('시산가액에 80%의 가중치'));
     // 모양(2026-11-23): 제목 줄은 글상자 위 한 줄, 글상자는 카드 폭 전체·스크롤 없이 글 길이만큼, 되돌리기 버튼은 고쳤을 때만
     const lay=await page.evaluate(()=>[1,2].map(n=>{const t=document.getElementById('gj_wtT'+n),hd=t.previousElementSibling,b=hd.querySelector('b'),box=document.getElementById('gj_wtTxt');
       const tr=t.getBoundingClientRect(),hr=hd.getBoundingClientRect(),br=b.getBoundingClientRect(),xr=box.getBoundingClientRect();
@@ -86,7 +94,7 @@ const won=n=>Math.round(n).toLocaleString('ko-KR');
     const own=await opinionText(page);
     assert(own.includes('직접 쓴 결정 문구 검증.')&&!own.includes('가중평균한 가액을 토지감정평가액으로'),'고친 문구가 의견서에');
     await page.locator('#gj_wtTxt button').nth(1).click();
-    assert((await page.locator('#gj_wtT2').inputValue()).includes('각각 20%와 80%'),'자동 문구로 되돌림');
+    assert((await page.locator('#gj_wtT2').inputValue()).includes('시산가액에 80%의 가중치'),'자동 문구로 되돌림');
     assert(on.includes(won(exp*100)));
     // 결정단가 직접 고치기
     await page.evaluate(()=>gjWtUnit('0','2,000,000'));
