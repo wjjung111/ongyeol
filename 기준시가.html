@@ -98,6 +98,16 @@ table.rows tr.res td{background:var(--surface2)}
 .qbasis{font-size:12px;color:var(--ink2);background:var(--surface2);border-radius:6px;padding:10px 12px;line-height:1.75;margin-top:10px}
 .qbasis b{color:var(--ink)}
 .qbasis ul{margin:4px 0 0;padding-left:18px}
+/* 여러 동: 동마다 결과 표를 한꺼번에 (2026-11-23) */
+.qall{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:14px}
+.qhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-size:14px}
+.qhead .amt{font-family:var(--mono);color:var(--acc);font-weight:700}
+.qhead .sp{margin-left:auto;display:flex;gap:6px;align-items:center}
+.qdong{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+.qdong.cur{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.qdong details{margin-top:8px}
+.qdong details summary{cursor:pointer;font-size:12px;color:var(--ink2)}
+.qcopy{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
 main[hidden]{display:none!important}
 @media (max-width:600px){.quick{padding:16px 16px 0}.qrow .f.date{width:100%}}
 
@@ -247,7 +257,7 @@ footer{max-width:1280px;margin:0 auto;padding:0 24px 40px;color:var(--ink3);font
       <button type="button" class="btn primary" id="qGo" style="min-height:36px">기준시가 계산</button>
     </div>
     <div class="status" id="qStatus"></div>
-    <div class="qrow" id="qDongRow" hidden><label class="f" style="min-width:260px"><span>동 <small>(여러 동 건물)</small></span><select id="qDong"></select></label><span class="hint" id="qDongInfo" style="margin:0 0 8px"></span></div>
+    <div class="qrow" id="qDongRow" hidden><label class="f" style="min-width:260px"><span>상세 수정할 동 <small>(여러 동 건물)</small></span><select id="qDong"></select></label><span class="hint" id="qDongInfo" style="margin:0 0 8px"></span></div>
     <div class="qres" id="qResult"></div>
     <div id="qToggleRow"><button type="button" class="btn" id="toggleBld" hidden>📄 건축물대장 보기 ▾</button> <button type="button" class="btn" id="toggleDetail">상세 입력·수정 열기 ▾</button> <span class="hint" style="margin-left:6px">자동으로 잡힌 용도·층 특성이 틀리면 여기서 고치면 위 표가 같이 바뀝니다</span></div>
     <div class="bldwrap" id="qBldWrap" aria-hidden="true"><div class="bldpanel" id="qBld"></div></div>
@@ -491,54 +501,112 @@ function calc(){
   verify(ready, landVal, totSJ, nonresSJ, resShare);
   save();
   window.__calc={year,base,sIdx,rr,loc,adjII:adjIInon,lines:lines.map(l=>Object.assign({res:l.isRes},l)),totSJ,totYD,landVal};
+  const S=IMP&&DONG_ST[CUR_DONG]; if(S){ S.f=curDongF(); S.rows=rows.map(r=>({...r})); S.basis={strct:basis.strct,roof:basis.roof,dandok:basis.dandok}; }   // 고른 동의 상세 수정을 그 동에 남김
   renderQuick(res);
 }
 
 // ---------- 간편 계산 결과 (토지건물 ARM 건물평가 탭 카드와 같은 모양) + 산출근거 ----------
+let IMP=null, IMP_RAW={};   // 지번 조회 결과(표제부·층별개요) — calc가 처음 돌 때도 읽으므로 맨 앞에
+let DONG_ST=[], CUR_DONG=0;   // 여러 동: 동별 입력값·층별 행(아래 dongDerive)
+const DONG_FIELDS=["structure","lifeGroup","builtYear","remodelYear","topFloor","roof","intel","siteName"];
 let basis = {};   // 대장에서 읽은 원문 (구조·지붕·공시지가 연도·단독주택 판정)
 const f2 = n => (+n).toLocaleString("ko-KR",{maximumFractionDigits:2});
 const GRP = ["","Ⅰ그룹 50년","Ⅱ그룹 40년","Ⅲ그룹 30년","Ⅳ그룹 20년"];
 const escH = t => String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function useName(no){ for(const g of USE) for(const u of g[1]) if(u[0]===no) return u[1].replace(/\s*\(.*\)\s*$/,""); return ""; }
-function adjWhy(l,i,res){
+function adjWhy(l,i,res,rws){
   const p=[];
   if(l.adjI!==1) p.push(`지붕 ${l.adjI}`);
   if(l.isRes){ if(l.ftype==="apt") p.push(`아파트 최고층수 ${l.adjII}`); else p.push("주거용이라 Ⅱ 미적용"); }
   else if(l.adjII===1&&l.sIdx===structIdx(res.year,1)) p.push("통나무조 Ⅱ 제외");
   else { const a=l.isAtt?res.attArea:res.nonArea; p.push(`Ⅱ ${l.adjII.toFixed(2)} (층수 ${res.fIdx??"-"} · ${l.isAtt?"부속":"비주거"} ${f2(a)}㎡ → ${G.areaIdx(a)} 중 큰 값)`); }
   if(l.ftAdj!==1){ const f=FLOORTYPE.find(x=>x[0]===l.ftype); p.push(f?f[1]:String(l.ftAdj)); }
-  if(l.exAdj!==1){ const e=EXTRA.find(x=>x[0]===(rows[i]&&rows[i].extra)); p.push(e?e[1]:String(l.exAdj)); }
+  if(l.exAdj!==1){ const e=EXTRA.find(x=>x[0]===(rws[i]&&rws[i].extra)); p.push(e?e[1]:String(l.exAdj)); }
   return p.join(" · ");
 }
-function renderQuick(res){
-  const box=$("qResult"); if(!box) return;
-  if(!res.lines.some(l=>l.area>0)){ box.innerHTML=""; return; }
-  if(!res.ready){ box.innerHTML=`<p class="hint">${res.missing.join("·")}이(가) 없어 계산하지 못했습니다. 아래 「상세 입력·수정」에서 채워 주세요.</p>`; return; }
-  const isSJ=mode==="sj", year=res.year, built=+$("builtYear").value, remodel=+$("remodelYear").value||0, land=+$("landPrice").value;
+// 결과 표 한 벌(동 하나) — rws·bs·f = 그 동의 층별 행·대장 원문·입력값. 화면 입력칸을 직접 읽지 않아 여러 동을 한꺼번에 그릴 수 있다
+const Q_HEAD=["층 (용도)","구조","용도","잔가율","조정률","㎡당(절사)","면적(㎡)","기준시가(원)"];
+function quickParts(res,rws,bs,f){
+  if(!res.lines.some(l=>l.area>0)) return null;
+  if(!res.ready) return {err:`<p class="hint">${res.missing.join("·")}이(가) 없어 계산하지 못했습니다. 아래 「상세 입력·수정」에서 채워 주세요.</p>`};
+  const isSJ=mode==="sj", year=res.year, built=+f.builtYear, remodel=+f.remodelYear||0, land=+$("landPrice").value;
   const rrShow=isSJ?res.rr:res.rrYD;
-  const resMain=rows.filter(r=>/^res(_s\d)?$/.test(r.ftype)).reduce((a,r)=>a+(+r.area||0),0);
-  const dandok=rows.some(r=>/^res_s/.test(r.ftype))||basis.dandok;
-  let h=`<p class="sumline">${year}년 고시 · 기준액 ${fmt(res.base)}원/㎡ · 위치지수 ${res.loc.idx}(공시지가 ${fmt(land)}원/㎡) · 잔가율 ${built}년 신축 ${GRP[res.group].split(" ")[0]} ${rrShow} · 최고층수 ${res.top}층 · 연면적 ${f2(res.areaAll)}㎡`
-    +(dandok?` · 단독주택 주택 부분 ${f2(resMain)}㎡ → 조정률Ⅲ ${rows.some(r=>r.ftype==="res_s2")?"140":rows.some(r=>r.ftype==="res_s1")?"120":"해당 없음(264㎡ 미만)"}`:"")+`</p>`;
-  h+=`<div class="tablewrap"><table><tr><th>층 (용도)</th><th>구조</th><th>용도</th><th>잔가율</th><th>조정률</th><th>㎡당(절사)</th><th>면적(㎡)</th><th>기준시가(원)</th></tr>`;
+  const resMain=rws.filter(r=>/^res(_s\d)?$/.test(r.ftype)).reduce((a,r)=>a+(+r.area||0),0);
+  const dandok=rws.some(r=>/^res_s/.test(r.ftype))||bs.dandok;
+  const sum=`<p class="sumline">${year}년 고시 · 기준액 ${fmt(res.base)}원/㎡ · 위치지수 ${res.loc.idx}(공시지가 ${fmt(land)}원/㎡) · 잔가율 ${built}년 신축 ${GRP[res.group].split(" ")[0]} ${rrShow} · 최고층수 ${res.top}층 · 연면적 ${f2(res.areaAll)}㎡`
+    +(dandok?` · 단독주택 주택 부분 ${f2(resMain)}㎡ → 조정률Ⅲ ${rws.some(r=>r.ftype==="res_s2")?"140":rws.some(r=>r.ftype==="res_s1")?"120":"해당 없음(264㎡ 미만)"}`:"")+`</p>`;
+  let t=`<div class="tablewrap"><table><tr>${Q_HEAD.map(x=>`<th>${x}</th>`).join("")}</tr>`;
+  const tsv=[];
   res.lines.forEach((l,i)=>{
-    const r=rows[i]||{}, adj=isSJ&&l.adj!==1?+l.adj.toFixed(4):"-";
+    const r=rws[i]||{}, adj=isSJ&&l.adj!==1?+l.adj.toFixed(4):"-";
     const lab=r.label||`${r.floor||l.floor} ${useName(l.use)}`;
-    h+=`<tr><td class="lab">${escH(lab)}${r.note?` <span class="tag" title="${escH(r.note)}">확인</span>`:""}</td><td>${l.sIdx}</td><td>${l.u}</td><td>${isSJ?l.rr:l.rrYD}</td><td>${adj}</td><td>${fmt(isSJ?l.unitSJ:l.unitYD)}</td><td>${f2(l.area)}</td><td>${fmt(isSJ?l.vSJ:l.vYD)}</td></tr>`;
+    t+=`<tr><td class="lab">${escH(lab)}${r.note?` <span class="tag" title="${escH(r.note)}">확인</span>`:""}</td><td>${l.sIdx}</td><td>${l.u}</td><td>${isSJ?l.rr:l.rrYD}</td><td>${adj}</td><td>${fmt(isSJ?l.unitSJ:l.unitYD)}</td><td>${f2(l.area)}</td><td>${fmt(isSJ?l.vSJ:l.vYD)}</td></tr>`;
+    tsv.push([lab,l.sIdx,l.u,isSJ?l.rr:l.rrYD,adj,isSJ?l.unitSJ:l.unitYD,+l.area,isSJ?l.vSJ:l.vYD]);
   });
-  h+=`<tr class="tot"><td colspan="6" style="text-align:right">건물 합계 (${isSJ?"상속·증여용":"양도용"})</td><td>${f2(res.areaAll)}</td><td class="big">${fmt(isSJ?res.totSJ:res.totYD)}</td></tr></table></div>`;
-  h+=`<p class="hint">${isSJ?"양도용(조정률 없음)":"상속·증여용(조정률 적용)"} ${won(isSJ?res.totYD:res.totSJ)} · 주거용 층은 상속·증여 시 개별주택가격으로 평가되므로 참고값 · 위반건축물·용도변경 시점은 정부24 대장으로 확인</p>`;
+  const totLab=`건물 합계 (${isSJ?"상속·증여용":"양도용"})`, tot=isSJ?res.totSJ:res.totYD;
+  t+=`<tr class="tot"><td colspan="6" style="text-align:right">${totLab}</td><td>${f2(res.areaAll)}</td><td class="big">${fmt(tot)}</td></tr></table></div>`;
+  tsv.push([totLab,"","","","","",Math.round(res.areaAll*100)/100,tot]);
+  const hint=`<p class="hint">${isSJ?"양도용(조정률 없음)":"상속·증여용(조정률 적용)"} ${won(isSJ?res.totYD:res.totSJ)} · 주거용 층은 상속·증여 시 개별주택가격으로 평가되므로 참고값 · 위반건축물·용도변경 시점은 정부24 대장으로 확인</p>`;
   // 산출근거 (간략)
-  const sNo=+$("structure").value, st=STRUCT.find(x=>x[0]===sNo);
+  const sNo=+f.structure, st=STRUCT.find(x=>x[0]===sNo);
   const b=[];
-  b.push(`<b>구조</b> ${basis.strct?`대장 "${escH(basis.strct)}" → `:""}${sNo}번 ${st?st[1]:""} = 지수 ${res.sIdx} · 내용연수 ${GRP[res.group]}`);
+  b.push(`<b>구조</b> ${bs.strct?`대장 "${escH(bs.strct)}" → `:""}${sNo}번 ${st?st[1]:""} = 지수 ${res.sIdx} · 내용연수 ${GRP[res.group]}`);
   b.push(`<b>위치</b> 개별공시지가 ${fmt(land)}원/㎡${basis.landYear?` (${basis.landYear}년 공시)`:""} → ${res.loc.no}번 구간(${fmt(res.loc.lo)}~${res.loc.hi===Infinity?"":fmt(res.loc.hi)+"원 미만"}) = ${res.loc.idx}`);
   b.push(`<b>잔가율</b> ${year} − ${built} = 경과 ${Math.max(0,year-built)}년 → 1 − 0.9 × 경과 ÷ 내용연수 = ${rrShow}${remodel?(isSJ?` (리모델링 ${remodel}년 할증 반영)`:" (양도는 리모델링 할증 없음)"):""}`);
-  if(res.sIdx<100) b.push(`<b>지붕</b> ${basis.roof?`대장 "${escH(basis.roof)}" → `:""}조정률Ⅰ ${$("roof").value} (구조지수 100 미만이라 적용)`);
-  const rowB=res.lines.map((l,i)=>{ const r=rows[i]||{}; return `<li><b>${escH(r.label||r.floor||l.floor)}</b>: 용도 ${l.use}번 ${useName(l.use)} = ${l.u}${r.why?` (${escH(r.why)})`:""}${isSJ?` · 조정률: ${adjWhy(l,i,res)}`:""}</li>`; }).join("");
-  h+=`<div class="qbasis"><b>산출근거</b> · ㎡당 = 기준액 × 구조 × 용도 × 위치 × 잔가율${isSJ?" × 조정률":""} → 천원 미만 절사 → × 면적<ul>${b.map(x=>`<li>${x}</li>`).join("")}${rowB}</ul></div>`;
+  if(res.sIdx<100) b.push(`<b>지붕</b> ${bs.roof?`대장 "${escH(bs.roof)}" → `:""}조정률Ⅰ ${f.roof} (구조지수 100 미만이라 적용)`);
+  const rowB=res.lines.map((l,i)=>{ const r=rws[i]||{}; return `<li><b>${escH(r.label||r.floor||l.floor)}</b>: 용도 ${l.use}번 ${useName(l.use)} = ${l.u}${r.why?` (${escH(r.why)})`:""}${isSJ?` · 조정률: ${adjWhy(l,i,res,rws)}`:""}</li>`; }).join("");
+  const bas=`<div class="qbasis"><b>산출근거</b> · ㎡당 = 기준액 × 구조 × 용도 × 위치 × 잔가율${isSJ?" × 조정률":""} → 천원 미만 절사 → × 면적<ul>${b.map(x=>`<li>${x}</li>`).join("")}${rowB}</ul></div>`;
+  return {sum,table:t,hint,basis:bas,tsv,tot,alt:isSJ?res.totYD:res.totSJ,area:res.areaAll};
+}
+let Q_TSV="";   // 「📋 표 복사」가 복사할 글(탭 구분)
+const tsvLine=a=>a.map(v=>String(v??"").replace(/[\t\n]/g," ")).join("\t");
+function renderQuick(res){
+  const box=$("qResult"); if(!box) return;
+  const multi=IMP&&IMP.titles.length>1&&DONG_ST.length===IMP.titles.length;
+  if(!multi){
+    const q=quickParts(res,rows,basis,curDongF());
+    if(!q){ box.innerHTML=""; Q_TSV=""; return; }
+    if(q.err){ box.innerHTML=q.err; Q_TSV=""; return; }
+    Q_TSV=[tsvLine(Q_HEAD),...q.tsv.map(tsvLine)].join("\n");
+    box.innerHTML=q.sum+q.table+`<div class="qcopy"><button type="button" class="btn" data-qcopy>📋 표 복사</button><span class="hint" id="qCopyMsg">엑셀에 Ctrl+V</span></div>`+q.hint+q.basis;
+    return;
+  }
+  // 여러 동: 동마다 따로 계산해 전부 보여 줌. 고른 동(상세 수정 중)은 지금 화면 입력값, 나머지는 각 동에 저장해 둔 값
+  const isSJ=mode==="sj", all=IMP.titles.map((t,i)=>{ const st=DONG_ST[i]; const r=i===CUR_DONG?res:dongCompute(st); return {t,i,st,q:quickParts(r,st.rows,st.basis,st.f)}; });
+  const ok=all.filter(x=>x.q&&!x.q.err), sumAll=ok.reduce((a,x)=>a+x.q.tot,0), altAll=ok.reduce((a,x)=>a+x.q.alt,0), areaAll=ok.reduce((a,x)=>a+x.q.area,0);
+  const purp=t=>tx(t.mainPurpsCdNm)||"용도 미상";
+  let h=`<div class="qall"><div class="qhead"><b>전체 ${all.length}동</b> <span class="amt">${fmt(sumAll)}원</span><span class="hint">(${isSJ?"상속·증여용":"양도용"}${ok.length<all.length?` · 계산 못 한 동 ${all.length-ok.length}개 제외`:""})</span>
+    <span class="sp"><button type="button" class="btn" data-qcopy>📋 표 복사</button><span class="hint" id="qCopyMsg">전체 동 · 엑셀에 Ctrl+V</span></span></div>
+    <div class="tablewrap"><table><tr><th>동</th><th>주용도</th><th>연면적(㎡)</th><th>기준시가(${isSJ?"상속·증여용":"양도용"})</th><th>${isSJ?"양도용(조정률 없음)":"상속·증여용"}</th></tr>`;
+  all.forEach(x=>{ h+=`<tr><td class="lab">${escH(dongName(x.t))}${/부속/.test(tx(x.t.mainAtchGbCdNm))?" (부속)":""}</td><td class="lab">${escH(purp(x.t))}</td><td>${x.q&&!x.q.err?f2(x.q.area):"-"}</td><td>${x.q&&!x.q.err?fmt(x.q.tot):"계산 못 함"}</td><td>${x.q&&!x.q.err?fmt(x.q.alt):"-"}</td></tr>`; });
+  h+=`<tr class="tot"><td colspan="2" style="text-align:right">합계</td><td>${f2(areaAll)}</td><td class="big">${fmt(sumAll)}</td><td>${fmt(altAll)}</td></tr></table></div></div>`;
+  all.forEach(x=>{
+    const cur=x.i===CUR_DONG;
+    h+=`<div class="qdong${cur?" cur":""}"><div class="qhead"><b>${escH(dongName(x.t))}</b> <span class="hint">${escH(purp(x.t))} · ${fmt(+x.t.totArea||0)}㎡</span>${x.q&&!x.q.err?` <span class="amt">${fmt(x.q.tot)}원</span>`:""}
+      <span class="sp">${cur?`<span class="chip">상세 수정 중</span>`:`<button type="button" class="btn" data-qedit="${x.i}" style="padding:3px 9px;font-size:12px">이 동 상세 수정</button>`}</span></div>`;
+    if(!x.q) h+=`<p class="hint">층별 면적이 없습니다.</p>`;
+    else if(x.q.err) h+=x.q.err;
+    else h+=x.q.sum+x.q.table+`<details><summary>산출근거 보기</summary>${x.q.basis}</details>`;
+    h+=`</div>`;
+  });
+  h+=ok.length?ok[0].q.hint:"";
+  // 복사: ① 동별 요약 ② 빈 줄 ③ 동별 층 내역(동 칸 + 표, 동마다 합계 줄)
+  const L=[tsvLine(["동","주용도","연면적(㎡)",`기준시가(${isSJ?"상속·증여용":"양도용"})`,isSJ?"양도용(조정률 없음)":"상속·증여용"])];
+  all.forEach(x=>L.push(tsvLine([dongName(x.t),purp(x.t),x.q&&!x.q.err?Math.round(x.q.area*100)/100:"",x.q&&!x.q.err?x.q.tot:"계산 못 함",x.q&&!x.q.err?x.q.alt:""])));
+  L.push(tsvLine(["합계","",Math.round(areaAll*100)/100,sumAll,altAll]),"",tsvLine(["동",...Q_HEAD]));
+  ok.forEach(x=>x.q.tsv.forEach(r=>L.push(tsvLine([dongName(x.t),...r]))));
+  Q_TSV=L.join("\n");
   box.innerHTML=h;
 }
+$("qResult").addEventListener("click",e=>{
+  const ed=e.target.closest("[data-qedit]");
+  if(ed){ const i=+ed.dataset.qedit; $("qDong").value=String(i); applyBldDong(i); const d=$("detail"); if(d.hidden) $("toggleDetail").click(); $("qDongRow").scrollIntoView({behavior:"smooth",block:"start"}); return; }
+  if(e.target.closest("[data-qcopy]")&&Q_TSV){
+    const done=()=>{ const m=$("qCopyMsg"); if(m){ m.textContent="✅ 복사됨 — 엑셀에서 Ctrl+V"; m.style.color="var(--ok, #15803d)"; } };
+    const old=()=>{ const ta=document.createElement("textarea"); ta.value=Q_TSV; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); done(); }catch(x){ alert("복사가 안 됩니다. 표를 마우스로 긁어서 복사하세요."); } ta.remove(); };
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(Q_TSV).then(done).catch(old); else old();
+  }
+});
 
 function verify(ready, landVal, totSJ, nonresSJ, resShare){
   const el=$("verify"); const out=[];
@@ -706,9 +774,9 @@ async function importByAddress(q){
       if(+hc.calcPlotAr>0){ $("housePlot").value=hc.calcPlotAr; notes.push(`주택 산정 대지면적 ${hc.calcPlotAr}㎡ · 산정 건물면적 ${hc.buldCalcTotAr||"?"}㎡ (전체 연면적 ${hc.buldAllTotAr||"?"}㎡) → 토지 안분에 사용`); } }
     else if(!(houseD&&houseD.err)) notes.push("개별주택가격 없음 (주택 부분이 없거나 미공시)");
     IMP.notes=notes.slice();   // 토지·주택 근거(동과 무관)
-    fillDongSel(); applyBldDong(0);
+    fillDongSel(); DONG_ST=[]; IMP.titles.forEach((_,i)=>{ DONG_ST[i]=dongDerive(i); }); applyBldDong(0);
     histAdd(s.addr||q);
-  }catch(e){ console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); IMP=null; $("qDongRow").hidden=true; $("toggleBld").hidden=true; setBldOpen(false); }
+  }catch(e){ console.error(e); st.className="status err"; st.textContent="실패: "+(e.message||e); IMP=null; DONG_ST=[]; $("qDongRow").hidden=true; $("toggleBld").hidden=true; setBldOpen(false); }
   finally{ btn.disabled=false; $("apiLog").hidden=false; IMP_RAW=raw; if(!IMP) $("apiRaw").textContent=notes.join("\n")+"\n\n"+JSON.stringify(raw,null,1).slice(0,20000); }
 }
 // ── 건축물대장 펼쳐 보기: 이미 받은 표제부·층별개요(IMP)로 그림 — 추가 조회 없음. 여러 동이면 고른 동 ──
@@ -740,7 +808,6 @@ function renderBldPanel(idx){
 function setBldOpen(on){ const w=$("qBldWrap"); w.classList.toggle("open",on); w.setAttribute("aria-hidden",!on); $("toggleBld").textContent=on?"📄 건축물대장 접기 ▴":"📄 건축물대장 보기 ▾"; }
 $("toggleBld").addEventListener("click",()=>setBldOpen(!$("qBldWrap").classList.contains("open")));
 // ── 여러 동 건물(공장·창고 단지 등): 동마다 표제부가 따로 있고 층별개요에 dongNm이 붙어 옴 → 건물 기준시가는 동별로 계산 ──
-let IMP=null, IMP_RAW={};
 const tx=v=>String(v==null?"":v).trim();
 function sortTitles(a){ return a.slice().sort((x,y)=>(/부속/.test(tx(x.mainAtchGbCdNm))?1:0)-(/부속/.test(tx(y.mainAtchGbCdNm))?1:0)||tx(x.dongNm).localeCompare(tx(y.dongNm),"ko",{numeric:true})); }
 const dongName=t=>tx(t.dongNm)||tx(t.bldNm)||"(동 이름 없음)";
@@ -748,28 +815,34 @@ function fillDongSel(){
   const ts=IMP.titles, row=$("qDongRow");
   row.hidden=ts.length<2; if(ts.length<2) return;
   $("qDong").innerHTML=ts.map((t,i)=>`<option value="${i}">${dongName(t)} · ${tx(t.mainPurpsCdNm)||"용도 미상"} · ${fmt(+t.totArea||0)}㎡${/부속/.test(tx(t.mainAtchGbCdNm))?" (부속)":""}</option>`).join("");
-  $("qDongInfo").textContent=`이 지번에 건물이 ${ts.length}동 있습니다. 건물 기준시가는 동별로 계산하니 동을 고르세요.`;
+  $("qDongInfo").textContent=`이 지번에 건물이 ${ts.length}동 있습니다. 아래에 동마다 따로 계산해 모두 보여 줍니다. 「상세 입력·수정」은 여기서 고른 동에 적용됩니다.`;
 }
-function applyBldDong(idx){
-  const t=IMP.titles[idx]||null, multi=IMP.titles.length>1, notes=IMP.notes.slice(); basis.strct=""; basis.roof=""; basis.dandok=false;
+// 여러 동: 동마다 입력값·층별 행을 따로 들고 있다(DONG_ST[i]). 고른 동은 화면 입력칸, 나머지는 여기 값으로 계산해 결과를 한꺼번에 보여 줌.
+// 상세 수정에서 고친 값은 그 동에 남아 다른 동을 골랐다 돌아와도 그대로.
+function curDongF(){ const o={}; DONG_FIELDS.forEach(k=>o[k]=$(k).value); return o; }
+function dongCompute(st){ const f=st.f;
+  return G.compute({year:+$("noticeYear").value, structNo:+f.structure, group:+f.lifeGroup||0, built:+f.builtYear, remodel:+f.remodelYear||0, top:+f.topFloor||0,
+    landPrice:+$("landPrice").value, roof:f.roof, intel:+f.intel||0, rows:st.rows}); }
+// 동 하나의 자동값(대장 → 구조·신축연도·지붕·층별 행). 화면 입력칸은 건드리지 않음
+function dongDerive(idx){
+  const t=IMP.titles[idx]||null, multi=IMP.titles.length>1, notes=IMP.notes.slice(), bs={strct:"",roof:"",dandok:false}, f=curDongF();
   if(t){
     if(multi) notes.unshift(`여러 동 중 「${dongName(t)}」 표제부·층별개요로 계산 (총 ${IMP.titles.length}동)`);
     // 「기타구조」「기타지붕」이면 진짜 내용은 etcStrct·etcRoof에 있음(예: 기타지붕 + 불연판넬지붕) → 둘 다 보고 매핑
     const strctTxt=[tx(t.strctCdNm),tx(t.etcStrct)].filter((v,i,a)=>v&&a.indexOf(v)===i).join(" "), roofTxt=[tx(t.roofCdNm),tx(t.etcRoof)].filter((v,i,a)=>v&&a.indexOf(v)===i).join(" ");
-    basis.strct=strctTxt; basis.roof=roofTxt;
-    const [sNo,sWhy]=mapStructure(strctTxt); $("structure").value=String(sNo); notes.push(`구조 "${strctTxt}" → ${sWhy}`);
-    const lg=G.structGroup(sNo,strctTxt); $("lifeGroup").value=lg!==GROUP_OF[sNo]?String(lg):"";
-    if(t.useAprDay){ $("builtYear").value=String(t.useAprDay).slice(0,4); notes.push(`사용승인일 ${t.useAprDay} → 신축연도 ${String(t.useAprDay).slice(0,4)}`); }
-    if(t.grndFlrCnt) $("topFloor").value=t.grndFlrCnt;
-    $("roof").value=mapRoof(roofTxt); notes.push(`지붕 "${roofTxt}" → 조정률Ⅰ ${$("roof").value} (구조지수 100 미만일 때만 반영)`);
-    if(!$("landArea").value && t.platArea) $("landArea").value=t.platArea;
-    $("siteName").value=IMP.addr+(tx(t.bldNm)?" "+tx(t.bldNm):"")+(multi?" "+dongName(t):"");
-  } else { notes.push("표제부 조회 실패"+(IMP.titleErr?": "+IMP.titleErr:"")); $("siteName").value=IMP.addr; }
-  // 층별개요: 여러 동이면 고른 동 것만
+    bs.strct=strctTxt; bs.roof=roofTxt;
+    const [sNo,sWhy]=mapStructure(strctTxt); f.structure=String(sNo); notes.push(`구조 "${strctTxt}" → ${sWhy}`);
+    const lg=G.structGroup(sNo,strctTxt); f.lifeGroup=lg!==GROUP_OF[sNo]?String(lg):"";
+    if(t.useAprDay){ f.builtYear=String(t.useAprDay).slice(0,4); notes.push(`사용승인일 ${t.useAprDay} → 신축연도 ${String(t.useAprDay).slice(0,4)}`); }
+    if(t.grndFlrCnt) f.topFloor=String(t.grndFlrCnt);
+    f.roof=mapRoof(roofTxt); notes.push(`지붕 "${roofTxt}" → 조정률Ⅰ ${f.roof} (구조지수 100 미만일 때만 반영)`);
+    f.siteName=IMP.addr+(tx(t.bldNm)?" "+tx(t.bldNm):"")+(multi?" "+dongName(t):"");
+  } else { notes.push("표제부 조회 실패"+(IMP.titleErr?": "+IMP.titleErr:"")); f.siteName=IMP.addr; }
+  // 층별개요: 여러 동이면 그 동 것만
   let fl=IMP.floors.filter(it=>!multi||!t||tx(it.dongNm)===tx(t.dongNm));
   const mainTxt=(t&&[t.mainPurpsCdNm,t.etcPurps].filter(Boolean).join(" "))||"";
-  const top=+$("topFloor").value||0;
-  let fallback=false;
+  const top=+f.topFloor||0;
+  let fallback=false, rows;
   if(fl.length){
     const grp=x=>{ const g=String(x.flrGbCd||""); const nm=(x.flrGbCdNm||"")+(x.flrNoNm||""); return (g==="10"||/지하/.test(nm))?0 : (g==="30"||/옥탑/.test(nm))?2 : 1; };
     fl=fl.slice().sort((a,b)=>{ const ga=grp(a), gb=grp(b); if(ga!==gb) return ga-gb; const na=Number(a.flrNo||0), nb=Number(b.flrNo||0); return ga===0? nb-na : na-nb; });
@@ -777,7 +850,7 @@ function applyBldDong(idx){
       notes.push(`${it.flrNoNm||""} ${[it.mainPurpsCdNm,it.etcPurps].filter(Boolean).join(" ")} ${it.area}㎡ → 용도 ${row.use}번 (${row.why}) · 층 특성 ${FLOORTYPE.find(f=>f[0]===row.ftype)[1]}`);
       row.label=`${it.flrNoNm||""} ${it.etcPurps||it.mainPurpsCdNm||""}`.trim();
       return newRow(row); });
-    const dn=G.applyDandok(rows, mainTxt); if(dn){ notes.push(dn); basis.dandok=true; }
+    const dn=G.applyDandok(rows, mainTxt); if(dn){ notes.push(dn); bs.dandok=true; }
   } else if(t&&+t.totArea>0){
     // 층별개요가 없음(신축은 공공 API 반영이 늦기도 함) → 표제부 연면적으로 1행이라도 채움
     fallback=true;
@@ -787,6 +860,16 @@ function applyBldDong(idx){
     rows=[newRow(row)];
     notes.push("층별개요 없음"+(IMP.flrErr?": "+IMP.flrErr:"")+` → 표제부 연면적 ${t.totArea}㎡로 1행 (용도 ${row.use}번, ${row.why})`);
   } else { rows=[newRow()]; notes.push("층별개요 없음"+(IMP.flrErr?": "+IMP.flrErr:"")); }
+  return {f, rows, basis:bs, notes, fallback, flN:fl.length};
+}
+function applyBldDong(idx){
+  const t=IMP.titles[idx]||null, multi=IMP.titles.length>1;
+  if(!DONG_ST[idx]) DONG_ST[idx]=dongDerive(idx);
+  const S=DONG_ST[idx], notes=S.notes, fallback=S.fallback, fl={length:S.flN};
+  CUR_DONG=idx; if(multi) $("qDong").value=String(idx);
+  DONG_FIELDS.forEach(k=>{ if(S.f[k]!=null) $(k).value=S.f[k]; });
+  rows=S.rows.map(r=>({...r})); basis=Object.assign({landYear:basis.landYear},S.basis);
+  if(t&&!$("landArea").value && t.platArea) $("landArea").value=t.platArea;
   renderRows(); renderRef(); calc();
   renderBldPanel(idx); $("toggleBld").hidden=!t;
   const st=$("apiStatus");

@@ -1,5 +1,5 @@
 // 기준시가.html 건물 탭 — 여러 동 건물(김포 통진읍 옹정리 336 공장 가·나·다동) + 층별개요가 아직 없는 신축
-// ① 동 드롭다운이 뜨고 동마다 표제부·층별개요로 따로 계산 ② 층별개요가 없으면 표제부 연면적으로 1행 + 노란(경고) 안내, ✅ 아님
+// ① 동 드롭다운이 뜨고 동마다 표제부·층별개요로 따로 계산 — 결과 표는 동마다 한꺼번에, 📋 표 복사 ② 층별개요가 없으면 표제부 연면적으로 1행 + 노란(경고) 안내, ✅ 아님
 // PLAYWRIGHT_MODULE=/path/to/playwright node tests/gjs_bld_multidong.cjs
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict');
@@ -28,7 +28,8 @@ let FLOORS=[];
         if(op==='getBrFlrOulnInfo')return r.fulfill({json:hub(FLOORS)});
         return r.fulfill({json:hub([])});}
       return r.abort();});
-    await pg.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');}catch(e){}});
+    await pg.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');}catch(e){}
+      window.__clip=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:t=>{window.__clip.push(t);return Promise.resolve();}}});});
     await pg.goto(base+'/기준시가.html',{waitUntil:'domcontentloaded'});
     // ── 1) 신축: 층별개요 없음 ──
     await pg.fill('#qDate','2026-11-02');
@@ -76,11 +77,49 @@ let FLOORS=[];
     // 층별현황: 위층부터, 합계
     assert.deepEqual(await pg.$$eval('#qBld > .tw:last-of-type tbody tr td:first-child',a=>a.map(x=>x.textContent)),['2층','1층','합계']);
     assert.match(await pg.$eval('#qBld > .tw:last-of-type tbody tr:last-child',e=>e.textContent),/621\.14/);
+    // ── 2-1) 동마다 결과 표를 한꺼번에(2026-11-23 사용자 요청) — 동 블록 3개 + 전체 요약, 고른 동(다동) 테두리 ──
+    const blk=()=>pg.$$eval('#qResult .qdong',a=>a.map(d=>({nm:d.querySelector('.qhead b').textContent,amt:+(d.querySelector('.qhead .amt')||{textContent:'0'}).textContent.replace(/\D/g,''),cur:d.classList.contains('cur'),rows:d.querySelectorAll('table tr').length})));
+    let B=await blk();
+    assert.deepEqual(B.map(b=>b.nm),['가동','나동','다동']);
+    assert.deepEqual(B.map(b=>b.cur),[false,false,true]);
+    assert.deepEqual(B.map(b=>b.rows),[3,3,4]);   // 머리글 + 층 + 합계
+    // 고른 동 금액 = 그 동을 단독으로 계산한 값, 다른 동도 골라 보면 같은 값
+    assert.equal(B[2].amt,await pg.evaluate(()=>window.__calc.totSJ));
+    await pg.selectOption('#qDong','0');
+    assert.equal(B[0].amt,await pg.evaluate(()=>window.__calc.totSJ));
+    const all=+(await pg.$eval('#qResult .qall .qhead .amt',e=>e.textContent)).replace(/\D/g,'');
+    assert.equal(all,B[0].amt+B[1].amt+B[2].amt);
+    // 「이 동 상세 수정」 → 그 동이 골라지고 상세 입력이 열림
+    await pg.click('#qResult [data-qedit="2"]');
+    assert.equal(await pg.$eval('#qDong',e=>e.value),'2');
+    assert.equal(await pg.isVisible('#detail'),true);
+    // 상세에서 고친 값은 그 동에 남음(다른 동 골랐다 와도)
+    await pg.fill('#rowsBody input[data-k="area"][data-i="0"]','500');
+    const edited=(await blk())[2].amt;assert.ok(edited>B[2].amt,'면적 늘리면 금액도');
+    await pg.selectOption('#qDong','1');
+    assert.equal((await blk())[2].amt,edited);
+    await pg.selectOption('#qDong','2');
+    assert.deepEqual(await pg.evaluate(()=>rows.map(r=>+r.area)),[500,221.14]);
+    // 📋 표 복사 — 동별 요약 + 빈 줄 + 동 칸 붙은 층 내역(숫자는 쉼표 없이)
+    await pg.click('#qResult [data-qcopy]');
+    const clip=(await pg.evaluate(()=>window.__clip)).pop().split('\n');
+    assert.equal(clip[0],'동\t주용도\t연면적(㎡)\t기준시가(상속·증여용)\t양도용(조정률 없음)');
+    assert.match(clip[1],/^가동\t공장\t800\t\d+\t\d+$/);
+    assert.match(clip[4],/^합계\t\t2261\.14\t\d+\t\d+$/);   // 다동 1층을 500㎡로 고친 뒤
+    assert.equal(clip[5],'');
+    assert.equal(clip[6],'동\t층 (용도)\t구조\t용도\t잔가율\t조정률\t㎡당(절사)\t면적(㎡)\t기준시가(원)');
+    assert.equal(clip.filter(l=>l.startsWith('다동\t')).length,4);   // 요약 1줄 + 다동 2층 + 합계
+    assert.match(await pg.textContent('#qCopyMsg'),/복사됨/);
     // ── 3) 한 동짜리면 드롭다운 없음 ──
     TITLES.splice(1);FLOORS=[F('다동',1,400),F('다동',2,221.14)];
     await pg.click('#qGo');
     await pg.waitForFunction(()=>document.getElementById('qDongRow').hidden&&/✅/.test(document.getElementById('qStatus').textContent));
     assert.deepEqual(await pg.evaluate(()=>rows.map(r=>+r.area)),[400,221.14]);
+    assert.equal(await pg.$$eval('#qResult .qdong',a=>a.length),0,'한 동이면 예전 화면');
+    await pg.click('#qResult [data-qcopy]');
+    const one=(await pg.evaluate(()=>window.__clip)).pop().split('\n');
+    assert.equal(one[0],'층 (용도)\t구조\t용도\t잔가율\t조정률\t㎡당(절사)\t면적(㎡)\t기준시가(원)');
+    assert.equal(one.length,4);assert.match(one[3],/^건물 합계 \(상속·증여용\)\t\t\t\t\t\t621\.14\t\d+$/);
     assert.deepEqual(errors,[]);
     console.log('OK gjs_bld_multidong');
   }finally{await browser.close();server.close();}
