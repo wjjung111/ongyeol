@@ -30,7 +30,8 @@ const FLR=[{dongNm:'101동',flrGbCdNm:'지상',flrNo:'1',flrNoNm:'1층',mainAtch
           if(op==='getBrJijiguInfo'||op==='getBrAtchJibunInfo')return r.fulfill({json:hub([])});
           return r.fulfill({json:hub(FLR)});}
         return r.abort();});
-      await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');}catch(e){}});
+      await page.addInitScript(()=>{try{localStorage.setItem('arap-user-name','wdw');}catch(e){}
+        window.__clip=[];Object.defineProperty(navigator,'clipboard',{value:{writeText:t=>{window.__clip.push(t);return Promise.resolve();}}});});
       await page.goto(base+'/건축물대장.html',{waitUntil:'domcontentloaded'});
       await page.fill('#q','대치동 10');
       await page.click('#btnGo');
@@ -42,6 +43,19 @@ const FLR=[{dongNm:'101동',flrGbCdNm:'지상',flrNo:'1',flrNoNm:'1층',mainAtch
       if(!oldProxy){
         assert.match(info,/31,234\.5/);assert.match(info,/300세대/);assert.match(info,/3동/);assert.match(info,/450대/);
       }else assert.match(info,/총괄표제부가 없습니다/);
+      // 총괄표제부 엑셀 복사 — 개요(4칸) + 빈 줄 + 동별(층수·세대·호 칸 나눔, 연면적 숫자) + 합계 / 동별만
+      await page.click('#recapPanel button:has-text("엑셀 복사")');
+      await page.click('#btnRecapDongCopy');
+      const clip=await page.evaluate(()=>window.__clip);
+      assert.equal(clip.length,2);
+      const all=clip[0].split('\n'),only=clip[1].split('\n');
+      if(!oldProxy){assert.equal(all[0].split('\t')[0],'대지위치');assert.match(clip[0],/연면적\(㎡\)\t31,234\.5/);}
+      else assert.match(all[0],/총괄표제부가 없습니다/);
+      assert.equal(only[0],'#\t주/부\t동명칭\t주용도\t지상층수\t지하층수\t세대\t호\t연면적(㎡)\t사용승인일');
+      assert.equal(only[1],'1\t주\t101동\t공동주택\t25\t2\t100\t0\t10000\t2000-01-01');
+      assert.equal(only[5],'\t\t\t4개 동 연면적 합계\t\t\t\t\t40000\t');
+      assert.ok(clip[0].endsWith(clip[1])&&all[all.length-only.length-1]==='','개요 뒤 빈 줄 + 동별 목록');
+      assert.match(await page.$eval('#recapCopyMsg',e=>e.textContent),/복사 완료/);
       // 동 숫자순, 부속(관리동) 맨 뒤
       const dongs=await page.$$eval('#tblRecapDong .recap-dong td:nth-child(3)',a=>a.map(x=>x.textContent));
       assert.deepEqual(dongs,['101동','102동','103동','관리동']);
