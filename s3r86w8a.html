@@ -62,6 +62,7 @@
   <script src="arap_index_data.js"></script>
   <script src="arap_fee.js"></script><!-- 감정평가수수료 자동 계산(보수에 관한 기준 별표) — 수수료 사이트 대신 -->
   <script src="arap_bldrgst.js" defer></script><!-- 건축물대장 조회(주소→동·호 선택→대상물건개요 채움). React 로드 뒤에 실행되도록 defer -->
+  <script src="arap_bldcmp.js" defer></script><!-- 본건·사례 건물 비교(표제부 나란히, 본건 기준 ▲우세/▼열세 + 단지 내부요인 의견 초안). 단일·여러 호수 공용 -->
   <script src="arap_jiphap_parcels.js"></script>
   <script src="arap_multi_hwpx.js"></script>
   <script src="arap_purpose_law.js"></script><!-- 의견서 목적 문장: 자산재평가면 외부감사법 문구 -->
@@ -4596,6 +4597,10 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         <div style={S.h3}>사례 #{c.symbol} — {c.aptName} {c.dong}동 {c.ho}호{(()=>{const normL=s=>(s||"").replace(/^[가-힣]+(특별|광역|특례)?시\s*/,"").replace(/[가-힣]+구\s*/,"").replace(/\s+/g," ").trim();const cl=normL(`${c.location} ${c.jibun}`);const sl=normL(ov.jibun||"");const same=cl&&sl&&(cl===sl||sl.includes(cl)||cl.includes(sl));return <span style={{marginLeft:8,padding:"2px 10px",borderRadius:4,fontSize:12,fontWeight:600,color:"#fff",background:same?"#059669":"#d97706"}}>{same?"동일단지":"인근지역"}</span>;})()}</div>
         <table style={{...S.tbl,marginBottom:8}}><thead><tr><th style={S.th}>소재지</th><th style={S.th}>동/층/호</th><th style={S.th}>건물명</th><th style={S.th}>전유면적</th><th style={S.th}>가격</th><th style={S.th}>단가</th><th style={S.th}>거래시점</th><th style={S.th}>시점수정치</th></tr></thead>
         <tbody><tr><td style={S.tdL}>{c.location} {c.jibun}</td><td style={S.td}>{c.dong}/{c.floor}/{c.ho}</td><td style={S.tdL}>{c.aptName}</td><td style={S.tdR}>{fmtDec(c.exclusiveArea,2)}</td><td style={S.tdR}>{fmt(c.price)}</td><td style={S.tdR}>{fmt(c.unitPrice)}</td><td style={S.td}>{fmtDate(c.tradeDate)}</td><td style={{...S.td,cursor:"pointer",fontWeight:700,color:C.acc}} title="클릭해서 시점수정치 입력" onClick={()=>setEditTimeId(c.id)}>{c.timeAdj?fmtDec(c.timeAdj,5):"미입력 (클릭)"}</td></tr></tbody></table>
+        {/* 건물 비교 — 본건·사례 표제부 나란히, 본건 기준 ▲우세/▼열세 + 단지 내부요인 의견 초안 넣기 (2026-11-23, arap_bldcmp.js) */}
+        {window.ArapBldCmp&&<ArapBldCmp.Panel S={S} C={C} ov={ov} c={c} resi={propType==="주거용"}
+          onCase={(k,v)=>updN(c.id,k,v)} onOv={(k,v)=>setOv(p=>({...p,[k]:v}))}
+          onDraft={t=>{const cur=String(c.noteInt||"").trim();if(cur&&cur!==t&&!window.confirm("단지 내부요인 의견란에 이미 쓴 글이 있습니다. 초안으로 바꿀까요?"))return;updN(c.id,"noteInt",t);}}/>}
         <table style={S.tbl}><thead><tr><th style={{...S.th,width:100}}>요인구분</th><th style={S.th}>세부항목</th><th style={{...S.th,width:65}}>비교치</th><th style={{...S.th,minWidth:220}}>의견</th></tr></thead><tbody>
           {factors.map(f=>{const val=c[fM[f.key]]||1.0;const isEq=Math.abs(val-1.0)<0.001;
             return(<tr key={f.key}><td style={{...S.td,fontWeight:600}}>{f.label}</td><td style={{...S.tdL,fontSize:11,color:"#555"}}>{f.desc}</td>
@@ -8380,6 +8385,17 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
             </tr>);
           })}
         </tbody></table></div>
+        {/* 건물 비교 — 적용 사례마다 본건·사례 표제부 나란히(본건 기준 ▲우세/▼열세), 초안은 그 사례 쓰는 호수의 「- 내부요인:」 줄에 (2026-11-23, arap_bldcmp.js) */}
+        {window.ArapBldCmp&&(()=>{const used=[];units.forEach(u=>{const c=getAppliedC(u);if(c&&!used.some(x=>x.id===c.id))used.push(c);});
+          if(!used.length)return null;
+          return <div style={{marginTop:12}}><b>🏢 건물 비교 (적용 사례별)</b><div style={{marginTop:6}}>{used.map(c=>{
+            const hos=units.map((u,j)=>{const a=getAppliedC(u);return a&&a.id===c.id?(HANGUL_SYMBOLS.charAt(j)||String(j+1)):null;}).filter(Boolean);
+            return <div key={c.id}><div style={{fontSize:12,fontWeight:700,color:C.pri,margin:"4px 0"}}>사례 #{c.symbol} — {c.aptName} <span style={{fontWeight:400,color:"#64748b"}}>(쓰는 호수: {hos.join("·")})</span></div>
+              <ArapBldCmp.Panel S={S} C={C} ov={ov} c={c} resi={propType==="주거용"}
+                onCase={(k,v)=>setCases(p=>p.map(x=>x.id===c.id?{...x,[k]:v}:x))} onOv={(k,v)=>setOv(p=>({...p,[k]:v}))}
+                draftLabel={`↓ 호수 (${hos.join("·")}) 「- 내부요인:」 줄에 넣기`}
+                onDraft={t=>setOv(p=>{const us=p.units||[];const tgt=new Set();us.forEach(u=>{const a=getAppliedC(u);if(a&&a.id===c.id){tgt.add(u.id);if(u.grp)us.forEach(x=>{if(x.grp===u.grp)tgt.add(x.id);});}});
+                  return {...p,units:us.map(u=>tgt.has(u.id)?{...u,factorNote:ArapBldCmp.setNoteLine(u.factorNote,"내부요인",t)}:u)};})}/></div>;})}</div></div>;})()}
         <div style={{marginTop:12}}><b>호별 개별요인 비교 의견</b>{units.map((u,i)=>{
           // 묶음은 첫 호에서 한 칸만(「가·나·다·라」) — 고치면 묶음 전체에 저장
           if(u.grp&&units.findIndex(x=>x.grp===u.grp)!==i)return null;
