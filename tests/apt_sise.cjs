@@ -211,4 +211,16 @@ const fr = A.filterRtms([{umdNm: '압구정동', jibun: '369-1', aptNm: '현대2
   sggCd: '11680', umdCd: '11000', landCd: '0', bonbun: '0369', bubun: '0001'}], {umd: '압구정동', jibun: '369-1'});
 assert.equal(fr.trades[0].pnu, '1168011000103690001', '실거래 거래에 필지번호');
 
+// 주변 유사 단지: 지번별 단지 묶기, 본건 ±% 면적, 조회 기간 첫날 (2026-11-23)
+const gi = (y, m, apt, jibun, area, built) => ({dealYear: y, dealMonth: m, dealDay: '1', dealAmount: '100,000', excluUseAr: area, aptNm: apt, umdNm: '압구정동', jibun, buildYear: built});
+const gc = A.groupComplexes([gi('2026', '10', '현대2차', '369-1', '160.28', '1976'), gi('2026', '9', '현대1차', '369-1', '131.48', '1976'), gi('2026', '8', '현대2차', '369-1', '160.28', '1976'),
+  gi('2023', '1', '한양', '413', '163.58', '1977'), gi('2026', '5', '한양', '413', '163.58', '1977'), gi('2026', '5', '', '', '84', '')], '11680', '2023-11-01', '2026-11-23');
+assert.equal(gc.length, 2, '지번 없는 행 빠짐');
+const g369 = gc.find(c => c.jibun === '369-1');
+assert.deepEqual([g369.id, g369.name, g369.names, g369.built, g369.trades.length], ['11680|압구정동|369-1', '현대2차', ['현대2차', '현대1차'], 1976, 3]);
+assert.equal(g369.trades[0].date, '2026-10-01', '최근 거래부터');
+assert.equal(gc.find(c => c.jibun === '413').trades.length, 1, '조회 기간 밖(2023.01) 빠짐');
+assert.deepEqual(A.areasNear([{area: 131.48}, {area: 144.3}, {area: 160.29}, {area: 176.3}, {area: 177}], 160.28, 0.1), [144.3, 160.29, 176.3]);
+assert.equal(A.monthsBefore('2026-11-23', 36), '2023-11-01');
+
 console.log('apt_sise: OK');

@@ -69,6 +69,46 @@
   .chips button.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
   details summary{cursor:pointer;color:var(--ink-2);font-size:12px;margin-top:10px}
   .hidden{display:none}
+  select{border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;font:inherit;color:var(--ink);background:#fff}
+  /* 본건 거래표 접기 */
+  #foldTbl{padding:6px 12px;font-size:13px}
+  /* 주변 유사 단지 (2026-11-23) */
+  .near h2{font-size:15px;font-weight:800;margin-bottom:8px}
+  .near h2 .hint{font-weight:400;margin-left:6px}
+  .nf{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
+  .nf .f{display:inline-flex;align-items:center;gap:6px}
+  .nf input{width:64px;padding:5px 8px}
+  .nf button.primary{padding:7px 18px}
+  #nMap{position:relative;height:520px;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:#eef1f5}
+  .nlegend{font-size:12px;color:var(--ink-2);margin:6px 2px 12px}
+  .nlegend .bar{display:inline-block;width:110px;height:9px;border-radius:5px;background:linear-gradient(90deg,#bfdbfe,#3b82f6,#1e3a8a);vertical-align:middle;margin:0 6px}
+  .npin{position:relative;width:0;height:0;cursor:pointer}
+  .npin .dot{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+  .npin .lab{position:absolute;left:13px;top:-17px;background:#fff;border:1.5px solid;border-radius:5px;padding:2px 8px 3px;white-space:nowrap;font-size:12px;line-height:1.3;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .npin .lab b{display:block;font-weight:800;color:#0f172a}
+  .npin .lab span{font-weight:500;color:#334155}
+  .npin.subj{cursor:default}
+  .npin.subj .dot{width:auto;height:auto;border:0;box-shadow:none;background:none!important;left:-13px;top:-17px;font-size:26px;line-height:1;color:#0f172a;text-shadow:0 0 3px #fff,0 0 3px #fff}
+  .npin.subj .lab,.npin.sel .lab{background:#0f172a;border-color:#0f172a;left:18px}
+  .npin.sel .lab{background:var(--accent);border-color:var(--accent)}
+  .npin.subj .lab b,.npin.subj .lab span,.npin.sel .lab b,.npin.sel .lab span{color:#fff}
+  .npin.sel .dot{left:-13px;top:-13px;width:26px;height:26px;border:4px solid #fff;box-shadow:0 0 0 3px var(--accent),0 2px 6px rgba(0,0,0,.4)}
+  .npin:hover .lab{z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .nmapmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-2);font-size:13px;text-align:center;padding:20px}
+  #nDetail{border:2px solid var(--accent);border-radius:10px;padding:14px 16px;background:#fff;margin:4px 0 12px}
+  .dhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .dhead .t{font-size:16px;font-weight:800}
+  .dhead .x{margin-left:auto;display:flex;gap:6px}
+  .dhead .x button{padding:5px 11px;font-size:13px}
+  #nDetail .big{margin:10px 0}
+  #nDetail .tbl{max-height:50vh;border:1px solid var(--line);border-radius:8px}
+  #nList tr.cx{cursor:pointer}
+  #nList tr.cx:hover>td{background:#f8fafc}
+  #nList tr.sel>td{background:#eff6ff}
+  #nList tr.sel>td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  .tag.own{background:#0f172a;color:#fff}
+  .tag.big3{background:#eff6ff;color:#1e40af}
+  .up{color:#b42318;font-weight:600}.dn{color:#1d4ed8;font-weight:600}
   /* 조회 기록 패널: 넓은 화면은 왼쪽 세로 목록, 좁은 화면은 위로 올라가고 접힘 */
   .layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:0 18px;max-width:1500px;width:100%;margin:0 auto;padding:0 16px}
   .layout .page{max-width:none;padding:18px 0 40px}
@@ -168,12 +208,13 @@
     </div>
     <div class="sub" id="subline"></div>
     <div class="row" style="margin:10px 0 12px">
+      <button id="foldTbl" type="button" title="본건 단지 거래표 접기/펴기">▾ 거래표 접기</button>
       <button id="copy" type="button">결론 복사</button>
       <button id="xlsx" type="button">엑셀 저장</button>
-      <label class="bandonly"><input type="checkbox" id="bandOnly"> 본건 면적대만 보기 (동일, 유사)</label><span class="hint" id="bandInfo"></span>
+      <label class="bandonly" id="bandOnlyLbl"><input type="checkbox" id="bandOnly"> 본건 면적대만 보기 (동일, 유사)</label><span class="hint" id="bandInfo"></span>
       <span class="hint">체크를 바꾸면 최저, 중간, 최고가 바로 다시 계산됩니다.</span>
     </div>
-    <div class="card tbl">
+    <div class="card tbl" id="mainTbl">
       <table>
         <thead><tr>
           <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
@@ -182,6 +223,26 @@
         <tbody id="tbody"></tbody>
       </table>
     </div>
+
+    <!-- 주변 유사 단지: 반경 안 단지 실거래를 본건과 같은 지수, 기준월, 기간으로 시점수정해 본건 면적으로 환산. 지도 핀이나 목록 줄을 누르면 그 단지 상세 -->
+    <section class="card near" id="nearBox">
+      <h2>주변 유사 단지<span class="hint" id="nHead">본건과 같은 기준월, 같은 기간으로 시점수정해 본건 면적으로 환산합니다</span></h2>
+      <div class="nf">
+        <span class="f">반경 <select id="nRadius"><option value="0.5">500m</option><option value="1" selected>1km</option><option value="1.5">1.5km</option><option value="2">2km</option><option value="3">3km</option></select></span>
+        <span class="f">면적 <select id="nTol"><option value="5">본건 ±5%</option><option value="10" selected>본건 ±10%</option><option value="15">본건 ±15%</option></select> <span class="hint" id="nTolHint"></span></span>
+        <span class="f">준공 <select id="nAge"><option value="all" selected>전체</option><option value="5">본건 ±5년</option><option value="10">본건 ±10년</option></select></span>
+        <span class="f">세대수 <input id="nMinH" value="0" inputmode="numeric"> 이상</span>
+        <button class="primary" id="nGo" type="button">주변 단지 찾기</button>
+        <span class="hint" id="nInfo"></span>
+      </div>
+      <div id="nMsg"></div>
+      <div id="nMapWrap" class="hidden">
+        <div id="nMap"></div>
+        <div class="nlegend">★ 본건 · 동그라미 = 주변 단지, ㎡단가(시점수정 중간) 낮음<span class="bar"></span>높음 · 핀이나 아래 목록 줄을 누르면 그 단지 시점수정이 열립니다</div>
+      </div>
+      <div id="nDetail" class="hidden"></div>
+      <div id="nListWrap" class="hidden tbl" style="max-height:none;border:1px solid var(--line);border-radius:8px"><table id="nList"></table></div>
+    </section>
   </div>
 </main>
 </div>
@@ -190,7 +251,8 @@
 <script>window.ARAP_DATE_POPUP=true;</script><script src="arap_date.js"></script><!-- 작성일 칸 누르면 집건과 같은 달력 -->
 <script src="arap_sgg_codes.js?v=20261111"></script>
 <script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
-<script src="arap_apt_sise.js?v=20261123a"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script src="arap_apt_nearby.js?v=20261113b"></script><!-- 주변 단지: 거리, 시군구 고르기, 세대수 -->
+<script src="arap_apt_sise.js?v=20261123b"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
 'use strict';
@@ -244,10 +306,11 @@ const RTMS_MSG = {
   SERVICE_KEY_IS_NOT_REGISTERED_ERROR: '공공데이터포털 키가 실거래 API에 아직 등록되지 않았어요(승인 직후면 1~2시간 대기). 그동안은 붙여넣기 탭을 쓰세요.',
   LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR: '실거래 API 오늘 호출 한도를 넘었어요.',
 };
-const rtmsCache = {};
-async function rtmsMonth(lawd, ym){
+const rtmsCache = {}, rtmsRecent = {}; // rtmsRecent: 최근 3개월(계산 때마다 새로 받음) — 주변 단지 찾기는 15분 안이면 다시 씀
+async function rtmsMonth(lawd, ym, maxAgeMs){
   const key = lawd + '|' + ym;
   if (rtmsCache[key]) return rtmsCache[key];
+  if (maxAgeMs && rtmsRecent[key] && Date.now() - rtmsRecent[key].t < maxAgeMs) return rtmsRecent[key].items;
   const items = [];
   for (let page = 1; page < 20; page++){
     let t = '';
@@ -274,6 +337,7 @@ async function rtmsMonth(lawd, ym){
   }
   const now = todayIso().slice(0, 7).replace('-', '');
   if (A.ymDiff(now, ym) > 3) rtmsCache[key] = items; // 최근 3개월은 지연 신고, 해제가 들어오니 매번 새로
+  else rtmsRecent[key] = {t: Date.now(), items};
   return items;
 }
 
@@ -388,6 +452,7 @@ async function calc(aptPick, parcel, keepSort){
     res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
     res.subject = {dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: subjectFloor || null};
     last = res; if (!keepSort) { sortK = null; sortDir = 1; }
+    setNearCtx({addr, writeIso, baseYm, baseList: baseTbl.list, tbls, idx, lookback, subjectArea: area, parcel: curParcel, trades: mode === 'api' ? trades : []});
     if (warns.length) showMsg(warns.join(' / ') + (unitNote ? ' / ' + unitNote.text : ''), 'warn');
     else if (unitNote) showMsg(unitNote.text, unitNote.kind);
     render();
@@ -484,6 +549,7 @@ function histOpen(id){
   document.querySelector(`[data-mode=${i.mode === 'paste' ? 'paste' : 'api'}]`).click();
   paintBaseHint();
   last = h.res; sortK = h.sortK || null; sortDir = h.sortDir || 1; curHist = id;
+  setNearCtx(null);
   selAreas = (h.res.sameAreas || []).slice();
   curParcel = h.res.parcel || null;
   $('pick').classList.add('hidden');
@@ -493,6 +559,383 @@ function histOpen(id){
   if (window.innerWidth <= 1100) $('histPanel').classList.remove('open');
   window.scrollTo({top: 0, behavior: 'smooth'});
 }
+
+/* ══ 주변 유사 단지 (2026-11-23) ══
+   본건 좌표 반경 안 단지(본건 시군구 + 반경에 걸친 이웃 시군구, 최대 3곳)의 실거래를 본건과 같은 기준월, 같은 조회 기간으로
+   시점수정해 본건 전용면적으로 환산한다. 지수는 단지 소재 시군구 지수(이웃 구 단지는 그 구). 면적은 본건 ±n% 안 면적을 '동일'로.
+   단지 위치는 브이월드 지번 검색(이 브라우저에 기억, 인근 신축 실거래 화면이 기억한 위치도 씀), 세대수, 최고층은 건축물대장.
+   어느 단지를 사례로 쓸지는 평가사 판단 — 보여주기만 한다. */
+const N = window.ArapAptNearby;
+const VW = 'https://api.vworld.kr', VKEY_DEFAULT = '8D5CB15B-426D-3015-9680-618B587ACBCB';
+const KAKAO_KEY = 'e87432a91ba0c8c347a82ea98805c1b5'; // arap_map.js와 같은 키(등록한 도메인에서만 동작)
+const NGEO_KEY = 'arap-apt-sise-geo', NB_GEO_KEY = 'arap-apt-nearby-geo', MAX_GEO = 150, NEAR_MAX_SGG = 3, RECENT_MS = 15 * 60000;
+const vkey = () => { try { return localStorage.getItem('exact-vworld-key') || VKEY_DEFAULT; } catch (e) { return VKEY_DEFAULT; } };
+let ctx = null, NEAR = null, NSEL = null, NSORT = {k: 'dist', dir: 1}, nearBusy = false;
+
+function jsonp(u){ return new Promise((res, rej) => {
+  const cb = '__arapsise' + Math.floor(Math.random() * 1e9), sc = document.createElement('script'); let done = false;
+  const cl = () => { delete window[cb]; sc.remove(); };
+  window[cb] = d => { done = true; cl(); res(d); };
+  sc.onerror = () => { if (!done) { cl(); rej(new Error('브이월드 호출 실패')); } };
+  setTimeout(() => { if (!done) { cl(); rej(new Error('브이월드 시간초과')); } }, 8000);
+  sc.src = u + '&callback=' + cb; document.head.appendChild(sc);
+}); }
+const vworld = u => getJson(u, 8000).catch(() => jsonp(u));
+/* 브이월드 주소 → [{pnu, addr, x, y}] (인근 신축 실거래 화면과 같은 방식) */
+async function vwSearch(q, category){
+  const u = VW + '/req/search?service=search&request=search&version=2.0&size=10&page=1&query=' + encodeURIComponent(q)
+    + '&type=address&category=' + category + '&format=json&errorformat=json&key=' + vkey();
+  let rp; try { rp = (await vworld(u)).response; } catch (e) { return []; }
+  if (!rp || rp.status !== 'OK' || !rp.result || !rp.result.items) return [];
+  return rp.result.items.map(it => {
+    const a = it.address || {}, p = it.point || {}, id = String(it.id || '');
+    return {pnu: /^\d{19}$/.test(id) ? id : '', addr: a.parcel || a.road || '', x: parseFloat(p.x), y: parseFloat(p.y)};
+  }).filter(c => isFinite(c.x) && isFinite(c.y));
+}
+/* 좌표 → {code: 시군구 5자리, umd: 법정동(읍면)} — 같은 자리(약 10m)는 한 번만 */
+const revCache = {};
+function reverseAt(x, y){
+  const k = x.toFixed(4) + ',' + y.toFixed(4);
+  if (!revCache[k]) revCache[k] = vworld(VW + '/req/address?service=address&request=getAddress&version=2.0&crs=epsg:4326&point=' + x + ',' + y + '&type=PARCEL&format=json&key=' + vkey())
+    .then(d => { const st = d.response.result[0].structure; return {code: String(st.level4LC || '').slice(0, 5), umd: String(st.level4L || '').trim()}; })
+    .catch(() => null);
+  return revCache[k];
+}
+/* 반경 안 시군구, 법정동을 고르려고 찍어 보는 점: 가운데 + 둘레 16 + 2/3 지점 10 + 1/3 지점 6 */
+function nearPoints(x, y, r){
+  const out = [{x, y}];
+  for (const [f, n] of [[1, 16], [2 / 3, 10], [1 / 3, 6]])
+    for (let i = 0; i < n; i++){ const th = 2 * Math.PI * i / n;
+      out.push({x: x + r * f * Math.sin(th) / (111320 * Math.cos(y * Math.PI / 180)), y: y + r * f * Math.cos(th) / 111320}); }
+  return out;
+}
+
+/* 단지 위치, 세대수 — 이 브라우저에 기억. 못 찾은 건 기억하지 않음(다음에 다시) */
+let NGEO = {}; try { NGEO = JSON.parse(localStorage.getItem(NGEO_KEY) || '{}') || {}; } catch (e) { NGEO = {}; }
+const saveNGeo = () => { try { localStorage.setItem(NGEO_KEY, JSON.stringify(NGEO)); } catch (e) {} };
+function nbGeo(k){ try { const g = JSON.parse(localStorage.getItem(NB_GEO_KEY) || '{}')[k]; return g && g.x != null ? g : null; } catch (e) { return null; } }
+async function complexGeo(c){
+  const k = [c.code, c.umd, c.jibun].join('|');
+  if (NGEO[k] && NGEO[k].x != null) return NGEO[k];
+  const nb = nbGeo(k); // 인근 신축 실거래 화면이 찾아 둔 위치, 세대수
+  if (nb) return (NGEO[k] = {x: nb.x, y: nb.y, pnu: nb.pnu || '', hhld: nb.hhld ?? null, flr: nb.flr ?? null, bld: true});
+  const ent = SGG.find(e => e.code === c.code);
+  const p = await vwSearch([ent ? ent.sido : '', ent ? ent.sgg : '', c.umd, c.jibun].filter(Boolean).join(' '), 'parcel');
+  if (!p.length) return null;
+  return (NGEO[k] = {x: p[0].x, y: p[0].y, pnu: p[0].pnu || c.pnu || '', hhld: null, flr: null, bld: false});
+}
+async function bldItems(pnu, op){
+  try {
+    const d = await getJson(PROXY + '/bld?op=' + op + '&pnu=' + pnu + '&numOfRows=100');
+    const it = d && d.response && d.response.body && d.response.body.items && d.response.body.items.item;
+    return it ? (Array.isArray(it) ? it : [it]) : [];
+  } catch (e) { return null; }
+}
+async function complexBld(g){
+  if (g.bld || !g.pnu) return g;
+  const [recap, titles] = await Promise.all([bldItems(g.pnu, 'getBrRecapTitleInfo'), bldItems(g.pnu, 'getBrTitleInfo')]);
+  if (recap === null && titles === null) return g; // 조회 실패는 기억하지 않음
+  const b = N.bldInfo(recap, titles);
+  g.hhld = b.hhld; g.flr = b.flr; g.bld = true;
+  return g;
+}
+
+/* 계산이 끝날 때마다 맥락을 받는다. 주소, 작성일, 기준월, 면적, 기간이 그대로면(칩만 바꿈) 찾아 둔 주변 단지를 그대로 둔다 */
+function setNearCtx(c){
+  const prev = ctx;
+  ctx = c;
+  if (c){
+    const blt = new Map(); c.trades.forEach(t => { if (t.built) blt.set(t.built, (blt.get(t.built) || 0) + 1); });
+    c.built = [...blt.entries()].sort((a, b) => b[1] - a[1]).map(([y]) => y)[0] || null;
+    c.ownIds = new Set(c.trades.filter(t => t.jibun).map(t => [c.addr.code, t.umd, t.jibun].join('|')));
+    c.key = [c.addr.code, c.addr.umd, c.addr.jibun, c.addr.keyword, c.parcel && c.parcel.id, c.writeIso, c.baseYm, c.subjectArea, c.lookback].join('|');
+  }
+  if (!c || !NEAR || NEAR.key !== c.key) nearReset();
+  else if (prev && prev.tbls !== c.tbls) Object.keys(prev.tbls).forEach(k => { if (!c.tbls[k]) c.tbls[k] = prev.tbls[k]; }); // 주변 단지 지수 달 이어받기
+}
+function nearReset(){
+  NEAR = null; NSEL = null;
+  ['nMapWrap', 'nDetail', 'nListWrap'].forEach(id => $(id).classList.add('hidden'));
+  $('nInfo').textContent = ''; $('nMsg').innerHTML = '';
+}
+function nearMsg(text, kind){ $('nMsg').innerHTML = text ? `<div class="msg ${kind || 'warn'}">${esc(text)}</div>` : ''; }
+/* 본건 결과가 다시 그려질 때: 면적 범위 안내, 맥락 없음 안내, 본건 대비 % 갱신 */
+function nearAfterMain(){
+  const a = ctx && ctx.subjectArea, tol = +$('nTol').value / 100;
+  $('nTolHint').textContent = a ? `(${(a * (1 - tol)).toFixed(1)} ~ ${(a * (1 + tol)).toFixed(1)}㎡)` : '';
+  $('nGo').disabled = !ctx || !ctx.subjectArea || nearBusy;
+  if (!ctx) $('nInfo').textContent = '저장된 결과예요. 「다시 조회」로 계산하면 주변 단지를 찾을 수 있어요.';
+  else if (!ctx.subjectArea) $('nInfo').textContent = '본건 전용면적을 정하면 찾을 수 있어요.';
+  else if (!NEAR && !nearBusy) $('nInfo').textContent = '';
+  if (NEAR) nearRender();
+}
+const subjMid = () => { const s = last ? A.summarize(last.rows) : null; return s && s.mid != null ? s.mid : null; };
+
+/* 본건 위치: 주소로 찾은 필지 → 없으면 본건 단지 거래의 지번 */
+async function subjectLoc(){
+  const p = ctx.parcel;
+  if (p){
+    const r = await vwSearch(String(p.addr || '').replace(/^.*→\s*/, ''), 'parcel');
+    const hit = r.find(x => x.pnu === p.id) || r[0];
+    if (hit) return {x: hit.x, y: hit.y, pnu: p.id, code: p.id.slice(0, 5)};
+  }
+  const cnt = new Map();
+  ctx.trades.forEach(t => { if (t.jibun) { const k = t.umd + '|' + t.jibun; cnt.set(k, (cnt.get(k) || 0) + 1); } });
+  const top = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (top){
+    const [umd, jibun] = top[0].split('|');
+    const g = await complexGeo({code: ctx.addr.code, umd, jibun});
+    if (g) return {x: g.x, y: g.y, pnu: g.pnu, code: ctx.addr.code};
+  }
+  throw new Error('본건 위치를 못 찾았어요. 단지 주소에 지번(예: 압구정동 369-1)을 넣고 다시 계산하세요.');
+}
+
+/* 단지 하나 시점수정: 본건과 같은 기준월, 기간, 본건 면적. 고른 면적(same)이 없으면 집계하지 않음 */
+function calcCx(c, same){
+  const ent = SGG.find(e => e.code === c.code) || {};
+  const chain = A.roneChain(ent.sido || ctx.addr.sido, ent.sgg || ctx.addr.sgg, ctx.baseList);
+  const res = A.calculate(c.trades, ctx.subjectArea, ctx.writeIso, chain, ctx.baseYm, ctx.idx, {sameAreas: same, lookback: ctx.lookback});
+  if (!same.length) res.rows.forEach(r => { r.include = false; });
+  res.addr = {sido: ent.sido, sgg: ent.sgg, umd: c.umd, jibun: c.jibun};
+  return res;
+}
+function cxStat(c){
+  const s = A.summarize(c.res.rows), last1 = c.res.rows.filter(r => !r.cancelled && c.same.some(a => Math.abs(a - r.area) < 1e-9))[0];
+  c.sum = s; c.midUnit = s.mid != null ? s.mid / ctx.subjectArea : null; c.lastDeal = last1 || null;
+}
+
+async function findNearby(){
+  if (!ctx || !ctx.subjectArea || nearBusy) return;
+  nearBusy = true; $('nGo').disabled = true; $('nGo').textContent = '찾는 중...'; nearMsg('');
+  const info = t => { $('nInfo').textContent = t; };
+  const C = ctx;
+  try {
+    const radius = (+$('nRadius').value || 1) * 1000, tol = (+$('nTol').value || 10) / 100, ageSel = $('nAge').value;
+    info('본건 위치 찾는 중...');
+    const subj = await subjectLoc();
+    info('반경에 걸치는 시군구, 법정동 찾는 중...');
+    const revs = (await pool(nearPoints(subj.x, subj.y, radius), 6, p => reverseAt(p.x, p.y))).filter(Boolean);
+    const own = subj.code || C.addr.code;
+    const codes = N.pickSggs(own, revs.map(r => r.code), NEAR_MAX_SGG);
+    const umds = [...new Set(revs.map(r => r.umd).filter(Boolean))];
+    const sggs = codes.map(c => ({code: c, name: (SGG.find(e => e.code === c) || {}).sgg || c}));
+
+    const endYm = C.writeIso.slice(0, 4) + C.writeIso.slice(5, 7);
+    const months = Array.from({length: C.lookback + 1}, (_, i) => A.ymAdd(endYm, -i));
+    const jobs = codes.flatMap(code => months.map(ym => ({code, ym})));
+    let done = 0; const errs = [];
+    const res = await pool(jobs, 6, async j => {
+      let items = [];
+      try { items = await rtmsMonth(j.code, j.ym, RECENT_MS); } catch (e) { errs.push(e.message || String(e)); }
+      info(`실거래 받는 중... ${++done}/${jobs.length} (${sggs.map(s => s.name).join(', ')})`);
+      return items;
+    });
+    if (errs.length && errs.length >= jobs.length) throw new Error(errs[0]);
+    const from = A.monthsBefore(C.writeIso, C.lookback);
+    let groups = codes.flatMap(code => A.groupComplexes(jobs.map((j, i) => j.code === code ? res[i] : []).flat(), code, from, C.writeIso));
+    groups = groups.filter(c => !C.ownIds.has(c.id));
+    if (umds.length) groups = groups.filter(c => umds.some(u => A.umdMatch(c.umd, u)));
+    groups.forEach(c => { c.types = A.areaTypes(c.trades); c.same = A.areasNear(c.types, C.subjectArea, tol); });
+    groups = groups.filter(c => c.same.length);
+    if (ageSel !== 'all' && C.built) groups = groups.filter(c => !c.built || Math.abs(c.built - C.built) <= +ageSel);
+    let cut = 0;
+    if (groups.length > MAX_GEO){ // 너무 많으면 거래 많은 단지부터
+      groups.sort((a, b) => b.trades.length - a.trades.length); cut = groups.length - MAX_GEO; groups = groups.slice(0, MAX_GEO);
+    }
+
+    done = 0; let nogeo = 0;
+    const geos = await pool(groups, 5, async c => { const g = await complexGeo(c); info(`단지 위치 확인 중... ${++done}/${groups.length}`); return g; });
+    const list = [];
+    groups.forEach((c, i) => {
+      const g = geos[i];
+      if (!g) { nogeo++; return; }
+      c.x = g.x; c.y = g.y; c.dist = Math.round(N.distM(subj.x, subj.y, g.x, g.y));
+      if (c.dist > radius || N.isOwn(subj.pnu, g.pnu, c.dist)) return;
+      c.geo = g; c.sgg = (sggs.find(s => s.code === c.code) || {}).name || c.code;
+      list.push(c);
+    });
+    done = 0;
+    await pool(list, 5, async c => { await complexBld(c.geo); c.hhld = c.geo.hhld; c.flr = c.geo.flr; info(`세대수 확인 중... ${++done}/${list.length}`); });
+    const og = subj.pnu ? await complexBld({pnu: subj.pnu, bld: false}) : {}; // 본건 단지 세대수(목록 첫 줄)
+    saveNGeo();
+
+    info('지수 맞추는 중...');
+    const need = [...new Set(list.flatMap(c => c.trades.map(t => t.date.slice(0, 4) + t.date.slice(5, 7))))].filter(ym => ym <= C.baseYm && !C.tbls[ym]);
+    (await pool(need, 6, ym => roneMonth(ym).catch(() => null))).forEach((t, i) => { if (t) C.tbls[need[i]] = t; });
+    if (ctx !== C) return; // 기다리는 사이 다시 계산함
+    list.forEach(c => { c.res = calcCx(c, c.same); cxStat(c); });
+
+    NEAR = {key: C.key, subj, sggs, radius, tol, list, umds, ownHhld: og.hhld ?? null};
+    const warns = [];
+    if (errs.length) warns.push(`실거래 조회 실패 ${errs.length}건 (예: ${errs[0]})`);
+    if (nogeo) warns.push(`위치를 못 찾아 빠진 단지 ${nogeo}곳`);
+    if (cut) warns.push(`조건에 맞는 단지가 많아 거래 많은 ${MAX_GEO}곳만 위치를 찾았어요(${cut}곳 뺌). 반경이나 면적 범위를 줄여 보세요.`);
+    if (!list.length) warns.push('반경 안에 조건에 맞는 단지가 없어요. 반경이나 면적 범위를 넓혀 보세요.');
+    nearMsg(warns.join(' / '));
+    info(`단지 ${list.length}곳 · ${sggs.map(s => s.name).join(', ')} · 계약 ${from.slice(0, 7).replace('-', '.')} ~ ${C.writeIso.replace(/-/g, '.')}`);
+    nearRender();
+  } catch (e){
+    info(''); nearMsg(e && e.name === 'AbortError' ? '응답이 늦어 중단했어요. 다시 눌러주세요.' : (e.message || String(e)), 'err');
+  } finally {
+    nearBusy = false; $('nGo').textContent = '주변 단지 찾기'; $('nGo').disabled = !ctx || !ctx.subjectArea;
+  }
+}
+
+/* ── 화면: 지도 → 누른 단지 상세 → 목록 ── */
+const nShown = () => { const h = parseInt($('nMinH').value, 10) || 0; return NEAR.list.filter(c => c.hhld == null || c.hhld >= h); };
+const pctTxt = v => { const m = subjMid(); if (v == null || m == null) return ''; const p = (v / m - 1) * 100; return (p > 0 ? '+' : p < 0 ? '−' : '±') + Math.abs(p).toFixed(1) + '%'; };
+const pctCls = v => { const m = subjMid(); return v == null || m == null ? '' : v > m ? 'up' : v < m ? 'dn' : ''; };
+const distTxt = m => m >= 1000 ? (m / 1000).toFixed(2) + 'km' : m + 'm';
+const manTxt = w => w == null ? '-' : Math.round(w / 1e4).toLocaleString('ko-KR') + '만';
+const shortName = n => String(n || '').replace(/\s*\([^)]*\)\s*$/, '') || n;
+const scaleTag = h => { const sc = N.scale(h); return sc === '세대수 미확인' ? '' : `<span class="tag ${sc === '대단지' ? 'big3' : ''}">${sc}</span>`; };
+/* ㎡단가 색: 낮음 연파랑 → 높음 진남색 */
+function unitColor(v, lo, hi){
+  if (v == null) return '#cbd5e1';
+  const t = hi > lo ? (v - lo) / (hi - lo) : 0.5, stops = [[191, 219, 254], [59, 130, 246], [30, 58, 138]];
+  const k = t < 0.5 ? 0 : 1, f = t < 0.5 ? t * 2 : (t - 0.5) * 2, a = stops[k], b = stops[k + 1];
+  return 'rgb(' + a.map((x, i) => Math.round(x + (b[i] - x) * f)).join(',') + ')';
+}
+function nearRender(){
+  if (!NEAR) return;
+  $('nMapWrap').classList.remove('hidden'); $('nListWrap').classList.remove('hidden');
+  nearList(); nearMap(); nearDetail();
+}
+function nearList(){
+  const cols = [['dist', '거리'], ['name', '단지'], ['built', '준공'], ['hhld', '세대수'], ['n', '본건 면적대 건수'], ['unit', '시점수정 ㎡단가 중간'], ['mid', '본건 면적 환산 중간'], ['pct', '본건 대비'], ['lastDate', '최근 계약']];
+  const val = (c, k) => ({dist: c.dist, name: c.name, built: c.built, hhld: c.hhld, n: c.sum.n, unit: c.midUnit, mid: c.sum.mid, pct: c.sum.mid, lastDate: c.lastDeal ? c.lastDeal.date : null})[k];
+  const rows = nShown().map((c, i) => [c, i]).sort(([a, i], [b, j]) => {
+    const x = val(a, NSORT.k), y = val(b, NSORT.k), ex = x == null || x === '', ey = y == null || y === '';
+    if (ex || ey) return ex === ey ? i - j : (ex ? 1 : -1);
+    const d = typeof x === 'string' ? x.localeCompare(y, 'ko') : x - y;
+    return d ? d * NSORT.dir : i - j;
+  }).map(([c]) => c);
+  const s0 = A.summarize(last.rows), ownName = shortName([...new Set(last.rows.map(r => r.apt).filter(Boolean))][0] || ctx.addr.keyword || '본건 단지');
+  let h = '<thead><tr>' + cols.map(([k, t]) => `<th data-nk="${k}">${t}<span class="ar">${NSORT.k === k ? (NSORT.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('') + '</tr></thead><tbody>';
+  h += `<tr class="cx" data-own="1"><td class="n">0m</td><td><span class="tag own">본건 단지</span> ${esc(ownName)}</td><td class="c">${ctx.built || ''}</td><td class="n">${NEAR.ownHhld != null ? NEAR.ownHhld.toLocaleString('ko-KR') : ''}</td>
+    <td class="n">${s0.n}</td><td class="n">${manTxt(s0.mid != null ? s0.mid / ctx.subjectArea : null)}</td><td class="n"><b>${s0.mid != null ? A.fmtEok(s0.mid) : '-'}</b></td><td class="c">기준</td><td class="c"></td></tr>`;
+  for (const c of rows){
+    h += `<tr class="cx ${NSEL === c.id ? 'sel' : ''} ${c.sum.n ? '' : 'off'}" data-id="${esc(c.id)}"><td class="n">${distTxt(c.dist)}</td>
+      <td title="${esc(c.names.join(', '))}">${esc(c.name)} <span class="hint">${esc(c.umd)} ${esc(c.jibun)}${c.code !== ctx.addr.code ? ', ' + esc(c.sgg) : ''}</span>${scaleTag(c.hhld)}</td>
+      <td class="c">${c.built || ''}</td><td class="n">${c.hhld != null ? c.hhld.toLocaleString('ko-KR') : '-'}</td><td class="n">${c.sum.n}</td>
+      <td class="n">${manTxt(c.midUnit)}</td><td class="n"><b>${c.sum.mid != null ? A.fmtEok(c.sum.mid) : '-'}</b></td>
+      <td class="c ${pctCls(c.sum.mid)}">${pctTxt(c.sum.mid)}</td><td class="c">${c.lastDeal ? c.lastDeal.date.replace(/-/g, '.') : ''}</td></tr>`;
+  }
+  $('nList').innerHTML = h + '</tbody>';
+}
+
+/* 지도: 카카오맵(등록 도메인에서만). 못 불러오면 안내만 하고 목록은 그대로 */
+let kakaoP = null, kmap = null, kobjs = [];
+function loadKakao(){
+  if (window.kakao && window.kakao.maps && window.kakao.maps.Map) return Promise.resolve();
+  if (!kakaoP) kakaoP = new Promise((ok, no) => {
+    const t = setTimeout(() => no(new Error('카카오맵을 불러오지 못했어요(시간 초과).')), 12000);
+    const s = document.createElement('script');
+    s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + KAKAO_KEY + '&autoload=false';
+    s.onload = () => { if (!(window.kakao && kakao.maps && kakao.maps.load)) { clearTimeout(t); no(new Error('카카오맵 키가 거부됐어요.')); return; } kakao.maps.load(() => { clearTimeout(t); ok(); }); };
+    s.onerror = () => { clearTimeout(t); no(new Error('카카오맵 스크립트를 못 받았어요.')); };
+    document.head.appendChild(s);
+  }).catch(e => { kakaoP = null; throw e; });
+  return kakaoP;
+}
+const mapLevel = r => r <= 500 ? 5 : r <= 1000 ? 6 : r <= 2000 ? 7 : 8;
+function pinEl(cls, color, title, line, onClick){
+  const d = document.createElement('div');
+  d.className = 'npin ' + cls;
+  d.innerHTML = `<div class="dot" style="background:${color}">${cls === 'subj' ? '★' : ''}</div><div class="lab" style="border-color:${color}"><b>${esc(title)}</b><span>${esc(line)}</span></div>`;
+  if (onClick) d.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  return d;
+}
+async function nearMap(){
+  const box = $('nMap'), N0 = NEAR;
+  try { await loadKakao(); } catch (e) {
+    box.innerHTML = `<div class="nmapmsg">${esc(e.message)}<br>아래 목록에서 단지를 누르면 같은 상세가 열립니다.</div>`; return;
+  }
+  if (NEAR !== N0) return;
+  const K = kakao.maps, sub = NEAR.subj, center = new K.LatLng(sub.y, sub.x);
+  if (!kmap){ box.innerHTML = ''; kmap = new K.Map(box, {center, level: mapLevel(NEAR.radius)}); kmap.addControl(new K.ZoomControl(), K.ControlPosition.RIGHT); NEAR.drawn = true; }
+  else if (!NEAR.drawn){ kmap.relayout(); kmap.setCenter(center); kmap.setLevel(mapLevel(NEAR.radius)); NEAR.drawn = true; }
+  kobjs.forEach(o => o.setMap(null)); kobjs = [];
+  kobjs.push(new K.Circle({center, radius: NEAR.radius, strokeWeight: 1.5, strokeColor: '#2563eb', strokeOpacity: 0.9, strokeStyle: 'dash', fillColor: '#2563eb', fillOpacity: 0.04, map: kmap}));
+  const shown = nShown(), us = shown.map(c => c.midUnit).filter(v => v != null), lo = Math.min(...us), hi = Math.max(...us);
+  for (const c of shown){
+    const sel = NSEL === c.id;
+    const el = pinEl(sel ? 'sel' : '', unitColor(c.midUnit, lo, hi), shortName(c.name), c.sum.n ? `㎡당 ${manTxt(c.midUnit)} · ${c.sum.n}건` : '본건 면적대 집계 없음', () => nearOpen(c.id));
+    kobjs.push(new K.CustomOverlay({position: new K.LatLng(c.y, c.x), content: el, xAnchor: 0, yAnchor: 0, zIndex: sel ? 4 : 2, clickable: true, map: kmap}));
+  }
+  const s0 = A.summarize(last.rows), ownName = shortName([...new Set(last.rows.map(r => r.apt).filter(Boolean))][0] || '본건');
+  kobjs.push(new K.CustomOverlay({position: center, content: pinEl('subj', '#0f172a', '본건 · ' + ownName, s0.mid != null ? `㎡당 ${manTxt(s0.mid / ctx.subjectArea)} · ${s0.n}건` : ''), xAnchor: 0, yAnchor: 0, zIndex: 5, map: kmap}));
+}
+
+/* 누른 단지 상세: 면적 칩(처음엔 본건 ±n% 면적), 본건 면적 환산 최저/중간/최고, 거래표(집계 체크) */
+function nearOpen(id){
+  NSEL = NSEL === id ? null : id;
+  nearList(); nearMap(); nearDetail();
+  if (NSEL) $('nDetail').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+function nearDetail(){
+  const box = $('nDetail'), c = NSEL && NEAR && NEAR.list.find(x => x.id === NSEL);
+  if (!c){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.classList.remove('hidden');
+  const s = c.sum, A0 = ctx.subjectArea, c0 = c.res.chain[0];
+  const big = (k, v, extra) => `<div class="b ${k === '중간' ? 'min' : ''}"><div class="k">${k} <span class="hint">(본건 면적 환산)</span></div><div class="v">${v != null ? A.fmtWon(v) : '-'}</div>`
+    + `<div class="u">${v != null ? '㎡당 ' + num(Math.round(v / A0)) + '원' : ''}${extra || ''}</div></div>`;
+  const pm = pctTxt(s.mid);
+  box.innerHTML = `<div class="dhead"><span class="t">📍 ${esc(c.name)}</span>
+      <span class="hint">${esc(c.sgg)} ${esc(c.umd)} ${esc(c.jibun)} · 본건에서 ${distTxt(c.dist)}${c.built ? ' · ' + c.built + '년 준공' : ''}${c.hhld != null ? ' · ' + c.hhld.toLocaleString('ko-KR') + '세대' : ''}${c.flr ? ' · 최고 ' + c.flr + '층' : ''}${c.names.length > 1 ? ' · 같은 지번 ' + esc(c.names.join(', ')) : ''}</span>
+      <span class="x"><button type="button" id="nXlsx">이 단지 엑셀</button><button type="button" id="nCopy">결론 복사</button><button type="button" id="nClose">✕ 닫기</button></span></div>
+    <div class="hint">이 단지 전용면적 (본건 ${A0}㎡와 같게 볼 면적을 고르세요. 처음엔 본건 ±${Math.round(NEAR.tol * 100)}% 안 면적이 골라져 있어요. 누르면 켜고 꺼짐)</div>
+    <div class="chips" id="nChips"></div>
+    <div class="big">${big('최저', s.min)}${big('중간', s.mid, pm ? ` · 본건 중간보다 <b class="${pctCls(s.mid)}">${pm}</b>` : '')}${big('최고', s.max)}</div>
+    <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 전체 ${c.res.rows.length}건 · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
+    <div class="tbl"><table><thead><tr><th>집계</th><th>계약일</th><th>층</th><th>전용(㎡)</th><th>거래가</th><th>시점수정치</th><th>시점수정 ㎡단가</th><th>본건 면적 환산가</th><th>면적대</th><th>비고</th></tr></thead><tbody id="nTbody"></tbody></table></div>`;
+  const chips = $('nChips');
+  c.types.forEach(t => {
+    const b = document.createElement('button'); b.type = 'button';
+    if (c.same.some(a => Math.abs(a - t.area) < 1e-9)) b.className = 'on';
+    b.textContent = `${t.area}㎡ (${t.n}건)`;
+    b.onclick = () => {
+      const i = c.same.findIndex(a => Math.abs(a - t.area) < 1e-9);
+      if (i >= 0) c.same.splice(i, 1); else c.same.push(t.area);
+      c.res = calcCx(c, c.same); cxStat(c); nearList(); nearMap(); nearDetail();
+    };
+    chips.appendChild(b);
+  });
+  const tb = $('nTbody');
+  c.res.rows.forEach(r => {
+    const tr = document.createElement('tr');
+    if (!r.include) tr.className = 'off';
+    const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
+    tr.innerHTML = `<td class="c"><input type="checkbox" ${r.include ? 'checked' : ''} ${r.subjectPrice ? '' : 'disabled'}></td>
+      <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
+      <td class="n">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
+      <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n"><b>${A.fmtWon(r.subjectPrice)}</b></td>
+      <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
+    tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; cxStat(c); nearList(); nearMap(); nearDetail(); });
+    tb.appendChild(tr);
+  });
+  $('nClose').onclick = () => nearOpen(c.id);
+  $('nCopy').onclick = () => {
+    const t = `[주변 단지] ${c.name} (${c.sgg} ${c.umd} ${c.jibun}, 본건에서 ${distTxt(c.dist)}${c.built ? ', ' + c.built + '년 준공' : ''}${c.hhld != null ? ', ' + c.hhld.toLocaleString('ko-KR') + '세대' : ''}): `
+      + (s.n ? `본건 면적(${A0}㎡) 환산 최저 ${A.fmtWon(s.min)} / 중간 ${A.fmtWon(s.mid)} / 최고 ${A.fmtWon(s.max)} (사례 ${s.n}건, 부동산원 지수 ${A.fmtYm(ctx.baseYm)} 기준 시점수정)` + (pm ? `, 본건 중간 대비 ${pm}` : '') : '집계 사례 없음');
+    navigator.clipboard.writeText(t).then(() => { $('nCopy').textContent = '복사됨'; setTimeout(() => { if ($('nCopy')) $('nCopy').textContent = '결론 복사'; }, 1200); });
+  };
+  $('nXlsx').onclick = () => {
+    const r = Object.assign({}, c.res, {subject: last.subject, idxBase: last.idxBase, writeDate: ctx.writeIso, bandUsed: `동일(고른 면적 ${c.same.join(', ')}㎡)`});
+    exportXlsx(r, `주변 단지 시점수정 — ${c.name} (본건 ${A0}㎡ 환산, 본건에서 ${distTxt(c.dist)})`, `시점수정_주변_${c.umd}${c.jibun}_${ctx.writeIso}.xlsx`).catch(e => nearMsg(e.message || String(e), 'err'));
+  };
+}
+
+$('nGo').onclick = () => findNearby();
+$('nMinH').addEventListener('input', () => { if (NEAR) nearRender(); });
+$('nTol').addEventListener('change', nearAfterMain);
+$('nList').addEventListener('click', e => {
+  const th = e.target.closest('th[data-nk]');
+  if (th){ const k = th.dataset.nk; NSORT = NSORT.k === k ? {k, dir: -NSORT.dir} : {k, dir: 1}; nearList(); return; }
+  const tr = e.target.closest('tr.cx'); if (!tr) return;
+  if (tr.dataset.own){ $('result').scrollIntoView({behavior: 'smooth'}); return; }
+  nearOpen(tr.dataset.id);
+});
 
 function showMsg(text, kind){ $('msg').innerHTML = text ? `<div class="msg ${kind || 'err'}">${esc(text)}</div>` : ''; }
 /* 같은 지번이 여러 곳(건축물대장 조회 offerPick과 같은 동작): 고르면 그 필지로 계산 */
@@ -631,13 +1074,16 @@ function render(){
   });
   $('bandInfo').textContent = bOnly ? `${last.rows.length - hid}건 표시, ${selOn ? '고른 면적 외' : '면적대 상이'} ${hid}건 숨김 (계산은 그대로)` : '';
   renderSummary();
+  paintFold();
+  nearAfterMain();
 }
 
 /* 엑셀: 눈금선 끔, 표 테두리 연회색(BFBFBF), 제목 줄바꿈 없음 */
 function loadScript(src){ return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('엑셀 라이브러리를 못 불러왔어요.')); document.head.appendChild(s); }); }
-async function exportXlsx(){
+async function exportXlsx(r, title, fname){ // r 없으면 본건 결과. 주변 단지 상세는 그 단지 결과 + 제목, 파일 이름
   if (!window.ExcelJS) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
-  const r = last, s = A.summarize(r.rows), a = r.addr, c0 = r.chain[0];
+  r = r || last;
+  const s = A.summarize(r.rows), a = r.addr, c0 = r.chain[0];
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('시점수정', {views: [{showGridLines: false}]});
   const side = {style: 'thin', color: {argb: 'FFBFBFBF'}}, border = {top: side, left: side, bottom: side, right: side};
@@ -646,7 +1092,7 @@ async function exportXlsx(){
   const apts = [...new Set(r.rows.map(x => x.apt).filter(Boolean))];
   const loc = [a.sido, a.sgg, a.umd, a.jibun, a.keyword].filter(Boolean).join(' ');
 
-  ws.getCell('A1').value = '아파트 실거래 시점수정 결과';
+  ws.getCell('A1').value = title || '아파트 실거래 시점수정 결과';
   ws.getCell('A1').font = {bold: true, size: 14}; ws.getCell('A1').alignment = nowrap;
   const info = [['단지', loc + (apts.length ? ` (${apts.join(', ')})` : '')], ['본건', subjectText(r) || '(미입력)'],
     ['작성일', r.writeDate.replace(/-/g, '.')],
@@ -690,7 +1136,7 @@ async function exportXlsx(){
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const el = document.createElement('a'); el.href = URL.createObjectURL(blob);
-  el.download = `시점수정_${a.umd || a.sgg}_${r.writeDate}.xlsx`; el.click();
+  el.download = fname || `시점수정_${a.umd || a.sgg}_${r.writeDate}.xlsx`; el.click();
   setTimeout(() => URL.revokeObjectURL(el.href), 5000);
 }
 
@@ -729,6 +1175,20 @@ ${safeRange(s.mid)}`;
   navigator.clipboard.writeText(t).then(() => { $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '결론 복사', 1200); });
 };
 $('xlsx').onclick = () => exportXlsx().catch(e => showMsg(e.message || String(e)));
+/* 본건 거래표 접기, 펴기: 처음엔 펴 둠, 마지막 상태를 이 브라우저에 기억(실패해도 그냥 동작) */
+function paintFold(){
+  const folded = $('mainTbl').classList.contains('hidden');
+  $('foldTbl').textContent = folded ? `▸ 거래표 펴기${last ? ' (' + last.rows.length + '건)' : ''}` : '▾ 거래표 접기';
+  $('bandOnlyLbl').classList.toggle('hidden', folded);
+  $('bandInfo').classList.toggle('hidden', folded);
+}
+try { if (localStorage.getItem('arap-apt-sise-tblfold') === '1') $('mainTbl').classList.add('hidden'); } catch (e) {}
+$('foldTbl').onclick = () => {
+  const f = $('mainTbl').classList.toggle('hidden');
+  try { localStorage.setItem('arap-apt-sise-tblfold', f ? '1' : '0'); } catch (e) {}
+  paintFold();
+};
+paintFold();
 
 // 작성일: 열 때마다 오늘(저장값 불러오지 않음). 바꾸면 공표 규칙대로 기준월 안내도 바로 갱신.
 $('wdate').value = todayIso().replace(/-/g, '.');
