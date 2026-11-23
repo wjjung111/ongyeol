@@ -251,7 +251,7 @@ function hidePick(){document.getElementById('pick').style.display='none';documen
 // 건축HUB 호출 주소 — 프록시가 있으면 프록시, 없으면 공공데이터포털 직접.
 // extra: {pageNo, numOfRows, dongNm, hoNm} — 집합건물 호 조회 때 동·호 이름으로 걸러 받는다 (프록시 2판 이상이 전달)
 function bldUrl(op,extra){
-  var pnu=STATE.pnu,x=extra||{};
+  var x=extra||{},pnu=x.pnu||STATE.pnu;   // x.pnu = 다른 필지(관련지번 찾기에서 주변 필지 대장 조회)
   var qs='';
   ['pageNo','numOfRows','dongNm','hoNm'].forEach(function(k){if(x[k]!=null&&x[k]!=='')qs+='&'+k+'='+encodeURIComponent(x[k]);});
   if(PROXY_BASE)return PROXY_BASE+'/bld?op='+op+'&pnu='+pnu+qs;
@@ -387,7 +387,8 @@ async function goRoad(){
 }
 
 // 2) 건축HUB — 표제부 / 층별개요 / 지역지구
-async function lookup(pnu,addr){
+async function lookup(pnu,addr,opt){
+  opt=opt||{};
   var btn=document.getElementById('btnGo');btn.disabled=true;
   document.getElementById('result').style.display='none';
   STATE.pnu=pnu;STATE.addr=addr;STATE.proxyOld=false;
@@ -416,10 +417,15 @@ async function lookup(pnu,addr){
     STATE.atchOld=!!(PROXY_BASE&&at.length&&at[0].atchBun==null&&at[0].flrNo!=null);
     STATE.atch=STATE.atchOld?[]:at;
 
+    // 이 지번에 대장이 없으면 → 다른 건물의 관련지번(부속지번)인지 주변 필지 대장에서 찾아 대표지번으로 다시 조회
+    if(!STATE.titles.length&&!STATE.flrs.length&&!opt.via){
+      var hit=await findMainByAtch(pnu).catch(function(e){console.error('관련지번 찾기',e);return null;});
+      if(hit)return lookup(hit.pnu,hit.addr,{via:addr});
+    }
     if(!STATE.titles.length&&!STATE.flrs.length)
       // 무엇으로 조회했는지 보여준다 — V-World가 다른 동네·다른 지번으로 잡았는지, 단지 대표지번이 아닌지 사용자가 바로 판단할 수 있게
       throw new Error('해당 지번의 건축물대장을 찾지 못했습니다. 조회한 주소: '+STATE.addr+' (PNU '+pnu+', 지번 '+String(Number(bun))+(Number(ji)?'-'+Number(ji):'')+'). '
-        +'여러 필지에 걸친 단지는 대장이 대표 지번(총괄표제부 지번) 하나에만 있으니 다른 필지 번호로도 시도해보세요. 시·구까지 붙이면 다른 동네로 잡히는 것도 막을 수 있습니다.');
+        +'여러 필지에 걸친 단지는 대장이 대표 지번(총괄표제부 지번) 하나에만 있습니다 — 주변 필지 대장의 관련지번에서도 이 지번을 찾지 못했으니 대표 지번으로 시도해보세요. 시·구까지 붙이면 다른 동네로 잡히는 것도 막을 수 있습니다.');
 
     // 동 선택
     var sel=document.getElementById('dongSel');
@@ -434,11 +440,57 @@ async function lookup(pnu,addr){
     setupHoPanel();
     histAdd('parcel',STATE.addr);   // 조회 성공한 지번 주소를 검색 기록에 (시·도까지 붙은 전체 주소라 다음엔 바로 조회됨)
     document.getElementById('result').style.display='block';
-    setStatus('✅ 조회 완료 — '+STATE.addr+' · 동 '+(STATE.titles.length||1)+'개 · 층별 '+STATE.flrs.length+'행','ok');
+    setStatus('✅ 조회 완료 — '+STATE.addr+' · 동 '+(STATE.titles.length||1)+'개 · 층별 '+STATE.flrs.length+'행'
+      +(opt.via?' · 입력한 「'+opt.via+'」는 이 건물의 관련지번이라 대표지번으로 조회했습니다':''),'ok');
   }catch(e){
     console.error('건축물대장 조회',e);
     setStatus('실패: '+e.message,'err');
   }finally{btn.disabled=false;}
+}
+
+// ── 관련지번(부속지번)으로 검색했을 때 대표지번 찾기 (2026-11-23 사용자 요청) ──
+// 건축HUB는 대표지번으로만 조회되고, 관련지번 → 대표지번 역조회 API가 없다.
+// → 그 필지 둘레(약 100m) 필지를 브이월드 연속지적도에서 받아, 번호가 가까운 필지부터 대장의 관련지번 목록(getBrAtchJibunInfo)에 이 지번이 있는지 본다.
+var ATCH_SKIP=/(도|구|천|제|철|수|유|양)$/;   // 도로·구거·하천·제방·철도·수도·유지·양어장 — 건물 대표지번일 리 없는 지목
+var ATCH_MAX=120;                             // 조회할 주변 필지 상한(공공데이터 호출 수 보호)
+function vwData(u){return tryFetch(u).catch(function(){return tryJsonp(u);});}
+function vwFeatures(d){var fc=d&&d.response&&d.response.result&&d.response.result.featureCollection;return (fc&&fc.features)||[];}
+function geomBox(g){var b=[Infinity,Infinity,-Infinity,-Infinity];
+  (function walk(c){if(typeof c[0]==='number'){b[0]=Math.min(b[0],c[0]);b[1]=Math.min(b[1],c[1]);b[2]=Math.max(b[2],c[0]);b[3]=Math.max(b[3],c[1]);}else c.forEach(walk);})(g.coordinates);
+  return b;}
+function atchHas(list,pnu){
+  var bj=pnu.slice(5,10),san=pnu.charAt(10)==='2',bun=Number(pnu.slice(11,15)),ji=Number(pnu.slice(15,19));
+  return list.some(function(x){return Number(x.atchBun)===bun&&Number(x.atchJi||0)===ji&&(String(x.atchPlatGbCd)==='1')===san
+    &&(!txt(x.atchBjdongCd)||txt(x.atchBjdongCd)===bj);});
+}
+async function findMainByAtch(pnu){
+  var base=API_BASE+'/req/data?service=data&request=GetFeature&data=LP_PA_CBND_BUBUN&version=2.0&key='+getKey()
+    +'&domain='+encodeURIComponent(location.origin)+'&format=json&errorformat=json&crs=EPSG:4326';
+  setStatus('이 지번엔 건축물대장이 없습니다 — 다른 건물의 관련지번인지 주변 필지에서 찾는 중…');
+  var me=vwFeatures(await vwData(base+'&size=1&page=1&geometry=true&attribute=false&attrFilter=pnu:=:'+pnu))[0];
+  if(!me||!me.geometry)return null;
+  var b=geomBox(me.geometry),m=0.001;   // 위도 0.001° ≈ 110m
+  var box='BOX('+(b[0]-m)+','+(b[1]-m)+','+(b[2]+m)+','+(b[3]+m)+')';
+  var fs=vwFeatures(await vwData(base+'&size=1000&page=1&geometry=false&attribute=true&geomFilter='+encodeURIComponent(box)));
+  var bun=Number(pnu.slice(11,15)),bj=pnu.slice(5,10),seen={};seen[pnu]=1;
+  var cands=fs.map(function(f){var p=f.properties||{};return {pnu:txt(p.pnu),jibun:txt(p.jibun),addr:txt(p.addr)};})
+    .filter(function(c){if(!/^\d{19}$/.test(c.pnu)||seen[c.pnu])return false;seen[c.pnu]=1;return !ATCH_SKIP.test(c.jibun.replace(/\s/g,''));})
+    .sort(function(x,y){return ((x.pnu.slice(5,10)===bj?0:1)-(y.pnu.slice(5,10)===bj?0:1))
+      ||(Math.abs(Number(x.pnu.slice(11,15))-bun)-Math.abs(Number(y.pnu.slice(11,15))-bun))||(Number(x.pnu.slice(15,19))-Number(y.pnu.slice(15,19)));})
+    .slice(0,ATCH_MAX);
+  for(var i=0;i<cands.length;i+=8){
+    setStatus('이 지번엔 건축물대장이 없습니다 — 다른 건물의 관련지번인지 주변 필지 대장에서 찾는 중… ('+Math.min(i+8,cands.length)+'/'+cands.length+'필지)');
+    var got=await Promise.all(cands.slice(i,i+8).map(function(c){
+      return tryFetch(bldUrl('getBrAtchJibunInfo',{pnu:c.pnu})).then(function(d){return atchHas(items(d),pnu)?c:null;}).catch(function(){return null;});}));
+    var hit=got.filter(Boolean)[0];
+    if(hit){
+      // 주소: 연속지적도 addr(시·도부터) — 없으면 입력 주소의 지번만 바꿔 씀
+      var jb=String(Number(hit.pnu.slice(11,15)))+(Number(hit.pnu.slice(15,19))?'-'+Number(hit.pnu.slice(15,19)):'');
+      hit.addr=hit.addr||STATE.addr.replace(/(산\s*)?\d+(-\d+)?\s*$/,(hit.pnu.charAt(10)==='2'?'산':'')+jb);
+      return hit;
+    }
+  }
+  return null;
 }
 
 // ── 총괄표제부 (여러 동 단지) + 동별 개요 ──
