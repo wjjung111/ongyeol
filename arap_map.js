@@ -77,6 +77,12 @@ var CSS=[
 // 크기 조절 손잡이(2026-11-13) — 이름표 오른쪽 아래 모서리. 끌면 글자·말풍선이 같이 커지고 작아진다(it.xy.labScale에 저장)
 '.mkr .lab .lgrip{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;border-radius:2px;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 1px #2563eb;cursor:nwse-resize;opacity:0;transition:opacity .12s;}',
 '.mkr .lab:hover .lgrip,.mkr .lab.resizing .lgrip{opacity:1;}',
+// 세밀 확대(2026-11-23): 카카오 덮개를 정수 레벨 사이에서 CSS로 키우고 줄인다. 이름표·핀은 반대로 줄여 화면 크기 그대로
+'.arap-kmap .mkr{transform:scale(var(--kzs,1));transform-origin:0 0;}',
+'.arap-kzoom{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:1002;display:flex;flex-direction:column;background:#fff;border:1px solid #c4c9d1;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2);overflow:hidden;user-select:none;}',
+'.arap-kzoom button{width:32px;height:32px;border:0;margin:0;padding:0;background:#fff;color:#333;font:400 20px/1 sans-serif;cursor:pointer;}',
+'.arap-kzoom button+button{border-top:1px solid #e2e8f0;}',
+'.arap-kzoom button:hover{background:#f1f5f9;}',
 '.arap-lgd{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;}'
 ].join('\n');
 
@@ -119,6 +125,13 @@ function isKakao(v){return v==='kakao'||v==='kakaoSky';}
 // 확대 단계 맞바꾸기 — 카카오 레벨 3 ≈ Leaflet 줌 17(한 단계마다 2배)
 function toLevel(z){return Math.max(1,Math.min(14,Math.round(20-z)));}
 function toZoom(l){return Math.max(6,Math.min(19,20-l));}
+// 세밀 확대 — 한 번에 0.25단계(약 1.19배). 카카오는 정수 레벨뿐이라 가까운 레벨 + CSS 배율(0.84~1.41)로 사이를 메운다.
+var ZSTEP=0.25,KZ_MIN=6,KZ_MAX=19.5;
+function fineZoom(z){return Math.max(KZ_MIN,Math.min(KZ_MAX,Math.round(z/ZSTEP)*ZSTEP));}
+function kLevelScale(z){   // 줌 → {카카오 레벨, 배율}. 0.75는 다음 레벨을 줄여서(선명하게), 0.25·0.5는 이 레벨을 키워서
+  var fl=Math.floor(z+1e-9),fr=z-fl;if(fr>0.5+1e-9){fl++;fr-=1;}
+  return {level:Math.max(1,Math.min(14,20-fl)),scale:Math.pow(2,fr)};
+}
 // GeoJSON 도형들의 바깥 고리 좌표를 하나씩 넘겨준다([경도,위도])
 function eachRing(g,fn){
   if(!g)return;
@@ -220,6 +233,7 @@ function create(opt){
   var userChose=false;               // 사용자가 바탕지도를 직접 고른 뒤로는 멋대로 OSM으로 바꾸지 않는다
   var kmap=null,kdiv=null,kobjs=[],kinfo=null,kcad=false;   // 카카오맵(고를 때만 만든다)
   var getKakaoKey=function(){return opt.kakaoKey||KAKAO_KEY;};
+  var kz=null,ks=1,kguard=false,kdragOff=false,kzbox=null,kwheel=0,kpan=null;   // 카카오 세밀 확대: 줌값·CSS 배율·내부 변경 표시·끌기 잠금
   var hidden={};   // 분류(kind) → true면 지도에서 감춘다. 항목·좌표는 그대로 두고 그리기만 건너뛴다.
 
   function status(msg,err){
@@ -296,13 +310,19 @@ function create(opt){
       var K=window.kakao.maps,c=map.getCenter(),ll=new K.LatLng(c.lat,c.lng);
       if(!kmap){
         kmap=new K.Map(kdiv,{center:ll,level:toLevel(map.getZoom())});
-        kmap.addControl(new K.ZoomControl(),K.ControlPosition.RIGHT);
-        K.event.addListener(kmap,'zoom_changed',function(){kdraw();});   // 확대하면 이름표를 필지 바깥으로 다시 민다
+        // 카카오 기본 +/− 대신 세밀 확대 단추(kZoomBox). 카카오가 스스로 레벨을 바꾸면(두 번 누르기·손가락) 배율을 1로 맞춘다
+        K.event.addListener(kmap,'zoom_changed',function(){
+          if(kguard)return;
+          if(ks!==1)kScale(1);
+          kz=20-kmap.getLevel();kdraw();   // 확대하면 이름표를 필지 바깥으로 다시 민다
+        });
+        kBindInput();
       }else{
-        kmap.relayout();kmap.setCenter(ll);kmap.setLevel(toLevel(map.getZoom()));
+        kmap.relayout();kmap.setCenter(ll);
       }
+      kZoomBox(true);
       kmap.setMapTypeId(v==='kakaoSky'?K.MapTypeId.HYBRID:K.MapTypeId.ROADMAP);
-      kcad=null;kOverlay();kdraw();
+      kcad=null;kOverlay();kZoomTo(map.getZoom());
       status('✅ 카카오맵'+(v==='kakaoSky'?' 스카이뷰':'')+'로 표시 중 — 이름표는 끌어서 옮길 수 있습니다.');
     }).catch(function(e){
       console.error('카카오맵',e);
@@ -314,10 +334,98 @@ function create(opt){
   }
   function hideKakao(){
     if(!kdiv||kdiv.style.display==='none')return;
-    if(kmap){var c=kmap.getCenter();map.setView([c.getLat(),c.getLng()],toZoom(kmap.getLevel()),{animate:false});}
-    kdiv.style.display='none';
+    if(kmap){var c=kmap.getCenter();map.setView([c.getLat(),c.getLng()],Math.min(19,kz!=null?kz:toZoom(kmap.getLevel())),{animate:false});}
+    kdiv.style.display='none';kZoomBox(false);
     if(kinfo)kinfo.close();
   }
+  // ── 카카오 세밀 확대 ──
+  // 덮개(kdiv)를 1/배율 크기로 만들고 scale(배율)로 늘려 원래 칸을 채운다 → 정수 레벨 사이 단계가 생긴다.
+  // 이름표는 --kzs(=1/배율)로 되줄여 화면 크기 그대로, 위치 계산(kdraw px)은 화면 픽셀(내부 좌표×배율)로 한다.
+  function kScale(s){
+    ks=s;
+    kdiv.style.width=kdiv.style.height=(100/s)+'%';
+    kdiv.style.transformOrigin='0 0';kdiv.style.transform=s===1?'':'scale('+s+')';
+    kdiv.style.setProperty('--kzs',String(1/s));
+    var c=kmap.getCenter(),g=kguard;kguard=true;try{kmap.relayout();kmap.setCenter(c);}finally{kguard=g;}
+    kmap.setDraggable(s===1&&!kdragOff);   // 배율이 1이 아니면 카카오 끌기는 끄고 kPan이 화면 픽셀대로 옮긴다
+  }
+  function kCanProject(){var K=window.kakao.maps;return !!(K.Point&&kmap.getProjection().coordsFromContainerPoint);}
+  // z = 줌(Leaflet 단위, 0.25 간격). cx·cy(화면 좌표)를 주면 그 점이 제자리에 남게(휠 확대)
+  function kZoomTo(z,cx,cy){
+    if(!kmap)return;
+    var K=window.kakao.maps,ls=kLevelScale(z=fineZoom(z)),box=map.getContainer().getBoundingClientRect(),anchor=null;
+    if(cx!=null&&kCanProject())anchor=kmap.getProjection().coordsFromContainerPoint(new K.Point((cx-box.left)/ks,(cy-box.top)/ks));
+    var c=kmap.getCenter();
+    kz=z;
+    kguard=true;
+    try{
+      if(ls.scale!==ks)kScale(ls.scale);
+      kmap.setLevel(ls.level);kmap.setCenter(c);
+      if(anchor){
+        var pr=kmap.getProjection(),np=pr.containerPointFromCoords(anchor),cp=pr.containerPointFromCoords(c);
+        kmap.setCenter(pr.coordsFromContainerPoint(new K.Point(cp.x+np.x-(cx-box.left)/ks,cp.y+np.y-(cy-box.top)/ks)));
+      }
+    }finally{kguard=false;}
+    kdraw();
+  }
+  function kLock(on){kdragOff=on;if(kmap)kmap.setDraggable(!on&&ks===1);}
+  // 세밀 확대 단추(+/−) — 카카오 덮개 바깥(지도 칸)에 붙여 배율의 영향을 안 받게 한다
+  function kZoomBox(show){
+    if(!kzbox){
+      if(!show)return;
+      kzbox=document.createElement('div');kzbox.className='arap-kzoom';
+      kzbox.innerHTML='<button type="button" data-kz="1" title="확대 (한 번에 약 1.2배)">+</button><button type="button" data-kz="-1" title="축소 (한 번에 약 1.2배)">−</button>';
+      kzbox.addEventListener('click',function(e){
+        var b=e.target.closest&&e.target.closest('[data-kz]');if(!b||!kmap)return;
+        e.preventDefault();kZoomTo((kz!=null?kz:20-kmap.getLevel())+ZSTEP*(+b.getAttribute('data-kz')));
+      });
+      L.DomEvent.disableClickPropagation(kzbox);L.DomEvent.disableScrollPropagation(kzbox);
+      map.getContainer().appendChild(kzbox);
+    }
+    kzbox.style.display=show?'flex':'none';
+  }
+  // 휠(한 칸 = 0.25단계, 커서 아래 지점 고정)과 배율 상태의 지도 끌기
+  function kBindInput(){
+    kdiv.addEventListener('wheel',function(e){
+      if(!kakaoOn())return;
+      e.preventDefault();e.stopPropagation();   // 카카오 자체 휠 확대(정수 레벨)는 막는다
+      var d=e.deltaY*(e.deltaMode===1?40:e.deltaMode===2?400:1);
+      if(kwheel&&(kwheel>0)!==(d>0))kwheel=0;
+      kwheel+=d;
+      if(Math.abs(kwheel)<50)return;           // 마우스 한 칸(≈100)은 한 단계, 터치패드는 50씩 모아서
+      var dir=kwheel<0?1:-1;kwheel=0;
+      kZoomTo((kz!=null?kz:20-kmap.getLevel())+dir*ZSTEP,e.clientX,e.clientY);
+    },{capture:true,passive:false});
+    var moved=false;
+    function down(e){
+      if(ks===1||kdragOff||!kakaoOn()||!kCanProject())return;
+      if(e.type==='mousedown'&&e.button!==0)return;
+      if(e.touches&&e.touches.length>1)return;
+      if(e.target&&e.target.closest&&e.target.closest('.lab,.lgrip,[data-lx]'))return;   // 이름표 끌기·크기·✕는 그쪽에서
+      var p=evPt(e);if(!p)return;
+      kpan=p;moved=false;
+      document.addEventListener('mousemove',move,true);document.addEventListener('mouseup',up,true);
+      document.addEventListener('touchmove',move,{passive:false,capture:true});document.addEventListener('touchend',up,true);
+      if(e.type==='mousedown')e.preventDefault();
+    }
+    function move(e){
+      var p=evPt(e);if(!p||!kpan)return;
+      var K=window.kakao.maps,pr=kmap.getProjection(),cp=pr.containerPointFromCoords(kmap.getCenter());
+      var dx=(p.x-kpan.x)/ks,dy=(p.y-kpan.y)/ks;kpan=p;
+      if(dx||dy){moved=true;kmap.setCenter(pr.coordsFromContainerPoint(new K.Point(cp.x-dx,cp.y-dy)));}
+      e.preventDefault();
+    }
+    function up(){
+      document.removeEventListener('mousemove',move,true);document.removeEventListener('mouseup',up,true);
+      document.removeEventListener('touchmove',move,{capture:true});document.removeEventListener('touchend',up,true);
+      kpan=null;
+    }
+    kdiv.addEventListener('mousedown',down,true);
+    kdiv.addEventListener('touchstart',down,{passive:true,capture:true});
+    // 끌고 난 직후의 클릭은 필지 설명창을 띄우지 않는다
+    kdiv.addEventListener('click',function(e){if(moved){moved=false;e.stopPropagation();e.preventDefault();}},true);
+  }
+
   // 지적선 체크 → 카카오 지적편집도
   function kOverlay(){
     if(!kmap)return;
@@ -598,7 +706,7 @@ function create(opt){
     var K=window.kakao.maps,proj=kmap.getProjection();
     kobjs.forEach(function(o){o.setMap(null);});kobjs=[];
     if(kinfo)kinfo.close();
-    function px(la,ln){var p=proj.containerPointFromCoords(new K.LatLng(la,ln));return {x:p.x,y:p.y};}
+    function px(la,ln){var p=proj.containerPointFromCoords(new K.LatLng(la,ln));return {x:p.x*ks,y:p.y*ks};}   // 화면 픽셀(세밀 확대 배율 반영)
     function bbox(geos){
       var b=null;
       geos.forEach(function(g){eachRing(g,function(ring){ring.forEach(function(c){
@@ -650,14 +758,14 @@ function create(opt){
         var o=base();
         root.innerHTML=parcelHtml(it,o[0],o[1],tip(o[0],o[1]));
         dragLabel(root,it,{base:base,tip:tip,
-          lock:function(on){kmap.setDraggable(!on);},
+          lock:kLock,
           click:function(){info(it,pos);},
           reset:function(){kdraw();}});
       }else{
         pos=new K.LatLng(it.xy.y,it.xy.x);
         root.innerHTML=dotHtml(it);
         root.addEventListener('click',function(e){e.stopPropagation();info(it,pos);});
-        bindResize(root.querySelector('.lab'),it,function(on){kmap.setDraggable(!on);});
+        bindResize(root.querySelector('.lab'),it,kLock);
       }
       var ov=new K.CustomOverlay({map:kmap,position:pos,content:root,xAnchor:0,yAnchor:0,zIndex:it.pick?3:2,clickable:true});
       kobjs.push(ov);
@@ -666,7 +774,7 @@ function create(opt){
   // Leaflet이 맞춘 화면(범위)을 카카오로 옮기고 다시 그린다
   function ksync(keepView){
     if(!kakaoOn())return;
-    if(!keepView){var c=map.getCenter();kmap.setCenter(new window.kakao.maps.LatLng(c.lat,c.lng));kmap.setLevel(toLevel(map.getZoom()));}
+    if(!keepView){var c=map.getCenter();kmap.setCenter(new window.kakao.maps.LatLng(c.lat,c.lng));kZoomTo(map.getZoom());return;}
     kdraw();
   }
 
@@ -791,7 +899,8 @@ function create(opt){
     return load().then(function(){
       injectCss();
       if(!map){
-        map=L.map(opt.box).setView(opt.center||[37.5665,126.9780],opt.zoom||16);
+        // 세밀 확대: +/−·휠 한 번에 0.25단계(약 1.19배). 휠 300px = 한 레벨 → 마우스 한 칸이 0.25단계
+        map=L.map(opt.box,{zoomSnap:ZSTEP,zoomDelta:ZSTEP,wheelPxPerZoomLevel:300}).setView(opt.center||[37.5665,126.9780],opt.zoom||16);
         applyBase();   // 처음 띄울 때는 사용자 선택으로 치지 않는다(브이월드가 막히면 OSM 자동 대체 허용)
         L.control.scale({imperial:false}).addTo(map);
         map.on('zoomend',relabel);   // 확대·축소에 맞춰 이름표를 필지 바깥으로 다시 민다
@@ -818,7 +927,8 @@ function create(opt){
   return {
     open:open, refresh:refresh, restyle:restyle, setBase:setBase, toggleOverlay:toggleOverlay, setVisible:setVisible,
     status:status, items:function(){return items;},
-    leaflet:function(){return map;}, markers:function(){return markers;}, kakao:function(){return kmap;}
+    leaflet:function(){return map;}, markers:function(){return markers;}, kakao:function(){return kmap;},
+    zoom:function(){return kakaoOn()?kz:(map?map.getZoom():null);}, zoomTo:function(z){if(kakaoOn())kZoomTo(z);else if(map)map.setZoom(fineZoom(Math.min(19,z)));}
   };
 }
 
