@@ -451,7 +451,10 @@ function renderRecap(){
     var jibun=(txt(r.bun)?String(Number(r.bun)):'')+(txt(r.ji)&&Number(r.ji)?('-'+Number(r.ji)):'');
     var addr=(txt(r.platPlc)||STATE.addr).replace(/\s*\d+(-\d+)?(번지)?\s*$/,'');
     var pkTot=txt(r.totPkngCnt)||(['indrAutoUtcnt','indrMechUtcnt','oudrAutoUtcnt','oudrMechUtcnt'].reduce(function(s,k){return s+(Number(r[k])||0);},0)||'');
-    info=row2('대지위치',addr,'지번',(jibun||'-')+(atchList().length?' 외 '+atchList().length+'필지':''))+
+    var atN=atchList().length;
+    info=row2('대지위치',addr,'지번',(jibun||'-')+(atN?' 외 '+atN+'필지':''))+
+      // 「외 N필지」의 N필지를 바로 아래에 전부 — 표제부 건축물정보의 「지번 관련 주소」와 같은 목록(2026-11-23 사용자 요청)
+      (atN||STATE.atchOld?'<tr><th class="lbl">관련지번'+(atN?' ('+atN+'필지)':'')+'</th><td class="l" colspan="3" id="recapAtch">'+esc(atchText())+'</td></tr>':'')+
       row2('건물명',txt(r.bldNm)||'-','도로명주소',txt(r.newPlatPlc)||'-')+
       row2('대지면적(㎡)',n1(r.platArea),'연면적(㎡)',n1(r.totArea),true,true)+
       row2('건축면적(㎡)',n1(r.archArea),'용적률산정용 연면적(㎡)',n1(r.vlRatEstmTotArea),true)+
