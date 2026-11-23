@@ -132,6 +132,14 @@
   .btn.sm{padding:3px 9px;font-size:11px;}
   .row{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
   .hint{color:#94a3b8;font-size:11px;}
+  /* 2-2 탭 의견서 문단 칸(가중평균) */
+  .gjtx{margin-top:12px;}
+  .gjtx-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;}
+  .gjtx-hd b{font-size:12.5px;color:#334155;}
+  .gjtx-hd .btn{margin-left:auto;}
+  .gjtx-st{font-size:11px;padding:1px 7px;border-radius:9px;background:#f1f5f9;color:#64748b;white-space:nowrap;}
+  .gjtx-st.own{background:#fef2f2;color:#dc2626;}
+  .gjtx textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;font-size:12.5px;line-height:1.6;padding:8px 10px;overflow:hidden;}
   .status{margin:6px 0 0;color:#555;min-height:14px;font-size:11px;}
   .status.err{color:#dc2626;font-weight:600;}
   /* 지가변동률 지역 표(시점수정 계산기·집건 시점수정 창과 같은 모양) */
@@ -875,10 +883,11 @@
           <div id="gj_wtBox" style="margin-top:8px"><div id="gj_wtMsg" class="hint"></div><div class="tw" id="gj_wtTw" style="display:none"><table id="gj_wtTbl"></table></div><div id="gj_wtNote" class="hint"></div>
             <!-- 의견서 문장(감칙 제12조 제3항 시산가액 조정, 2026-11-23) — 비워 두면/「자동 문구로」면 비율·차이가 바뀔 때 따라 바뀜, 고치면 고친 대로 -->
             <div id="gj_wtTxt" style="display:none;margin-top:10px">
-              <div class="fld"><label style="display:flex;align-items:center;gap:8px">의견서 「2) 시산가액의 합리성 검토」 문단 <button class="btn gh sm" type="button" onclick="gjWtTextSet(1,'',true)">자동 문구로</button><span class="hint" id="gj_wtT1h"></span></label>
-                <textarea class="box" id="gj_wtT1" rows="5" style="width:100%;resize:vertical;font-size:12px;line-height:1.5" oninput="gjWtTextSet(1,this.value)"></textarea></div>
-              <div class="fld" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px">의견서 「3) 토지감정평가액의 결정」 문단 <button class="btn gh sm" type="button" onclick="gjWtTextSet(2,'',true)">자동 문구로</button><span class="hint" id="gj_wtT2h"></span></label>
-                <textarea class="box" id="gj_wtT2" rows="4" style="width:100%;resize:vertical;font-size:12px;line-height:1.5" oninput="gjWtTextSet(2,this.value)"></textarea></div>
+              <!-- 2026-11-23 모양 정리: .fld(왼쪽 100px 라벨) 안 씀 — 제목 줄 위, 글상자 아래 전체 폭, 글 길이만큼 높이 -->
+              <div class="gjtx"><div class="gjtx-hd"><b>의견서 「2) 시산가액의 합리성 검토」 문단</b><span class="gjtx-st" id="gj_wtT1h"></span><button class="btn gh sm" type="button" id="gj_wtT1r" onclick="gjWtTextSet(1,'',true)">↺ 자동 문구로</button></div>
+                <textarea class="box" id="gj_wtT1" rows="4" oninput="gjWtTextSet(1,this.value);gjTxFit(this)"></textarea></div>
+              <div class="gjtx"><div class="gjtx-hd"><b>의견서 「3) 토지감정평가액의 결정」 문단</b><span class="gjtx-st" id="gj_wtT2h"></span><button class="btn gh sm" type="button" id="gj_wtT2r" onclick="gjWtTextSet(2,'',true)">↺ 자동 문구로</button></div>
+                <textarea class="box" id="gj_wtT2" rows="3" oninput="gjWtTextSet(2,this.value);gjTxFit(this)"></textarea></div>
             </div></div>
         </div>
       </div>
@@ -3749,6 +3758,9 @@ function gjWtTexts(D){if(!D)return null;var o={};[1,2].forEach(function(n){var v
 // reset = 「자동 문구로」 버튼 — 칸에 커서가 있어도 자동 문구를 다시 채운다
 function gjWtTextSet(n,v,reset){LAND_WT['t'+n]=v;var el=document.getElementById('gj_wtT'+n);if(reset&&el&&document.activeElement===el)el.blur();
   calcGyeoljeong();saveForm();}
+// 의견서 문단 칸 — 스크롤 없이 글 길이만큼 높이(숨은 탭에선 scrollHeight=0이라 건너뜀)
+function gjTxFit(el){if(!el||!el.offsetParent)return;el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px';}
+window.addEventListener('resize',function(){gjTxFit(document.getElementById('gj_wtT1'));gjTxFit(document.getElementById('gj_wtT2'));});
 function gjWtUnit(rk,v){LAND_WT.units=LAND_WT.units||{};if(hasV(v))LAND_WT.units[rk]=v;else delete LAND_WT.units[rk];calcGyeoljeong();saveForm();}
 function gjWtLabel(rk){if(rk==='g')return groupWord();if(/^z\d+$/.test(rk))return (typeof zoneDocNo==='function'?zoneDocNo(+rk.slice(1)):rk);
   var i=+rk;return LANDS[i]?String(landParcelNo(i)):rk;}
@@ -3765,7 +3777,9 @@ function gjWtRender(D,a,b){
   var tx=document.getElementById('gj_wtTxt');if(tx)tx.style.display=D?'':'none';
   if(D)[1,2].forEach(function(n){var el=document.getElementById('gj_wtT'+n),own=hasV(LAND_WT['t'+n]);
     if(el&&document.activeElement!==el)el.value=D.texts['t'+n];
-    var h=document.getElementById('gj_wtT'+n+'h');if(h)h.innerHTML=own?'<span style="color:#dc2626">직접 고친 문구</span>':'자동 문구(비율·차이가 바뀌면 따라 바뀜)';});
+    if(el)gjTxFit(el);
+    var h=document.getElementById('gj_wtT'+n+'h');if(h){h.textContent=own?'직접 고친 문구':'자동 문구 · 비율·차이 따라 바뀜';h.className='gjtx-st'+(own?' own':'');}
+    var rb=document.getElementById('gj_wtT'+n+'r');if(rb)rb.style.display=own?'':'none';});
   if(!on){msg.innerHTML='켜면 「공시지가기준법 20% · 거래사례비교법 80%」처럼 두 방법의 적용단가를 가중평균한 단가로 토지감정평가액을 정합니다. 끄면 공시지가기준법 시산가액이 토지감정평가액입니다.';return;}
   if(!D){msg.innerHTML=wa==null?'<span style="color:#b91c1c">공시지가기준법 가중치(%)를 넣어 주세요.</span>':'공시지가기준법 계산을 먼저 입력해 주세요.';return;}
   msg.innerHTML='';
@@ -4107,6 +4121,7 @@ function showTab(name){
   });
   var lb=document.getElementById('tabbtn-land');if(lb)lb.classList.toggle('active',inLand);   // 옛 묶음 버튼(지금은 없음)
   var lt=document.getElementById('landTabs');if(lt)lt.hidden=!inLand;
+  if(name==='gyeoljeong'){gjTxFit(document.getElementById('gj_wtT1'));gjTxFit(document.getElementById('gj_wtT2'));}   // 숨어 있을 때 못 맞춘 글상자 높이
   if(name==='bld'){renderBldCalc();if(window.ArapBuildingCost)ArapBuildingCost.refresh();}
   if(name==='gongsi'&&hasV(cgVal('base_gijun')))autoGaTime(false,true);   // 기준시점 없으면 건너뜀(2-1을 열 때마다 오류 기록이 쌓이지 않게)   // (거래사례비교법) 시점수정 칸이 비어 있으면 채택 사례의 계산해 둔 시점수정치를 끌어온다
   if(name==='final')renderCheonggu();
