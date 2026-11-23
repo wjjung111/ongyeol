@@ -75,7 +75,14 @@ const won=n=>Math.round(n).toLocaleString('ko-KR');
     assert(!on.includes('공시지가기준법에 의한 시산가액을 토지감정평가액으로 결정하였음.'));
     // 화면 문구 칸 — 자동 문구가 보이고, 고치면 의견서에 고친 대로
     assert((await page.locator('#gj_wtT2').inputValue()).includes('각각 20%와 80%'));
+    // 모양(2026-11-23): 제목 줄은 글상자 위 한 줄, 글상자는 카드 폭 전체·스크롤 없이 글 길이만큼, 되돌리기 버튼은 고쳤을 때만
+    const lay=await page.evaluate(()=>[1,2].map(n=>{const t=document.getElementById('gj_wtT'+n),hd=t.previousElementSibling,b=hd.querySelector('b'),box=document.getElementById('gj_wtTxt');
+      const tr=t.getBoundingClientRect(),hr=hd.getBoundingClientRect(),br=b.getBoundingClientRect(),xr=box.getBoundingClientRect();
+      return {above:hr.bottom<=tr.top+1,titleOneLine:br.height<24,fullW:tr.width>=xr.width-2,noScroll:t.scrollHeight<=t.clientHeight+2,btn:getComputedStyle(document.getElementById('gj_wtT'+n+'r')).display};}));
+    lay.forEach((l,i)=>{assert(l.above&&l.titleOneLine&&l.fullW&&l.noScroll,'문단 칸 모양 '+(i+1)+' '+JSON.stringify(l));assert.equal(l.btn,'none','안 고쳤으면 되돌리기 버튼 숨김');});
+    if(process.env.SHOT)await page.locator('#gjCard').screenshot({path:process.env.SHOT});
     await page.locator('#gj_wtT2').fill('직접 쓴 결정 문구 검증.');
+    assert.equal(await page.locator('#gj_wtT2h').textContent(),'직접 고친 문구');
     const own=await opinionText(page);
     assert(own.includes('직접 쓴 결정 문구 검증.')&&!own.includes('가중평균한 가액을 토지감정평가액으로'),'고친 문구가 의견서에');
     await page.locator('#gj_wtTxt button').nth(1).click();
