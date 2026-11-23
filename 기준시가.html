@@ -381,9 +381,11 @@ const won = n => fmt(n) + "원";
 // ---------- 초기화 ----------
 function buildSelects(){
   const s=$("structure"); s.innerHTML=STRUCT.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join(""); s.value="4";
-  const today=new Date(); $("evalDate").value = today.toISOString().slice(0,10);
+  $("evalDate").value = todayKST();
   syncYear();
 }
+// 오늘 날짜(한국시간) — toISOString()은 UTC라 오전 9시 전엔 어제가 됐다
+function todayKST(){ return new Date(Date.now()+9*3600000).toISOString().slice(0,10); }
 function syncYear(){
   const d=$("evalDate").value; if(d){ const y=+d.slice(0,4); $("noticeYear").value = y>=2026?"2026":"2025"; }
 }
@@ -609,7 +611,9 @@ $("copyBtn").addEventListener("click",async()=>{
 });
 
 buildSelects();
-if(!load()){ rows=[newRow()]; renderRows(); renderRef(); } else { document.querySelectorAll(".mode button").forEach(x=>{x.classList.toggle("on",x.dataset.mode===mode);x.setAttribute("aria-selected",x.dataset.mode===mode);}); renderRows(); renderRef(); }
+// 평가기준일은 열 때마다 오늘(한국시간) — 저장된 지난 날짜(예: 지난주 계산)를 되살리지 않는다(2026-11-23 사용자 요청). 다른 날이면 칸에서 고침
+if(!load()){ rows=[newRow()]; } else { document.querySelectorAll(".mode button").forEach(x=>{x.classList.toggle("on",x.dataset.mode===mode);x.setAttribute("aria-selected",x.dataset.mode===mode);}); }
+$("evalDate").value=todayKST(); syncYear(); renderRows(); renderRef();
 $("qDate").value=$("evalDate").value;
 
 // ═══════════ 지번 조회 → 자동 채움 (토지건물.html과 같은 경로: V-World + 클라우드플레어 프록시) ═══════════
@@ -848,7 +852,7 @@ function showPane(p){
   document.querySelectorAll(".ptabs button").forEach(b=>{ const on=b.dataset.pane===p; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
   $("tbTitle").textContent=PANE_TITLE[p];
   try{ localStorage.setItem(PANE_KEY,p); }catch(e){}
-  if(p==="apt"&&!$("aDate").value) $("aDate").value=$("qDate").value||new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+  if(p==="apt"&&!$("aDate").value) $("aDate").value=$("qDate").value||todayKST();
   if(p==="condo") condoFrame();
   histRender();   // 다른 탭(집합건물 iframe 포함)에서 쌓인 검색 기록 반영
 }
