@@ -56,8 +56,8 @@
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}
   th{background:#f8fafc;color:var(--ink-2);font-weight:600;text-align:center;position:sticky;top:0}
-  th[data-k]{cursor:pointer;user-select:none}
-  th[data-k]:hover{color:var(--ink)}
+  th[data-k],th[data-dk],th[data-nk]{cursor:pointer;user-select:none}
+  th[data-k]:hover,th[data-dk]:hover,th[data-nk]:hover{color:var(--ink)}
   th .ar{display:inline-block;width:1em;color:var(--accent);font-size:11px}
   td.n{text-align:right;font-variant-numeric:tabular-nums}
   td.c{text-align:center}
@@ -570,7 +570,7 @@ const VW = 'https://api.vworld.kr', VKEY_DEFAULT = '8D5CB15B-426D-3015-9680-618B
 const KAKAO_KEY = 'e87432a91ba0c8c347a82ea98805c1b5'; // arap_map.js와 같은 키(등록한 도메인에서만 동작)
 const NGEO_KEY = 'arap-apt-sise-geo', NB_GEO_KEY = 'arap-apt-nearby-geo', MAX_GEO = 150, NEAR_MAX_SGG = 3, RECENT_MS = 15 * 60000;
 const vkey = () => { try { return localStorage.getItem('exact-vworld-key') || VKEY_DEFAULT; } catch (e) { return VKEY_DEFAULT; } };
-let ctx = null, NEAR = null, NSEL = null, NSORT = {k: 'dist', dir: 1}, nearBusy = false;
+let ctx = null, NEAR = null, NSEL = null, NSORT = {k: 'dist', dir: 1}, DSORT = {k: null, dir: 1}, nearBusy = false; // DSORT: 단지 상세 거래표 정렬(본건 표와 같은 규칙)
 
 function jsonp(u){ return new Promise((res, rej) => {
   const cb = '__arapsise' + Math.floor(Math.random() * 1e9), sc = document.createElement('script'); let done = false;
@@ -867,6 +867,17 @@ async function nearMap(){
   kobjs.push(new K.CustomOverlay({position: center, content: pinEl('subj', '#0f172a', '본건 · ' + ownName, s0.mid != null ? `㎡당 ${manTxt(s0.mid / ctx.subjectArea)} · ${s0.n}건` : ''), xAnchor: 0, yAnchor: 0, zIndex: 5, map: kmap}));
 }
 
+/* 단지 상세 거래표 정렬: 본건 표와 같은 규칙(sortVal) — 처음 누르면 오름, 다시 누르면 내림, 빈 값은 늘 맨 아래, 같으면 원래 순서. 엑셀도 화면 순서 */
+function detailRows(c){
+  const rows = c.res.rows.slice();
+  if (!DSORT.k) return rows.sort((a, b) => a.no - b.no);
+  return rows.sort((a, b) => {
+    const x = sortVal(a, DSORT.k), y = sortVal(b, DSORT.k), ex = x == null || x === '', ey = y == null || y === '';
+    if (ex || ey) return ex === ey ? a.no - b.no : (ex ? 1 : -1);
+    const d = typeof x === 'string' ? x.localeCompare(y, 'ko') : x - y;
+    return d ? d * DSORT.dir : a.no - b.no;
+  });
+}
 /* 누른 단지 상세: 면적 칩(처음엔 본건 ±n% 면적), 본건 면적 환산 최저/중간/최고, 거래표(집계 체크) */
 function nearOpen(id){
   NSEL = NSEL === id ? null : id;
@@ -888,7 +899,8 @@ function nearDetail(){
     <div class="chips" id="nChips"></div>
     <div class="big">${big('최저', s.min)}${big('중간', s.mid, pm ? ` · 본건 중간보다 <b class="${pctCls(s.mid)}">${pm}</b>` : '')}${big('최고', s.max)}</div>
     <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 전체 ${c.res.rows.length}건 · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
-    <div class="tbl"><table><thead><tr><th>집계</th><th>계약일</th><th>층</th><th>전용(㎡)</th><th>거래가</th><th>시점수정치</th><th>시점수정 ㎡단가</th><th>본건 면적 환산가</th><th>면적대</th><th>비고</th></tr></thead><tbody id="nTbody"></tbody></table></div>`;
+    <div class="tbl"><table><thead><tr>${[['include', '집계'], ['date', '계약일'], ['floor', '층'], ['area', '전용(㎡)'], ['price', '거래가'], ['ratio', '시점수정치'], ['unit', '시점수정 ㎡단가'], ['subjectPrice', '본건 면적 환산가'], ['band', '면적대'], ['notes', '비고']]
+      .map(([k, t]) => `<th data-dk="${k}">${t}<span class="ar">${DSORT.k === k ? (DSORT.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('')}</tr></thead><tbody id="nTbody"></tbody></table></div>`;
   const chips = $('nChips');
   c.types.forEach(t => {
     const b = document.createElement('button'); b.type = 'button';
@@ -902,7 +914,7 @@ function nearDetail(){
     chips.appendChild(b);
   });
   const tb = $('nTbody');
-  c.res.rows.forEach(r => {
+  detailRows(c).forEach(r => {
     const tr = document.createElement('tr');
     if (!r.include) tr.className = 'off';
     const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
@@ -921,12 +933,17 @@ function nearDetail(){
     navigator.clipboard.writeText(t).then(() => { $('nCopy').textContent = '복사됨'; setTimeout(() => { if ($('nCopy')) $('nCopy').textContent = '결론 복사'; }, 1200); });
   };
   $('nXlsx').onclick = () => {
-    const r = Object.assign({}, c.res, {subject: last.subject, idxBase: last.idxBase, writeDate: ctx.writeIso, bandUsed: `동일(고른 면적 ${c.same.join(', ')}㎡)`});
+    const r = Object.assign({}, c.res, {rows: detailRows(c), subject: last.subject, idxBase: last.idxBase, writeDate: ctx.writeIso, bandUsed: `동일(고른 면적 ${c.same.join(', ')}㎡)`});
     exportXlsx(r, `주변 단지 시점수정 — ${c.name} (본건 ${A0}㎡ 환산, 본건에서 ${distTxt(c.dist)})`, `시점수정_주변_${c.umd}${c.jibun}_${ctx.writeIso}.xlsx`).catch(e => nearMsg(e.message || String(e), 'err'));
   };
 }
 
 $('nGo').onclick = () => findNearby();
+$('nDetail').addEventListener('click', e => {
+  const th = e.target.closest('th[data-dk]'); if (!th) return;
+  const k = th.dataset.dk; DSORT = DSORT.k === k ? {k, dir: -DSORT.dir} : {k, dir: 1};
+  nearDetail();
+});
 $('nMinH').addEventListener('input', () => { if (NEAR) nearRender(); });
 $('nTol').addEventListener('change', nearAfterMain);
 $('nList').addEventListener('click', e => {
