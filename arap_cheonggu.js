@@ -30,9 +30,10 @@ const ARAP_TRAVEL_FEES={"서울특별시 종로구":40000,"서울특별시 중�
 /* === arapTravelFee (s3r86w8a.html L1958-1958) === */
 function arapTravelFee(addr){
   // Official addresses split city and district; the fee table joins them without 시.
-  const normalize=s=>String(s||'').replace(/\s+/g,'').replace(/^경기(?:도)?/,'경기도').replace(/^강원(?:특별자치도|도)?/,'강원도').replace(/^(?:전북(?:특별자치도)?|전라북도)/,'전라북도').replace(/^서울(?:특별시|시)?/,'서울특별시').replace(/시(?=[가-힣]+구)/g,'');
-  const a=normalize(addr);let best=null,bl=0;
-  for(const k in ARAP_TRAVEL_FEES){const key=normalize(k);if(a.indexOf(key)>=0&&key.length>bl){bl=key.length;best=ARAP_TRAVEL_FEES[k];}}
+  // 표에 구가 없는 시(화성시 — 2026.02 만세·효행·병점·동탄구 신설)는 「경기도 화성시」 한 줄뿐이라 시를 남긴 주소(a0)로도 찾는다
+  const base=s=>String(s||'').replace(/\s+/g,'').replace(/^경기(?:도)?/,'경기도').replace(/^강원(?:특별자치도|도)?/,'강원도').replace(/^(?:전북(?:특별자치도)?|전라북도)/,'전라북도').replace(/^서울(?:특별시|시)?/,'서울특별시'),normalize=s=>base(s).replace(/시(?=[가-힣]+구)/g,'');
+  const a=normalize(addr),a0=base(addr);let best=null,bl=0;
+  for(const k in ARAP_TRAVEL_FEES){const key=normalize(k);if((a.indexOf(key)>=0||a0.indexOf(key)>=0)&&key.length>bl){bl=key.length;best=ARAP_TRAVEL_FEES[k];}}
   return best;
 }
 
