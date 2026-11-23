@@ -193,12 +193,6 @@
     @container (max-width:1099px){.s3-top{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}}
     /* 2026-11-23 사용자 「가로로 너무 넓다, 시선이 좌우로 분산」: 거래사례 | 평가전례 좌우(카드 1500px 이상),
        가치형성요인 사례 카드 = 건물 비교(왼쪽) | 거래정보·요인 표(오른쪽)(카드 1300px 이상, 건물 비교를 접으면 한 칸). 좁으면 예전처럼 위아래 */
-    .s3-card{container-type:inline-size;}
-    .s3-prh{margin-top:16px;}
-    @container (min-width:1550px){.s3-cols{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px;align-items:start;}.s3-prh{margin-top:0;}.s3-tr>div{margin-bottom:0!important;}
-      .s3-cols td,.s3-cols th{padding-left:3px!important;padding-right:3px!important;}.s3-cols td>input:not([type=checkbox]){min-width:56px!important;}.s3-cols td input:not([type=checkbox]){padding-left:3px!important;padding-right:3px!important;}
-      .s3-cols input[aria-label^="평가사례"]{min-width:56px!important;}
-      .s3-tr table:not(.rsz-on) thead th:nth-child(5){width:104px;}.s3-tr table:not(.rsz-on) thead th:nth-child(7){width:92px;}.s3-pr table:not(.rsz-on) thead th:nth-child(7){width:58px;}.s3-pr table:not(.rsz-on) thead th:nth-child(8){width:72px;}.s3-pr table:not(.rsz-on) thead th:nth-child(9){width:80px;}.s3-pr table:not(.rsz-on) thead th:nth-child(10){width:84px;}.s3-pr table:not(.rsz-on) thead th:nth-child(11){width:62px;}.s3-tr table:not(.rsz-on) thead th:nth-child(8){width:70px!important;}}   /* 남는 폭은 소재지·건물명에 */   /* 좌우일 땐 칸 여백·입력칸 최소 폭을 줄여 두 표가 한 화면에(본문 약 1700px이면 스크롤 없음) */
     .fac-wrap{container-type:inline-size;}
     @container (min-width:1300px){.fac-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;}.fac-split:has(details.bldcmp:not([open])){grid-template-columns:minmax(0,1fr);}}
     table.rsz-on td{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-left:3px!important;padding-right:3px!important;}   /* 자동 너비는 글자 폭에 딱 맞춰져 있어 고정 뒤 소수점 이하 차이로 '…'가 뜨지 않게 좌우 여백을 줄여 여유를 둔다 */
@@ -2367,7 +2361,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
       </div>
     </div>
     </div>
-    <div className="s3-card" style={S.card}><div className="s3-cols"><div className="s3-tr">
+    <div className="s3-card" style={S.card}>
     <div style={S.h2}>거래사례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{cases.length}건 · 선정 {cases.filter(c=>c.isSelected).length}건{cases.filter(c=>c.isShown!==false&&!c.timeAdj).length?<b style={{color:"#b45309"}}> · 시점수정치 미입력 {cases.filter(c=>c.isShown!==false&&!c.timeAdj).length}건</b>:null}</span></div>
     {cases.length>0&&(<div style={{overflowX:"auto",marginBottom:16}}>{cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 거래사례 {cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length}건 — 시점수정 불가, 거래시점을 확인하세요</div>}
       <datalist id="case-use-opts">{CASE_USE_OPTS.map(o=><option key={o} value={o}/>)}</datalist><table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
@@ -2412,8 +2406,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;   // 시점수정 창 = ④와 같은 SijeomModal(계산기 화면처럼 입력 | 결과)
       return <SijeomModal c={c} ov={ov} propType={propType} onSetUse={u=>setCases(p=>p.map(x=>x.id===c.id?{...x,useKind:u}:x))} onApply={t=>applyTm(c.id,t)} onClose={()=>{setEditTimeId(null);setTimeWarnings([]);}}/>;})()}
 
-    </div><div className="s3-pr">{/* 거래사례 | 평가전례 좌우(본문 넓을 때, 2026-11-23) */}
-    <div className="s3-prh" style={S.h2}>평가전례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{precs.length}건</span></div>
+    <div style={{...S.h2,marginTop:16}}>평가전례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{precs.length}건</span></div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
       <table ref={crP.ref} className={crP.cls} style={{...S.tbl,...crP.style}}>{crP.cols}<thead><tr>
         <th style={{...S.th,width:24}}>{crP.grip(0)}</th><th style={{...S.th,width:28}}>표시{crP.grip(1)}</th><th style={S.th}>기호{crP.grip(2)}</th>
@@ -2441,7 +2434,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delP(p.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table></div>)}
-</div></div>
   </div></div>);
 }
 
@@ -6856,7 +6848,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
       </div>}
     </div>);})()}
     </div>
-    <div className="s3-card" style={S.card}><div className="s3-cols"><div className="s3-tr">
+    <div className="s3-card" style={S.card}>
     <div style={S.h2}>거래사례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{cases.length}건 · 선정 {cases.filter(c=>c.isSelected).length}건{cases.filter(c=>c.isShown!==false&&!c.timeAdj).length?<b style={{color:"#b45309"}}> · 시점수정치 미입력 {cases.filter(c=>c.isShown!==false&&!c.timeAdj).length}건</b>:null}</span></div>
     {cases.length>0&&(<div style={{overflowX:"auto",marginBottom:16}}>{cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 거래사례 {cases.filter(c=>dateAfterWarn(c.tradeDate,ov)).length}건 — 시점수정 불가, 거래시점을 확인하세요</div>}
       <datalist id="case-use-optsM">{CASE_USE_OPTS.map(o=><option key={o} value={o}/>)}</datalist><table ref={crC.ref} className={crC.cls} style={{...S.tbl,...crC.style}}>{crC.cols}<thead><tr>
@@ -6901,8 +6893,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
     {editTimeId&&(()=>{const c=cases.find(x=>x.id===editTimeId);if(!c)return null;   // 시점수정 창 = ④와 같은 SijeomModal(계산기 화면처럼 입력 | 결과)
       return <SijeomModal c={c} ov={ov} propType={propType} onSetUse={u=>setCases(p=>p.map(x=>x.id===c.id?{...x,useKind:u}:x))} onApply={t=>applyTm(c.id,t)} onClose={()=>{setEditTimeId(null);setTimeWarnings([]);}}/>;})()}
 
-    </div><div className="s3-pr">{/* 거래사례 | 평가전례 좌우(본문 넓을 때, 2026-11-23) */}
-    <div className="s3-prh" style={S.h2}>평가전례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{precs.length}건</span></div>
+    <div style={{...S.h2,marginTop:16}}>평가전례 <span style={{fontWeight:400,fontSize:11,color:"#64748b",marginLeft:6}}>{precs.length}건</span></div>
     {precs.length>0&&(<div style={{overflowX:"auto"}}>{precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:6,padding:"6px 10px",marginBottom:6,fontSize:12,fontWeight:600}}>⚠️ 작성일자/기준시점 이후 평가선례 {precs.filter(p=>dateAfterWarn(p.baseDate,ov)).length}건 — 기준시점을 확인하세요</div>}
       <table ref={crP.ref} className={crP.cls} style={{...S.tbl,...crP.style}}>{crP.cols}<thead><tr>
         <th style={{...S.th,width:24}}>{crP.grip(0)}</th><th style={{...S.th,width:28}}>표시{crP.grip(1)}</th><th style={S.th}>기호{crP.grip(2)}</th>
@@ -6930,7 +6921,6 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delP(p.id)}>✕</span></td>
         </DragRow>))}
       </tbody></table></div>)}
-</div></div>
   </div></div>);
 }
 
