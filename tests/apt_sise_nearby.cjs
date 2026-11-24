@@ -80,6 +80,14 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     });
     await page.goto(base+'/아파트시점수정.html');
     const fill=async(id,v)=>{await page.fill('#'+id,'');if(v)await page.type('#'+id,v);};
+    const copySel=(sel,from,to,fc=1,tc=4)=>page.evaluate(([sel,from,to,fc,tc])=>{
+      const rs=document.querySelectorAll(sel+' tbody tr'),r=document.createRange();
+      r.setStart(rs[from].children[fc].firstChild||rs[from].children[fc],0);
+      const e=rs[to].children[tc];r.setEnd(e.firstChild||e,(e.firstChild||e).textContent.length?1:0);
+      const s=getSelection();s.removeAllRanges();s.addRange(r);
+      const dt=new DataTransfer();document.dispatchEvent(new ClipboardEvent('copy',{clipboardData:dt,bubbles:true,cancelable:true}));
+      return {txt:dt.getData('text/plain'),html:dt.getData('text/html')};
+    },[sel,from,to,fc,tc]);
     const idle=()=>page.waitForFunction(()=>document.getElementById('go').textContent==='계산',null,{timeout:20000});
     const nearIdle=()=>page.waitForFunction(()=>document.getElementById('nGo').textContent==='주변 단지 찾기',null,{timeout:30000});
     await fill('address','서울 강남구 압구정동 369-1');await fill('dong','10');await fill('ho','204');await fill('area','160.28');await fill('wdate','20261123');
@@ -157,6 +165,12 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     await page.click('#nList th[data-nk=mid]');await page.click('#nList th[data-nk=mid]');
     const mids=await page.$$eval('#nList tbody tr',rs=>rs.slice(1).map(r=>parseFloat(r.children[6].textContent)));
     assert.deepEqual(mids,[...mids].sort((a,b)=>b-a));
+    // 주변 단지 목록 표도 드래그 복사(머리줄 + 행, 정렬 표시 빠짐)
+    const c3=await copySel('#nList',0,1,0,2);
+    assert.match(c3.txt.split('\r\n')[0],/^거리\t단지\t준공/);
+    assert.equal(c3.txt.split('\r\n').length,3);
+    assert.ok(!/[▲▼]/.test(c3.txt),'정렬 표시 빠짐');
+    await page.evaluate(()=>getSelection().removeAllRanges());
 
     // 6) 본건 칩만 바꾸면(같은 주소, 면적) 찾아 둔 주변 단지 유지, 작성일을 바꿔 다시 계산하면 비움
     const nRt=calls.rtms.length;
@@ -174,6 +188,23 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     await page.reload();await page.click('#go');await idle();
     assert.ok(await page.isHidden('#mainTbl'),'접은 상태 기억');
     await page.click('#foldTbl');assert.ok(await page.isVisible('#mainTbl'));
+
+    // 7-1) 표 여러 행 드래그 → Ctrl+C: 머리줄 + 고른 행, 금액은 원 숫자(arap_tblcopy.js, 2026-11-24)
+    const c1=await copySel('#mainTbl',0,1);
+    const L=c1.txt.split('\r\n').map(l=>l.split('\t'));
+    assert.deepEqual(L[0],['집계','계약일','층','전용(㎡)','거래가(원)','시점수정치','시점수정 ㎡단가','기준시점 거래가격(원)','면적대','비고'],L[0].join('|'));
+    assert.equal(L.length,3,'머리줄 + 2행');
+    const tr0=await page.$$eval('#tbody tr',rs=>[...rs[0].children].map(td=>td.textContent.trim()));
+    assert.equal(L[1][1],tr0[1]);assert.match(L[1][0],/^(○|제외)$/);
+    assert.equal(L[1][4],(await page.evaluate(t=>ArapTblCopy.wonOf(t),tr0[4])).toLocaleString('en-US'),'거래가 원 단위 숫자');assert.match(L[1][4],/^\d{1,3}(,\d{3})+$/);
+    const sp0=await page.$eval('#tbody tr',tr=>tr.children[7].dataset.v);assert.equal(L[1][7],(+sp0).toLocaleString('en-US'),'기준시점 거래가격은 만원 반올림 말고 원 단위 정확한 값');
+    assert.match(c1.html,/<table[\s\S]*<th[^>]*>거래가\(원\)<\/th>[\s\S]*mso-number-format/);
+    // 한 칸 안만 고르면 기본 복사(가로채지 않음)
+    const c2=await page.evaluate(()=>{const td=document.querySelector('#tbody tr').children[4],r=document.createRange();r.selectNodeContents(td);
+      const s=getSelection();s.removeAllRanges();s.addRange(r);const dt=new DataTransfer();
+      const ev=new ClipboardEvent('copy',{clipboardData:dt,bubbles:true,cancelable:true});document.dispatchEvent(ev);return ev.defaultPrevented;});
+    assert.equal(c2,false,'한 칸 선택은 기본 복사');
+    await page.evaluate(()=>getSelection().removeAllRanges());
 
     // 8) 조회 기록을 열면 주변 단지 찾기 막고 안내
     await page.click('#histList .hopen');
