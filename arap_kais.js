@@ -109,6 +109,7 @@ function parseJip(text){
     var m2=addr.match(/(\d+)호/);if(m2)ho=m2[1];
     if(ho&&ho.length>=3)fl=ho.substring(0,ho.length-2);
     apt=apt.replace(/\d+동.*/,'').replace(/외\s*\d+필지\s*/,'').trim();
+    var apt2=apt.replace(/\s*(?:제\s*)?(?:지하\s*)?[A-Za-z]?\d+(?:-\d+)?\s*(?:층|호)(?:\s.*)?$/,'').trim();if(apt2)apt=apt2;   // 「이스트리버빌 203호」 → 건물명만(s3r86w8a kaisAptName과 같음, 2026-11-24)
     var area=pNum(row['전용면적']),price=pNum(row['물건금액']),unitTsv=pNum(row['단가']);
     return {location:pStr(row['소재지']),jibun:pStr(row['지번']),address:addr,aptName:apt,
       dong:dn,floor:fl,ho:ho,tradeDate:dot(pStr(row['거래시점'])),exclusiveArea:area,price:price,
