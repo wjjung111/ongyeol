@@ -76,6 +76,9 @@ input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-of
 .st-run{background:var(--brass-soft);color:var(--brass)}
 .st-done{background:var(--ok-soft);color:var(--ok)}
 .st-fail,.st-need{background:var(--warn-soft);color:var(--warn)}
+.st-cancel{background:var(--surface2);color:var(--ink3);text-decoration:line-through}
+.mini.stop{margin-left:8px;color:var(--warn);border-color:var(--warn)}
+.job.cancelled{opacity:.6}
 .job .meta{font-size:12.5px;color:var(--ink2);margin-top:4px}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;margin-top:8px;font-size:13px}
 .kv .k{color:var(--ink2)}
@@ -181,7 +184,9 @@ footer{max-width:960px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-
 <script>
 // ── 순수 함수 (tests/deunggi_page.cjs 에서 검증) ─────────────────────────
 const DG = {
-  ST: {"대기":["st-wait","대기"], "처리중":["st-run","처리중"], "완료":["st-done","완료"], "실패":["st-fail","실패"], "확인필요":["st-need","확인필요"]},
+  ST: {"대기":["st-wait","대기"], "처리중":["st-run","처리중"], "완료":["st-done","완료"], "실패":["st-fail","실패"], "확인필요":["st-need","확인필요"], "취소":["st-cancel","중단됨"]},
+  // 「중단」 버튼을 보일 상태 — 대기·처리중만 (끝난 건은 중단할 게 없음)
+  canCancel(st){ return st === "대기" || st === "처리중"; },
   num(v){ const n = Number(v); return Number.isFinite(n) ? n.toLocaleString("ko-KR", {maximumFractionDigits: 4}) : String(v ?? ""); },
   // 추출값 → [라벨, 값] 목록 (표시용)
   summarize(f){
@@ -252,16 +257,35 @@ if (typeof module !== "undefined") module.exports = DG;
       const [cls, lab] = DG.ST[j.status] || DG.ST["대기"];
       const kv = DG.summarize(j.fields);
       const notes = (j.fields && j.fields["확인필요"]) || [];
-      return `<div class="job"><span class="t">${esc(j.address)} ${esc(j.dong ? j.dong + "동" : "")} ${esc(j.ho ? j.ho + "호" : "")}</span><span class="chipst ${cls}">${lab}</span>
+      const stop = DG.canCancel(j.status) && j.id ? `<button type="button" class="mini stop" data-stop="${i}" title="이 요청을 건너뛰고 다음 건으로">중단</button>` : "";
+      return `<div class="job${j.status === "취소" ? " cancelled" : ""}"><span class="t">${esc(j.address)} ${esc(j.dong ? j.dong + "동" : "")} ${esc(j.ho ? j.ho + "호" : "")}</span><span class="chipst ${cls}">${lab}</span>${stop}
         <div class="meta">${esc(j.rtype || "")} · ${esc(j.record_type || "")} · ${esc(j.created || "")}${j.memo ? " · " + esc(j.memo) : ""}</div>
         ${kv.length ? '<div class="kv">' + kv.map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span>`).join("") + "</div>" : ""}
         ${notes.map(n => `<div class="note">⚠ ${esc(n)}</div>`).join("")}
         ${j.file ? `<div class="file">PC 파일 <code>${esc(j.file)}</code><button class="mini" data-copy="${i}">경로 복사</button></div>` : ""}
         ${j.error ? `<div class="note">${esc(j.error)}</div>` : ""}</div>`;
     }).join("");
+    box.querySelectorAll("[data-stop]").forEach(b => b.onclick = () => cancelJob(jobs[+b.dataset.stop], b));
     box.querySelectorAll("[data-copy]").forEach(b => b.onclick = () => {
       navigator.clipboard && navigator.clipboard.writeText(jobs[+b.dataset.copy].file).then(() => { b.textContent = "복사됨"; });
     });
+  }
+
+  // 「중단」: 대기 건은 건너뛰고, 처리중 건은 에이전트가 결제 전이면 멈춘 뒤 다음 건으로
+  async function cancelJob(j, btn){
+    if (!j || !j.id) return;
+    const name = [j.address, j.dong && j.dong + "동", j.ho && j.ho + "호"].filter(Boolean).join(" ");
+    if (j.status === "처리중" && !confirm(`「${name}」은 지금 처리 중입니다.\n중단하고 다음 건으로 넘어갈까요?\n(이미 결제 단계를 지났으면 수수료는 나갔을 수 있습니다)`)) return;
+    btn.disabled = true; btn.textContent = "중단 중…";
+    try {
+      await api({action: "cancel", id: j.id});
+      setStatus("ok", "중단함: " + name);
+    } catch(e) {
+      btn.disabled = false; btn.textContent = "중단";
+      const old = /unknown|action|지원|JSON|Unexpected/i.test(e.message);
+      setStatus("err", "중단 실패: " + (e.message === "OFFLINE" ? "PC 에이전트가 꺼져 있습니다"
+        : old ? "PC 에이전트가 「중단」을 아직 모릅니다 — 에이전트 업데이트 필요" : e.message));
+    } finally { refresh(); }
   }
 
   async function refresh(){
