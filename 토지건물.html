@@ -441,6 +441,23 @@
   .maplab .mlk{font-weight:700;color:#334155;min-width:70px;}
   .maplab label{cursor:pointer;white-space:nowrap;}
   .maplab label input{width:auto;vertical-align:-2px;margin-right:2px;}
+  /* 위치도 한글(광역·상세) 캡처 — 말풍선 패널 오른쪽 버튼 + 지도 위 한글 그림 칸 비율 틀(2026-11-24) */
+  .mapTop{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;margin-bottom:8px;}
+  .mapTop .maplab{flex:1 1 520px;margin-bottom:0;}
+  .mshot{flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;gap:5px;border:1px solid #e2e5ea;border-radius:6px;background:#f8fafc;padding:6px 9px;font-size:12px;}
+  .mshot .msbtns{display:flex;gap:6px;flex-wrap:wrap;}
+  .mshot .msbtns .btn{font-size:14px;padding:7px 12px;}
+  .mshot .msrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .mshot .mschip{display:inline-flex;align-items:center;gap:4px;color:#64748b;}
+  .mshot .mschip.ok{color:#15803d;font-weight:700;}
+  .mshot .mschip img{height:30px;border:1px solid #cbd5e1;border-radius:2px;cursor:zoom-in;background:#fff;}
+  .mshot .msmsg{max-width:420px;color:#334155;}
+  .mshot .msmsg.err{color:#b91c1c;}
+  .mshot .msmsg.ok{color:#15803d;}
+  #mapWrap{position:relative;overflow:hidden;border-radius:6px;}
+  #mapFrame{position:absolute;z-index:1500;pointer-events:none;outline:3px dashed #dc2626;box-shadow:0 0 0 4000px rgba(15,23,42,.2);}
+  #mapFrameLab{position:absolute;z-index:1501;pointer-events:none;background:#dc2626;color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:3px;transform:translateX(-100%);white-space:nowrap;}
+  #mapWrap.noframe #mapFrame,#mapWrap.noframe #mapFrameLab{display:none;}
   .maplab .mloff{cursor:pointer;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:1px 8px;}
   .maplab .mloff:hover{border-color:#2563eb;color:#2563eb;}
 </style>
@@ -858,9 +875,24 @@
           <button class="btn gh sm" onclick="mapCheckKinds(false)">모두 체크해제</button>
         </div>
         <!-- 말풍선 — 거래사례 위치도와 같은 방식: 「이름 / 동-지번 / 고른 칸」. 칸 선택은 이 브라우저에 기억, 끈 말풍선은 건과 함께 저장 -->
-        <div id="mapLabPanel" class="maplab"></div>
+        <div class="mapTop">
+          <div id="mapLabPanel" class="maplab"></div>
+          <!-- 위치도 한글: 빨간 틀 안을 화면 그대로(말풍선 배치 포함) 캡처 → 6. 위치도 hwpx(광역·상세 두 쪽, 소재지 자동). 둘 다 찍으면 자동으로 받아짐 -->
+          <div class="mshot" id="mapShotBox">
+            <div class="msbtns">
+              <button class="btn" id="btnShotWide" onclick="mapShot('wide')" title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 「광역위치도」 쪽에 넣습니다 — 크롬 창에서 「이 탭」 → [공유]">📸 광역위치도 확정</button>
+              <button class="btn" id="btnShotDetail" onclick="mapShot('detail')" title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 「상세위치도」 쪽에 넣습니다 — 크롬 창에서 「이 탭」 → [공유]">📸 상세위치도 확정</button>
+            </div>
+            <div class="msrow" id="mapShotState"></div>
+            <div class="msmsg" id="mapShotMsg">빨간 틀 = 한글 그림 칸. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.</div>
+          </div>
+        </div>
         <!-- 지도 높이: 화면이 큰 모니터에선 세로로 더 길게(85vh), 노트북처럼 낮은 화면에서도 최소 760px -->
-        <div id="mapBox" style="height:max(760px,85vh);border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5"></div>
+        <div id="mapWrap">
+          <div id="mapBox" style="height:max(760px,85vh);border:1px solid #e2e5ea;border-radius:6px;background:#eef1f5"></div>
+          <div id="mapFrame"></div><div id="mapFrameLab">한글 그림 칸 →</div>
+        </div>
+        <label class="mapchk" style="display:inline-block;margin-top:5px;font-size:12px"><input type="checkbox" id="mapFrameChk" checked onchange="mapFrameToggle()"> 한글 그림 칸 틀(빨간 점선) 보기</label>
         <div id="mapStatus" class="status" style="margin-top:7px">위치도 탭을 열면 주소를 조회합니다.</div>
         <div id="mapMiss"></div>
       </div>
@@ -4833,6 +4865,8 @@ async function downloadAllDocs(){
       {name:'4. 명세표_'+who+'.xlsx',make:async function(){var b=await ArapTojiDocuments.buildStatement(ArapTojiDocuments.statementRows());var w=ArapTojiDocuments.lastWarn();if(w)warned.push('4. 명세표 — '+w);return b;}},
       {name:'5. 요항표_'+who+'.hwpx',make:async function(){return ArapTojiDocuments.buildYohang();}}
     ];
+    // 위치도 탭에서 광역·상세위치도를 찍어 뒀으면 6. 위치도도 같이(2026-11-24)
+    var ms=mapShotStore();if(window.ArapMapShot&&(ms.wide||ms.detail))jobs.push({name:'6. 위치도_'+who+'.hwpx',make:mapShotBytes});
     var made=[],failed=[];
     for(var i=0;i<jobs.length;i++){
       if(st)st.textContent='문서를 만드는 중… ('+(i+1)+'/'+jobs.length+') '+jobs[i].name;
@@ -5865,7 +5899,61 @@ function mapItems(){
   });
   return out;
 }
-function mapOpen(){renderMapLab();return mapView().open(mapItems());}
+function mapOpen(){renderMapLab();setTimeout(mapFrameFit,0);renderMapShotState();return mapView().open(mapItems());}
+// ── 위치도 한글(광역·상세) 캡처 (2026-11-24) ──
+// 빨간 틀(한글 그림 칸과 같은 가로세로 비율) 안을 화면 공유로 그대로 찍는다(말풍선 배치 그대로). 엔진 arap_mapshot.js.
+// 그림은 이 창에서만 기억(건과 함께 저장 안 함 — 그림이 커서 저장공간을 채움). 다른 건을 열면 비움.
+var MAPSHOT={},MAPSHOT_NAME={wide:'광역위치도',detail:'상세위치도'};
+function mapShotStore(){var c=cgVal('ov_caseNo')||'';if(MAPSHOT._case!==c)MAPSHOT={_case:c};return MAPSHOT;}
+function mapFrameOn(){var c=document.getElementById('mapFrameChk');return !c||c.checked;}
+function mapFrameToggle(){var w=document.getElementById('mapWrap');if(w)w.classList.toggle('noframe',!mapFrameOn());mapFrameFit();}
+function mapFrameFit(){
+  var w=document.getElementById('mapWrap'),f=document.getElementById('mapFrame'),lab=document.getElementById('mapFrameLab');
+  if(!w||!f||!window.ArapMapShot)return;var W=w.clientWidth,H=w.clientHeight;if(!W||!H)return;
+  var R=ArapMapShot.RATIO,fh=Math.max(120,Math.min(H-16,window.innerHeight-40,(W-16)*R)),fw=fh/R;   // 틀 전체가 한 화면에 들어오게
+  var l=Math.round((W-fw)/2),t=Math.round((H-fh)/2);
+  f.style.left=l+'px';f.style.top=t+'px';f.style.width=Math.round(fw)+'px';f.style.height=Math.round(fh)+'px';
+  if(lab){lab.style.left=(l-8)+'px';lab.style.top=t+'px';lab.style.visibility=l>130?'visible':'hidden';}   // 이름표는 틀 밖(캡처에 안 찍힘)
+}
+window.addEventListener('resize',function(){mapFrameFit();});
+function mapDocAddr(){
+  var L0=LANDS[0]||{},a=(L0.fullAddr||((L0['소재지']||'')+' '+(L0['지번']||''))).trim(),n=landParcelCount();
+  return a+(a&&n>1?' 외 '+(n-1)+'필지':'');
+}
+function renderMapShotState(){
+  var el=document.getElementById('mapShotState');if(!el)return;var S=mapShotStore(),any=false;
+  var hm=function(t){var d=new Date(t);return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);};
+  el.innerHTML=['wide','detail'].map(function(k){var s=S[k];if(s)any=true;
+    return s?'<span class="mschip ok" title="'+MAPSHOT_NAME[k]+' 캡처('+s.w+'×'+s.h+'px) — 다시 누르면 새로 찍습니다"><img src="'+s.dataUrl+'" alt="" onclick="window.open().document.write(\'<img src=&quot;\'+this.src+\'&quot; style=&quot;max-width:100%&quot;>\')">✓ '+MAPSHOT_NAME[k].slice(0,2)+' '+hm(s.at)+'</span>'
+      :'<span class="mschip">○ '+MAPSHOT_NAME[k].slice(0,2)+' 아직</span>';}).join('')
+    +(any?'<button class="btn gh sm" onclick="mapShotDownload()" title="찍어 둔 그림으로 6. 위치도 한글 파일을 받습니다(안 찍은 쪽은 그림 칸이 비어 있음)">⬇ 한글 받기</button>':'');
+}
+function mapShotMsg(t,cls){var m=document.getElementById('mapShotMsg');if(m){m.className='msmsg'+(cls?' '+cls:'');m.textContent=t;}}
+async function mapShot(kind){
+  if(!window.ArapMapShot||!window.ArapCheonggu){alert('위치도 한글 엔진이 아직 로드되지 않았습니다. 새로고침 후 다시 시도하세요.');return;}
+  var chk=document.getElementById('mapFrameChk');if(chk&&!chk.checked){chk.checked=true;mapFrameToggle();}else mapFrameFit();
+  var btns=[document.getElementById('btnShotWide'),document.getElementById('btnShotDetail')];
+  btns.forEach(function(b){if(b)b.disabled=true;});
+  mapShotMsg('📸 크롬 창에서 「이 탭」을 고르고 [공유]를 누르세요…');
+  try{
+    var img=await ArapMapShot.capture(document.getElementById('mapFrame'));   // 클릭 바로 다음에 불러야 함(화면 공유 허용 조건)
+    var S=mapShotStore();S[kind]=img;renderMapShotState();
+    var other=kind==='wide'?'detail':'wide';
+    if(S[other]){await mapShotDownload();mapShotMsg('✅ '+MAPSHOT_NAME[kind]+' 캡처 → 6. 위치도 한글 파일을 받았습니다(광역·상세). 다시 찍으면 그 쪽만 바뀝니다.','ok');}
+    else mapShotMsg('✅ '+MAPSHOT_NAME[kind]+' 캡처 완료 — 이제 '+MAPSHOT_NAME[other]+'에 맞게 지도·말풍선을 옮긴 뒤 「'+MAPSHOT_NAME[other]+' 확정」. 둘 다 찍으면 한글 파일이 자동으로 받아집니다.','ok');
+  }catch(e){console.error('위치도 캡처',e);
+    mapShotMsg(e&&e.name==='NotAllowedError'?'캡처를 취소했습니다(공유 창에서 [취소]). 다시 누르면 됩니다.':('⚠ '+(e&&e.message||e)),e&&e.name==='NotAllowedError'?'':'err');}
+  finally{btns.forEach(function(b){if(b)b.disabled=false;});}
+}
+async function mapShotBytes(){
+  var S=mapShotStore(),r=await fetch(encodeURI('템플릿/토건 위치도 템플릿.hwpx'));
+  if(!r.ok)throw new Error('위치도 템플릿 로드 실패('+r.status+')');
+  return ArapMapShot.buildHwpx(await r.arrayBuffer(),{addr:mapDocAddr(),wide:S.wide,detail:S.detail});
+}
+async function mapShotDownload(){
+  try{window.ArapCheonggu.triggerDownload(await mapShotBytes(),'6. 위치도_'+(cgVal('ov_client')||'의뢰인')+'.hwpx');}
+  catch(e){console.error('위치도 한글',e);mapShotMsg('⚠ 위치도 한글 만들기 실패: '+e.message,'err');throw e;}
+}
 function mapRefresh(force){return mapView().open(mapItems(),force);}   // force=true면 저장된 좌표를 버리고 주소로 다시 찾는다
 function mapSetBase(){mapView().setBase();}
 function mapToggleOverlay(){mapView().toggleOverlay();}
@@ -5891,6 +5979,7 @@ function mapCheckKinds(on){mapKindBoxes().forEach(function(b){b.checked=!!on;});
 <script src="arap_gijunsiga.js"></script>
 <script src="arap_building_cost.js"></script>
 <script src="arap_toji_documents.js"></script>
+<script src="arap_mapshot.js"></script><!-- 위치도 화면 캡처 → 6. 위치도 한글(광역·상세) -->
 <script src="arap_toji_upload.js"></script><!-- 공부서류·접수 캡처 업로드 → 자동 인식 -->
 </body>
 </html>
