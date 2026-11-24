@@ -68,6 +68,15 @@ const RONE={SttsApiTblData:[{head:[]},{row:[{CLS_ID:530038,DTA_VAL:100,CLS_FULLN
     assert.match(await page.textContent('#subline'),/집계 <?b?>?2/);
     assert.equal(bldCalls[0],'getBrTitleInfo '+PNU_UNIT,'주소로 찾은 필지 대장');
     assert.ok(bldCalls.includes('getBrExposPubuseAreaInfo '+PNU_UNIT));
+    // 거래표: 고른 면적(160.28) 거래만 보이고 131.48은 아예 숨김 → 「다른 면적도 보기」 켜면 보임(회색) → 끄면 다시 숨김 (2026-11-24)
+    const areas=()=>page.$$eval('#tbody tr',rs=>rs.map(r=>r.children[4].textContent.trim()));
+    assert.deepEqual(await areas(),['160.28','160.28']);
+    assert.match(await page.textContent('#bandInfo'),/2건 표시, 고른 면적 밖 1건 숨김/);
+    await page.check('#bandOnly');
+    assert.deepEqual((await areas()).sort(),['131.48','160.28','160.28']);
+    assert.equal(await page.textContent('#bandInfo'),'');
+    await page.uncheck('#bandOnly');
+    assert.deepEqual(await areas(),['160.28','160.28']);
     // 단지 정보: 사용승인일(동별 다르면 범위, 경과연수), 규모, 주차(세대당), 본건 동
     await page.waitForFunction(()=>/주차/.test(document.getElementById('cinfo').textContent));
     const ci=await page.textContent('#cinfo');

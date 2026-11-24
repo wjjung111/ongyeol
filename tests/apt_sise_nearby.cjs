@@ -125,7 +125,7 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     assert.equal((await page.textContent('#nDetail .b:first-child .v')).trim(),await page.evaluate(v=>ArapAptSise.fmtWon(v),exp[0]));
     assert.equal(await page.$$eval('#nTbody tr',r=>r.length),3,'면적대 상이(106㎡) 2건은 아예 안 보임');
     assert.equal(await page.$$eval('#nTbody tr:not(.off)',r=>r.length),3);
-    assert.match(await page.textContent('#nDetail'),/표시 3건 \(면적이 본건 ±15% 밖인 2건은 숨김\)/);
+    assert.match(await page.textContent('#nDetail'),/표시 3건 \(고른 면적 밖 2건은 숨김\)/);
     assert.ok(await page.$('#nMap .npin.sel'),'누른 핀 강조');
     assert.ok(await page.$('#nList tr.sel'),'목록 줄도 강조');
     // 면적 칩 106 켜면 집계 늘어남
