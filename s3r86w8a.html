@@ -231,7 +231,7 @@
         var lines=[dongJibun(g.loc)+(name&&g.list.length===1?' '+name:'')].concat(g.list.map(function(e){var x=e.x;
           return [e.sym,g.list.length>1&&sv(tr?x.aptName:x.buildingName)?sv(tr?x.aptName:x.buildingName):'',hoTxt(x),sv(tr?x.tradeDate:x.baseDate),won(x.unitPrice)?'@'+won(x.unitPrice):''].filter(Boolean).join(' · ');}));
         out.push({o:o,kind:g.kind,label:(tr?'거래 ':'전례 ')+g.list.map(function(e){return e.sym;}).join('·'),color:tr?'#16a34a':'#ea580c',loc:g.loc,region:region,
-          pick:tr&&g.list.some(function(e){return e.x.isSelected;}),poly:false,lines:lines,labelHidden:!!o.labOff,
+          pick:tr&&g.list.some(function(e){return e.x.isSelected;}),poly:false,lines:lines,labelHidden:!!o.labOff,leaderLabel:true,
           info:g.list.map(function(e){return e.sym+' '+hoTxt(e.x);}).join(', '),
           onCloseLabel:function(){o.labOff=true;save();window.ArapJiphapMap.restyle(sfx);}});
       });
@@ -244,6 +244,8 @@
       // 2026-11-16: 본건 + 거래사례(초록)·평가전례(주황) — 토건 위치도처럼. 표시(✔) 켠 것만, 이름표 번호 = 의견서 기호(표시 순서).
       //   같은 지번(같은 단지)의 사례는 점 하나·말풍선 하나에 호마다 한 줄. 선정 사례가 있으면 점을 채움(pick).
       //   좌표·말풍선 끔(labOff)은 이 페이지 전용 키에 「분류|주소」로 — 건 저장 형식은 그대로
+      //   2026-11-24: 말풍선을 토건처럼 끌어 옮기고 말풍선 → 점 화살표(엔진 leaderLabel). 옮긴 자리·크기는 o._xy.labOff·labScale
+      //   (같은 키, onSave=save) — 말풍선 끔 o.labOff(true/false)와는 다른 칸. 두 번 누르면 제자리
       show:function(sfx,ov,cases,precs){
         sfx=sfx||'';
         if(!window.ArapMap||!document.getElementById('mapBox'+sfx))return null;

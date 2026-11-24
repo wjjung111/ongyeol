@@ -2,7 +2,7 @@
   온결 공용 지도 엔진 (arap_map.js)  →  window.ArapMap
 
   하는 일: 소재지 문자열 → 브이월드 주소검색으로 위·경도 → Leaflet 지도에 색깔 핀.
-  쓰는 곳: 토지건물.html(위치도 탭), 거래사례 지도 페이지.
+  쓰는 곳: 토지건물.html(위치도 탭), 거래사례 지도 페이지(p9v3xk2m), 집합건물(s3r86w8a ③ 위치도).
   ※ 이 파일을 고치면 두 화면 모두에 반영된다. 반대로 한쪽에서만 필요한 건 여기 넣지 말 것.
 
   쓰는 방법 — <script src="arap_map.js"></script> 뒤에
@@ -34,6 +34,8 @@
        lines  : (선택) 말풍선 줄 목록 — 주면 이름표가 「label(굵게) + 줄마다 한 줄」 말풍선이 된다
        labelHidden : (선택) true면 이름표·화살표를 그리지 않는다(필지·점은 그대로)
        onCloseLabel : (선택) 말풍선 오른쪽 위 ✕를 누를 때 부를 함수(it) — 숨김 저장은 호출한 쪽이
+       leaderLabel : (선택) 점 핀(필지 도형 없음)도 필지처럼 이름표를 끌어 옮기고 이름표 → 점 화살표를 긋는다
+                     (옮긴 자리 = _xy.labOff, 두 번 누르면 제자리). 집건 사례·전례(2026-11-24). 안 주면 종전 점 핀
     M.restyle(items)             // 좌표는 그대로 두고 이름표만 새로 그린다(화면 위치 유지 — 말풍선 켜기/끄기·내용 변경용)
 
   좌표는 `o._xy = {x:경도, y:위도, addr, q:조회에 쓴 질의문, manual:직접 옮김}`.
@@ -72,6 +74,8 @@ var CSS=[
 '.mkr.pick .lab.bub{color:#fff;}',   // 선정(채운 점) 말풍선 = 진한 바탕 흰 글씨(필지 말풍선 .par.pick과 같게, 2026-11-16 집건 사례)
 '.mkr .lab.bub b{display:block;font-weight:800;padding-right:14px;}',
 '.mkr .lab.bub .ln{display:block;font-weight:500;font-size:.96em;}',
+// 점 핀 + 화살표 이름표(leaderLabel) — 점을 화살표 위에 올려 화살촉이 점 가장자리에 닿아 보이게
+'.mkr.dl .dot{z-index:1;}',
 '.mkr .lab .lx{position:absolute;right:1px;top:0;padding:0 4px;font-size:.92em;font-weight:700;color:#94a3b8;cursor:pointer;}',
 '.mkr .lab .lx:hover{color:#dc2626;}',
 // 크기 조절 손잡이(2026-11-13) — 이름표 오른쪽 아래 모서리. 끌면 글자·말풍선이 같이 커지고 작아진다(it.xy.labScale에 저장)
@@ -572,6 +576,46 @@ function create(opt){
     var o=labelOffset(it,n,poly),dx=o[0],dy=o[1];
     return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html:parcelHtml(it,dx,dy,boundaryTip(it,poly,dx,dy))});
   }
+  // 점 핀 + 끌 수 있는 이름표·화살표(it.leaderLabel, 2026-11-24 집건 사례·전례) — 필지 이름표와 같은
+  // offsetFor·leader·dragLabel·labOff 저장을 그대로 쓴다. 점 크기는 확대와 무관하므로 거리는 고정.
+  // 방향은 본건 이름표(DIRS[0] 오른쪽 위)와 겹치지 않게 왼쪽 위부터, 말풍선이 점을 덮는 좌·우 정방향은 뺀다.
+  var DOT_DIRS=[1,2,3,4,5,0];
+  var DOT_TIP='끌어서 말풍선만 옮깁니다(점과 화살촉은 그대로). 두 번 누르면 제자리로.';
+  function dotBase(it,k){
+    var man=it.xy&&it.xy.labOff;
+    if(man&&isFinite(man[0])&&isFinite(man[1]))return [man[0],man[1]];
+    var d=DIRS[DOT_DIRS[k%DOT_DIRS.length]],away=70+(it.lines&&it.lines.length?14+it.lines.length*8:0);   // 말풍선 가장자리 ~ 점 사이에 화살표가 보이게
+    return [Math.round(d[0]*away),Math.round(d[1]*away)];
+  }
+  function dotTip(it,dx,dy){   // 화살촉 = 점 가장자리(점 반지름 + 흰 테두리)
+    var len=Math.sqrt(dx*dx+dy*dy)||1,r=it.pick?16:11;
+    return [Math.round(dx/len*r*10)/10,Math.round(dy/len*r*10)/10];
+  }
+  function dotLeaderHtml(it,dx,dy){
+    if(it.labelHidden)return dotHtml(it);
+    return '<div class="mkr par dl'+(it.pick?' pick':'')+'" style="color:'+it.color+'">'+leader(dx,dy,it.color,dotTip(it,dx,dy))+
+           '<div class="dot" style="background:'+it.color+'"></div>'+
+           '<div class="'+labClass(it)+'" title="'+esc(DOT_TIP)+'" style="'+labBorder(it)+'left:'+dx+'px;top:'+dy+'px">'+labInner(it)+'</div></div>';
+  }
+  function dotLeaderIcon(it,k){
+    var o=dotBase(it,k);
+    return L.divIcon({className:'',iconSize:[0,0],iconAnchor:[0,0],html:dotLeaderHtml(it,o[0],o[1])});
+  }
+  // Leaflet 점 핀 — 점(마커)을 끌면 위치 고침(종전대로), 이름표를 끌면 이름표만 옮긴다
+  function bindDotDrag(m,it,k){
+    var root=m.getElement();if(!root)return;
+    dragLabel(root,it,{
+      base:function(){return dotBase(it,k);},
+      tip:function(dx,dy){return dotTip(it,dx,dy);},
+      lock:function(on){
+        if(m.dragging){if(on)m.dragging.disable();else m.dragging.enable();}
+        if(map.dragging){if(on)map.dragging.disable();else map.dragging.enable();}
+      },
+      click:function(){m.openPopup();},
+      reset:function(){m.closePopup();m.setIcon(dotLeaderIcon(it,k));bindDotDrag(m,it,k);}
+    });
+  }
+
   // 확대·축소하면 필지의 화면 크기가 달라지므로 이름표를 다시 밀어낸다(직접 옮긴 것은 그대로)
   var labeled=[];   // [{marker, it, n, poly}]
   function relabel(){
@@ -694,7 +738,10 @@ function create(opt){
 
   // 점 핀(집합건물)을 직접 옮기면 그 자리로 위치를 고친다
   function moved(it,p){
-    it.xy=it.o._xy={x:p.lng,y:p.lat,addr:it.xy.addr,q:it.xy.q,manual:true};
+    var old=it.xy||{};
+    it.xy=it.o._xy={x:p.lng,y:p.lat,addr:old.addr,q:old.q,manual:true};
+    if(old.labOff)it.xy.labOff=old.labOff;      // 점을 옮겨도 사용자가 정한 이름표 자리·크기는 그대로
+    if(old.labScale)it.xy.labScale=old.labScale;
     onSave();
     status('📍 '+it.label+' 위치를 직접 옮겼습니다(저장됨). 「주소 다시 찾기」를 누르면 되돌아갑니다.');
   }
@@ -720,7 +767,7 @@ function create(opt){
       kinfo.setContent('<div style="padding:6px 22px 6px 8px;font-size:12px;line-height:1.5;min-width:160px;white-space:nowrap">'+popup(it)+'</div>');
       kinfo.setPosition(ll);kinfo.open(kmap);
     }
-    var n=0,groups=Object.create(null);
+    var n=0,dn=0,groups=Object.create(null);
     items.forEach(function(it){
       if(!it.labelGroup||!it.xy||hidden[it.kind])return;
       var g=groups[it.labelGroup]||(groups[it.labelGroup]={leader:it,features:[]});
@@ -729,6 +776,7 @@ function create(opt){
     items.forEach(function(it){
       if(!it.xy)return;
       var myN=it.xy.geom?n++:0;   // 번호는 숨김과 상관없이(Leaflet과 같은 방향)
+      var myD=(!it.xy.geom&&it.leaderLabel)?dn++:0;   // 화살표 이름표 점 핀 방향 번호(같은 규칙)
       if(hidden[it.kind])return;
       var geos=null;
       if(it.xy.geom){
@@ -761,6 +809,16 @@ function create(opt){
           lock:kLock,
           click:function(){info(it,pos);},
           reset:function(){kdraw();}});
+      }else if(it.leaderLabel){
+        pos=new K.LatLng(it.xy.y,it.xy.x);
+        var dbase=function(){return dotBase(it,myD);},d0=dbase();
+        root.innerHTML=dotLeaderHtml(it,d0[0],d0[1]);
+        root.addEventListener('click',function(e){e.stopPropagation();info(it,pos);});
+        if(it.labelHidden)bindResize(root.querySelector('.lab'),it,kLock);
+        else dragLabel(root,it,{base:dbase,tip:function(dx,dy){return dotTip(it,dx,dy);},
+          lock:kLock,
+          click:function(){info(it,pos);},
+          reset:function(){kdraw();}});
       }else{
         pos=new K.LatLng(it.xy.y,it.xy.x);
         root.innerHTML=dotHtml(it);
@@ -787,7 +845,7 @@ function create(opt){
     markers.forEach(function(m){map.removeLayer(m);});markers=[];
     shapes.forEach(function(s){map.removeLayer(s);});shapes=[];
     labeled=[];
-    var pts=[],bnd=null,n=0,groups=Object.create(null);
+    var pts=[],bnd=null,n=0,dn=0,groups=Object.create(null);
     items.forEach(function(it){
       if(!it.labelGroup||!it.xy||hidden[it.kind])return;
       var g=groups[it.labelGroup]||(groups[it.labelGroup]={leader:it,features:[]});
@@ -800,6 +858,7 @@ function create(opt){
       if(!it.xy)return;
       // 이름표 방향 번호는 숨김과 상관없이 매긴다 — 체크를 껐다 켤 때마다 이름표가 딴 쪽으로 튀지 않게
       var myN=it.xy.geom?n++:0;
+      var myD=(!it.xy.geom&&it.leaderLabel)?dn++:0;   // 화살표 이름표 점 핀 방향 번호(같은 규칙)
       if(hidden[it.kind])return;
       var ll=[it.xy.y,it.xy.x],icon,myPoly=null;
       if(it.xy.geom){
@@ -818,7 +877,7 @@ function create(opt){
         myPoly=poly;
         icon=parcelIcon(it,myN,myPoly);
       }else{
-        icon=dotIcon(it);
+        icon=it.leaderLabel?dotLeaderIcon(it,myD):dotIcon(it);
       }
       pts.push(ll);
       var group=it.labelGroup&&groups[it.labelGroup];
@@ -835,6 +894,7 @@ function create(opt){
       if(!myPoly)m.on('dragend',function(){moved(it,m.getLatLng());});
       markers.push(m);
       if(myPoly){var rec={marker:m,it:it,n:myN,poly:myPoly};labeled.push(rec);bindLabelDrag(rec);}
+      else if(it.leaderLabel&&!it.labelHidden)bindDotDrag(m,it,myD);   // 이름표 끌기 + 크기 조절(dragLabel 안에서)
       else{var de=m.getElement();bindResize(de&&de.querySelector('.lab'),it,function(on){if(m.dragging){if(on)m.dragging.disable();else m.dragging.enable();}if(map.dragging){if(on)map.dragging.disable();else map.dragging.enable();}});}   // 점 핀도 이름표 크기 조절
     });
     if(keepView)return;
