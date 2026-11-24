@@ -212,9 +212,9 @@
       <button id="copy" type="button">결론 복사</button>
       <button id="xlsx" type="button">엑셀 저장</button>
       <label class="bandonly" id="bandOnlyLbl"><input type="checkbox" id="bandOnly"> 본건 면적대만 보기 (동일, 유사)</label><span class="hint" id="bandInfo"></span>
-      <span class="hint">체크를 바꾸면 최저, 중간, 최고가 바로 다시 계산됩니다.</span>
+      <span class="hint">체크를 바꾸면 최저, 중간, 최고가 바로 다시 계산됩니다. 표에서 여러 줄을 끌어 골라 Ctrl+C 하면 제목 줄까지 붙어 엑셀, 구글 시트에 칸 맞춰 붙습니다.</span>
     </div>
-    <div class="card tbl" id="mainTbl">
+    <div class="card tbl" id="mainTbl" data-copy>
       <table>
         <thead><tr>
           <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
@@ -241,7 +241,7 @@
         <div class="nlegend">★ 본건 · 동그라미 = 주변 단지, ㎡단가(시점수정 중간) 낮음<span class="bar"></span>높음 · 핀이나 아래 목록 줄을 누르면 그 단지 시점수정이 열립니다</div>
       </div>
       <div id="nDetail" class="hidden"></div>
-      <div id="nListWrap" class="hidden tbl" style="max-height:none;border:1px solid var(--line);border-radius:8px"><table id="nList"></table></div>
+      <div id="nListWrap" class="hidden tbl" style="max-height:none;border:1px solid var(--line);border-radius:8px"><table id="nList" data-copy></table></div>
     </section>
   </div>
 </main>
@@ -252,7 +252,8 @@
 <script src="arap_sgg_codes.js?v=20261111"></script>
 <script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
 <script src="arap_apt_nearby.js?v=20261113b"></script><!-- 주변 단지: 거리, 시군구 고르기, 세대수 -->
-<script src="arap_apt_sise.js?v=20261123b"></script><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script src="arap_apt_sise.js?v=20261123b"></script>
+<script src="arap_tblcopy.js?v=20261124"></script><!-- 표 여러 행 드래그 → Ctrl+C 하면 머리줄 붙여 스프레드시트 모양으로 --><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
 'use strict';
@@ -899,7 +900,7 @@ function nearDetail(){
     <div class="chips" id="nChips"></div>
     <div class="big">${big('최저', s.min)}${big('중간', s.mid, pm ? ` · 본건 중간보다 <b class="${pctCls(s.mid)}">${pm}</b>` : '')}${big('최고', s.max)}</div>
     <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 전체 ${c.res.rows.length}건 · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
-    <div class="tbl"><table><thead><tr>${[['include', '집계'], ['date', '계약일'], ['floor', '층'], ['area', '전용(㎡)'], ['price', '거래가'], ['ratio', '시점수정치'], ['unit', '시점수정 ㎡단가'], ['subjectPrice', '본건 면적 환산가'], ['band', '면적대'], ['notes', '비고']]
+    <div class="tbl" data-copy><table><thead><tr>${[['include', '집계'], ['date', '계약일'], ['floor', '층'], ['area', '전용(㎡)'], ['price', '거래가'], ['ratio', '시점수정치'], ['unit', '시점수정 ㎡단가'], ['subjectPrice', '본건 면적 환산가'], ['band', '면적대'], ['notes', '비고']]
       .map(([k, t]) => `<th data-dk="${k}">${t}<span class="ar">${DSORT.k === k ? (DSORT.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('')}</tr></thead><tbody id="nTbody"></tbody></table></div>`;
   const chips = $('nChips');
   c.types.forEach(t => {
@@ -920,8 +921,8 @@ function nearDetail(){
     const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
     tr.innerHTML = `<td class="c"><input type="checkbox" ${r.include ? 'checked' : ''} ${r.subjectPrice ? '' : 'disabled'}></td>
       <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
-      <td class="n">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
-      <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n"><b>${A.fmtWon(r.subjectPrice)}</b></td>
+      <td class="n" data-v="${r.price ?? ''}">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
+      <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n" data-v="${r.subjectPrice != null ? Math.round(r.subjectPrice) : ''}"><b>${A.fmtWon(r.subjectPrice)}</b></td>
       <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
     tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; cxStat(c); nearList(); nearMap(); nearDetail(); });
     tb.appendChild(tr);
@@ -1083,8 +1084,8 @@ function render(){
     const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
     tr.innerHTML = `<td class="c"><input type="checkbox" ${r.include ? 'checked' : ''} ${r.subjectPrice ? '' : 'disabled'}></td>
       <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
-      <td class="n">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
-      <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n"><b>${A.fmtWon(r.subjectPrice)}</b></td>
+      <td class="n" data-v="${r.price ?? ''}">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
+      <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n" data-v="${r.subjectPrice != null ? Math.round(r.subjectPrice) : ''}"><b>${A.fmtWon(r.subjectPrice)}</b></td>
       <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
     tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); histUpdateState(); });
     tb.appendChild(tr);
