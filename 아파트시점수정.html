@@ -48,7 +48,8 @@
   .big .k{font-size:13px;color:var(--ink-2)}
   .big .v{font-size:26px;font-weight:800;letter-spacing:-.5px;margin-top:2px}
   .big .s{font-size:12px;color:var(--faint);margin-top:2px}
-  .bandonly{display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;user-select:none}
+  .bandonly{display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;user-select:none;white-space:nowrap}
+  .bandonly input{width:auto}
   .big .u{font-size:13px;font-weight:600;color:var(--ink-2);margin-top:4px}
   .big .rng{font-size:12px;color:var(--ink-2);margin-top:6px}
   .big .rng.chip{display:inline-block;font-size:13px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px}
@@ -219,7 +220,7 @@
       <button id="foldTbl" type="button" title="본건 단지 거래표 접기/펴기">▾ 거래표 접기</button>
       <button id="copy" type="button">결론 복사</button>
       <button id="xlsx" type="button">엑셀 저장</button>
-      <label class="bandonly" id="bandOnlyLbl"><input type="checkbox" id="bandOnly"> 본건 면적대만 보기 (동일, 유사)</label><span class="hint" id="bandInfo"></span>
+      <label class="bandonly" id="bandOnlyLbl" title="끄면 집계하는 면적대 거래만 보여요(고른 면적이 있으면 그 면적만). 계산은 그대로"><input type="checkbox" id="bandOnly"> 다른 면적도 보기</label><span class="hint" id="bandInfo"></span>
       <span class="hint">체크를 바꾸면 최저, 중간, 최고가 바로 다시 계산됩니다.</span>
       <span class="hint copytip">📋 거래표 줄을 누르면 선택돼요 (Shift+누르기 = 범위). 아래에 뜨는 「복사」를 누르면 제목 줄까지 엑셀, 구글 시트에 칸 맞춰 붙어요.</span>
     </div>
@@ -893,9 +894,10 @@ async function nearMap(){
 }
 
 /* 단지 상세 거래표 정렬: 본건 표와 같은 규칙(sortVal) — 처음 누르면 오름, 다시 누르면 내림, 빈 값은 늘 맨 아래, 같으면 원래 순서. 엑셀도 화면 순서 */
-// 상세 거래표: 면적대 상이(본건 ±15% 밖) 거래는 아예 안 보임(2026-11-24 사용자 요청). 칩으로 고르면 '동일'이 되어 보임. 엑셀, 복사도 같은 줄
+// 상세 거래표: 고른 면적(동일) 거래만 보임, 다른 면적은 아예 숨김(2026-11-24 사용자 요청). 고른 면적이 없으면 본건 ±15% 밖(상이)만 숨김.
+// 칩으로 고르면 보임, 「다른 면적도 보기」를 켜면 전부. 엑셀, 복사도 같은 줄
 function detailRows(c){
-  const rows = c.res.rows.filter(r => r.band !== '상이');
+  const rows = showAllRows() ? c.res.rows.slice() : c.same.length ? shownRows(c.res, true).slice() : c.res.rows.filter(r => r.band !== '상이');
   if (!DSORT.k) return rows.sort((a, b) => a.no - b.no);
   return rows.sort((a, b) => {
     const x = sortVal(a, DSORT.k), y = sortVal(b, DSORT.k), ex = x == null || x === '', ey = y == null || y === '';
@@ -924,7 +926,7 @@ function nearDetail(){
     <div class="hint">이 단지 전용면적 (본건 ${A0}㎡와 같게 볼 면적을 고르세요. 처음엔 본건 ±${Math.round(NEAR.tol * 100)}% 안 면적이 골라져 있어요. 누르면 켜고 꺼짐)</div>
     <div class="chips" id="nChips"></div>
     <div class="big">${big('최저', s.min)}${big('중간', s.mid, pm ? ` · 본건 중간보다 <b class="${pctCls(s.mid)}">${pm}</b>` : '')}${big('최고', s.max)}</div>
-    <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 표시 ${detailRows(c).length}건${c.res.rows.length > detailRows(c).length ? ` (면적이 본건 ±15% 밖인 ${c.res.rows.length - detailRows(c).length}건은 숨김)` : ''} · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
+    <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 표시 ${detailRows(c).length}건${c.res.rows.length > detailRows(c).length ? ` (${c.same.length ? '고른 면적 밖' : '면적이 본건 ±15% 밖인'} ${c.res.rows.length - detailRows(c).length}건은 숨김)` : ''} · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
     <div class="tbl" data-copy data-rowsel><table><thead><tr>${[['include', '집계'], ['date', '계약일'], ['dong', '동'], ['floor', '층'], ['area', '전용(㎡)'], ['price', '거래가'], ['ratio', '시점수정치'], ['unit', '시점수정 ㎡단가'], ['subjectPrice', '본건 면적 환산가'], ['band', '면적대'], ['notes', '비고']]
       .map(([k, t]) => `<th data-dk="${k}">${t}<span class="ar">${DSORT.k === k ? (DSORT.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('')}</tr></thead><tbody id="nTbody"></tbody></table></div>`;
   const chips = $('nChips');
@@ -1140,14 +1142,20 @@ document.querySelectorAll('th[data-k]').forEach(th => th.addEventListener('click
   render(); histUpdateState();
 }));
 
+/* 거래표에 보일 줄: 집계하는 면적대만(2026-11-24 사용자 요청 — 다른 면적은 회색이 아니라 아예 숨김). 보기만 숨김, 집계, 최저/중간/최고는 그대로.
+   칩으로 고른 면적이 있으면 그 면적(동일)만, 없으면 집계에 쓴 면적대(동일 또는 유사). 면적 미정, 전체 집계면 다 보임. 「다른 면적도 보기」를 켜면 전부 */
+const showAllRows = () => $('bandOnly').checked;
+function shownRows(res, sameOn){
+  if (showAllRows()) return res.rows;
+  const key = sameOn || (res.sameAreas || []).length ? '동일' : (/^(동일|유사)/.exec(res.bandUsed || '') || [])[0];
+  return key ? res.rows.filter(r => r.band === key) : res.rows;
+}
 function render(){
   $('result').classList.remove('hidden');
   sortRows(); paintHead(); showAreaPick();
   const tb = $('tbody'); tb.innerHTML = '';
-  const bOnly = $('bandOnly').checked, selOn = (last.sameAreas || []).length > 0; let hid = 0;
-  last.rows.forEach(r => {
-    // 보기만 숨김(집계 체크, 최저/중간/최고는 그대로). 칩으로 면적을 골랐으면 고른 면적(동일)만 보임
-    if (bOnly && (selOn ? r.band !== '동일' : r.band === '상이')) { hid++; return; }
+  const shown = shownRows(last); let hid = last.rows.length - shown.length;
+  shown.forEach(r => {
     const tr = document.createElement('tr');
     if (!r.include) tr.className = 'off';
     const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
@@ -1159,7 +1167,7 @@ function render(){
     tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); histUpdateState(); });
     tb.appendChild(tr);
   });
-  $('bandInfo').textContent = bOnly ? `${last.rows.length - hid}건 표시, ${selOn ? '고른 면적 외' : '면적대 상이'} ${hid}건 숨김 (계산은 그대로)` : '';
+  $('bandInfo').textContent = hid ? `${shown.length}건 표시, ${(last.sameAreas || []).length ? '고른 면적' : '집계 면적대'} 밖 ${hid}건 숨김 (계산은 그대로)` : '';
   renderSummary();
   paintCx();
   paintFold();
@@ -1230,10 +1238,12 @@ async function exportXlsx(r, title, fname){ // r 없으면 본건 결과. 주변
 
 $('go').onclick = () => calc();
 /* 본건 면적대만 보기: 켜고 끈 상태 기억(localStorage, 실패해도 그냥 동작) */
-try { $('bandOnly').checked = localStorage.getItem('arap-apt-sise-bandonly') === '1'; } catch (e) {}
+// 「다른 면적도 보기」 켜고 끈 상태 기억 — 새 키(옛 「본건 면적대만 보기」 키 arap-apt-sise-bandonly는 뜻이 반대라 안 읽음). 기본 끔 = 집계 면적만
+try { $('bandOnly').checked = localStorage.getItem('arap-apt-sise-showall') === '1'; } catch (e) {}
 $('bandOnly').addEventListener('change', () => {
-  try { localStorage.setItem('arap-apt-sise-bandonly', $('bandOnly').checked ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem('arap-apt-sise-showall', $('bandOnly').checked ? '1' : '0'); } catch (e) {}
   if (last) render();
+  if (NSEL) nearDetail();
 });
 
 // 면적 칸이 건축물대장 자동값이면 주소, 동, 호를 바꿀 때 비움(다음 계산 때 새 동, 호로 다시 조회). 직접 친 면적은 그대로
@@ -1262,7 +1272,7 @@ $('copy').onclick = () => {
 ${safeRange(s.mid)}`;
   navigator.clipboard.writeText(t).then(() => { $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '결론 복사', 1200); });
 };
-$('xlsx').onclick = () => exportXlsx().catch(e => showMsg(e.message || String(e)));
+$('xlsx').onclick = () => exportXlsx(Object.assign({}, last, {rows: last.rows.filter(r => shownRows(last).includes(r))})).catch(e => showMsg(e.message || String(e))); // 화면에 보이는 줄, 화면 순서
 /* 본건 거래표 접기, 펴기: 처음엔 펴 둠, 마지막 상태를 이 브라우저에 기억(실패해도 그냥 동작) */
 function paintFold(){
   const folded = $('mainTbl').classList.contains('hidden');
