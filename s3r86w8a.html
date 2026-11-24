@@ -68,7 +68,8 @@
   <script src="arap_purpose_law.js"></script><!-- 의견서 목적 문장: 자산재평가면 외부감사법 문구 -->
   <script src="arap_etc_items.js"></script><!-- 의견서 「6. 그 밖의 사항」 추가 문구 박스·끼우기(단일·여러 호수 공용) -->
   <script src="arap_multi_myeongse.js"></script><!-- 여러 호수 명세표(xlsx, 시트 1개 한 장) — 단일호수 명세표 템플릿 서식을 빌려 씀 -->
-  <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
+  <script src="arap_map.js"></script>
+  <script src="arap_mapshot.js"></script><!-- ③ 위치도 「📸 위치도 확정」 — 빨간 틀 캡처 → 6. 위치도 한글(토건과 같은 엔진) --><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
   <script src="arap_casebak.js"></script><!-- 저장건 안전장치: 접수번호 고치면 이름만 바꾸기·이미 있는 번호 덮어쓰기 막기·건별 이전 버전 -->
   <style>
     /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
@@ -4846,6 +4847,24 @@ function StepMap({ov,sfx,active,cases,precs}){
   const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
+  // 📸 위치도 확정(2026-11-24) — 빨간 틀(한글 그림 칸 비율) 안을 화면 그대로(말풍선 배치 포함) 찍어 6. 위치도 한글에. 소재지 = 건명(지번 외 N필지 건물명 제층 제호). 엔진 arap_mapshot.js
+  const [frameOn,setFrameOn]=useState(true);
+  const [shot,setShot]=useState({t:"빨간 틀 = 한글 그림 칸. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
+  const [shotBusy,setShotBusy]=useState(false);
+  const fitShot=()=>{if(window.ArapMapShot)ArapMapShot.fitFrame(document.getElementById("mapWrap"+sfx),document.getElementById("mapFrame"+sfx),document.getElementById("mapFrameLab"+sfx));};
+  useEffect(()=>{if(!active)return;const t=setTimeout(fitShot,80);window.addEventListener("resize",fitShot);return ()=>{clearTimeout(t);window.removeEventListener("resize",fitShot);};},[active]);
+  const doShot=async()=>{
+    if(!window.ArapMapShot){alert("위치도 한글 엔진(arap_mapshot.js)이 아직 로드되지 않았습니다. 새로고침 후 다시 시도하세요.");return;}
+    fitShot();setFrameOn(true);setShotBusy(true);setShot({t:"📸 크롬 창에서 「이 탭」을 고르고 [공유]를 누르세요…",c:""});
+    try{
+      const img=await ArapMapShot.capture(document.getElementById("mapFrame"+sfx));   // 클릭 바로 다음에 불러야 함(화면 공유 허용 조건)
+      const r=await fetch(encodeURI("템플릿/집건 위치도 템플릿.hwpx"));if(!r.ok)throw new Error("위치도 템플릿 로드 실패("+r.status+")");
+      const bytes=await ArapMapShot.buildHwpx(await r.arrayBuffer(),{addr:buildGeonmyeong(ov),wide:img,zip:{parseZip,createZipStored}});
+      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);
+      setShot({t:`✅ 캡처 → 6. 위치도 한글 파일을 받았습니다. 다시 누르면 새로 찍습니다.`,c:"ok"});
+    }catch(e){console.error("위치도 캡처",e);const can=e&&e.name==="NotAllowedError";setShot({t:can?"캡처를 취소했습니다(공유 창에서 [취소]). 다시 누르면 됩니다.":"⚠ "+(e&&e.message||e),c:can?"":"err"});}
+    finally{setShotBusy(false);}
+  };
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
       <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건 · 사례 · 전례</div>
@@ -4869,7 +4888,16 @@ function StepMap({ov,sfx,active,cases,precs}){
         title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
         onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
     </div>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",margin:"2px 0 8px"}}>
+      <button aria-label="위치도 확정" disabled={shotBusy} style={{...S.btn,...BTN.p,fontSize:14,padding:"7px 14px"}} title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 위치도(6. 위치도)로 받습니다 — 크롬 창에서 「이 탭」 → [공유]" onClick={doShot}>📸 위치도 확정 → 한글</button>
+      <span aria-label="위치도 캡처 안내" style={{fontSize:12,color:shot.c==="err"?"#b91c1c":shot.c==="ok"?"#15803d":"#475569"}}>{shot.t}</span>
+      <label style={{...chk,marginLeft:"auto"}}><input type="checkbox" checked={frameOn} onChange={()=>setFrameOn(!frameOn)}/> 한글 그림 칸 틀(빨간 점선) 보기</label>
+    </div>
+    <div id={"mapWrap"+sfx} style={{position:"relative",overflow:"hidden",borderRadius:6}}>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
+    <div id={"mapFrame"+sfx} style={{position:"absolute",zIndex:1500,pointerEvents:"none",...(frameOn?{outline:"3px dashed #dc2626",boxShadow:"0 0 0 4000px rgba(15,23,42,.2)"}:{})}}/>
+    <div id={"mapFrameLab"+sfx} style={{position:"absolute",zIndex:1501,pointerEvents:"none",background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700,padding:"2px 6px",borderRadius:3,transform:"translateX(-100%)",whiteSpace:"nowrap",display:frameOn?undefined:"none"}}>한글 그림 칸 →</div>
+    </div>
     <div id={"mapStatus"+sfx} className="arapmapstatus"/>
     <div id={"mapMiss"+sfx} style={{fontSize:12,color:"#b45309",marginTop:4}}/>
   </div>);
@@ -8623,6 +8651,24 @@ function StepMap({ov,sfx,active,cases,precs}){
   const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
+  // 📸 위치도 확정(2026-11-24) — 빨간 틀(한글 그림 칸 비율) 안을 화면 그대로(말풍선 배치 포함) 찍어 6. 위치도 한글에. 소재지 = 건명(지번 외 N필지 건물명 제층 제호). 엔진 arap_mapshot.js
+  const [frameOn,setFrameOn]=useState(true);
+  const [shot,setShot]=useState({t:"빨간 틀 = 한글 그림 칸. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
+  const [shotBusy,setShotBusy]=useState(false);
+  const fitShot=()=>{if(window.ArapMapShot)ArapMapShot.fitFrame(document.getElementById("mapWrap"+sfx),document.getElementById("mapFrame"+sfx),document.getElementById("mapFrameLab"+sfx));};
+  useEffect(()=>{if(!active)return;const t=setTimeout(fitShot,80);window.addEventListener("resize",fitShot);return ()=>{clearTimeout(t);window.removeEventListener("resize",fitShot);};},[active]);
+  const doShot=async()=>{
+    if(!window.ArapMapShot){alert("위치도 한글 엔진(arap_mapshot.js)이 아직 로드되지 않았습니다. 새로고침 후 다시 시도하세요.");return;}
+    fitShot();setFrameOn(true);setShotBusy(true);setShot({t:"📸 크롬 창에서 「이 탭」을 고르고 [공유]를 누르세요…",c:""});
+    try{
+      const img=await ArapMapShot.capture(document.getElementById("mapFrame"+sfx));   // 클릭 바로 다음에 불러야 함(화면 공유 허용 조건)
+      const r=await fetch(encodeURI("템플릿/집건 위치도 템플릿.hwpx"));if(!r.ok)throw new Error("위치도 템플릿 로드 실패("+r.status+")");
+      const bytes=await ArapMapShot.buildHwpx(await r.arrayBuffer(),{addr:buildGeonmyeong(ov),wide:img,zip:{parseZip,createZipStored}});
+      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);
+      setShot({t:`✅ 캡처 → 6. 위치도 한글 파일을 받았습니다. 다시 누르면 새로 찍습니다.`,c:"ok"});
+    }catch(e){console.error("위치도 캡처",e);const can=e&&e.name==="NotAllowedError";setShot({t:can?"캡처를 취소했습니다(공유 창에서 [취소]). 다시 누르면 됩니다.":"⚠ "+(e&&e.message||e),c:can?"":"err"});}
+    finally{setShotBusy(false);}
+  };
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
       <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건 · 사례 · 전례</div>
@@ -8646,7 +8692,16 @@ function StepMap({ov,sfx,active,cases,precs}){
         title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
         onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
     </div>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",margin:"2px 0 8px"}}>
+      <button aria-label="위치도 확정" disabled={shotBusy} style={{...S.btn,...BTN.p,fontSize:14,padding:"7px 14px"}} title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 위치도(6. 위치도)로 받습니다 — 크롬 창에서 「이 탭」 → [공유]" onClick={doShot}>📸 위치도 확정 → 한글</button>
+      <span aria-label="위치도 캡처 안내" style={{fontSize:12,color:shot.c==="err"?"#b91c1c":shot.c==="ok"?"#15803d":"#475569"}}>{shot.t}</span>
+      <label style={{...chk,marginLeft:"auto"}}><input type="checkbox" checked={frameOn} onChange={()=>setFrameOn(!frameOn)}/> 한글 그림 칸 틀(빨간 점선) 보기</label>
+    </div>
+    <div id={"mapWrap"+sfx} style={{position:"relative",overflow:"hidden",borderRadius:6}}>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
+    <div id={"mapFrame"+sfx} style={{position:"absolute",zIndex:1500,pointerEvents:"none",...(frameOn?{outline:"3px dashed #dc2626",boxShadow:"0 0 0 4000px rgba(15,23,42,.2)"}:{})}}/>
+    <div id={"mapFrameLab"+sfx} style={{position:"absolute",zIndex:1501,pointerEvents:"none",background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700,padding:"2px 6px",borderRadius:3,transform:"translateX(-100%)",whiteSpace:"nowrap",display:frameOn?undefined:"none"}}>한글 그림 칸 →</div>
+    </div>
     <div id={"mapStatus"+sfx} className="arapmapstatus"/>
     <div id={"mapMiss"+sfx} style={{fontSize:12,color:"#b45309",marginTop:4}}/>
   </div>);
