@@ -4,7 +4,8 @@
  *  ArapMapShot.capture(frameEl)  → Promise<{dataUrl,w,h}>
  *      크롬·엣지 화면 공유(getDisplayMedia, 「이 탭」)로 지금 보이는 그대로(말풍선 배치 포함) 찍어 frameEl 영역만 잘라 PNG로.
  *      버튼 클릭 안에서 바로 불러야 한다(브라우저가 사용자 동작 없이 화면 공유를 막음).
- *  ArapMapShot.buildHwpx(tplBuf, {addr, wide, detail}) → Promise<Uint8Array>
+ *  ArapMapShot.fitFrame(wrap, frame, lab)  빨간 틀 자리·크기 맞추기(집건 ③ 위치도)
+ *  ArapMapShot.buildHwpx(tplBuf, {addr, wide, detail, zip}) → Promise<Uint8Array>   zip = {parseZip, createZipStored}(없으면 ArapCheonggu)
  *      템플릿(토건 위치도 템플릿.hwpx: 0쪽 광역위치도, 1쪽 상세위치도)의 소재지 칸에 addr, 그림 칸에 캡처 그림.
  *      그림은 사용자 완성본(2026-11-24)과 같은 방식 — 칸 안 글 앞에 떠 있는 그림(treatAsChar=0, 문단 기준 0,0).
  *      그림 칸 폭에 꽉 차게(50228) + 세로 56000, 표 위 빈 줄은 두 쪽 모두 5줄로 맞춤(상세 쪽 6줄 → 5줄) — 한 쪽 안(아래 여유 약 1900).
@@ -113,7 +114,7 @@ function fillSection(xml,addr,pic){
   return head+tail;
 }
 async function buildHwpx(tplBuf,o){
-  var A=g.ArapCheonggu;if(!A)throw new Error('한글 엔진(arap_cheonggu.js)이 없습니다.');
+  var A=o.zip||g.ArapCheonggu;if(!A)throw new Error('한글 엔진(arap_cheonggu.js)이 없습니다.');   // 집건은 자기 parseZip·createZipStored를 o.zip으로
   var entries=await A.parseZip(tplBuf.slice?tplBuf.slice(0):tplBuf),dec=new TextDecoder(),enc=new TextEncoder();
   var mi=entries.findIndex(function(e){return e.name==='mimetype';});if(mi>0)entries.unshift(entries.splice(mi,1)[0]);
   var shots=[o.wide||null,o.detail||null],bins=[];
@@ -139,5 +140,12 @@ async function buildHwpx(tplBuf,o){
   }
   return A.createZipStored(entries);
 }
-g.ArapMapShot={RATIO:RATIO,PIC_W:PIC_W,PIC_H:PIC_H,capture:capture,buildHwpx:buildHwpx,fillSection:fillSection};
+// 빨간 틀을 지도 상자 가운데, 한글 그림 칸 비율로 — 틀 전체가 한 화면에 들어오게(높이 ≤ 창 높이 − 40). 이름표는 틀 왼쪽 밖(캡처에 안 찍힘)
+function fitFrame(wrap,frame,lab){
+  if(!wrap||!frame)return;var W=wrap.clientWidth,H=wrap.clientHeight;if(!W||!H)return;
+  var fh=Math.max(120,Math.min(H-16,g.innerHeight-40,(W-16)*RATIO)),fw=fh/RATIO,l=Math.round((W-fw)/2),t=Math.round((H-fh)/2);
+  frame.style.left=l+'px';frame.style.top=t+'px';frame.style.width=Math.round(fw)+'px';frame.style.height=Math.round(fh)+'px';
+  if(lab){lab.style.left=(l-8)+'px';lab.style.top=t+'px';lab.style.visibility=l>130?'visible':'hidden';}
+}
+g.ArapMapShot={RATIO:RATIO,PIC_W:PIC_W,PIC_H:PIC_H,capture:capture,buildHwpx:buildHwpx,fillSection:fillSection,fitFrame:fitFrame};
 })(window);

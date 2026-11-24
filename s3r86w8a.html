@@ -68,7 +68,8 @@
   <script src="arap_purpose_law.js"></script><!-- 의견서 목적 문장: 자산재평가면 외부감사법 문구 -->
   <script src="arap_etc_items.js"></script><!-- 의견서 「6. 그 밖의 사항」 추가 문구 박스·끼우기(단일·여러 호수 공용) -->
   <script src="arap_multi_myeongse.js"></script><!-- 여러 호수 명세표(xlsx, 시트 1개 한 장) — 단일호수 명세표 템플릿 서식을 빌려 씀 -->
-  <script src="arap_map.js"></script><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
+  <script src="arap_map.js"></script>
+  <script src="arap_mapshot.js"></script><!-- ③ 위치도 「📸 위치도 확정」 — 빨간 틀 캡처 → 6. 위치도 한글(토건과 같은 엔진) --><!-- 위치도 공용 엔진 — 토지건물·거래사례 위치도와 같은 코드 -->
   <script src="arap_casebak.js"></script><!-- 저장건 안전장치: 접수번호 고치면 이름만 바꾸기·이미 있는 번호 덮어쓰기 막기·건별 이전 버전 -->
   <style>
     /* 위치도 탭 — 지도 엔진이 상태줄에 넣는 class */
@@ -1089,6 +1090,23 @@ const nameNrGuess=c=>/근생|근린생활|상가|점포/.test(String((c&&c.aptNa
 const caseGroup=c=>useGroup(c&&c.useKind)||nameNrGuess(c);
 const caseNr=(c,propType)=>{const g=caseGroup(c);return g?g==="비주거":propType==="비주거용";};
 const caseSjKind=(c,ov)=>(c&&c.useKind&&detectSjKind(c.useKind))||detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);
+// 카이스 기타주소 「이스트리버빌 203호」·「기풍하이빌 3층 302호」 → 건물명만(호·층 떼기, 2026-11-24). 다 떼서 비면 원래 글자
+const kaisAptName=s=>{const o=String(s||"").trim(),t=o.replace(/\s*(?:제\s*)?(?:지하\s*)?[A-Za-z]?\d+(?:-\d+)?\s*(?:층|호)(?:\s.*)?$/,"").trim();return t||o;};
+// 붙여넣는 순간 시점수정치(2026-11-24) — 🧮 창을 열었을 때와 같은 기본값: 유형 = 사례 용도 → 본건 종류 → 건물명, 지역 = 카이스 시군구·소재지·본건 주소.
+// 주거(매매가격지수)만 자동 — 비주거(자본수익률)는 개요의 자본수익률 칸까지 바꾸므로 창에서. 못 정하면 null(칸은 「입력」 그대로)
+const autoSijeom=(c,ov,propType)=>{try{
+  if(!c||!ov||!ov.baseDate||!c.tradeDate||caseNr(c,propType)||!idxData())return null;
+  const kind=caseSjKind(c,ov)||(()=>{try{return localStorage.getItem("arap-sjidx-kind");}catch(e){return null;}})()||"아파트";
+  const region=detectSjRegion([c.sgg,c.location].filter(Boolean).join(" "),c.address,ov.jibun);if(!region)return null;
+  const r=buildSjIdxText(kind,region,fmtDate(c.tradeDate),ov.baseDate);if(r.err)return null;
+  const v=parseTA(r.text);return v?{timeAdj:v,timeAdjDetail:r.text,timeAuto:true}:null;
+}catch(e){console.warn("자동 시점수정",e);return null;}};
+// 시점수정치 근거 한 줄 — 산식 첫 줄(유형)·「지역 :」·지수 기간 → 「연립다세대 · 서울 동남권 · 26.04~26.10」
+const taBasis=t=>{t=String(t||"");if(!t.trim())return"";const L=t.split("\n").map(x=>x.trim()).filter(Boolean);
+  const kind=((t.match(/유형\s*:\s*([^\n]+)/)||[])[1]||(L[0]&&!/[:：]/.test(L[0])&&/[가-힣A-Za-z]/.test(L[0])?L[0]:"")).trim();
+  const reg=((t.match(/지역\s*:\s*([^\n]+)/)||[])[1]||"").trim();
+  const pm=t.match(/(\d{4})\.(\d{2})\s*~\s*(\d{4})\.(\d{2})/),per=pm?`${pm[1].slice(2)}.${pm[2]}~${pm[3].slice(2)}.${pm[4]}`:"";
+  return [kind,reg,per].filter(Boolean).join(" · ");};
 const buildSjIdxText=(kind,regionKey,tradeDate,baseDate)=>{
   const D=idxData();if(!D)return{err:"지수 데이터가 없습니다. 'ARM 실행.bat'으로 앱을 열면 자동으로 받아집니다."};
   const tbl=D.tables[kind];if(!tbl)return{err:"지수 표가 없습니다: "+kind};
@@ -1225,7 +1243,7 @@ function parseKaisRow(text,idx){
     const m1=addr.match(/(\d+)동/);if(m1)dn=m1[1];
     const m2=addr.match(/(\d+)호/);if(m2)ho=m2[1];
     if(ho&&ho.length>=3)fl=ho.substring(0,ho.length-2);
-    apt=apt.replace(/\d+동.*/,"").replace(/외\s*\d+필지\s*/,"").trim();
+    apt=kaisAptName(apt.replace(/\d+동.*/,"").replace(/외\s*\d+필지\s*/,""));
     return{
       id:Date.now()+Math.random()*9999+i,
       symbol:String(idx+i+1),
@@ -1234,7 +1252,7 @@ function parseKaisRow(text,idx){
       tradeDate:pStr(r["거래시점"]),
       exclusiveArea:pNum(r["전용면적"]),
       price:pNum(r["물건금액"]),unitPrice:pNum(r["단가"]),unitPriceOrig:pNum(r["단가"]),
-      approvalDate:pStr(r["사용승인일자"]),
+      approvalDate:pStr(r["사용승인일자"]),sgg:pStr(r["시군구"]),
       timeAdj:null,timeAdjDetail:"",isShown:true,isSelected:false
     };
   });
@@ -2245,7 +2263,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
   const extractDates=(text)=>{const result={tradeDate:null,baseDate:null};const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm)result.tradeDate=tm[1];const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm)result.baseDate=bm[1];return result;};
   const normDate=(d)=>{if(!d)return"";return d.replace(/-/g,".").replace(/\s/g,"").replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,(_,y,m,dd)=>`${y}.${m.padStart(2,"0")}.${dd.padStart(2,"0")}`);};
   const checkTimeWarnings=(text,caseItem)=>{const warns=[];const dates=extractDates(text);if(dates.tradeDate&&caseItem){const cd=normDate(fmtDate(caseItem.tradeDate));const td=normDate(dates.tradeDate);if(cd&&td&&cd!==td)warns.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}if(dates.baseDate&&ov.baseDate){const ob=normDate(ov.baseDate);const tb=normDate(dates.baseDate);if(ob&&tb&&ob!==tb)warns.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setTimeWarnings(warns);};
-  const handleKP=e=>{const t=e.clipboardData.getData("text");if(!t.trim()||!t.includes("\t"))return;e.preventDefault();const p=parseKaisRow(t,cases.length);if(p.length>0){setCases(prev=>reIdx([...prev,...p],false));setKaisHistory(prev=>[{id:Date.now(),time:new Date().toLocaleString("ko-KR"),raw:t,count:p.length},...prev]);}};
+  const handleKP=e=>{const t=e.clipboardData.getData("text");if(!t.trim()||!t.includes("\t"))return;e.preventDefault();const p=parseKaisRow(t,cases.length).map(c=>{const a=autoSijeom(c,ov,propType);return a?{...c,...a}:c;});if(p.length>0){setCases(prev=>reIdx([...prev,...p],false));setKaisHistory(prev=>[{id:Date.now(),time:new Date().toLocaleString("ko-KR"),raw:t,count:p.length},...prev]);}};
   const handleKaP=e=>{const t=e.clipboardData.getData("text");if(!t.trim()||!t.includes("\t"))return;e.preventDefault();const p=parseKapaRow(t,precs.length);if(p.length>0){setPrecs(prev=>reIdx([...prev,...p],true));setKapaHistory(prev=>[{id:Date.now(),time:new Date().toLocaleString("ko-KR"),raw:t,count:p.length},...prev]);}};
   const togC=(id,f)=>{setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,[f]:!c[f]};if(f==="isSelected"&&!c.isSelected)nv.isShown=true;if(f==="isShown"&&c.isShown)nv.isSelected=false;return nv;}));};
   const togP=id=>{setPrecs(p=>p.map(x=>x.id===id?{...x,isShown:!x.isShown}:x));};
@@ -2294,7 +2312,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
       const targetInputs=[...targetRow.querySelectorAll("input")].filter(i=>i.type!=="checkbox");
       if(targetInputs[idx]){e.preventDefault();focusSel(targetInputs[idx]);}}
   };
-  const applyTm=(id,text=tmpTime)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));}
+  const applyTm=(id,text=tmpTime)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text,timeAuto:false}:c));}
     // 비주거용: 붙여넣은 시점수정치 상세를 자본수익률 패널로 자동 반영 (빈 값은 기존값 유지). 용도가 주거인 사례는 제외(2026-11-16)
     if(propType==="비주거용"&&caseNr(cases.find(x=>x.id===id),propType)){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}
     setEditTimeId(null);setTmpTime("");};
@@ -2396,7 +2414,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType}){
             <PrecNumberInput label={`거래사례 #${c.symbol} 시점수정치`} frac={5} placeholder="입력" value={c.timeAdj??""} onChange={v=>setCaseTA(c.id,v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:62,minWidth:0,color:taEd(c)?C.acc:undefined,fontWeight:taEd(c)?700:undefined}}/>
             {taEd(c)?<span role="button" title={`시점수정 창 계산값(${fmtDec(taCalc(c),5)})으로 되돌리기`} onClick={()=>resetCaseTA(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}
             <span role="button" aria-label={`거래사례 #${c.symbol} 시점수정 창`} title="시점수정 창 열기(지수 자동계산·산식 붙여넣기)" style={{cursor:"pointer",fontSize:13,userSelect:"none"}}
-            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=caseSjKind(c,ov);if(k)setSjIdxKind(k);}}>🧮</span></div></td>
+            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=caseSjKind(c,ov);if(k)setSjIdxKind(k);}}>🧮</span></div>{taBasis(c.timeAdjDetail)?<div aria-label={`거래사례 #${c.symbol} 시점수정 근거`} title={c.timeAdjDetail} style={{fontSize:10,lineHeight:1.25,color:c.timeAuto?"#15803d":"#64748b",whiteSpace:"nowrap",textAlign:"left",marginTop:1}}>{c.timeAuto?"자동 · ":""}{taBasis(c.timeAdjDetail)}</div>:null}</td>
           {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
             return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
@@ -4561,7 +4579,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
   // ④탭에서도 시점수정치 입력 가능 — ③탭 모달과 동일 적용 로직
   const [editTimeId,setEditTimeId]=useState(null);
-  const applySijeom=(id,text)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));
+  const applySijeom=(id,text)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text,timeAuto:false}:c));
     if(propType==="비주거용"&&caseNr(cases.find(x=>x.id===id),propType)){const d=parseNrCapDetail(text);setOv(p=>({...p,nrType:d.유형||p.nrType,nrRegion:d.지역||p.nrRegion,nrPeriod:d.기간||p.nrPeriod,nrCapVal:d.소수||p.nrCapVal,nrCapPct:d.퍼센트||p.nrCapPct,nrMigosi:d.미고시||p.nrMigosi,nrMigosiPrev:d.미고시직전||p.nrMigosiPrev,nrCapFormula:d.산식||p.nrCapFormula}));}}
     setEditTimeId(null);};
 
@@ -4831,6 +4849,24 @@ function StepMap({ov,sfx,active,cases,precs}){
   const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
+  // 📸 위치도 확정(2026-11-24) — 빨간 틀(한글 그림 칸 비율) 안을 화면 그대로(말풍선 배치 포함) 찍어 6. 위치도 한글에. 소재지 = 건명(지번 외 N필지 건물명 제층 제호). 엔진 arap_mapshot.js
+  const [frameOn,setFrameOn]=useState(true);
+  const [shot,setShot]=useState({t:"빨간 틀 = 한글 그림 칸. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
+  const [shotBusy,setShotBusy]=useState(false);
+  const fitShot=()=>{if(window.ArapMapShot)ArapMapShot.fitFrame(document.getElementById("mapWrap"+sfx),document.getElementById("mapFrame"+sfx),document.getElementById("mapFrameLab"+sfx));};
+  useEffect(()=>{if(!active)return;const t=setTimeout(fitShot,80);window.addEventListener("resize",fitShot);return ()=>{clearTimeout(t);window.removeEventListener("resize",fitShot);};},[active]);
+  const doShot=async()=>{
+    if(!window.ArapMapShot){alert("위치도 한글 엔진(arap_mapshot.js)이 아직 로드되지 않았습니다. 새로고침 후 다시 시도하세요.");return;}
+    fitShot();setFrameOn(true);setShotBusy(true);setShot({t:"📸 크롬 창에서 「이 탭」을 고르고 [공유]를 누르세요…",c:""});
+    try{
+      const img=await ArapMapShot.capture(document.getElementById("mapFrame"+sfx));   // 클릭 바로 다음에 불러야 함(화면 공유 허용 조건)
+      const r=await fetch(encodeURI("템플릿/집건 위치도 템플릿.hwpx"));if(!r.ok)throw new Error("위치도 템플릿 로드 실패("+r.status+")");
+      const bytes=await ArapMapShot.buildHwpx(await r.arrayBuffer(),{addr:buildGeonmyeong(ov),wide:img,zip:{parseZip,createZipStored}});
+      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);
+      setShot({t:`✅ 캡처 → 6. 위치도 한글 파일을 받았습니다. 다시 누르면 새로 찍습니다.`,c:"ok"});
+    }catch(e){console.error("위치도 캡처",e);const can=e&&e.name==="NotAllowedError";setShot({t:can?"캡처를 취소했습니다(공유 창에서 [취소]). 다시 누르면 됩니다.":"⚠ "+(e&&e.message||e),c:can?"":"err"});}
+    finally{setShotBusy(false);}
+  };
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
       <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건 · 사례 · 전례</div>
@@ -4854,7 +4890,16 @@ function StepMap({ov,sfx,active,cases,precs}){
         title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
         onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
     </div>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",margin:"2px 0 8px"}}>
+      <button aria-label="위치도 확정" disabled={shotBusy} style={{...S.btn,...BTN.p,fontSize:14,padding:"7px 14px"}} title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 위치도(6. 위치도)로 받습니다 — 크롬 창에서 「이 탭」 → [공유]" onClick={doShot}>📸 위치도 확정 → 한글</button>
+      <span aria-label="위치도 캡처 안내" style={{fontSize:12,color:shot.c==="err"?"#b91c1c":shot.c==="ok"?"#15803d":"#475569"}}>{shot.t}</span>
+      <label style={{...chk,marginLeft:"auto"}}><input type="checkbox" checked={frameOn} onChange={()=>setFrameOn(!frameOn)}/> 한글 그림 칸 틀(빨간 점선) 보기</label>
+    </div>
+    <div id={"mapWrap"+sfx} style={{position:"relative",overflow:"hidden",borderRadius:6}}>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
+    <div id={"mapFrame"+sfx} style={{position:"absolute",zIndex:1500,pointerEvents:"none",...(frameOn?{outline:"3px dashed #dc2626",boxShadow:"0 0 0 4000px rgba(15,23,42,.2)"}:{})}}/>
+    <div id={"mapFrameLab"+sfx} style={{position:"absolute",zIndex:1501,pointerEvents:"none",background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700,padding:"2px 6px",borderRadius:3,transform:"translateX(-100%)",whiteSpace:"nowrap",display:frameOn?undefined:"none"}}>한글 그림 칸 →</div>
+    </div>
     <div id={"mapStatus"+sfx} className="arapmapstatus"/>
     <div id={"mapMiss"+sfx} style={{fontSize:12,color:"#b45309",marginTop:4}}/>
   </div>);
@@ -5467,6 +5512,23 @@ const nameNrGuess=c=>/근생|근린생활|상가|점포/.test(String((c&&c.aptNa
 const caseGroup=c=>useGroup(c&&c.useKind)||nameNrGuess(c);
 const caseNr=(c,propType)=>{const g=caseGroup(c);return g?g==="비주거":propType==="비주거용";};
 const caseSjKind=(c,ov)=>(c&&c.useKind&&detectSjKind(c.useKind))||detectSjKind(ov.kind,ov.mainUseJeonyu)||detectSjKind(c.aptName,c.buildingName)||detectSjKindLoose(c.aptName,c.buildingName);
+// 카이스 기타주소 「이스트리버빌 203호」·「기풍하이빌 3층 302호」 → 건물명만(호·층 떼기, 2026-11-24). 다 떼서 비면 원래 글자
+const kaisAptName=s=>{const o=String(s||"").trim(),t=o.replace(/\s*(?:제\s*)?(?:지하\s*)?[A-Za-z]?\d+(?:-\d+)?\s*(?:층|호)(?:\s.*)?$/,"").trim();return t||o;};
+// 붙여넣는 순간 시점수정치(2026-11-24) — 🧮 창을 열었을 때와 같은 기본값: 유형 = 사례 용도 → 본건 종류 → 건물명, 지역 = 카이스 시군구·소재지·본건 주소.
+// 주거(매매가격지수)만 자동 — 비주거(자본수익률)는 개요의 자본수익률 칸까지 바꾸므로 창에서. 못 정하면 null(칸은 「입력」 그대로)
+const autoSijeom=(c,ov,propType)=>{try{
+  if(!c||!ov||!ov.baseDate||!c.tradeDate||caseNr(c,propType)||!idxData())return null;
+  const kind=caseSjKind(c,ov)||(()=>{try{return localStorage.getItem("arap-sjidx-kind");}catch(e){return null;}})()||"아파트";
+  const region=detectSjRegion([c.sgg,c.location].filter(Boolean).join(" "),c.address,ov.jibun);if(!region)return null;
+  const r=buildSjIdxText(kind,region,fmtDate(c.tradeDate),ov.baseDate);if(r.err)return null;
+  const v=parseTA(r.text);return v?{timeAdj:v,timeAdjDetail:r.text,timeAuto:true}:null;
+}catch(e){console.warn("자동 시점수정",e);return null;}};
+// 시점수정치 근거 한 줄 — 산식 첫 줄(유형)·「지역 :」·지수 기간 → 「연립다세대 · 서울 동남권 · 26.04~26.10」
+const taBasis=t=>{t=String(t||"");if(!t.trim())return"";const L=t.split("\n").map(x=>x.trim()).filter(Boolean);
+  const kind=((t.match(/유형\s*:\s*([^\n]+)/)||[])[1]||(L[0]&&!/[:：]/.test(L[0])&&/[가-힣A-Za-z]/.test(L[0])?L[0]:"")).trim();
+  const reg=((t.match(/지역\s*:\s*([^\n]+)/)||[])[1]||"").trim();
+  const pm=t.match(/(\d{4})\.(\d{2})\s*~\s*(\d{4})\.(\d{2})/),per=pm?`${pm[1].slice(2)}.${pm[2]}~${pm[3].slice(2)}.${pm[4]}`:"";
+  return [kind,reg,per].filter(Boolean).join(" · ");};
 // 인근가격수준 행 목록 ↔ 저장 칸(1행 nearKind…, 2행 nearKind2…·nearRow2, 3행부터 nearMore[]) — 2026-11-16
 const nearRowsOf=ov=>{const r=[{kind:ov.nearKind||"",base:ov.nearAreaBase||"",low:ov.nearPriceLow||"",high:ov.nearPriceHigh||""}];
   if(ov.nearRow2){r.push({kind:ov.nearKind2||"",base:ov.nearAreaBase2||"",low:ov.nearPriceLow2||"",high:ov.nearPriceHigh2||""});(Array.isArray(ov.nearMore)?ov.nearMore:[]).forEach(x=>r.push({kind:(x&&x.kind)||"",base:(x&&x.base)||"",low:(x&&x.low)||"",high:(x&&x.high)||""}));}
@@ -5618,7 +5680,7 @@ const getEffArea=(ov)=>{const a=pNum(ov.area);if(!a)return null;const dp=parseIn
 function preTSV(text){let r="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')q=!q;else if(c==='\n'&&q)r+=" ";else r+=c;}return r;}
 function parseTSV(text){const clean=preTSV(String(text||"").replace(/\r/g,""));const lines=clean.split("\n").filter(l=>l.trim());if(lines.length<2)return{h:[],rows:[]};const h=lines[0].split("\t").map(x=>x.replace(/"/g,"").replace(/\s+/g," ").trim());const rows=lines.slice(1).map(l=>{const cells=l.split("\t").map(c=>c.trim());const o={};h.forEach((k,i)=>{o[k]=cells[i]||"";});return o;});return{h,rows};}
 
-function parseKaisRow(text,idx){const{rows}=parseTSV(text);return rows.map((r,i)=>{const addr=r["기타주소"]||"";let dn="",fl="",ho="",apt=addr;const m1=addr.match(/(\d+)동/);if(m1)dn=m1[1];const m2=addr.match(/(\d+)호/);if(m2)ho=m2[1];if(ho&&ho.length>=3)fl=ho.substring(0,ho.length-2);apt=apt.replace(/\d+동.*/,"").replace(/외\s*\d+필지\s*/,"").trim();const area=pNum(r["전용면적"]);const price=pNum(r["물건금액"]);const unitTsv=pNum(r["단가"]);const unitPrice=unitTsv||(price&&area?Math.round(price/area):null);return{id:Date.now()+Math.random()*9999+i,symbol:String(idx+i+1),location:pStr(r["소재지"]),jibun:pStr(r["지번"]),address:addr,aptName:apt,dong:dn,floor:fl,ho,tradeDate:pStr(r["거래시점"]),exclusiveArea:area,price,unitPrice,unitPriceOrig:unitPrice,approvalDate:pStr(r["사용승인일자"]),timeAdj:null,timeAdjDetail:"",isShown:true,isSelected:false};});}
+function parseKaisRow(text,idx){const{rows}=parseTSV(text);return rows.map((r,i)=>{const addr=r["기타주소"]||"";let dn="",fl="",ho="",apt=addr;const m1=addr.match(/(\d+)동/);if(m1)dn=m1[1];const m2=addr.match(/(\d+)호/);if(m2)ho=m2[1];if(ho&&ho.length>=3)fl=ho.substring(0,ho.length-2);apt=kaisAptName(apt.replace(/\d+동.*/,"").replace(/외\s*\d+필지\s*/,""));const area=pNum(r["전용면적"]);const price=pNum(r["물건금액"]);const unitTsv=pNum(r["단가"]);const unitPrice=unitTsv||(price&&area?Math.round(price/area):null);return{id:Date.now()+Math.random()*9999+i,symbol:String(idx+i+1),location:pStr(r["소재지"]),jibun:pStr(r["지번"]),address:addr,aptName:apt,dong:dn,floor:fl,ho,tradeDate:pStr(r["거래시점"]),exclusiveArea:area,price,unitPrice,unitPriceOrig:unitPrice,approvalDate:pStr(r["사용승인일자"]),sgg:pStr(r["시군구"]),timeAdj:null,timeAdjDetail:"",isShown:true,isSelected:false};});}
 
 function parseKapaRow(text,idx){const{h,rows}=parseTSV(text);return rows.map((r,i)=>{const dflh=pStr(r["동층호"]);let dn="",fl="",ho="";const pts=dflh.split(/\s+/);if(pts.length>=3){dn=pts[0];fl=pts[1];ho=pts[2];}else if(pts.length===2){fl=pts[0];ho=pts[1];}const loc=pStr(r["소재지"]).replace(/서울특별시\s*\S+구\s*/,"").trim();let jv="";const j1=h.indexOf("지번");const j2=h.indexOf("지번",j1+1);if(j2>=0){const line=preTSV(text).split("\n").filter(l=>l.trim())[i+1];if(line){const cs=line.split("\t");jv=pStr(cs[j2]);}}if(!jv)jv=pStr(r["지번"]||"");jv=jv.replace(/\s/g,"");const up0=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]),ar0=pNum(r["전용면적"]);const ta=pNum(r["평가액(개별)"])||pNum(r["평가액 (개별)"])||(up0&&ar0?Math.round(up0*ar0):null)||pNum(r["감정평가총액"]);const up=pNum(r["평가액/면적"])||pNum(r["감정평가액/면적"]);return{id:Date.now()+200+Math.random()*9999+i,selected:String.fromCharCode(97+idx+i),purpose:pStr(r["평가목적"]),location:loc,jibun:jv,exclusiveArea:pNum(r["전용면적"]),buildingName:pStr(r["건물명"]),dong:dn,floor:fl,ho,unitPrice:up,baseDate:pStr(r["기준시점"]),appraiseAmount:ta,note:pStr(r["비고"]),isShown:true};});}
 
@@ -6701,7 +6763,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   const extractDates=(text)=>{const result={tradeDate:null,baseDate:null};const tm=text.match(/거래시점\s*:\s*([\d.]+)/);if(tm)result.tradeDate=tm[1];const bm=text.match(/기준시점\s*:\s*([\d.]+)/);if(bm)result.baseDate=bm[1];return result;};
   const normDate=(d)=>{if(!d)return"";return d.replace(/-/g,".").replace(/\s/g,"").replace(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/,(_,y,m,dd)=>`${y}.${m.padStart(2,"0")}.${dd.padStart(2,"0")}`);};
   const checkTimeWarnings=(text,caseItem)=>{const warns=[];const dates=extractDates(text);if(dates.tradeDate&&caseItem){const cd=normDate(fmtDate(caseItem.tradeDate));const td=normDate(dates.tradeDate);if(cd&&td&&cd!==td)warns.push(`⚠️ 거래시점을 확인하세요 (사례: ${cd}, 시점수정 데이터: ${td})`);}if(dates.baseDate&&ov.baseDate){const ob=normDate(ov.baseDate);const tb=normDate(dates.baseDate);if(ob&&tb&&ob!==tb)warns.push(`⚠️ 기준시점을 확인하세요 (개요: ${ob}, 시점수정 데이터: ${tb})`);}setTimeWarnings(warns);};
-  const handleKP=e=>{const t=e.clipboardData.getData("text");if(!t.trim()||!t.includes("\t"))return;e.preventDefault();const p=parseKaisRow(t,cases.length);if(p.length>0){setCases(prev=>reIdx([...prev,...p],false));setKaisHistory(prev=>[{id:Date.now(),time:new Date().toLocaleString("ko-KR"),raw:t,count:p.length},...prev]);}};
+  const handleKP=e=>{const t=e.clipboardData.getData("text");if(!t.trim()||!t.includes("\t"))return;e.preventDefault();const p=parseKaisRow(t,cases.length).map(c=>{const a=autoSijeom(c,ov,propType);return a?{...c,...a}:c;});if(p.length>0){setCases(prev=>reIdx([...prev,...p],false));setKaisHistory(prev=>[{id:Date.now(),time:new Date().toLocaleString("ko-KR"),raw:t,count:p.length},...prev]);}};
   const handleKaP=e=>{const t=e.clipboardData.getData("text");if(!t.trim()||!t.includes("\t"))return;e.preventDefault();const p=parseKapaRow(t,precs.length);if(p.length>0){setPrecs(prev=>reIdx([...prev,...p],true));setKapaHistory(prev=>[{id:Date.now(),time:new Date().toLocaleString("ko-KR"),raw:t,count:p.length},...prev]);}};
   const togC=(id,f)=>{setCases(p=>p.map(c=>{if(c.id!==id)return c;const nv={...c,[f]:!c[f]};if(f==="isSelected"&&!c.isSelected)nv.isShown=true;if(f==="isShown"&&c.isShown)nv.isSelected=false;return nv;}));};
   const togP=id=>{setPrecs(p=>p.map(x=>x.id===id?{...x,isShown:!x.isShown}:x));};
@@ -6753,7 +6815,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
   const applyTm=(id,text=tmpTime)=>{
     const v=parseTA(text);
     if(v){
-      setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));
+      setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text,timeAuto:false}:c));
       // 자본수익률 형식 감지 시 비주거용 모드로 자동 전환 (분기·복리산식 시그널)
       // 사례 용도를 고른 건(2026-11-16, 주거·비주거 섞인 건)은 건 전체 전환을 하지 않고 그 사례만 따름
       const c0=cases.find(x=>x.id===id),useSet=!!caseGroup(c0);
@@ -6883,7 +6945,7 @@ function Step3({cases,setCases,precs,setPrecs,pushUndo,ov,setOv,propType,setProp
             <PrecNumberInput label={`거래사례 #${c.symbol} 시점수정치`} frac={5} placeholder="입력" value={c.timeAdj??""} onChange={v=>setCaseTA(c.id,v)} onKeyDown={gridArrowNav} style={{border:"none",background:"transparent",fontSize:12,width:62,minWidth:0,color:taEd(c)?C.acc:undefined,fontWeight:taEd(c)?700:undefined}}/>
             {taEd(c)?<span role="button" title={`시점수정 창 계산값(${fmtDec(taCalc(c),5)})으로 되돌리기`} onClick={()=>resetCaseTA(c.id)} style={{cursor:"pointer",color:"#2563eb",fontSize:13,userSelect:"none"}}>↺</span>:null}
             <span role="button" aria-label={`거래사례 #${c.symbol} 시점수정 창`} title="시점수정 창 열기(지수 자동계산·산식 붙여넣기)" style={{cursor:"pointer",fontSize:13,userSelect:"none"}}
-            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=caseSjKind(c,ov);if(k)setSjIdxKind(k);}}>🧮</span></div></td>
+            onClick={()=>{setEditTimeId(c.id);setTmpTime(c.timeAdjDetail||"");if(c.timeAdjDetail)checkTimeWarnings(c.timeAdjDetail,c);else setTimeWarnings([]);const g=detectSjRegion(c.location,c.address,ov.jibun);if(g)setSjIdxRegion(g);const k=caseSjKind(c,ov);if(k)setSjIdxKind(k);}}>🧮</span></div>{taBasis(c.timeAdjDetail)?<div aria-label={`거래사례 #${c.symbol} 시점수정 근거`} title={c.timeAdjDetail} style={{fontSize:10,lineHeight:1.25,color:c.timeAuto?"#15803d":"#64748b",whiteSpace:"nowrap",textAlign:"left",marginTop:1}}>{c.timeAuto?"자동 · ":""}{taBasis(c.timeAdjDetail)}</div>:null}</td>
           {(()=>{const up=pNum(c.unitPrice),ta=pNum(c.timeAdj),v=up&&ta?Math.round(up*ta):null;   // 화면 참고용: 단가 × 시점수정치
             return <td style={{...S.tdR,color:v?"#111":"#bbb"}} aria-label={`거래사례 #${c.symbol} 시점수정 단가`} title={v?`${fmt(up)} × ${fmtDec(ta,5)} ≒ ${fmt(v)}`:"시점수정치를 넣으면 계산"}>{v?fmt(v):"-"}</td>;})()}
           <td style={S.td}><span style={{cursor:"pointer",color:C.dng}} onClick={()=>delC(c.id)}>✕</span></td>
@@ -8257,7 +8319,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
 
   // ④탭에서도 시점수정치 입력 가능 — ③탭 applyTm과 동일 적용 로직(비주거 자동전환 포함)
   const [editTimeId,setEditTimeId]=useState(null);
-  const applySijeom=(id,text)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text}:c));
+  const applySijeom=(id,text)=>{const v=parseTA(text);if(v){setCases(p=>p.map(c=>c.id===id?{...c,timeAdj:v,timeAdjDetail:text,timeAuto:false}:c));
     const c0=cases.find(x=>x.id===id),useSet=!!caseGroup(c0);   // 사례 용도를 고른 건은 그 사례만 따름(2026-11-16)
     const isCom=useSet?caseNr(c0,propType):(/분기/.test(text)||/\(1\+/.test(text));
     if(setPropType&&propType!=="비주거용"&&isCom&&!useSet)setPropType("비주거용");
@@ -8591,6 +8653,24 @@ function StepMap({ov,sfx,active,cases,precs}){
   const onOv=()=>{const v=view();if(v)v.toggleOverlay();};
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
+  // 📸 위치도 확정(2026-11-24) — 빨간 틀(한글 그림 칸 비율) 안을 화면 그대로(말풍선 배치 포함) 찍어 6. 위치도 한글에. 소재지 = 건명(지번 외 N필지 건물명 제층 제호). 엔진 arap_mapshot.js
+  const [frameOn,setFrameOn]=useState(true);
+  const [shot,setShot]=useState({t:"빨간 틀 = 한글 그림 칸. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
+  const [shotBusy,setShotBusy]=useState(false);
+  const fitShot=()=>{if(window.ArapMapShot)ArapMapShot.fitFrame(document.getElementById("mapWrap"+sfx),document.getElementById("mapFrame"+sfx),document.getElementById("mapFrameLab"+sfx));};
+  useEffect(()=>{if(!active)return;const t=setTimeout(fitShot,80);window.addEventListener("resize",fitShot);return ()=>{clearTimeout(t);window.removeEventListener("resize",fitShot);};},[active]);
+  const doShot=async()=>{
+    if(!window.ArapMapShot){alert("위치도 한글 엔진(arap_mapshot.js)이 아직 로드되지 않았습니다. 새로고침 후 다시 시도하세요.");return;}
+    fitShot();setFrameOn(true);setShotBusy(true);setShot({t:"📸 크롬 창에서 「이 탭」을 고르고 [공유]를 누르세요…",c:""});
+    try{
+      const img=await ArapMapShot.capture(document.getElementById("mapFrame"+sfx));   // 클릭 바로 다음에 불러야 함(화면 공유 허용 조건)
+      const r=await fetch(encodeURI("템플릿/집건 위치도 템플릿.hwpx"));if(!r.ok)throw new Error("위치도 템플릿 로드 실패("+r.status+")");
+      const bytes=await ArapMapShot.buildHwpx(await r.arrayBuffer(),{addr:buildGeonmyeong(ov),wide:img,zip:{parseZip,createZipStored}});
+      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);
+      setShot({t:`✅ 캡처 → 6. 위치도 한글 파일을 받았습니다. 다시 누르면 새로 찍습니다.`,c:"ok"});
+    }catch(e){console.error("위치도 캡처",e);const can=e&&e.name==="NotAllowedError";setShot({t:can?"캡처를 취소했습니다(공유 창에서 [취소]). 다시 누르면 됩니다.":"⚠ "+(e&&e.message||e),c:can?"":"err"});}
+    finally{setShotBusy(false);}
+  };
   return (<div style={S.card}>
     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
       <div style={{...S.h2,marginRight:"auto",marginBottom:0}}>위치도 — 본건 · 사례 · 전례</div>
@@ -8614,7 +8694,16 @@ function StepMap({ov,sfx,active,cases,precs}){
         title="지번주소로 위치를 다시 조회합니다(직접 옮긴 이름표도 초기화)"
         onClick={()=>{const v=view();if(v)v.open(undefined,true);}}>↻ 주소 다시 찾기</button>
     </div>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",margin:"2px 0 8px"}}>
+      <button aria-label="위치도 확정" disabled={shotBusy} style={{...S.btn,...BTN.p,fontSize:14,padding:"7px 14px"}} title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 위치도(6. 위치도)로 받습니다 — 크롬 창에서 「이 탭」 → [공유]" onClick={doShot}>📸 위치도 확정 → 한글</button>
+      <span aria-label="위치도 캡처 안내" style={{fontSize:12,color:shot.c==="err"?"#b91c1c":shot.c==="ok"?"#15803d":"#475569"}}>{shot.t}</span>
+      <label style={{...chk,marginLeft:"auto"}}><input type="checkbox" checked={frameOn} onChange={()=>setFrameOn(!frameOn)}/> 한글 그림 칸 틀(빨간 점선) 보기</label>
+    </div>
+    <div id={"mapWrap"+sfx} style={{position:"relative",overflow:"hidden",borderRadius:6}}>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
+    <div id={"mapFrame"+sfx} style={{position:"absolute",zIndex:1500,pointerEvents:"none",...(frameOn?{outline:"3px dashed #dc2626",boxShadow:"0 0 0 4000px rgba(15,23,42,.2)"}:{})}}/>
+    <div id={"mapFrameLab"+sfx} style={{position:"absolute",zIndex:1501,pointerEvents:"none",background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700,padding:"2px 6px",borderRadius:3,transform:"translateX(-100%)",whiteSpace:"nowrap",display:frameOn?undefined:"none"}}>한글 그림 칸 →</div>
+    </div>
     <div id={"mapStatus"+sfx} className="arapmapstatus"/>
     <div id={"mapMiss"+sfx} style={{fontSize:12,color:"#b45309",marginTop:4}}/>
   </div>);
