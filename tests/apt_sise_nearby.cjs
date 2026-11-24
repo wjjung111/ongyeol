@@ -19,11 +19,11 @@ const P={ // 지번 → [PNU, 경도, 위도, 세대수, 최고층]
   '압구정동 99':['1168011000100990000',X0+300/LON,Y0,500,12],
   '잠원동 72':['1165010600100720000',X0-900/LON,Y0,1572,12],
 };
-const deal=(ym,d,amt,area,floor,apt,umd,jibun,built)=>{const [b,s]=jibun.split('-');
+const deal=(ym,d,amt,area,floor,apt,umd,jibun,built,dong='')=>{const [b,s]=jibun.split('-');
   return `<item><aptNm>${apt}</aptNm><umdNm>${umd}</umdNm><jibun>${jibun}</jibun><dealYear>${ym.slice(0,4)}</dealYear><dealMonth>${+ym.slice(4)}</dealMonth><dealDay>${d}</dealDay>`
-  +`<dealAmount>${amt}</dealAmount><excluUseAr>${area}</excluUseAr><floor>${floor}</floor><buildYear>${built}</buildYear><bonbun>${b.padStart(4,'0')}</bonbun><bubun>${(s||'0').padStart(4,'0')}</bubun><landCd>0</landCd></item>`;};
+  +`<dealAmount>${amt}</dealAmount><excluUseAr>${area}</excluUseAr><floor>${floor}</floor><buildYear>${built}</buildYear><aptDong>${dong}</aptDong><bonbun>${b.padStart(4,'0')}</bonbun><bubun>${(s||'0').padStart(4,'0')}</bubun><landCd>0</landCd></item>`;};
 const RT={
-  '11680|202610':[deal('202610',16,'900,000','160.28',11,'현대2차(10,11동)','압구정동','369-1',1976),deal('202610',9,'880,000','160.29',5,'현대2차(10,11동)','압구정동','369-1',1976),
+  '11680|202610':[deal('202610',16,'900,000','160.28',11,'현대2차(10,11동)','압구정동','369-1',1976,'10'),deal('202610',9,'880,000','160.29',5,'현대2차(10,11동)','압구정동','369-1',1976),
     deal('202610',2,'850,000','163.58',8,'한양1','압구정동','413',1977),deal('202610',5,'450,000','106',3,'한양1','압구정동','413',1977),
     deal('202610',7,'950,000','171.4',9,'신현대','압구정동','494',1982),deal('202610',8,'800,000','160',5,'미성','압구정동','512',1987),
     deal('202610',9,'300,000','84.9',5,'작은단지','압구정동','99',1990)],
@@ -136,7 +136,7 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     await page.click('#nTbody tr:not(.off) input');
     assert.equal((await row('한양1'))[4],'2');
     // 상세 거래표 정렬(본건 표와 같게): 거래가 오름 → 내림, 다른 단지를 열어도 정렬 유지
-    const prices=()=>page.$$eval('#nTbody tr',rs=>rs.map(r=>r.children[4].textContent.trim()));
+    const prices=()=>page.$$eval('#nTbody tr',rs=>rs.map(r=>r.children[5].textContent.trim()));
     await page.click('#nDetail th[data-dk=price]');
     assert.deepEqual(await prices(),['44억원','45억원','79억원','80억원','85억원']);
     assert.match(await page.textContent('#nDetail th[data-dk=price]'),/▲/);
@@ -151,7 +151,7 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     // 3) 목록 줄 누르면 같은 상세 — 서초구 단지는 서초구 지수(2026.05 = 96 → 100/96)
     await page.click('#nList tr:has-text("신반포2")');
     assert.match(await page.textContent('#nDetail .t'),/신반포2/);
-    const ratios=await page.$$eval('#nTbody tr',rs=>rs.map(r=>r.children[5].textContent.trim()));
+    const ratios=await page.$$eval('#nTbody tr',rs=>rs.map(r=>r.children[6].textContent.trim()));
     assert.deepEqual(ratios,['1.00000',(100/96).toFixed(5)]);
     assert.match(await page.textContent('#nDetail'),/지수 서초구/);
 
@@ -192,19 +192,56 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     // 7-1) 표 여러 행 드래그 → Ctrl+C: 머리줄 + 고른 행, 금액은 원 숫자(arap_tblcopy.js, 2026-11-24)
     const c1=await copySel('#mainTbl',0,1);
     const L=c1.txt.split('\r\n').map(l=>l.split('\t'));
-    assert.deepEqual(L[0],['집계','계약일','층','전용(㎡)','거래가(원)','시점수정치','시점수정 ㎡단가','기준시점 거래가격(원)','면적대','비고'],L[0].join('|'));
+    assert.deepEqual(L[0],['집계','계약일','동','층','전용(㎡)','거래가(원)','시점수정치','시점수정 ㎡단가','기준시점 거래가격(원)','면적대','비고'],L[0].join('|'));
     assert.equal(L.length,3,'머리줄 + 2행');
     const tr0=await page.$$eval('#tbody tr',rs=>[...rs[0].children].map(td=>td.textContent.trim()));
     assert.equal(L[1][1],tr0[1]);assert.match(L[1][0],/^(○|제외)$/);
-    assert.equal(L[1][4],(await page.evaluate(t=>ArapTblCopy.wonOf(t),tr0[4])).toLocaleString('en-US'),'거래가 원 단위 숫자');assert.match(L[1][4],/^\d{1,3}(,\d{3})+$/);
-    const sp0=await page.$eval('#tbody tr',tr=>tr.children[7].dataset.v);assert.equal(L[1][7],(+sp0).toLocaleString('en-US'),'기준시점 거래가격은 만원 반올림 말고 원 단위 정확한 값');
+    assert.equal(L[1][5],(await page.evaluate(t=>ArapTblCopy.wonOf(t),tr0[5])).toLocaleString('en-US'),'거래가 원 단위 숫자');assert.match(L[1][5],/^\d{1,3}(,\d{3})+$/);
+    const sp0=await page.$eval('#tbody tr',tr=>tr.children[8].dataset.v);assert.equal(L[1][8],(+sp0).toLocaleString('en-US'),'기준시점 거래가격은 만원 반올림 말고 원 단위 정확한 값');
     assert.match(c1.html,/<table[\s\S]*<th[^>]*>거래가\(원\)<\/th>[\s\S]*mso-number-format/);
     // 한 칸 안만 고르면 기본 복사(가로채지 않음)
-    const c2=await page.evaluate(()=>{const td=document.querySelector('#tbody tr').children[4],r=document.createRange();r.selectNodeContents(td);
+    const c2=await page.evaluate(()=>{const td=document.querySelector('#tbody tr').children[5],r=document.createRange();r.selectNodeContents(td);
       const s=getSelection();s.removeAllRanges();s.addRange(r);const dt=new DataTransfer();
       const ev=new ClipboardEvent('copy',{clipboardData:dt,bubbles:true,cancelable:true});document.dispatchEvent(ev);return ev.defaultPrevented;});
     assert.equal(c2,false,'한 칸 선택은 기본 복사');
     await page.evaluate(()=>getSelection().removeAllRanges());
+
+    // 7-0) 동 칸(국토부 aptDong, 층 왼쪽): 신고된 거래만 「10동」, 나머지 빈칸
+    const dongs=await page.$$eval('#tbody tr',rs=>rs.map(r=>r.children[2].textContent.trim()));
+    assert.ok(dongs.includes('10동'),dongs.join('|'));assert.ok(dongs.includes(''),'동 없는 거래는 빈칸');
+    assert.equal(await page.textContent('#mainTbl th[data-k=dong]').then(t=>t.replace(/[▲▼]/g,'').trim()),'동');
+    // 7-2) 줄 선택(2판): 줄 누르면 선택, Shift+누르기 범위 → 아래 막대 「📋 복사」 = 제목 줄 + 고른 줄
+    await page.evaluate(()=>{window.__clip={};const o=DataTransfer.prototype.setData;DataTransfer.prototype.setData=function(k,v){window.__clip[k]=v;return o.call(this,k,v);};});
+    assert.ok(await page.isHidden('#arapRowBar').catch(()=>true),'고르기 전엔 막대 없음');
+    const rowN=await page.$$eval('#tbody tr',r=>r.length);
+    await page.click('#tbody tr:nth-child(1) td:nth-child(3)');
+    await page.click('#tbody tr:nth-child(3) td:nth-child(5)',{modifiers:['Shift']});
+    assert.equal(await page.$$eval('#tbody tr.rsel',r=>r.length),3,'Shift 범위');
+    assert.ok(await page.isVisible('#arapRowBar'));
+    assert.match(await page.textContent('#arapRowBar .n'),/^3줄 선택$/);
+    await page.click('#tbody tr:nth-child(2) td:nth-child(2)'); // 다시 누르면 해제
+    assert.equal(await page.$$eval('#tbody tr.rsel',r=>r.length),2);
+    const inc0=await page.$eval('#tbody tr:nth-child(2) input',i=>i.checked);
+    await page.click('#tbody tr:nth-child(2) input'); // 집계 체크는 원래 동작(선택 안 됨)
+    assert.equal(await page.$eval('#tbody tr:nth-child(2) input',i=>i.checked),!inc0);
+    assert.equal(await page.$$eval('#tbody tr.rsel',r=>r.length),2);
+    await page.click('#tbody tr:nth-child(2) input');
+    await page.click('#arapRowBar button[data-a=copy]');
+    const B=(await page.evaluate(()=>window.__clip['text/plain'])||'').split('\r\n').map(l=>l.split('\t'));
+    assert.equal(B.length,3,'제목 줄 + 2줄');assert.equal(B[0][5],'거래가(원)');assert.equal(B[0][2],'동');
+    const d13=await page.$$eval('#tbody tr',rs=>[rs[0],rs[2]].map(r=>r.children[1].textContent.trim()));
+    assert.deepEqual(B.slice(1).map(r=>r[1]),d13);
+    assert.match(await page.evaluate(()=>window.__clip['text/html']),/<th[^>]*>집계<\/th>/);
+    assert.match(await page.textContent('#arapRowBar .n'),/2줄 복사됨/);
+    // Ctrl+C로도 / 전체 선택 / Esc 해제
+    await page.click('#arapRowBar button[data-a=all]');
+    assert.equal(await page.$$eval('#tbody tr.rsel',r=>r.length),rowN);
+    await page.evaluate(()=>{window.__clip={};});
+    await page.keyboard.press('Control+C');
+    assert.equal((await page.evaluate(()=>window.__clip['text/plain'])||'').split('\r\n').length,rowN+1,'Ctrl+C = 제목 + 전체');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.$$eval('#tbody tr.rsel',r=>r.length),0);
+    await page.waitForFunction(()=>document.getElementById('arapRowBar').hidden,null,{timeout:4000});
 
     // 8) 조회 기록을 열면 주변 단지 찾기 막고 안내
     await page.click('#histList .hopen');
