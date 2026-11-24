@@ -191,6 +191,12 @@
   input.grp-in{width:78%;text-align:center;font-weight:700;font-size:13px;}
   /* 거래사례 열별 붙여넣기 칸 (kais붙여넣기) — 작게, 한 줄 */
   td.kp-c{padding:2px 3px;background:#fafbfc;}
+  /* 거래사례 건축물대장·토지특성 대조(2026-11-24) — 붙여넣은 값이 대장과 다르면 주황 칸 + 아래 「대장 …」(누르면 대장값으로) */
+  #tblTrade td.chk-d input{background:#fff7ed;border-color:#fb923c;color:#9a3412;font-weight:700;}
+  .chk-n{display:block;font-size:10px;line-height:1.25;color:#c2410c;cursor:pointer;white-space:nowrap;margin-top:1px;}
+  .chk-n:hover{text-decoration:underline;}
+  .chk-ok{display:block;font-size:10px;line-height:1.25;color:#15803d;white-space:nowrap;}
+  .chk-e{display:block;font-size:10px;line-height:1.25;color:#b91c1c;white-space:nowrap;}
   /* 의견서 표시 — 끈 사례(의견서·위치도에서 빠짐)는 열·행을 흐리게 */
   td.op-c{text-align:center;white-space:nowrap;font-size:11px;color:#334155;}
   td.op-c label{cursor:pointer;display:inline-flex;align-items:center;gap:3px;}
@@ -2517,11 +2523,11 @@ function tradeCell(c,i,r){
   var k=r[1],t=r[2];
   if(t==='auto'){var cal=tradeCalc(c),ov=manualNum(c[k]);
     return '<td class="calc-c'+(ov?' ovr':'')+'"><input data-i="'+i+'" data-k="'+k+'" value="'+(ov?attr(c[k]):fmtAuto(k,cal))+'" title="'+attr(tradeTitle(k,c,cal))+'" oninput="tradeIn('+i+',\''+k+'\',this.value)" onblur="refreshTradeCol('+i+')"></td>';}
-  var dv=c[k]||'';
-  if(k==='loc')return '<td><div class="loc-w"><input value="'+attr(dv)+'" oninput="tradeIn('+i+',\'loc\',this.value,this)">'+relBtn('t',i,c)+'</div></td>';
-  if(k==='road')return '<td><input value="'+attr(dv)+'" placeholder="예: 세로(가)" oninput="tradeIn('+i+',\'road\',this.value,this)"></td>';
+  var dv=c[k]||'',cn=CHK_KEYS[k]?chkNote(c,i,k):null,cd=cn&&cn.diff?' chk-d':'',ch=cn?cn.html:'';
+  if(k==='loc')return '<td><div class="loc-w"><input value="'+attr(dv)+'" oninput="tradeIn('+i+',\'loc\',this.value,this)">'+relBtn('t',i,c)+'</div>'+chkLocNote(c)+'</td>';
+  if(k==='road')return '<td class="'+cd+'"><input value="'+attr(dv)+'" placeholder="예: 세로(가)" oninput="tradeIn('+i+',\'road\',this.value,this)">'+ch+'</td>';
   if(k==='reCost'&&dv){var dd=String(dv).replace(/[^\d]/g,'');if(dd)dv=Number(dd).toLocaleString('ko-KR');}   // 옛 저장값(콤마 없음)도 표시할 때 콤마
-  return '<td class="'+(t==='jud'?'jud-c':'')+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(dv)+'" oninput="tradeIn('+i+',\''+k+'\',this.value,this)"></td>';
+  return '<td class="'+(t==='jud'?'jud-c':'')+cd+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(dv)+'" oninput="tradeIn('+i+',\''+k+'\',this.value,this)">'+ch+'</td>';
 }
 // 입력 중에는 표를 통째로 다시 그리지 않고(포커스 유지) 같은 열의 자동 칸만 갱신
 function tradeIn(i,k,v,el){
@@ -2530,6 +2536,8 @@ function tradeIn(i,k,v,el){
   // 거래일자·소재지·용도지역이 바뀌면 계산해 둔 시점수정치는 더 이상 맞지 않으므로 지운다(다시 선정하면 재계산)
   if(k==='date'||k==='loc'||k==='use'){delete TRADES[i].timeMeta;delete TRADES[i].timeErr;if(k==='loc')delete TRADES[i].sgg;refreshTradeTime();}
   if(k==='loc')relBtnSync('t',i);
+  if(k==='loc'&&TRADES[i]._chk){delete TRADES[i]._chk;chkSyncCol(i);}   // 소재지를 바꾸면 대조 결과는 버림(「대장」 버튼으로 다시)
+  else if(CHK_KEYS[k]&&el)chkSyncCell(el,i,k);
   refreshTradeCol(i);calcGongsi();saveForm();}
 function refreshTradeCol(i){
   var c=TRADES[i];if(!c)return;var cal=tradeCalc(c),tbl=document.getElementById('tblTrade');
@@ -2557,12 +2565,11 @@ function renderTrade(){
   var usedT=opUsedSafe().t;opClearUsed('t',usedT);var hidT=opHiddenList('t');
   h+='<tr><th class="rowh" title="끄면 이 사례는 의견서 거래사례 표와 위치도에 나가지 않습니다. 의견서 번호(거래사례#)는 남은 사례끼리 차례로 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다.">의견서<br>표시</th>'+TRADES.map(function(c,i){
     return opCheckCell('t',i,hidT,usedT);}).join('')+'</tr>';
-  [['토지','토지 행(토지면적)'],['건물','건물 행(건물면적·사용승인일)']].forEach(function(k){
-    h+='<tr><th class="rowh" style="font-weight:600;color:#475569;font-size:11px">'+k[0]+' kais</th>'+TRADES.map(function(c,i){
-      return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" data-kind="'+k[0]+'" data-i="'+i+'" title="실거래가 엑셀의 '+k[1]+'을 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워집니다" onpaste="kaisPaste(event,'+i+',\''+k[0]+'\')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
-  });
+  // kais 붙여넣기 칸 하나 — 토지 행·건물 행을 한꺼번에 붙여도, 같은 칸에 하나씩 차례로 붙여도 한 사례로 합친다(2026-11-24, 종전 토지/건물 두 칸)
+  h+='<tr><th class="rowh" style="font-weight:600;color:#475569;font-size:11px" title="KAIS 실거래 엑셀의 토지 행·건물 행을 머리글째 복사해 붙이세요. 한꺼번에 붙여도 되고, 같은 칸에 토지 → 건물 순서로 하나씩 붙여도 한 사례로 합쳐집니다.">kais</th>'+TRADES.map(function(c,i){
+    return '<td class="kp-c"><textarea class="kp" rows="1" placeholder="kais붙여넣기" data-i="'+i+'" title="KAIS 실거래 엑셀의 토지·건물 행을 머리글째 복사해 여기에 Ctrl+V — 이 열에 채워지고, 건축물대장(주구조)·토지특성(도로교통)을 자동으로 조회해 대조합니다" onpaste="kaisPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';}).join('')+'</tr>';
   TRADE_ROWS.forEach(function(r){
-    h+='<tr><th class="rowh">'+r[0]+(r[1]==='road'?roadAutoBtn('t'):'')+'</th>';
+    h+='<tr><th class="rowh">'+r[0]+(r[1]==='road'?roadAutoBtn('t'):r[1]==='struct'?chkBtn():'')+'</th>';
     TRADES.forEach(function(c,i){h+=tradeCell(c,i,r);});
     h+='</tr>';
   });
@@ -2840,6 +2847,140 @@ async function roadAutoFill(kind){
   msg.className='pst'+(bad.length?'':' ok');
   msg.textContent=(ok?'✅ 도로교통 '+ok+'건 채움':'채운 칸 없음')+(bad.length?(' — 못 찾음: '+bad.map(nm).join(', ')+' (직접 입력해 주세요)'):'');
 }
+// ── 거래사례 건축물대장·토지특성 자동 조회 + 대조 (2026-11-24) ──
+// KAIS 붙여넣기 직후(또는 주구조 행 「대장」 버튼) 사례 소재지로 ① 토지특성(지목·면적·용도지역·도로교통) ② 건축물대장 표제부
+// (부속 뺀 주건축물 중 연면적 가장 큰 동: 주구조·연면적·사용승인일)를 조회한다.
+// 빈 칸만 채우고(도로교통·주구조·지목·용도지역, 건물 있는 사례의 사용승인일) 적힌 값은 그대로 — 대장과 다르면 칸을 주황으로 표시하고
+// 아래 「대장 …」을 누르면 대장값으로 바꾼다. 면적은 채우지 않는다(지분·일부 거래가 있어 거래 면적은 KAIS 값이 기준).
+// 결과는 사례의 _chk에 저장(건과 함께, _로 시작해 「내용 있음」 판정·문서에는 안 들어감). 비교는 그릴 때마다 지금 칸 값으로 한다.
+var CHK_KEYS={jimok:1,use:1,road:1,landA:1,bldA:1,appr:1,struct:1};
+var CHK_CACHE={};
+function chkBtn(){return ' <button type="button" class="btn gh sm" style="padding:0 4px;font-size:10px" title="사례 소재지로 건축물대장(주구조)·토지특성(도로교통)을 다시 조회해 빈 칸을 채우고, 붙여넣은 값과 다르면 표시합니다" onclick="tradeLookup()">대장</button>';}
+// 배경 조회 — 실패해도 수동 붙여넣기 창(tryManual)을 띄우지 않는다
+function quietApi(url){var m=netModes[hostOf(url)];
+  if(m==='jsonp')return tryJsonp(url);
+  return tryFetch(url).catch(function(e){if(m==='fetch')throw e;return tryJsonp(url);});}
+function chkQuery(c){
+  var s=stripOe(c.loc);if(!s)return '';
+  if(/(시|군|구|도)$/.test(s.split(/\s+/)[0]))return s;
+  var g=String(c._sgg||'').trim();
+  return g?(g+' '+s):caseQuery(c.loc);
+}
+function jbNorm(v){return String(v||'').replace(/\s+/g,'').replace(/번지$/,'');}
+function chkFetch(q,jibun){
+  if(CHK_CACHE[q])return CHK_CACHE[q];
+  var key=getKey(),out={};
+  var srch=function(qq,cat){
+    var url=API_BASE+'/req/search?service=search&request=search&version=2.0&size=10&page=1&query='+encodeURIComponent(qq)+'&type=address&category='+cat+'&format=json&errorformat=json&key='+key;
+    return quietApi(url).then(function(d){var r=d&&d.response;return (r&&r.status==='OK'&&r.result&&r.result.items)||[];});};
+  var p=(window.ArapAddr?ArapAddr.resolve(q,srch):srch(q,'parcel')).then(function(h){
+    if(!h.length)throw new Error('주소를 못 찾음');
+    out.pnu=h[0].id;
+    return quietApi(nedUrl('getLandCharacteristics',out.pnu,key));
+  }).then(function(d){
+    var f=(d&&d.landCharacteristicss&&d.landCharacteristicss.field)||[];
+    if(!f.length)throw new Error('토지특성 없음');
+    var v=extract({pnu:out.pnu,char:latestRecord(f)});
+    // 검색이 다른 필지를 집었으면(지번 다름) 엉뚱한 대장을 붙이지 않는다
+    if(jibun&&jbNorm(v.지번)!==jbNorm(jibun))throw new Error('지번이 다르게 잡힘('+v.지번+')');
+    out.jibun=v.지번;out.addr=(v.시군구+' '+v.소재지+' '+v.지번).trim();
+    out.land={area:v.면적,jimok:v.지목,use:v.용도지역,road:v.도로교통};
+    return quietApi(PROXY_BASE+'/bld?op=getBrTitleInfo&pnu='+out.pnu).then(function(bd){
+      var it=bd&&bd.response&&bd.response.body&&bd.response.body.items&&bd.response.body.items.item;
+      it=it?(Array.isArray(it)?it:[it]):[];
+      if(!it.length){out.bld=null;out.bldErr='건축물대장 없음';return out;}
+      var m=it.filter(function(t){return !/부속/.test(t.mainAtchGbCdNm||'');});if(!m.length)m=it;
+      m.sort(function(a,b){return num(b.totArea)-num(a.totArea);});
+      var t=m[0],jp=function(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!b)return a;if(!a||b===a||b.indexOf(a)===0)return b;return a+'('+b+')';};
+      out.bld={strct:jp(t.strctCdNm,t.etcStrct),tot:String(t.totArea||''),appr:t.useAprDay?dot(t.useAprDay):'',purps:t.mainPurpsCdNm||'',dong:String(t.dongNm||'').trim(),n:m.length};
+      return out;
+    },function(e){console.warn('사례 건축물대장',e);out.bld=null;out.bldErr='건축물대장 조회 실패';return out;});
+  });
+  CHK_CACHE[q]=p;p.catch(function(){delete CHK_CACHE[q];});   // 실패는 기억하지 않음(다시 누르면 재조회)
+  return p;
+}
+function chkJibunOf(loc){var t=stripOe(loc).split(/\s+/);return t.length>1?t[t.length-1]:'';}
+async function tradeLookup(cols){
+  var msg=document.getElementById('pTradeMsg');
+  var todo=(cols||TRADES.map(function(c,i){return i;})).filter(function(i){return TRADES[i]&&hasV(stripOe(TRADES[i].loc));});
+  if(!todo.length){if(!cols){msg.className='pst';msg.textContent='조회할 거래사례가 없습니다(소재지가 있는 사례만 조회합니다).';}return;}
+  var filled={},bad=[];
+  for(var k=0;k<todo.length;k++){
+    var i=todo[k],c=TRADES[i];
+    msg.className='pst';msg.textContent='🔎 건축물대장·토지특성 조회 중… ('+(k+1)+'/'+todo.length+')';
+    var r;
+    try{r=await chkFetch(chkQuery(c),chkJibunOf(c.loc));}
+    catch(err){console.warn('거래사례 대장 조회',err);
+      var j=TRADES.indexOf(c);if(j>=0){c._chk={err:err.message||'조회 실패'};bad.push('#'+(j+1));}continue;}
+    var j=TRADES.indexOf(c);if(j<0)continue;   // 조회하는 사이 붙여넣기로 열이 바뀌었으면 건너뜀
+    var hasBld=hasV(c.bldA)||hasV(c.appr)||hasV(c.struct);
+    c._chk={pnu:r.pnu,addr:r.addr,land:r.land,bld:hasBld?r.bld:null,bldErr:hasBld?(r.bldErr||''):'',noBld:!hasBld};
+    var fill=function(f,v,lab){if(hasV(v)&&!hasV(c[f])){c[f]=v;filled[lab]=(filled[lab]||0)+1;}};
+    fill('road',r.land.road,'도로교통');fill('jimok',r.land.jimok,'지목');fill('use',r.land.use,'용도지역');
+    if(hasBld&&r.bld){fill('struct',r.bld.strct,'주구조');fill('appr',r.bld.appr,'사용승인일');}
+  }
+  // 조회하는 동안 표 안 칸에 있던 커서(붙여넣기 칸·입력 칸)는 다시 그린 뒤 같은 칸으로 돌려놓는다
+  var ae=document.activeElement,tb=document.getElementById('tblTrade'),fsel=null,fpos=null;
+  if(ae&&tb&&tb.contains(ae)){fsel=ae.classList.contains('kp')?'.kp[data-i="'+ae.getAttribute('data-i')+'"]':(ae.getAttribute('oninput')?'input[oninput="'+ae.getAttribute('oninput').replace(/"/g,'\\"')+'"]':null);
+    try{fpos=[ae.selectionStart,ae.selectionEnd];}catch(e){}}
+  renderTrade();saveForm();if(typeof MAPV!=='undefined'&&MAPV)mapRestyle();
+  if(fsel){var fe=tb.querySelector(fsel);if(fe){fe.focus();try{if(fpos&&fpos[0]!=null)fe.setSelectionRange(fpos[0],fpos[1]);}catch(e){}}}
+  var diffs=[];TRADES.forEach(function(c,i){var d=chkDiffs(c);if(d.length)diffs.push('#'+(i+1)+' '+d.join('·'));});
+  var fl=Object.keys(filled).map(function(f){return f+' '+filled[f];});
+  var noB=todo.filter(function(i){var x=TRADES[i]&&TRADES[i]._chk;return x&&x.bldErr;}).map(function(i){return '#'+(i+1);});
+  msg.className='pst'+(diffs.length||bad.length?' err':' ok');
+  msg.textContent=(diffs.length||bad.length?'':'✅ ')+(fl.length?'대장·토지특성으로 채움: '+fl.join(', '):'대장·토지특성 조회 완료')
+    +(diffs.length?' — ⚠ 붙여넣은 값과 다름: '+diffs.join(' / ')+' (주황 칸 아래 「대장 …」을 누르면 대장값으로)':bad.length?'':' — 붙여넣은 값과 대장 일치')
+    +(noB.length?' — 건축물대장 못 찾음: '+noB.join(', '):'')
+    +(bad.length?' — 조회 실패: '+bad.join(', ')+' (소재지 확인)':'')
+    +' · 남은 칸: 재조달원가·내용연수';
+}
+// 한 칸의 대장값과 지금 값 비교 → 다르면 대장값(표시용), 같거나 비교할 것 없으면 null
+function chkRef(c,k){
+  var x=c&&c._chk;if(!x||x.err)return null;var L=x.land||{},B=x.bld;
+  var ref={jimok:L.jimok,use:L.use,road:L.road,landA:L.area,bldA:B&&B.tot,appr:B&&B.appr,struct:B&&B.strct}[k];
+  if(!hasV(ref)||!hasV(c[k]))return null;
+  var a=String(c[k]).trim(),b=String(ref).trim(),same;
+  if(k==='landA'||k==='bldA')same=Math.abs(num(a)-num(b))<0.005;
+  else if(k==='appr')same=dot(a)===dot(b);
+  else if(k==='use')same=a.split(',')[0].replace(/\s/g,'')===b.split(',')[0].replace(/\s/g,'');
+  else same=a.replace(/\s/g,'')===b.replace(/\s/g,'');
+  return same?null:b;
+}
+var CHK_LAB={jimok:'지목',use:'용도지역',road:'도로교통',landA:'토지면적',bldA:'건물면적',appr:'사용승인일',struct:'주구조'};
+function chkDiffs(c){return Object.keys(CHK_KEYS).filter(function(k){return chkRef(c,k)!=null;}).map(function(k){return CHK_LAB[k];});}
+function chkFmt(k,v){return (k==='landA'||k==='bldA')?fmtArea(num(v))+'㎡':v;}
+function chkNote(c,i,k){
+  var ref=chkRef(c,k);if(ref==null)return {diff:false,html:''};
+  var src=(k==='landA'||k==='jimok'||k==='use'||k==='road')?'토지특성':'건축물대장';
+  return {diff:true,html:'<span class="chk-n" title="'+attr(src+' 값: '+ref+' — 붙여넣은(적은) 값과 다릅니다. 누르면 이 값으로 바꿉니다.')+'" onclick="chkApply('+i+',\''+k+'\')">'+(src==='토지특성'?'토지특성 ':'대장 ')+attr(chkFmt(k,ref))+' ↵</span>'};
+}
+function chkLocNote(c){
+  var x=c&&c._chk;if(!x)return '';
+  if(x.err)return '<span class="chk-e" title="건축물대장·토지특성 조회 실패 — 소재지(동·지번)를 확인하고 주구조 행 「대장」을 누르세요">⚠ 대장 조회 실패: '+attr(x.err)+'</span>';
+  var B=x.bld,t='조회 필지: '+(x.addr||'')+'\n토지특성: '+[x.land.jimok,x.land.area&&x.land.area+'㎡',x.land.use,x.land.road].filter(hasV).join(' · ')
+    +(B?'\n건축물대장: '+[B.strct,B.tot&&B.tot+'㎡',B.appr,B.purps].filter(hasV).join(' · ')+(B.n>1?'\n(주건축물 '+B.n+'동 — 연면적이 가장 큰 동 기준)':''):'');
+  var d=chkDiffs(c).length;
+  return d?'<span class="chk-e" title="'+attr(t)+'">⚠ 대장과 다른 칸 '+d+'개</span>'
+    :'<span class="chk-ok" title="'+attr(t)+'">✓ 대장 대조'+(x.bldErr?' (건축물대장 없음)':'')+(B&&B.n>1?' · 주건물 '+B.n+'동':'')+'</span>';
+}
+function chkApply(i,k){var c=TRADES[i],ref=chkRef(c,k);if(ref==null)return;
+  if(k==='landA'||k==='bldA')ref=String(num(ref));
+  c[k]=ref;renderTrade();syncPick();calcGongsi();saveForm();}
+// 입력 중에는 그 칸만 다시 표시(표 전체를 다시 그리면 커서가 빠짐)
+function chkSyncCell(el,i,k){
+  var td=el.closest&&el.closest('td');if(!td)return;var n=chkNote(TRADES[i],i,k);
+  td.classList.toggle('chk-d',n.diff);var old=td.querySelector('.chk-n');if(old)old.remove();
+  if(n.html)td.insertAdjacentHTML('beforeend',n.html);
+  chkSyncLoc(i);
+}
+function chkSyncLoc(i){var tbl=document.getElementById('tblTrade');if(!tbl)return;
+  var inp=tbl.querySelector('.loc-w input[oninput*="tradeIn('+i+',"]');var td=inp&&inp.closest('td');if(!td)return;
+  td.querySelectorAll('.chk-ok,.chk-e').forEach(function(e){e.remove();});td.insertAdjacentHTML('beforeend',chkLocNote(TRADES[i]));}
+function chkSyncCol(i){var tbl=document.getElementById('tblTrade');if(!tbl)return;
+  tbl.querySelectorAll('input[oninput*="tradeIn('+i+',"]').forEach(function(inp){var m=/tradeIn\(\d+,'(\w+)'/.exec(inp.getAttribute('oninput')||'');
+    if(m&&CHK_KEYS[m[1]])chkSyncCell(inp,i,m[1]);});
+  chkSyncLoc(i);}
 var APPR_SYM='abcdefghij';
 function apprSym(i){return APPR_SYM[i]||String(i+1);}
 function addAppr(){APPRS.push({no:apprSym(APPRS.length),use:'2종일주',jimok:'대'});renderAppr();syncPick();saveForm();}
@@ -2905,7 +3046,7 @@ function mergeRec(c,rc){
   if(/토지/.test(kind)){c.landA=rc.landA||rc.area||c.landA;}
   else if(/건물/.test(kind)){c.bldA=rc.bldA||rc.area||c.bldA;}
   else{c.landA=c.landA||rc.landA;c.bldA=c.bldA||rc.bldA||rc.area;}
-  ['loc','use','jimok','appr','struct','total','date'].forEach(function(f){if(!hasV(c[f])&&hasV(rc[f]))c[f]=rc[f];});
+  ['loc','use','jimok','appr','struct','total','date','_sgg'].forEach(function(f){if(!hasV(c[f])&&hasV(rc[f]))c[f]=rc[f];});
   if(!hasV(c.life))c.life='40';
 }
 function parseTradeText(text,defKind){
@@ -2916,8 +3057,11 @@ function parseTradeText(text,defKind){
   rows.forEach(function(r){
     if(isHead(r)){head=r;return;}
     if(!head)return;
-    recs.push({kind:pick(head,r,['상세물건구분','물건구분'])||defKind||'',
-      loc:(pick(head,r,['소재지'])+' '+pick(head,r,['지번'])).trim(),use:shortY(pick(head,r,['용도지역'])),jimok:pick(head,r,['지목']),
+    // 구분 열이 없으면(붙여넣기 칸 하나, 2026-11-24) 사용승인일이 있으면 건물 행, 지목이 있으면 토지 행으로 본다
+    var apprV=pick(head,r,['사용승인일자','사용승인일']),jimokV=pick(head,r,['지목']);
+    recs.push({kind:pick(head,r,['상세물건구분','물건구분'])||defKind||(hasV(apprV)?'건물':hasV(jimokV)?'토지':''),
+      _sgg:pick(head,r,['시군구']),   // KAIS 「시군구」 열 — 대장·토지특성 조회 주소 앞에 붙인다(소재지가 동 이름만일 때)
+      loc:(pick(head,r,['소재지'])+' '+pick(head,r,['지번'])).trim(),use:shortY(pick(head,r,['용도지역'])),jimok:jimokV,
       landA:pick(head,r,['토지면적']),bldA:pick(head,r,['건물면적','연면적']),
       area:pick(head,r,['전용면적'])||pick(head,r,['전체면적','면적']),
       appr:dot(pick(head,r,['사용승인일자','사용승인일'])),struct:pick(head,r,['건물구조','주구조','구조']),
@@ -2939,6 +3083,7 @@ function parseTradeText(text,defKind){
 // 열별 kais붙여넣기: i번 열부터 채운다. 붙여넣은 사례가 여러 건이면 다음 열로 이어서(모자라면 열 추가).
 // 같은 소재지·거래일·금액이 이미 그 열에 있으면(토지 행 먼저, 건물 행 나중 등) 합친다.
 function kaisPaste(e,i,kind){
+  kind=kind||'';
   var text=(e.clipboardData||window.clipboardData).getData('text');
   e.preventDefault();
   var ta=e.target;if(ta)ta.value='';
@@ -2962,10 +3107,14 @@ function kaisPaste(e,i,kind){
   });
   renderTrade();syncPick();calcGongsi();saveForm();
   msg.className='pst ok';
-  msg.textContent='✅ 거래사례 '+filled.join('·')+' 채움'+(res.merged?' (토지+건물 일괄 '+res.merged+'건은 한 사례로 합침)':'')+' — 남은 칸: 주구조·재조달원가·내용연수 → 잔존연수·건물단가·토지단가 자동';
-  var last=i+res.out.length-1;
-  var nx=kind==='토지'?document.querySelector('#tblTrade .kp[data-kind="건물"][data-i="'+last+'"]'):document.querySelector('#tblTrade .kp[data-kind="토지"][data-i="'+(last+1)+'"]');
+  var last=i+res.out.length-1,lastC=TRADES[last]||{},landOnly=res.out.length===1&&hasV(lastC.landA)&&!hasV(lastC.bldA)&&!hasV(lastC.appr);
+  msg.textContent='✅ 거래사례 '+filled.join('·')+' 채움'+(res.merged?' (토지+건물 일괄 '+res.merged+'건은 한 사례로 합침)':'')
+    +(landOnly?' — 건물 행이 있으면 같은 칸에 이어서 붙여 넣으세요':'')+' · 건축물대장·토지특성 조회 중…';
+  // 토지 행만 붙였으면 같은 칸에 커서를 두고(이어서 건물 행), 아니면 다음 열 칸으로
+  var nx=document.querySelector('#tblTrade .kp[data-i="'+(landOnly?last:last+1)+'"]');
   if(nx)nx.focus();
+  var cols=[];filled.forEach(function(f){var j=num(f)-1;if(cols.indexOf(j)<0)cols.push(j);});
+  tradeLookup(cols);
 }
 function parseApprText(text){
   var rows=parseTsv(text);

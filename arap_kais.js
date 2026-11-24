@@ -60,7 +60,9 @@ function parseLand(text,defKind){
   rows.forEach(function(r){
     if(isHead(r)){head=r;return;}
     if(!head)return;
-    recs.push({kind:pick(head,r,['상세물건구분','물건구분'])||defKind||'',
+    // 구분 열이 없으면 사용승인일 있으면 건물 행, 지목 있으면 토지 행(토지건물 parseTradeText와 같음, 2026-11-24)
+    var apprV=pick(head,r,['사용승인일자','사용승인일']),jimokV=pick(head,r,['지목']);
+    recs.push({kind:pick(head,r,['상세물건구분','물건구분'])||defKind||(String(apprV).trim()?'건물':String(jimokV).trim()?'토지':''),
       loc:(pick(head,r,['소재지'])+' '+pick(head,r,['지번'])).trim(),
       use:shortY(pick(head,r,['용도지역'])),jimok:pick(head,r,['지목']),
       landA:pick(head,r,['토지면적']),bldA:pick(head,r,['건물면적','연면적']),
