@@ -36,6 +36,7 @@
   .tab.on{background:var(--t-bar);color:#fff;border-color:var(--t-bar)}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .hint{font-size:12px;color:var(--ink-2)}
+  .hint.copytip{flex-basis:100%;color:#1e40af}
   .msg{padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:13px}
   .msg.err{background:var(--danger-bg);color:var(--danger);border:1px solid #f1c9c4}
   .msg.warn{background:var(--warn-bg);color:var(--warn);border:1px solid #f0dca8}
@@ -212,12 +213,13 @@
       <button id="copy" type="button">결론 복사</button>
       <button id="xlsx" type="button">엑셀 저장</button>
       <label class="bandonly" id="bandOnlyLbl"><input type="checkbox" id="bandOnly"> 본건 면적대만 보기 (동일, 유사)</label><span class="hint" id="bandInfo"></span>
-      <span class="hint">체크를 바꾸면 최저, 중간, 최고가 바로 다시 계산됩니다. 표에서 여러 줄을 끌어 골라 Ctrl+C 하면 제목 줄까지 붙어 엑셀, 구글 시트에 칸 맞춰 붙습니다.</span>
+      <span class="hint">체크를 바꾸면 최저, 중간, 최고가 바로 다시 계산됩니다.</span>
+      <span class="hint copytip">📋 거래표 줄을 누르면 선택돼요 (Shift+누르기 = 범위). 아래에 뜨는 「복사」를 누르면 제목 줄까지 엑셀, 구글 시트에 칸 맞춰 붙어요.</span>
     </div>
-    <div class="card tbl" id="mainTbl" data-copy>
+    <div class="card tbl" id="mainTbl" data-copy data-rowsel>
       <table>
         <thead><tr>
-          <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
+          <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="dong" title="국토부 실거래에 동이 신고된 거래만 나와요">동</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
           <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">기준시점 거래가격</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -253,7 +255,7 @@
 <script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
 <script src="arap_apt_nearby.js?v=20261113b"></script><!-- 주변 단지: 거리, 시군구 고르기, 세대수 -->
 <script src="arap_apt_sise.js?v=20261123b"></script>
-<script src="arap_tblcopy.js?v=20261124"></script><!-- 표 여러 행 드래그 → Ctrl+C 하면 머리줄 붙여 스프레드시트 모양으로 --><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script src="arap_tblcopy.js?v=20261124b"></script><!-- 거래표 줄 누르면 선택 → 아래 막대 「📋 복사」 = 제목 줄 붙여 스프레드시트 모양으로 --><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
 'use strict';
@@ -494,7 +496,7 @@ const histKeyOf = (i, pick) => {
   const fl = parseInt(i.floor, 10) || A.floorFromHo(i.ho) || '';
   return [i.address.replace(/\s+/g, ' '), String(i.dong || '').replace(/동$/, ''), String(i.ho || '').replace(/\D/g, ''), fl, area, i.wdate, pick || '', i.long5 ? '5y' : ''].join('|');
 };
-const ROW_KEYS = ['date', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled'];
+const ROW_KEYS = ['date', 'dong', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled'];
 function compactRes(r){
   return Object.assign({}, r, {chain: r.chain.slice(0, 1), complexes: [],
     rows: r.rows.map(x => { const o = {}; ROW_KEYS.forEach(k => { o[k] = x[k]; }); return o; })});
@@ -900,7 +902,7 @@ function nearDetail(){
     <div class="chips" id="nChips"></div>
     <div class="big">${big('최저', s.min)}${big('중간', s.mid, pm ? ` · 본건 중간보다 <b class="${pctCls(s.mid)}">${pm}</b>` : '')}${big('최고', s.max)}</div>
     <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 전체 ${c.res.rows.length}건 · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
-    <div class="tbl" data-copy><table><thead><tr>${[['include', '집계'], ['date', '계약일'], ['floor', '층'], ['area', '전용(㎡)'], ['price', '거래가'], ['ratio', '시점수정치'], ['unit', '시점수정 ㎡단가'], ['subjectPrice', '본건 면적 환산가'], ['band', '면적대'], ['notes', '비고']]
+    <div class="tbl" data-copy data-rowsel><table><thead><tr>${[['include', '집계'], ['date', '계약일'], ['dong', '동'], ['floor', '층'], ['area', '전용(㎡)'], ['price', '거래가'], ['ratio', '시점수정치'], ['unit', '시점수정 ㎡단가'], ['subjectPrice', '본건 면적 환산가'], ['band', '면적대'], ['notes', '비고']]
       .map(([k, t]) => `<th data-dk="${k}">${t}<span class="ar">${DSORT.k === k ? (DSORT.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('')}</tr></thead><tbody id="nTbody"></tbody></table></div>`;
   const chips = $('nChips');
   c.types.forEach(t => {
@@ -920,7 +922,7 @@ function nearDetail(){
     if (!r.include) tr.className = 'off';
     const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
     tr.innerHTML = `<td class="c"><input type="checkbox" ${r.include ? 'checked' : ''} ${r.subjectPrice ? '' : 'disabled'}></td>
-      <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
+      <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${esc(dongTxt(r.dong))}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
       <td class="n" data-v="${r.price ?? ''}">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
       <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n" data-v="${r.subjectPrice != null ? Math.round(r.subjectPrice) : ''}"><b>${A.fmtWon(r.subjectPrice)}</b></td>
       <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
@@ -1041,8 +1043,11 @@ function renderSummary(){
 }
 /* 헤더 클릭 정렬: 오름 → 내림. 원값 비교(금액, 날짜), 빈 값은 항상 맨 아래. 집계 체크, 재집계 그대로. 엑셀도 화면 순서. */
 const BAND_ORDER = {'동일': 0, '유사': 1, '상이': 2};
+// 동: 국토부 실거래 aptDong(신고된 거래만, 2026-11-24). 「101」→「101동」, 영문, 한글 동은 그대로
+function dongTxt(d){ d = String(d || '').trim(); return /^\d+$/.test(d) ? d + '동' : d; }
 function sortVal(r, k){
   if (k === 'include') return r.include ? 0 : 1;
+  if (k === 'dong') return r.dong ? String(r.dong).replace(/\d+/g, x => x.padStart(6, '0')) : '';
   if (k === 'band') return BAND_ORDER[r.band] ?? 9;
   if (k === 'notes') return r.notes.join(', ');
   return r[k];
@@ -1083,7 +1088,7 @@ function render(){
     if (!r.include) tr.className = 'off';
     const tags = r.notes.map(n => `<span class="tag ${/이상치|해제|지수 없음/.test(n) ? 'bad' : ''}">${esc(n)}</span>`).join('');
     tr.innerHTML = `<td class="c"><input type="checkbox" ${r.include ? 'checked' : ''} ${r.subjectPrice ? '' : 'disabled'}></td>
-      <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
+      <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${esc(dongTxt(r.dong))}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
       <td class="n" data-v="${r.price ?? ''}">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
       <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n" data-v="${r.subjectPrice != null ? Math.round(r.subjectPrice) : ''}"><b>${A.fmtWon(r.subjectPrice)}</b></td>
       <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
@@ -1133,24 +1138,24 @@ async function exportXlsx(r, title, fname){ // r 없으면 본건 결과. 주변
   ws.getCell(sr + 5, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, ${(r.lookback || 24) / 12}년 초과 제외`;
   ws.getCell(sr + 5, 1).alignment = nowrap;
   const tr = sr + 7;
-  const heads = ['번호', '계약일', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '기준시점 거래가격(원)', '면적대', '집계', '비고'];
-  const fmts = [null, null, '0', '0.000', '#,##0', '0.000', '0.000', '0.00000', '#,##0', '#,##0', '#,##0', null, null, null];
+  const heads = ['번호', '계약일', '동', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '기준시점 거래가격(원)', '면적대', '집계', '비고'];
+  const fmts = [null, null, null, '0', '0.000', '#,##0', '0.000', '0.000', '0.00000', '#,##0', '#,##0', '#,##0', null, null, null];
   heads.forEach((h, j) => { const cell = ws.getCell(tr, j + 1); cell.value = h; cell.font = {bold: true}; cell.fill = head; cell.border = border; cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: false}; });
   r.rows.forEach((x, i) => {
-    const vals = [i + 1, x.date.replace(/-/g, '.'), x.floor, x.area, x.price, x.iCon, x.iBase, x.ratio,
+    const vals = [i + 1, x.date.replace(/-/g, '.'), dongTxt(x.dong), x.floor, x.area, x.price, x.iCon, x.iBase, x.ratio,
       x.adjPrice != null ? Math.round(x.adjPrice) : null, x.unit != null ? Math.round(x.unit) : null, x.subjectPrice != null ? Math.round(x.subjectPrice) : null,
       x.band, x.include ? 'O' : '', x.notes.join(', ')];
     vals.forEach((v, j) => {
       const cell = ws.getCell(tr + 1 + i, j + 1);
       cell.value = v == null ? null : v; cell.border = border;
-      cell.alignment = {vertical: 'middle', wrapText: false, horizontal: [0, 1, 2, 11, 12].includes(j) ? 'center' : (j === 13 ? 'left' : 'right')};
+      cell.alignment = {vertical: 'middle', wrapText: false, horizontal: [0, 1, 2, 3, 12, 13].includes(j) ? 'center' : (j === 14 ? 'left' : 'right')};
       if (fmts[j]) cell.numFmt = fmts[j];
     });
   });
   const nr = tr + r.rows.length + 2;
   ws.getCell(nr, 1).value = '시점수정치 = 기준월 지수 / 계약월 지수. 기준월은 작성일 현재 공표된 최신월(익월 15일 공표). 기준시점 거래가격 = 시점수정 ㎡단가 x 본건 전용면적.';
   ws.getCell(nr + 1, 1).value = '출처: 국토교통부 아파트 매매 실거래가, 한국부동산원 R-ONE 전국주택가격동향조사(월간).';
-  [9, 14, 6, 13, 16, 12, 12, 10, 19, 19, 17, 8, 6, 40].forEach((w, j) => ws.getColumn(j + 1).width = w);
+  [9, 14, 8, 6, 13, 16, 12, 12, 10, 19, 19, 17, 8, 6, 40].forEach((w, j) => ws.getColumn(j + 1).width = w);
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const el = document.createElement('a'); el.href = URL.createObjectURL(blob);

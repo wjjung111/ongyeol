@@ -1,5 +1,6 @@
-/* arap_tblcopy.js — 표에서 여러 행을 드래그해 Ctrl+C 하면 머리줄을 붙여 스프레드시트 모양으로 복사 (2026-11-24)
-   - 대상: data-copy 속성이 있는 표(또는 그 안의 표). thead 머리줄 1줄 + 선택에 걸친 tbody 행 전체(모든 칸)
+/* arap_tblcopy.js — 표 줄 선택 → 머리줄을 붙여 스프레드시트 모양으로 복사 (2026-11-24)
+   - 줄 선택(data-rowsel 표): 마우스 올리면 줄 색, 누르면 선택, Shift+누르기 범위 → 아래 막대 「📋 복사」 또는 Ctrl+C (아래 「줄 선택」 절)
+   - 글자 끌어 고르기 복사도 그대로 — 대상: data-copy 속성이 있는 표(또는 그 안의 표). thead 머리줄 1줄 + 선택에 걸친 tbody 행 전체(모든 칸)
    - 한 칸 안에서만 고른 경우는 브라우저 기본 복사 그대로
    - 클립보드에 text/plain(탭 구분) + text/html(표) 둘 다 → 구글 시트, 엑셀에 칸 맞춰 붙음
    - 금액 「13억 8,000만원」 → 1,380,000,000 (원) 숫자로(td data-v 있으면 원 단위 정확한 값), 머리말에 (원). 체크칸 → ○ / 제외. 비고 태그 → 쉼표로 이음
@@ -70,8 +71,109 @@
     const el = node && (node.nodeType === 1 ? node : node.parentElement);
     return el ? el.closest('td,th') : null;
   }
+  /* ── 줄 선택(2026-11-24 2판): data-rowsel 표 — 마우스 올리면 줄 색, 누르면 선택(다시 누르면 해제), Shift+누르기 = 범위
+        → 화면 아래 막대 「📋 N줄 복사」(또는 Ctrl+C) = 제목 줄 + 고른 줄. Esc = 선택 해제. 체크칸·버튼 누르기는 원래 동작 */
+  const ROWSEL = 'table[data-rowsel], [data-rowsel] table';
+  let anchor = null, pending = null, bar = null, toastT = 0;
+  const css = `${ROWSEL.split(', ').map(s => s + ' tbody tr').join(',')}{cursor:pointer}
+${ROWSEL.split(', ').map(s => s + ' tbody tr:hover>td').join(',')}{background:#f1f5f9}
+${ROWSEL.split(', ').map(s => s + ' tbody tr.rsel>td').join(',')}{background:#dbeafe!important}
+${ROWSEL.split(', ').map(s => s + ' tbody tr.rsel>td:first-child').join(',')}{box-shadow:inset 3px 0 0 #2563eb}
+#arapRowBar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:8px;background:#0f172a;color:#fff;border-radius:12px;padding:8px 10px 8px 16px;box-shadow:0 8px 28px rgba(15,23,42,.35);font-size:14px;white-space:nowrap}
+#arapRowBar[hidden]{display:none}
+#arapRowBar .n{font-weight:700;margin-right:4px}
+#arapRowBar button{font:inherit;font-size:13px;border-radius:8px;padding:7px 12px;cursor:pointer;border:1px solid #cbd5e1;background:#fff;color:#0f172a}
+#arapRowBar button.p{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:700}
+#arapRowBar .k{font-size:11px;color:#94a3b8;margin-left:2px}`;
+  function ensureBar() {
+    if (bar) return bar;
+    const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+    bar = document.createElement('div'); bar.id = 'arapRowBar'; bar.hidden = true;
+    bar.innerHTML = '<span class="n"></span><button type="button" class="p" data-a="copy">📋 복사 (제목 줄 포함)</button><span class="k">Ctrl+C</span><button type="button" data-a="all">전체 선택</button><button type="button" data-a="clear">✕ 선택 해제</button>';
+    bar.addEventListener('mousedown', e => e.preventDefault()); // 누를 때 글자 선택, 포커스 안 바뀌게
+    bar.addEventListener('click', e => {
+      const a = e.target.closest('button') && e.target.closest('button').dataset.a;
+      if (a === 'copy') copySelected();
+      else if (a === 'all') { const t = selTable(); if (t) rowsOf(t).forEach(tr => tr.classList.add('rsel')); update(); }
+      else if (a === 'clear') clearSel();
+    });
+    document.body.appendChild(bar);
+    return bar;
+  }
+  const rowsOf = t => [...t.tBodies].flatMap(b => [...b.rows]);
+  const picked = () => [...document.querySelectorAll('tbody tr.rsel')];
+  const selTable = () => { const r = picked()[0]; return r ? r.closest('table') : null; };
+  function clearSel() { picked().forEach(tr => tr.classList.remove('rsel')); anchor = null; update(); }
+  function update() {
+    if (!bar) return;
+    const n = picked().length;
+    if (!toastT) bar.querySelector('.n').textContent = n + '줄 선택';
+    bar.hidden = !n && !toastT;
+  }
+  function toast(msg) {
+    ensureBar(); clearTimeout(toastT);
+    bar.querySelector('.n').textContent = msg; bar.hidden = false;
+    toastT = setTimeout(() => { toastT = 0; update(); }, 1800);
+  }
+  function copySelected() {
+    const t = selTable(); if (!t) return false;
+    const trs = rowsOf(t).filter(tr => tr.classList.contains('rsel')); // 화면 순서대로
+    pending = grab(t, trs);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+    if (!ok && pending && navigator.clipboard) {
+      const g = pending;
+      try {
+        navigator.clipboard.write([new ClipboardItem({'text/plain': new Blob([toTsv(g)], {type: 'text/plain'}), 'text/html': new Blob([toHtml(g)], {type: 'text/html'})})])
+          .catch(() => navigator.clipboard.writeText(toTsv(g)));
+      } catch (_) { navigator.clipboard.writeText(toTsv(g)); }
+      ok = true;
+    }
+    pending = null;
+    if (ok) toast(`✓ ${trs.length}줄 복사됨 — 엑셀, 구글 시트에 Ctrl+V`);
+    return ok;
+  }
+  document.addEventListener('mousedown', e => { // Shift+누르기로 범위 고를 때 글자 선택 막기
+    if (e.shiftKey && e.target.closest && e.target.closest(ROWSEL.split(', ').map(s => s + ' tbody tr').join(','))) e.preventDefault();
+  });
+  document.addEventListener('click', e => {
+    const tr = e.target.closest && e.target.closest('tbody tr'); if (!tr) return;
+    const t = tr.closest('table'); if (!t || !t.matches(ROWSEL)) return;
+    if (e.target.closest('input,button,a,select,label,textarea')) return; // 집계 체크 등은 원래 동작
+    const s = window.getSelection(); if (s && !s.isCollapsed && String(s).trim() && !e.shiftKey) return; // 글자 끌어 고른 경우
+    ensureBar();
+    const cur = selTable(); if (cur && cur !== t) clearSel(); // 다른 표 선택은 해제
+    const rows = rowsOf(t);
+    if (e.shiftKey && anchor && rows.includes(anchor)) {
+      const [i, j] = [rows.indexOf(anchor), rows.indexOf(tr)].sort((a, b) => a - b);
+      rows.slice(i, j + 1).forEach(r => r.classList.add('rsel'));
+      if (s) s.removeAllRanges();
+    } else { tr.classList.toggle('rsel'); anchor = tr; }
+    update();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && picked().length) clearSel();
+  });
+  // 표를 다시 그리면(정렬, 다시 계산) 선택 줄이 사라짐 → 막대 숫자 맞춤
+  let raf = 0;
+  new MutationObserver(() => { if (!bar || raf) return; raf = requestAnimationFrame(() => { raf = 0; update(); }); })
+    .observe(document.documentElement, {childList: true, subtree: true});
+
   function onCopy(e) {
+    if (pending && e.clipboardData) { // 「📋 복사」 버튼
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', toTsv(pending)); e.clipboardData.setData('text/html', toHtml(pending));
+      return;
+    }
     const sel = window.getSelection && window.getSelection();
+    const ae = document.activeElement;
+    if ((!sel || sel.isCollapsed || !String(sel).trim()) && picked().length && e.clipboardData && !(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'checkbox')) {
+      const t = selTable(), g = grab(t, rowsOf(t).filter(tr => tr.classList.contains('rsel')));
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', toTsv(g)); e.clipboardData.setData('text/html', toHtml(g));
+      setTimeout(() => toast(`✓ ${g.rows.length}줄 복사됨 — 엑셀, 구글 시트에 Ctrl+V`), 0);
+      return;
+    }
     if (!sel || !sel.rangeCount || sel.isCollapsed) return;
     const a = cellOf(sel.anchorNode), f = cellOf(sel.focusNode);
     if (a && a === f) return; // 한 칸 안 → 기본 복사
@@ -89,5 +191,5 @@
     e.clipboardData.setData('text/html', parts.map(toHtml).join('<br>'));
   }
   document.addEventListener('copy', onCopy);
-  window.ArapTblCopy = {grab, toTsv, toHtml, wonOf};
+  window.ArapTblCopy = {grab, toTsv, toHtml, wonOf, copySelected, clearSel};
 })();
