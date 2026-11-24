@@ -64,6 +64,7 @@
 | `arap_toji_upload.js` | 토건 공부서류(등기 PDF)·접수 캡처 업로드 → 자동 인식(집건과 같은 API 키) |
 | `arap_toji_opinion.js` / `arap_toji_documents.js` | 토지건물 의견서 엔진 / 요항표·명세표 등 서류 |
 | `arap_tblcopy.js` | 표 줄 선택(`data-rowsel`: 호버·클릭·Shift 범위 → 아래 막대 「📋 복사」) + 드래그 복사(`data-copy`) → 제목 줄 + 행을 스프레드시트 모양(금액 원 숫자). 아파트시점수정 |
+| `arap_mapshot.js` | 위치도 화면 캡처(크롬 화면 공유 「이 탭」, 빨간 틀 = 한글 그림 칸 비율) → `템플릿/토건 위치도 템플릿.hwpx`(광역·상세 두 쪽) 소재지·그림 채움. 토건 위치도 탭 「광역/상세위치도 확정」 |
 | `arap_tbl_border.js` | 한글 표 테두리 통일(겉 0.4mm·본문 #A6A6A6·본문 줄 사이 0.12mm, 사용자 서식 2026-11-23) — 출력 직전 온결 양식 표만. 토건 의견서·표지·괄감 |
 | `arap_building_cost.js` + `_data.js` | 건물 재조달원가 표준단가(2025 자료집) — 토지건물 |
 | `arap_index_data.js` / `arap_jibyun_data.js` | 매매가격지수·자본수익률 / 지가변동률 — **자동생성, 직접 수정 금지** |
