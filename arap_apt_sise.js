@@ -402,6 +402,47 @@
     return best ? best.area : null;
   }
 
+  /* ── 본건 단지 정보: 사용승인일, 규모, 주차대수 (건축물대장 표제부·총괄표제부, 2026-11-24) ──
+     st = ArapBldrgst.load 결과 {titles, recap}. 세대 있는 동(아파트 동)만 동수·최고층·사용승인일에 셈(상가·관리동 제외).
+     주차 = 총괄표제부(옥내·옥외 자주식+기계식, 없으면 totPkngCnt) → 없으면 이 필지 표제부 전부(부속 주차장 포함) 합계 */
+  function complexInfo(st, dong, writeIso) {
+    if (!st || !(st.titles || []).length) return null;
+    const n = v => { const x = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(x) ? x : 0; };
+    const ymd = v => { const m = String(v || '').match(/(\d{4})\D?(\d{2})\D?(\d{2})/); return m && +m[1] > 1900 ? m[1] + '.' + m[2] + '.' + m[3] : ''; };
+    const isAtch = t => /부속/.test(String(t.mainAtchGbCdNm || ''));
+    const seen = new Set(), all = [];
+    for (const t of st.titles) { const k = String(t.mgmBldrgstPk || '').trim() || 'd:' + String(t.dongNm || '').trim() + (isAtch(t) ? ':a' : ''); if (seen.has(k)) continue; seen.add(k); all.push(t); }
+    const mains = all.filter(t => !isAtch(t));
+    const apts = mains.filter(t => n(t.hhldCnt) > 0);
+    const blds = apts.length ? apts : mains;
+    const r = st.recap || null;
+    const pIn = o => n(o.indrAutoUtcnt) + n(o.indrMechUtcnt), pOut = o => n(o.oudrAutoUtcnt) + n(o.oudrMechUtcnt);
+    let park = 0, pkIn = 0, pkOut = 0, pkScope = '';
+    if (r && (pIn(r) + pOut(r) || n(r.totPkngCnt))) {
+      pkIn = pIn(r); pkOut = pOut(r); park = pkIn + pkOut || n(r.totPkngCnt); pkScope = '총괄표제부';
+    } else {
+      pkIn = all.reduce((s, t) => s + pIn(t), 0); pkOut = all.reduce((s, t) => s + pOut(t), 0); park = pkIn + pkOut;
+      if (park) pkScope = '표제부 합계';
+    }
+    const hhld = (r && n(r.hhldCnt)) || apts.reduce((s, t) => s + n(t.hhldCnt), 0) || null;
+    const dates = [...new Set(blds.map(t => ymd(t.useAprDay)).filter(Boolean))].sort();
+    const rDate = r ? ymd(r.useAprDay) : '';
+    const useApr = dates.length ? dates[0] : rDate, useAprTo = dates.length > 1 ? dates[dates.length - 1] : '';
+    const dn = dong ? matchDong(mains.map(t => String(t.dongNm ?? '').trim()), dong) : null;
+    const dt = dn != null ? mains.find(t => String(t.dongNm ?? '').trim() === dn) : null;
+    const age = d => { if (!d || !writeIso) return null; const [y, m, dd] = d.split('.').map(Number), [wy, wm, wd] = writeIso.split('-').map(Number);
+      return wy - y - ((wm < m || (wm === m && wd < dd)) ? 1 : 0); };
+    return {
+      name: String((r && r.bldNm) || (blds[0] && blds[0].bldNm) || '').trim(),
+      useApr, useAprTo, age: age(useApr),
+      dongs: apts.length || (r && n(r.mainBldCnt)) || mains.length || null,
+      hhld, grndMax: Math.max(0, ...blds.map(t => n(t.grndFlrCnt))) || null, ugrndMax: Math.max(0, ...blds.map(t => n(t.ugrndFlrCnt))) || null,
+      park: park || null, pkIn, pkOut, pkScope, perHhld: park && hhld ? Math.round(park / hhld * 100) / 100 : null,
+      scope: r ? '단지' : '필지', // 총괄표제부가 없으면 이 필지 표제부만(여러 필지 단지는 일부일 수 있음)
+      dong: dt ? { name: dn, grnd: n(dt.grndFlrCnt) || null, ugrnd: n(dt.ugrndFlrCnt) || null, useApr: ymd(dt.useAprDay), hhld: n(dt.hhldCnt) || null } : null
+    };
+  }
+
   /** 거래들의 전용면적 종류 [{area, n}] (해제 제외, 신고 면적 그대로, 작은 면적부터) */
   function areaTypes(trades) {
     const m = new Map();
@@ -482,7 +523,7 @@
     return v.length ? { n: v.length, total: rows.length, min: v[0], mid: median(v), max: v[v.length - 1] } : { n: 0, total: rows.length, min: null, mid: null, max: null };
   }
 
-  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, pnuFromRtms, matchDong, matchHo, aptHasDong, unitPnus, nearestAreaType, rtmsTrade, groupComplexes, areasNear, monthsBefore, LOOKBACK, LOOKBACK_LONG };
+  const api = { umdMatch, ymAdd, ymDiff, fmtYm, fmtWon, fmtEok, publishDate, baseMonthByRule, sidoShort, resolveAddress, roneChain, parsePaste, filterRtms, calculate, summarize, floorFromHo, areaTypes, addrFromParcel, pnuFromRtms, matchDong, matchHo, aptHasDong, unitPnus, nearestAreaType, complexInfo, rtmsTrade, groupComplexes, areasNear, monthsBefore, LOOKBACK, LOOKBACK_LONG };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   g.ArapAptSise = api;
 })(typeof window !== 'undefined' ? window : globalThis);

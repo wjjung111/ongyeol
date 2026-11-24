@@ -53,6 +53,12 @@
   .big .rng{font-size:12px;color:var(--ink-2);margin-top:6px}
   .big .rng.chip{display:inline-block;font-size:13px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px}
   .sub{margin:8px 2px 0;color:var(--ink-2);font-size:13px}
+  /* 본건 단지 정보(건축물대장): 사용승인일, 규모, 주차 */
+  .cinfo{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 22px;margin:10px 0 0;padding:9px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--t-radius);font-size:13px;color:var(--ink)}
+  .cinfo:empty{display:none}
+  .cinfo .ct{font-weight:700;color:var(--ink-2)}
+  .cinfo .ck{color:var(--ink-2);margin-right:6px}
+  .cinfo .ch{color:var(--faint);font-size:12px;margin-left:4px}
   .tbl{overflow:auto;max-height:70vh;padding:0}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}
@@ -207,6 +213,7 @@
       <div class="b"><div class="k">중간</div><div class="v" id="vMid"></div><div class="s" id="sMid"></div><div class="u" id="uMid"></div><div class="rng" id="rMid"></div></div>
       <div class="b"><div class="k">최고</div><div class="v" id="vMax"></div><div class="s" id="sMax"></div><div class="u" id="uMax"></div></div>
     </div>
+    <div class="cinfo" id="cinfo"></div>
     <div class="sub" id="subline"></div>
     <div class="row" style="margin:10px 0 12px">
       <button id="foldTbl" type="button" title="본건 단지 거래표 접기/펴기">▾ 거래표 접기</button>
@@ -254,7 +261,7 @@
 <script src="arap_sgg_codes.js?v=20261111"></script>
 <script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
 <script src="arap_apt_nearby.js?v=20261113b"></script><!-- 주변 단지: 거리, 시군구 고르기, 세대수 -->
-<script src="arap_apt_sise.js?v=20261123b"></script>
+<script src="arap_apt_sise.js?v=20261124a"></script>
 <script src="arap_tblcopy.js?v=20261124b"></script><!-- 거래표 줄 누르면 선택 → 아래 막대 「📋 복사」 = 제목 줄 붙여 스프레드시트 모양으로 --><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
@@ -347,10 +354,20 @@ async function rtmsMonth(lawd, ym, maxAgeMs){
 /* 본건 동, 호 → 건축물대장 전유면적(집건 「건축물대장 불러오기」와 같은 모듈 ArapBldrgst).
    표제부에서 동 이름 → 전유부에서 호 이름 → 전유공용면적의 전유 합계. 같은 필지, 동, 호는 한 번만 조회 */
 const unitCache = {};
+// 필지 대장(표제부, 총괄표제부) 한 번만 받기 — 전용면적 찾기, 단지 정보가 같이 씀. 표제부 없는 필지는 null로 기억, 통신 실패는 다음에 다시
+const bldCache = {};
+function bldLoad(pnu){
+  if (!bldCache[pnu]) bldCache[pnu] = ArapBldrgst.load(pnu, '').catch(e => {
+    if (/표제부\)이 없습니다/.test(e && e.message || '')) return null;
+    delete bldCache[pnu]; throw e;
+  });
+  return bldCache[pnu];
+}
 function unitAreaAt(pnu, dong, ho){
   const key = pnu + '|' + dong + '|' + ho;
   if (!unitCache[key]) unitCache[key] = (async () => {
-    const st = await ArapBldrgst.load(pnu, '');
+    const st = await bldLoad(pnu);
+    if (!st) return null;
     const dn = A.matchDong(st.dongs, dong);
     if (dn == null) return null;
     const hl = await ArapBldrgst.hoList(pnu, dn);
@@ -428,13 +445,13 @@ async function calc(aptPick, parcel, keepSort){
     const ats = A.areaTypes(trades);
     selAreas = selAreas.filter(a => ats.some(t => Math.abs(t.area - a) < 1e-9)); // 이 단지에 없는 면적은 버림
     // 건축물대장 전유면적 → 면적 칸에 넣고, 같은(±0.5㎡) 실거래 면적 칩을 골라 둠. 주소 필지에 그 동이 없으면 실거래 단지 필지에서 찾음
-    let unitNote = null;
+    let unitNote = null, unitPnu = null;
     if (needUnit){
       $('go').textContent = '건축물대장 면적 확인 중...';
       const u = await findUnitArea(A.unitPnus(trades, curParcel && curParcel.id, uDong, 4), uDong, uHo, unitFirst);
       const lbl = unitLabel(uDong, uHo);
       if (u){
-        area = u.area;
+        area = u.area; unitPnu = u.pnu;
         $('area').value = u.area; $('area').dataset.auto = '1';
         histInput.area = String(u.area); histInput.areaAuto = true;
         if (/^\d+$/.test(String(u.floor || '')) && ($('floor').value === '' || $('floor').dataset.auto === '1')){
@@ -455,6 +472,11 @@ async function calc(aptPick, parcel, keepSort){
     res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
     res.subject = {dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: subjectFloor || null};
     last = res; if (!keepSort) { sortK = null; sortDir = 1; }
+    // 본건 단지 정보(사용승인일, 규모, 주차) — 계산 결과는 먼저 보여 주고 대장은 뒤에서 받아 채움
+    if (window.ArapBldrgst){
+      const ps = [unitPnu, curParcel && curParcel.id, ...(mode === 'api' ? A.unitPnus(trades, curParcel && curParcel.id, uDong, 4) : [])];
+      loadCx(res, [...new Set(ps.filter(p => /^\d{19}$/.test(p || '')))].slice(0, 4), uDong);
+    }
     setNearCtx({addr, writeIso, baseYm, baseList: baseTbl.list, tbls, idx, lookback, subjectArea: area, parcel: curParcel, trades: mode === 'api' ? trades : []});
     if (warns.length) showMsg(warns.join(' / ') + (unitNote ? ' / ' + unitNote.text : ''), 'warn');
     else if (unitNote) showMsg(unitNote.text, unitNote.kind);
@@ -871,8 +893,9 @@ async function nearMap(){
 }
 
 /* 단지 상세 거래표 정렬: 본건 표와 같은 규칙(sortVal) — 처음 누르면 오름, 다시 누르면 내림, 빈 값은 늘 맨 아래, 같으면 원래 순서. 엑셀도 화면 순서 */
+// 상세 거래표: 면적대 상이(본건 ±15% 밖) 거래는 아예 안 보임(2026-11-24 사용자 요청). 칩으로 고르면 '동일'이 되어 보임. 엑셀, 복사도 같은 줄
 function detailRows(c){
-  const rows = c.res.rows.slice();
+  const rows = c.res.rows.filter(r => r.band !== '상이');
   if (!DSORT.k) return rows.sort((a, b) => a.no - b.no);
   return rows.sort((a, b) => {
     const x = sortVal(a, DSORT.k), y = sortVal(b, DSORT.k), ex = x == null || x === '', ey = y == null || y === '';
@@ -901,7 +924,7 @@ function nearDetail(){
     <div class="hint">이 단지 전용면적 (본건 ${A0}㎡와 같게 볼 면적을 고르세요. 처음엔 본건 ±${Math.round(NEAR.tol * 100)}% 안 면적이 골라져 있어요. 누르면 켜고 꺼짐)</div>
     <div class="chips" id="nChips"></div>
     <div class="big">${big('최저', s.min)}${big('중간', s.mid, pm ? ` · 본건 중간보다 <b class="${pctCls(s.mid)}">${pm}</b>` : '')}${big('최고', s.max)}</div>
-    <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 전체 ${c.res.rows.length}건 · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
+    <div class="hint" style="margin-bottom:6px">집계 ${s.n}건 / 표시 ${detailRows(c).length}건${c.res.rows.length > detailRows(c).length ? ` (면적이 본건 ±15% 밖인 ${c.res.rows.length - detailRows(c).length}건은 숨김)` : ''} · 지수 ${esc(c0 ? c0.path.split('>').slice(-1)[0] : '-')} (CLS ${c0 ? c0.cls : '-'}), 기준월 ${A.fmtYm(ctx.baseYm)} · 본건 위 표와 같은 계산(해제, 이상치, 기간 초과 제외). 체크를 바꾸면 바로 다시 계산</div>
     <div class="tbl" data-copy data-rowsel><table><thead><tr>${[['include', '집계'], ['date', '계약일'], ['dong', '동'], ['floor', '층'], ['area', '전용(㎡)'], ['price', '거래가'], ['ratio', '시점수정치'], ['unit', '시점수정 ㎡단가'], ['subjectPrice', '본건 면적 환산가'], ['band', '면적대'], ['notes', '비고']]
       .map(([k, t]) => `<th data-dk="${k}">${t}<span class="ar">${DSORT.k === k ? (DSORT.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('')}</tr></thead><tbody id="nTbody"></tbody></table></div>`;
   const chips = $('nChips');
@@ -1016,6 +1039,47 @@ function toggleArea(a){
   if (!String($('area').value).trim() && selAreas.length) $('area').value = selAreas[0];
   calc(last.aptPick, null, true);
 }
+/* 본건 단지 정보(건축물대장): 필지 후보(최대 4) 대장을 받아 고름 — 본건 동이 있고 총괄표제부 있는 필지 → 본건 동 있는 필지
+   → 총괄표제부 있는 필지 → 표제부 있는 첫 필지. 결과는 res.cx(조회 기록에도 저장) */
+let cxPending = null;
+async function loadCx(res, pnus, dong){
+  if (!pnus.length) return;
+  cxPending = res; paintCx();
+  const sts = (await Promise.all(pnus.map(p => bldLoad(p).catch(() => null)))).filter(Boolean);
+  const has = st => !!dong && A.matchDong(st.dongs, dong) != null;
+  const st = sts.find(x => has(x) && x.recap) || sts.find(has) || sts.find(x => x.recap) || sts[0];
+  res.cx = (st && A.complexInfo(st, dong, res.writeDate)) || {none: true};
+  if (cxPending === res) cxPending = null;
+  if (last === res){ paintCx(); histUpdateState(); }
+}
+const n0 = v => Number(v).toLocaleString('ko-KR');
+function cxParts(cx){ // [[제목, 값, 덧말]]
+  const out = [];
+  if (cx.useApr) out.push(['사용승인', cx.useApr + (cx.useAprTo ? ' ~ ' + cx.useAprTo : ''), cx.age != null ? `${cx.age}년 경과` + (cx.useAprTo ? ', 첫 동 기준' : '') : '']);
+  const flr = [cx.ugrndMax && `지하 ${cx.ugrndMax}층`, cx.grndMax && `지상 ${cx.useAprTo || cx.dongs > 1 ? '최고 ' : ''}${cx.grndMax}층`].filter(Boolean).join('/');
+  const sc = [cx.dongs && `${cx.dongs}개동`, cx.hhld && `${n0(cx.hhld)}세대`].filter(Boolean).join(' ');
+  if (sc || flr) out.push(['규모', [sc, flr].filter(Boolean).join(', '), '']);
+  out.push(['주차', cx.park ? `${n0(cx.park)}대` : '대장에 없음',
+    cx.park ? [cx.perHhld != null && `세대당 ${cx.perHhld.toFixed(2)}대`, (cx.pkIn || cx.pkOut) && `옥내 ${n0(cx.pkIn)} / 옥외 ${n0(cx.pkOut)}`].filter(Boolean).join(' · ') : '']);
+  const d = cx.dong;
+  if (d && (d.grnd || d.ugrnd)) out.push(['본건 ' + (/동$/.test(d.name) ? d.name : d.name + '동'),
+    [d.ugrnd && `지하 ${d.ugrnd}층`, d.grnd && `지상 ${d.grnd}층`].filter(Boolean).join('/') + (d.hhld ? `, ${n0(d.hhld)}세대` : ''), cx.useAprTo && d.useApr ? `사용승인 ${d.useApr}` : '']);
+  return out;
+}
+const cxScopeTxt = cx => cx.scope === '필지' ? '총괄표제부가 없어 이 필지 표제부만 셈(여러 필지 단지는 일부일 수 있음)' : '';
+function cxText(cx){
+  if (!cx || cx.none) return '';
+  return cxParts(cx).map(([k, v, h]) => `${k} ${v}${h ? ` (${h})` : ''}`).join(', ') + (cx.scope === '필지' ? ' [이 필지 표제부 기준]' : '');
+}
+function paintCx(){
+  const el = $('cinfo'), cx = last && last.cx;
+  if (!cx){ el.innerHTML = last && cxPending === last ? '<span class="ct">🏢 단지 정보</span><span class="ch">건축물대장 확인 중...</span>' : ''; return; }
+  if (cx.none){ el.innerHTML = '<span class="ct">🏢 단지 정보</span><span class="ch">건축물대장에서 단지를 못 찾았어요 (주소에 지번을 넣으면 찾기 쉬워요)</span>'; return; }
+  el.innerHTML = `<span class="ct" title="건축물대장 표제부, 총괄표제부">🏢 단지 정보</span>`
+    + cxParts(cx).map(([k, v, h]) => `<span><span class="ck">${esc(k)}</span><b>${esc(v)}</b>${h ? `<span class="ch">${esc(h)}</span>` : ''}</span>`).join('')
+    + (cxScopeTxt(cx) ? `<span class="ch" title="${esc(cxScopeTxt(cx))}">· 이 필지 표제부 기준</span>` : '');
+}
+
 /* 본건 표시: 동, 호, 층, 면적 중 입력된 것만 */
 function subjectText(r){
   const x = r.subject || {};
@@ -1097,6 +1161,7 @@ function render(){
   });
   $('bandInfo').textContent = bOnly ? `${last.rows.length - hid}건 표시, ${selOn ? '고른 면적 외' : '면적대 상이'} ${hid}건 숨김 (계산은 그대로)` : '';
   renderSummary();
+  paintCx();
   paintFold();
   nearAfterMain();
 }
@@ -1117,7 +1182,7 @@ async function exportXlsx(r, title, fname){ // r 없으면 본건 결과. 주변
 
   ws.getCell('A1').value = title || '아파트 실거래 시점수정 결과';
   ws.getCell('A1').font = {bold: true, size: 14}; ws.getCell('A1').alignment = nowrap;
-  const info = [['단지', loc + (apts.length ? ` (${apts.join(', ')})` : '')], ['본건', subjectText(r) || '(미입력)'],
+  const info = [['단지', loc + (apts.length ? ` (${apts.join(', ')})` : '')], ...(cxText(r.cx) ? [['단지 정보', cxText(r.cx) + ' — 건축물대장']] : []), ['본건', subjectText(r) || '(미입력)'],
     ['작성일', r.writeDate.replace(/-/g, '.')],
     ['시점수정', `한국부동산원 월간 아파트 매매가격지수, ${c0.path} (CLS ${c0.cls}), 기준월 ${A.fmtYm(r.baseYm)}` + (r.idxBase ? ` (${A.fmtYm(r.idxBase)}=100)` : '')]];
   info.forEach(([k, v], i) => { const row = ws.getRow(3 + i); row.getCell(1).value = k; row.getCell(1).font = {bold: true}; row.getCell(2).value = v; row.getCell(1).alignment = nowrap; row.getCell(2).alignment = nowrap; });

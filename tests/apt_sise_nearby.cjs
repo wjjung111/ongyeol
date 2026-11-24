@@ -123,12 +123,14 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     const exp=[850000e4*1,800000e4*100/98,790000e4*100/98].map(p=>p/163.58*160.28).sort((a,b)=>a-b);
     assert.equal((await page.textContent('#nDetail .b.min .v')).trim(),await page.evaluate(v=>ArapAptSise.fmtWon(v),exp[1]),'중간 = 본건 면적 환산 중위');
     assert.equal((await page.textContent('#nDetail .b:first-child .v')).trim(),await page.evaluate(v=>ArapAptSise.fmtWon(v),exp[0]));
-    assert.equal(await page.$$eval('#nTbody tr',r=>r.length),5);
+    assert.equal(await page.$$eval('#nTbody tr',r=>r.length),3,'면적대 상이(106㎡) 2건은 아예 안 보임');
     assert.equal(await page.$$eval('#nTbody tr:not(.off)',r=>r.length),3);
+    assert.match(await page.textContent('#nDetail'),/표시 3건 \(면적이 본건 ±15% 밖인 2건은 숨김\)/);
     assert.ok(await page.$('#nMap .npin.sel'),'누른 핀 강조');
     assert.ok(await page.$('#nList tr.sel'),'목록 줄도 강조');
     // 면적 칩 106 켜면 집계 늘어남
     await page.click('#nChips button:has-text("106㎡")');
+    assert.equal(await page.$$eval('#nTbody tr',r=>r.length),5,'칩으로 고르면 보임');
     assert.equal(await page.$$eval('#nTbody tr:not(.off)',r=>r.length),5);
     assert.equal((await row('한양1'))[4],'5');
     await page.click('#nChips button:has-text("106㎡")');
@@ -138,12 +140,12 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     // 상세 거래표 정렬(본건 표와 같게): 거래가 오름 → 내림, 다른 단지를 열어도 정렬 유지
     const prices=()=>page.$$eval('#nTbody tr',rs=>rs.map(r=>r.children[5].textContent.trim()));
     await page.click('#nDetail th[data-dk=price]');
-    assert.deepEqual(await prices(),['44억원','45억원','79억원','80억원','85억원']);
+    assert.deepEqual(await prices(),['79억원','80억원','85억원']);
     assert.match(await page.textContent('#nDetail th[data-dk=price]'),/▲/);
     await page.click('#nDetail th[data-dk=price]');
-    assert.deepEqual(await prices(),['85억원','80억원','79억원','45억원','44억원']);
+    assert.deepEqual(await prices(),['85억원','80억원','79억원']);
     await page.click('#nDetail th[data-dk=include]');
-    assert.deepEqual(await page.$$eval('#nTbody tr',rs=>rs.map(r=>r.classList.contains('off'))),[false,false,true,true,true],'집계 먼저');
+    assert.deepEqual(await page.$$eval('#nTbody tr',rs=>rs.map(r=>r.classList.contains('off'))),[false,false,true],'집계 먼저');
     await page.click('#nDetail th[data-dk=date]');await page.click('#nDetail th[data-dk=date]');
     // 닫기
     await page.click('#nClose');assert.ok(await page.isHidden('#nDetail'));
