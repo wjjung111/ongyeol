@@ -33,4 +33,12 @@ assert.equal(DG.agentView("2026-11-02 18:59:30", {session: "로그인 필요"}, 
 assert.equal(DG.agentView("2026-11-02 18:40:00", {session: "로그인됨"}, now).cls, "off");   // 3분 넘게 소식 없음 = 꺼짐
 assert.equal(DG.agentView("", null, now).cls, "off");
 
+// 4) 중단 버튼은 대기·처리중에만, 취소 상태 표시
+assert.equal(DG.canCancel("대기"), true);
+assert.equal(DG.canCancel("처리중"), true);
+assert.equal(DG.canCancel("완료"), false);
+assert.equal(DG.canCancel("실패"), false);
+assert.equal(DG.canCancel("취소"), false);
+assert.equal(DG.ST["취소"][1], "중단됨");
+
 console.log("deunggi_page: OK");
