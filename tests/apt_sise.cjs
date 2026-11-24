@@ -211,6 +211,24 @@ const fr = A.filterRtms([{umdNm: '압구정동', jibun: '369-1', aptNm: '현대2
   sggCd: '11680', umdCd: '11000', landCd: '0', bonbun: '0369', bubun: '0001'}], {umd: '압구정동', jibun: '369-1'});
 assert.equal(fr.trades[0].pnu, '1168011000103690001', '실거래 거래에 필지번호');
 
+// 본건 단지 정보: 사용승인일, 규모, 주차대수 (2026-11-24)
+const T = (pk, dong, hh, g, u, apr, extra) => Object.assign({mgmBldrgstPk: pk, dongNm: dong, mainAtchGbCdNm: '주건축물', hhldCnt: String(hh), grndFlrCnt: String(g), ugrndFlrCnt: String(u), useAprDay: apr, bldNm: '현대아파트'}, extra || {});
+const titles = [T('1', '제10동', 84, 12, 1, '19780815'), T('2', '제11동', 72, 13, 0, '19790310'), T('3', '상가동', 0, 2, 1, '19780815'),
+  T('4', '주차장', 0, 1, 2, '19800101', {mainAtchGbCdNm: '부속건축물', indrAutoUtcnt: '120'}), T('1', '제10동', 84, 12, 1, '19780815')];
+let ci = A.complexInfo({titles, recap: {bldNm: '현대아파트', hhldCnt: '156', mainBldCnt: '3', useAprDay: '', indrAutoUtcnt: '100', indrMechUtcnt: '0', oudrAutoUtcnt: '60', oudrMechUtcnt: '', totPkngCnt: '160'}}, '10', '2026-08-14');
+assert.equal(ci.useApr, '1978.08.15'); assert.equal(ci.useAprTo, '1979.03.10', '동별 사용승인일이 다르면 범위');
+assert.equal(ci.age, 47, '작성일 전날까지는 한 해 덜 셈');
+assert.equal(A.complexInfo({titles, recap: null}, '', '2026-08-15').age, 48);
+assert.equal(ci.dongs, 2, '세대 있는 동만(상가동, 부속 빼고, 중복 표제부 한 번)'); assert.equal(ci.hhld, 156); assert.equal(ci.grndMax, 13); assert.equal(ci.ugrndMax, 1);
+assert.equal(ci.park, 160); assert.equal(ci.pkIn, 100); assert.equal(ci.pkOut, 60); assert.equal(ci.pkScope, '총괄표제부'); assert.equal(ci.perHhld, 1.03);
+assert.equal(ci.scope, '단지'); assert.deepEqual(ci.dong, {name: '제10동', grnd: 12, ugrnd: 1, useApr: '1978.08.15', hhld: 84});
+ci = A.complexInfo({titles, recap: null}, '99');
+assert.equal(ci.park, 120, '총괄표제부 없으면 표제부(부속 주차장 포함) 합계'); assert.equal(ci.pkScope, '표제부 합계');
+assert.equal(ci.hhld, 156, '세대수 = 동 합계'); assert.equal(ci.scope, '필지'); assert.equal(ci.dong, null); assert.equal(ci.age, null);
+ci = A.complexInfo({titles: [T('9', '', 0, 5, 0, '')], recap: {totPkngCnt: '30', hhldCnt: '0', useAprDay: '20010505'}}, '');
+assert.equal(ci.park, 30, 'totPkngCnt만 있을 때'); assert.equal(ci.useApr, '2001.05.05', '표제부 날짜 없으면 총괄표제부'); assert.equal(ci.hhld, null); assert.equal(ci.perHhld, null); assert.equal(ci.dongs, 1);
+assert.equal(A.complexInfo({titles: []}), null);
+
 // 주변 유사 단지: 지번별 단지 묶기, 본건 ±% 면적, 조회 기간 첫날 (2026-11-23)
 const gi = (y, m, apt, jibun, area, built) => ({dealYear: y, dealMonth: m, dealDay: '1', dealAmount: '100,000', excluUseAr: area, aptNm: apt, umdNm: '압구정동', jibun, buildYear: built});
 const gc = A.groupComplexes([gi('2026', '10', '현대2차', '369-1', '160.28', '1976'), gi('2026', '9', '현대1차', '369-1', '131.48', '1976'), gi('2026', '8', '현대2차', '369-1', '160.28', '1976'),

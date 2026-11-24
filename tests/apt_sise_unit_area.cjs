@@ -20,7 +20,10 @@ const TITLES={[PNU_ADDR]:['제12동','제13동'],[PNU_UNIT]:['제10동','제11�
 const UNITS={[PNU_UNIT+'|제10동']:[{hoNm:'203호',flrNo:'2'},{hoNm:'204호',flrNo:'2'},{hoNm:'1204호',flrNo:'12'}]};
 function bld(u){
   const op=u.searchParams.get('op'),pnu=u.searchParams.get('pnu'),dong=u.searchParams.get('dongNm')||'',ho=u.searchParams.get('hoNm')||'';
-  if(op==='getBrTitleInfo')return bodyOf((TITLES[pnu]||[]).map(d=>({dongNm:d,mainAtchGbCdNm:'주건축물',regstrGbCdNm:'집합',platPlc:'서울특별시 강남구 압구정동 369'})));
+  if(op==='getBrTitleInfo')return bodyOf((TITLES[pnu]||[]).map((d,i)=>({dongNm:d,mainAtchGbCdNm:'주건축물',regstrGbCdNm:'집합',platPlc:'서울특별시 강남구 압구정동 369',
+    hhldCnt:String(84+i*12),grndFlrCnt:String(12+i),ugrndFlrCnt:'1',useAprDay:i?'19790310':'19780815',mgmBldrgstPk:pnu+i})));
+  // 단지 정보(2026-11-24): 369-1 필지만 총괄표제부(주차 옥내 100 + 옥외 60)
+  if(op==='getBrRecapTitleInfo')return bodyOf(pnu===PNU_UNIT?[{bldNm:'현대아파트',hhldCnt:'180',useAprDay:'',indrAutoUtcnt:'100',oudrAutoUtcnt:'60'}]:[]);
   if(op==='getBrExposInfo')return bodyOf((UNITS[pnu+'|'+dong]||[]).map(x=>Object.assign({dongNm:dong,flrGbCdNm:'지상'},x)));
   if(op==='getBrExposPubuseAreaInfo'){
     if(pnu===PNU_UNIT&&dong==='제10동'&&ho==='204호')return bodyOf([
@@ -65,6 +68,14 @@ const RONE={SttsApiTblData:[{head:[]},{row:[{CLS_ID:530038,DTA_VAL:100,CLS_FULLN
     assert.match(await page.textContent('#subline'),/집계 <?b?>?2/);
     assert.equal(bldCalls[0],'getBrTitleInfo '+PNU_UNIT,'주소로 찾은 필지 대장');
     assert.ok(bldCalls.includes('getBrExposPubuseAreaInfo '+PNU_UNIT));
+    // 단지 정보: 사용승인일(동별 다르면 범위, 경과연수), 규모, 주차(세대당), 본건 동
+    await page.waitForFunction(()=>/주차/.test(document.getElementById('cinfo').textContent));
+    const ci=await page.textContent('#cinfo');
+    assert.match(ci,/사용승인1978\.08\.15 ~ 1979\.03\.10\s*48년 경과/,ci);
+    assert.match(ci,/규모2개동 180세대, 지하 1층\/지상 최고 13층/,ci);
+    assert.match(ci,/주차160대\s*세대당 0\.89대 · 옥내 100 \/ 옥외 60/,ci);
+    assert.match(ci,/본건 제10동지하 1층\/지상 12층, 84세대\s*사용승인 1978\.08\.15/,ci);
+    assert.ok(!/이 필지 표제부 기준/.test(ci));
 
     // 2) 칩 하나 더 고르면 면적 칸(대장값) 그대로, 대장 다시 안 부름
     let n=bldCalls.length;
@@ -86,7 +97,9 @@ const RONE={SttsApiTblData:[{head:[]},{row:[{CLS_ID:530038,DTA_VAL:100,CLS_FULLN
     await fill('area','131.48');await fill('ho','204');
     assert.equal(await page.inputValue('#area'),'131.48');
     n=bldCalls.length;await run();
-    assert.equal(bldCalls.length,n,'면적을 넣었으면 대장 조회 안 함');
+    assert.ok(!bldCalls.slice(n).some(c=>/Expos/.test(c)),'면적을 넣었으면 전유부(호) 조회 안 함');
+    assert.ok(!bldCalls.slice(n).some(c=>c.endsWith(PNU_UNIT)),'이미 받은 필지 대장은 다시 안 부름(단지 정보)');
+    assert.match(await page.textContent('#cinfo'),/주차160대/);
     assert.equal(await page.inputValue('#area'),'131.48');
 
     // 5) 새로고침해도 자동값 표시가 이어짐: 면적 비우고 계산 → F5 → 호 바꾸면 비워짐
@@ -105,6 +118,12 @@ const RONE={SttsApiTblData:[{head:[]},{row:[{CLS_ID:530038,DTA_VAL:100,CLS_FULLN
     await page.waitForFunction(()=>document.getElementById('go').textContent==='계산');
     assert.equal(await page.inputValue('#area'),'160.28');
     assert.equal(bldCalls[n],'getBrTitleInfo '+PNU_UNIT,'실거래 거래의 필지번호로 대장 조회');
+    await page.waitForFunction(()=>/주차160대/.test(document.getElementById('cinfo').textContent));
+
+    // 7) 조회 기록을 열면 단지 정보도 그대로
+    await page.reload();
+    await page.click('#histList li:first-child .hopen');
+    assert.match(await page.textContent('#cinfo'),/사용승인1978\.08\.15/);
 
     assert.deepEqual(errors,[]);
     console.log('apt_sise_unit_area: OK');
