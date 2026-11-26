@@ -73,6 +73,24 @@
   th[data-sk]{cursor:pointer;user-select:none}
   th[data-sk]:hover{color:var(--ink)}
   th .ar{display:inline-block;width:1em;color:var(--accent);font-size:11px}
+  tr.cx.sel>td{background:var(--accent-soft)}
+  /* 지도 핀 — 아파트시점수정.html 주변 유사 단지와 같은 모양 */
+  #nMap{position:relative;height:520px;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:#eef1f5}
+  @media (max-width:900px){#nMap{height:380px}}
+  .npin{position:relative;width:0;height:0;cursor:pointer}
+  .npin .dot{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+  .npin .lab{position:absolute;left:13px;top:-17px;background:#fff;border:1.5px solid;border-radius:5px;padding:2px 8px 3px;white-space:nowrap;font-size:12px;line-height:1.3;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .npin .lab b{display:block;font-weight:800;color:#0f172a}
+  .npin .lab span{font-weight:500;color:#334155}
+  .npin.off .lab{opacity:.65}
+  .npin.subj{cursor:default}
+  .npin.subj .dot{width:auto;height:auto;border:0;box-shadow:none;background:none!important;left:-13px;top:-17px;font-size:26px;line-height:1;color:#0f172a;text-shadow:0 0 3px #fff,0 0 3px #fff}
+  .npin.subj .lab,.npin.sel .lab{background:#0f172a;border-color:#0f172a;left:18px}
+  .npin.sel .lab{background:var(--accent);border-color:var(--accent);opacity:1}
+  .npin.subj .lab b,.npin.subj .lab span,.npin.sel .lab b,.npin.sel .lab span{color:#fff}
+  .npin.sel .dot{left:-13px;top:-13px;width:26px;height:26px;border:4px solid #fff;box-shadow:0 0 0 3px var(--accent),0 2px 6px rgba(0,0,0,.4)}
+  .npin:hover .lab{z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .nmapmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-2);font-size:13px;text-align:center;padding:20px}
 </style>
 </head>
 <body>
@@ -118,6 +136,11 @@
 
     <div class="card hidden" id="ownBox"></div>
     <div class="big" id="big"></div>
+
+    <div class="card">
+      <h2>지도<span class="hint">★ 본건, 점선 = 조회 반경. 핀 색 = 단지 중위 거래가(낮음 연파랑 → 높음 진남색), 회색 = 집계에서 뺀 단지. 핀을 누르면 아래 단지 목록에서 거래 내역이 열려요</span></h2>
+      <div id="nMap"></div>
+    </div>
 
     <div class="two">
       <div class="card"><h2>단지 규모별</h2><div class="tbl"><table id="byScale"></table></div>
@@ -172,7 +195,7 @@ function readDate(v){
   return m ? m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') : null;
 }
 const vkey = () => { try { return localStorage.getItem('exact-vworld-key') || VKEY_DEFAULT; } catch (e) { return VKEY_DEFAULT; } };
-let R = null, OFF = new Set(), OPEN = new Set(), OFFT = new Set(), TROWS = []; // OFFT: 집계에서 뺀 거래(거래 객체), TROWS: 실거래 목록 화면 줄
+let R = null, OFF = new Set(), OPEN = new Set(), OFFT = new Set(), TROWS = [], SEL = null; // OFFT: 집계에서 뺀 거래(거래 객체), TROWS: 실거래 목록 화면 줄
 
 /* ── 호출 ── */
 async function getJson(url, ms){
@@ -344,7 +367,7 @@ async function search(pick){
     if (f.x == null) { nogeo++; return; }
     const dist = Math.round(N.distM(subj.x, subj.y, f.x, f.y));
     if (dist > radius) return;
-    complexes.push(Object.assign(c, {dist, own: N.isOwn(subj.pnu, f.pnu, dist), hhld: f.hhld, flr: f.flr, sgg: (sggs.find(s => s.code === c.code) || {}).name || c.code}));
+    complexes.push(Object.assign(c, {x: f.x, y: f.y, dist, own: N.isOwn(subj.pnu, f.pnu, dist), hhld: f.hhld, flr: f.flr, sgg: (sggs.find(s => s.code === c.code) || {}).name || c.code}));
   });
   complexes.sort((a, b) => (b.own - a.own) || (a.dist - b.dist));
   const warns = [];
@@ -428,7 +451,7 @@ function render(){
   let h = headRow('list', [['on', ''], ['dist', '거리'], ['name', '단지'], ['addr', '법정동 지번'], ['built', '준공'], ['hhld', '세대수'], ['flr', '최고층'],
     ['n', '건수'], ['min', '최저'], ['mid', '중위'], ['max', '최고'], ['lastDate', '최근 계약'], ['lastPrice', '최근 거래가']]);
   for (const {c, s, last, sc} of listRows()){
-    h += `<tr class="cx ${cxOn(c) ? '' : 'off'}" data-id="${esc(c.id)}"><td class="c"><input type="checkbox" data-ck="${esc(c.id)}" ${OFF.has(c.id) ? '' : 'checked'}></td>
+    h += `<tr class="cx ${cxOn(c) ? '' : 'off'} ${SEL === c.id ? 'sel' : ''}" data-id="${esc(c.id)}"><td class="c"><input type="checkbox" data-ck="${esc(c.id)}" ${OFF.has(c.id) ? '' : 'checked'}></td>
       <td class="n">${c.dist >= 1000 ? (c.dist / 1000).toFixed(2) + 'km' : c.dist + 'm'}</td>
       <td>${c.own ? '<span class="tag own">본건 단지</span> ' : ''}${esc(c.name)}<span class="tag ${sc === '대단지' ? 'big3' : sc === '소규모' ? 'small' : ''}">${sc}</span></td>
       <td>${esc(c.sgg)} ${esc(c.umd)} ${esc(c.jibun)}</td><td class="c">${c.built ?? '전매'}</td>
@@ -441,6 +464,71 @@ function render(){
   }
   $('list').innerHTML = h;
   renderTrades(u, all);
+  nearMap();
+}
+
+/* 지도: 카카오맵(arap_map.js와 같은 키, 등록 도메인에서만). 못 불러오면 안내만 하고 표는 그대로.
+   아파트시점수정.html 「주변 유사 단지」 지도와 같은 모양(핀 + 이름표). 핀 색 = 단지 중위 거래가 */
+const KAKAO_KEY = 'e87432a91ba0c8c347a82ea98805c1b5';
+let kakaoP = null, kmap = null, kobjs = [];
+function loadKakao(){
+  if (window.kakao && window.kakao.maps && window.kakao.maps.Map) return Promise.resolve();
+  if (!kakaoP) kakaoP = new Promise((ok, no) => {
+    const t = setTimeout(() => no(new Error('카카오맵을 불러오지 못했어요(시간 초과).')), 12000);
+    const s = document.createElement('script');
+    s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + KAKAO_KEY + '&autoload=false';
+    s.onload = () => { if (!(window.kakao && kakao.maps && kakao.maps.load)) { clearTimeout(t); no(new Error('카카오맵 키가 거부됐어요.')); return; } kakao.maps.load(() => { clearTimeout(t); ok(); }); };
+    s.onerror = () => { clearTimeout(t); no(new Error('카카오맵 스크립트를 못 받았어요.')); };
+    document.head.appendChild(s);
+  }).catch(e => { kakaoP = null; throw e; });
+  return kakaoP;
+}
+const mapLevel = r => r <= 500 ? 5 : r <= 1000 ? 6 : r <= 2000 ? 7 : r <= 4000 ? 8 : 9;
+const shortName = n => String(n || '').replace(/\s*\([^)]*\)\s*$/, '') || n;
+function unitColor(v, lo, hi){ // 낮음 연파랑 → 높음 진남색
+  if (v == null) return '#cbd5e1';
+  const t = hi > lo ? (v - lo) / (hi - lo) : 0.5, stops = [[191, 219, 254], [59, 130, 246], [30, 58, 138]];
+  const k = t < 0.5 ? 0 : 1, f = t < 0.5 ? t * 2 : (t - 0.5) * 2, a = stops[k], b = stops[k + 1];
+  return 'rgb(' + a.map((x, i) => Math.round(x + (b[i] - x) * f)).join(',') + ')';
+}
+function pinEl(cls, color, title, line, onClick){
+  const d = document.createElement('div');
+  d.className = 'npin ' + cls;
+  d.innerHTML = `<div class="dot" style="background:${color}">${cls === 'subj' ? '★' : ''}</div><div class="lab" style="border-color:${color}"><b>${esc(title)}</b><span>${esc(line)}</span></div>`;
+  if (onClick) d.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  return d;
+}
+async function nearMap(){
+  const box = $('nMap'), R0 = R;
+  if (!R0 || !R0.subject) return;
+  try { await loadKakao(); } catch (e) {
+    box.innerHTML = `<div class="nmapmsg">${esc(e.message)}<br>아래 단지 목록은 그대로 쓸 수 있어요.</div>`; return;
+  }
+  if (R !== R0) return; // 기다리는 사이 다시 조회함
+  const K = kakao.maps, sub = R.subject, radius = R.params.radiusKm * 1000, center = new K.LatLng(sub.y, sub.x);
+  if (!kmap){ box.innerHTML = ''; kmap = new K.Map(box, {center, level: mapLevel(radius)}); kmap.addControl(new K.ZoomControl(), K.ControlPosition.RIGHT); R.drawn = true; }
+  else if (!R.drawn){ kmap.relayout(); kmap.setCenter(center); kmap.setLevel(mapLevel(radius)); R.drawn = true; }
+  kobjs.forEach(o => o.setMap(null)); kobjs = [];
+  kobjs.push(new K.Circle({center, radius, strokeWeight: 1.5, strokeColor: '#2563eb', strokeOpacity: 0.9, strokeStyle: 'dash', fillColor: '#2563eb', fillOpacity: 0.04, map: kmap}));
+  const pins = R.complexes.filter(c => c.x != null).map(c => ({c, on: cxOn(c), s: N.stat(c.trades.filter(tradeOk).map(t => t.price))}));
+  const ms = pins.filter(p => p.on && p.s.n).map(p => p.s.mid), lo = Math.min(...ms), hi = Math.max(...ms);
+  for (const {c, on, s} of pins){
+    const sel = SEL === c.id, live = on && s.n;
+    const line = !on ? '집계에서 뺀 단지' : s.n ? `중위 ${eok(s.mid)}억 · ${s.n}건` : '집계할 거래 없음';
+    const el = pinEl((sel ? 'sel ' : '') + (live ? '' : 'off'), live ? unitColor(s.mid, lo, hi) : '#cbd5e1', (c.own ? '본건 단지 · ' : '') + shortName(c.name), line, () => pinOpen(c.id));
+    kobjs.push(new K.CustomOverlay({position: new K.LatLng(c.y, c.x), content: el, xAnchor: 0, yAnchor: 0, zIndex: sel ? 4 : live ? 2 : 1, clickable: true, map: kmap}));
+  }
+  if (!R.complexes.some(c => c.own)) // 본건 단지 핀이 없으면 본건 자리에 별
+    kobjs.push(new K.CustomOverlay({position: center, content: pinEl('subj', '#0f172a', '본건', R.subject.addr), xAnchor: 0, yAnchor: 0, zIndex: 5, map: kmap}));
+  else kobjs.push(new K.CustomOverlay({position: center, content: pinEl('subj', '#0f172a', '본건', ''), xAnchor: 0, yAnchor: 0, zIndex: 0, map: kmap}));
+}
+/* 핀 누름: 그 단지 강조 + 단지 목록에서 거래 내역 펼치고 그 줄로 */
+function pinOpen(id){
+  if (SEL === id) { SEL = null; OPEN.delete(id); }
+  else { SEL = id; OPEN.add(id); }
+  render();
+  const row = SEL && document.querySelector(`#list tr.cx[data-id="${CSS.escape(id)}"]`);
+  if (row) row.scrollIntoView({behavior: 'smooth', block: 'center'});
 }
 
 /* 실거래 목록: 집계에 든 거래(+ 원하면 빠진 거래). 최저, 중위(짝수면 가운데 두 건), 최고 거래에 표시 */
@@ -477,7 +565,7 @@ function showMsg(list, cls){ $('msg').innerHTML = (list || []).map(m => `<div cl
 async function go(pick){
   $('go').disabled = true; $('go').textContent = '조회 중...'; showMsg([]);
   try {
-    R = await search(pick); OFF = new Set(); OPEN = new Set(); OFFT = new Set();
+    R = await search(pick); OFF = new Set(); OPEN = new Set(); OFFT = new Set(); SEL = null;
     showMsg(R.warns, 'warn');
     const cd = $('cands');
     cd.classList.toggle('hidden', !R.candidates.length);
@@ -576,7 +664,7 @@ $('list').onclick = e => {
   const ck = e.target.dataset.ck;
   if (ck) { e.target.checked ? OFF.delete(ck) : OFF.add(ck); render(); return; }
   const row = e.target.closest('tr.cx');
-  if (row) { const id = row.dataset.id; OPEN.has(id) ? OPEN.delete(id) : OPEN.add(id); render(); }
+  if (row) { const id = row.dataset.id; if (OPEN.has(id)) { OPEN.delete(id); if (SEL === id) SEL = null; } else { OPEN.add(id); SEL = id; } render(); }
 };
 $('copy').onclick = async () => { await navigator.clipboard.writeText(conclusion()); $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '결론 복사', 1200); };
 $('xlsx').onclick = () => exportXlsx().catch(e => showMsg([e.message || String(e)], 'err'));
