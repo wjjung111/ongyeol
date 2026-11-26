@@ -4,7 +4,8 @@
    - 한 칸 안에서만 고른 경우는 브라우저 기본 복사 그대로
    - 클립보드에 text/plain(탭 구분) + text/html(표) 둘 다 → 구글 시트, 엑셀에 칸 맞춰 붙음
    - 금액 「13억 8,000만원」 → 1,380,000,000 (원) 숫자로(td data-v 있으면 원 단위 정확한 값), 머리말에 (원). 체크칸 → ○ / 제외. 비고 태그 → 쉼표로 이음
-   - 정렬 표시(▲▼)는 머리말에서 뺌 */
+   - 정렬 표시(▲▼)는 머리말에서 뺌
+   - 칸 안 입력칸(가치형성요인 등)은 넣은 값 그대로(2026-11-26) */
 (function () {
   'use strict';
   const WON = /^(?:(\d+)억(?: ([\d,]+)만원|원)|([\d,]+)만원)$/;
@@ -23,6 +24,8 @@
   function cellText(td) {
     const cb = td.querySelector('input[type=checkbox]');
     if (cb) return cb.checked ? '○' : '제외';
+    const ti = td.querySelector('input'); // 직접 넣는 칸(가치형성요인 등)은 넣은 값
+    if (ti) return ti.value.trim();
     if (td.classList.contains('note')) return [...td.querySelectorAll('.tag')].map(t => t.textContent.trim()).filter(Boolean).join(', ');
     return td.textContent.replace(/\s+/g, ' ').trim();
   }

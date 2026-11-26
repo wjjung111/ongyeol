@@ -194,7 +194,7 @@ const KAKAO=`window.kakao={maps:{load:function(cb){cb();},LatLng:function(y,x){t
     // 7-1) 표 여러 행 드래그 → Ctrl+C: 머리줄 + 고른 행, 금액은 원 숫자(arap_tblcopy.js, 2026-11-24)
     const c1=await copySel('#mainTbl',0,1);
     const L=c1.txt.split('\r\n').map(l=>l.split('\t'));
-    assert.deepEqual(L[0],['집계','계약일','동','층','전용(㎡)','거래가(원)','시점수정치','시점수정 ㎡단가','기준시점 거래가격(원)','면적대','비고'],L[0].join('|'));
+    assert.deepEqual(L[0],['집계','계약일','동','층','전용(㎡)','거래가(원)','시점수정치','시점수정 ㎡단가','기준시점 거래가격(원)','가치형성요인','요인 반영가격','면적대','비고'],L[0].join('|')); // 가치형성요인 2칸(2026-11-26) — 안 넣었으면 빈 칸
     assert.equal(L.length,3,'머리줄 + 2행');
     const tr0=await page.$$eval('#tbody tr',rs=>[...rs[0].children].map(td=>td.textContent.trim()));
     assert.equal(L[1][1],tr0[1]);assert.match(L[1][0],/^(○|제외)$/);

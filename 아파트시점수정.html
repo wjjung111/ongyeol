@@ -71,6 +71,10 @@
   td.c{text-align:center}
   tr.off td{color:var(--faint)}
   td.note{white-space:normal;min-width:180px;font-size:12px}
+  /* 가치형성요인(2026-11-26): 줄마다 직접 넣는 칸 + 기준시점 거래가격 x 요인 */
+  td.fac{padding:3px 8px}
+  .facin{width:64px;padding:3px 6px;text-align:right;font-variant-numeric:tabular-nums}
+  .facin.bad{border-color:var(--danger);background:var(--danger-bg)}
   .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;background:#eef0f3;color:var(--ink-2);margin:1px 2px 1px 0}
   .tag.bad{background:var(--danger-bg);color:var(--danger)}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -228,7 +232,7 @@
       <table>
         <thead><tr>
           <th data-k="include">집계</th><th data-k="date">계약일</th><th data-k="dong" title="국토부 실거래에 동이 신고된 거래만 나와요">동</th><th data-k="floor">층</th><th data-k="area">전용(㎡)</th><th data-k="price">거래가</th><th data-k="ratio">시점수정치</th>
-          <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">기준시점 거래가격</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
+          <th data-k="unit">시점수정 ㎡단가</th><th data-k="subjectPrice">기준시점 거래가격</th><th data-k="factor" title="줄마다 직접 넣는 칸. 0.9를 넣으면 0.90으로 보고 기준시점 거래가격에 곱해요 (Enter = 아랫줄로)">가치형성요인</th><th data-k="factorPrice" title="기준시점 거래가격 x 가치형성요인. 최저, 중간, 최고에는 반영하지 않아요">요인 반영가격</th><th data-k="band">면적대</th><th data-k="notes">비고</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -263,7 +267,7 @@
 <script src="arap_bldrgst.js"></script><!-- 주소 검색: 건축물대장 조회와 같은 모듈(ArapBldrgst.search, V-World 지번/도로명 → 필지 후보) -->
 <script src="arap_apt_nearby.js?v=20261113b"></script><!-- 주변 단지: 거리, 시군구 고르기, 세대수 -->
 <script src="arap_apt_sise.js?v=20261124a"></script>
-<script src="arap_tblcopy.js?v=20261124b"></script><!-- 거래표 줄 누르면 선택 → 아래 막대 「📋 복사」 = 제목 줄 붙여 스프레드시트 모양으로 --><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
+<script src="arap_tblcopy.js?v=20261126a"></script><!-- 거래표 줄 누르면 선택 → 아래 막대 「📋 복사」 = 제목 줄 붙여 스프레드시트 모양으로 --><!-- 엔진 고치면 v 올리기(Pages 캐시) -->
 <script>
 (function(){
 'use strict';
@@ -472,6 +476,7 @@ async function calc(aptPick, parcel, keepSort){
     res.ruleYm = ruleYm; res.addr = addr; res.complexes = complexes; res.aptPick = aptPick || null;
     res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
     res.subject = {dong: $('dong').value.trim(), ho: $('ho').value.trim(), floor: subjectFloor || null};
+    carryFactors(last, res);
     last = res; if (!keepSort) { sortK = null; sortDir = 1; }
     // 본건 단지 정보(사용승인일, 규모, 주차) — 계산 결과는 먼저 보여 주고 대장은 뒤에서 받아 채움
     if (window.ArapBldrgst){
@@ -519,7 +524,7 @@ const histKeyOf = (i, pick) => {
   const fl = parseInt(i.floor, 10) || A.floorFromHo(i.ho) || '';
   return [i.address.replace(/\s+/g, ' '), String(i.dong || '').replace(/동$/, ''), String(i.ho || '').replace(/\D/g, ''), fl, area, i.wdate, pick || '', i.long5 ? '5y' : ''].join('|');
 };
-const ROW_KEYS = ['date', 'dong', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled'];
+const ROW_KEYS = ['date', 'dong', 'floor', 'area', 'price', 'iCon', 'iBase', 'ratio', 'adjPrice', 'unit', 'subjectPrice', 'band', 'include', 'outlier', 'notes', 'apt', 'no', 'ym', 'cancelled', 'factor'];
 function compactRes(r){
   return Object.assign({}, r, {chain: r.chain.slice(0, 1), complexes: [],
     rows: r.rows.map(x => { const o = {}; ROW_KEYS.forEach(k => { o[k] = x[k]; }); return o; })});
@@ -1116,7 +1121,31 @@ function sortVal(r, k){
   if (k === 'dong') return r.dong ? String(r.dong).replace(/\d+/g, x => x.padStart(6, '0')) : '';
   if (k === 'band') return BAND_ORDER[r.band] ?? 9;
   if (k === 'notes') return r.notes.join(', ');
+  if (k === 'factorPrice') return facPrice(r);
   return r[k];
+}
+/* 가치형성요인(2026-11-26 사용자 요청): 거래표 줄마다 직접 넣는 값. 요인 반영가격 = 기준시점 거래가격 x 요인.
+   평가사가 넣는 값이라 자동으로 채우지 않고, 최저/중간/최고 집계에도 넣지 않는다(보기, 복사, 엑셀만). 조회 기록에 같이 저장 */
+function parseFactor(v){ // '0.9' → 0.9, '90%' → 0.9. 빈 칸 = null, 숫자가 아니거나 0 이하 = NaN
+  v = String(v == null ? '' : v).replace(/\s+/g, '').replace(/,/g, '.');
+  if (!v) return null;
+  const pct = /%$/.test(v), n = Number(pct ? v.slice(0, -1) : v);
+  return isFinite(n) && n > 0 ? (pct ? n / 100 : n) : NaN;
+}
+function facTxt(f){ // 0.9 → 0.90, 0.955 → 0.955 (소수 둘째 자리까지는 늘 보임)
+  if (f == null || !isFinite(f)) return '';
+  const d = (String(+f.toFixed(5)).split('.')[1] || '').length;
+  return f.toFixed(Math.max(2, d));
+}
+const facPrice = r => r.subjectPrice != null && r.factor != null ? r.subjectPrice * r.factor : null;
+const facKey = x => [x.date, x.dong || '', x.floor ?? '', x.area, x.price, x.apt || ''].join('|');
+function carryFactors(prev, res){ // 칩을 누르거나 다시 계산해도 같은 단지, 같은 본건(동, 호)이면 넣어 둔 요인 유지
+  if (!prev || !prev.rows.some(x => x.factor != null)) return;
+  const ad = r => { const a = r.addr || {}, s = r.subject || {}; return JSON.stringify([a.code, a.umd, a.jibun, a.keyword, r.aptPick || null, s.dong, s.ho]); };
+  if (ad(prev) !== ad(res)) return;
+  const m = new Map();
+  prev.rows.forEach(x => { if (x.factor != null){ const k = facKey(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x.factor); } });
+  res.rows.forEach(x => { const q = m.get(facKey(x)); if (q && q.length) x.factor = q.shift(); });
 }
 function sortRows(){
   if (!sortK) { last.rows.sort((a, b) => a.no - b.no); return; }
@@ -1163,8 +1192,19 @@ function render(){
       <td class="c">${r.date.replace(/-/g, '.')}</td><td class="c">${esc(dongTxt(r.dong))}</td><td class="c">${r.floor ?? ''}</td><td class="n">${num(r.area, 2)}</td>
       <td class="n" data-v="${r.price ?? ''}">${A.fmtWon(r.price)}</td><td class="n">${r.ratio != null ? r.ratio.toFixed(5) : ''}</td>
       <td class="n">${r.unit != null ? num(Math.round(r.unit)) : ''}</td><td class="n" data-v="${r.subjectPrice != null ? Math.round(r.subjectPrice) : ''}"><b>${A.fmtWon(r.subjectPrice)}</b></td>
+      <td class="c fac"><input class="facin" inputmode="decimal" autocomplete="off" aria-label="가치형성요인" value="${facTxt(r.factor)}"></td><td class="n facp"></td>
       <td class="c">${esc(r.band)}</td><td class="note">${tags}</td>`;
-    tr.querySelector('input').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); histUpdateState(); });
+    tr.querySelector('input[type=checkbox]').addEventListener('change', e => { r.include = e.target.checked; tr.className = r.include ? '' : 'off'; renderSummary(); histUpdateState(); });
+    const fin = tr.querySelector('.facin'), fp = tr.querySelector('.facp');
+    const paintFac = () => { const v = facPrice(r); fp.dataset.v = v != null ? Math.round(v) : ''; fp.innerHTML = v != null ? `<b>${A.fmtWon(v)}</b>` : ''; };
+    paintFac();
+    fin.addEventListener('input', () => { const f = parseFactor(fin.value); fin.classList.toggle('bad', Number.isNaN(f)); r.factor = f == null || Number.isNaN(f) ? undefined : f; paintFac(); }); // 치는 동안 바로 계산
+    fin.addEventListener('change', () => { if (r.factor != null) fin.value = facTxt(r.factor); histUpdateState(); }); // 칸을 나가면 0.9 → 0.90, 기록에 저장
+    fin.addEventListener('keydown', e => { // Enter, ↓ = 아랫줄 요인 칸, ↑ = 윗줄
+      if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const to = e.key === 'ArrowUp' ? tr.previousElementSibling : tr.nextElementSibling, nx = to && to.querySelector('.facin');
+      e.preventDefault(); if (nx){ nx.focus(); nx.select(); } else fin.blur();
+    });
     tb.appendChild(tr);
   });
   $('bandInfo').textContent = hid ? `${shown.length}건 표시, ${(last.sameAreas || []).length ? '고른 면적' : '집계 면적대'} 밖 ${hid}건 숨김 (계산은 그대로)` : '';
@@ -1211,24 +1251,27 @@ async function exportXlsx(r, title, fname){ // r 없으면 본건 결과. 주변
   ws.getCell(sr + 5, 1).value = `집계 사례 ${s.n}건 / 전체 ${s.total}건, 면적대 ${r.bandUsed}, 해제, 이상치, ${(r.lookback || 24) / 12}년 초과 제외`;
   ws.getCell(sr + 5, 1).alignment = nowrap;
   const tr = sr + 7;
-  const heads = ['번호', '계약일', '동', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '기준시점 거래가격(원)', '면적대', '집계', '비고'];
-  const fmts = [null, null, null, '0', '0.000', '#,##0', '0.000', '0.000', '0.00000', '#,##0', '#,##0', '#,##0', null, null, null];
+  const hasFac = r.rows.some(x => x.factor != null); // 가치형성요인을 넣은 줄이 있을 때만 두 칸 추가
+  const heads = ['번호', '계약일', '동', '층', '전용면적(㎡)', '거래가(원)', '계약월 지수', '기준월 지수', '시점수정치', '시점수정 거래가(원)', '시점수정 ㎡단가(원)', '기준시점 거래가격(원)', ...(hasFac ? ['가치형성요인', '요인 반영가격(원)'] : []), '면적대', '집계', '비고'];
+  const fmts = [null, null, null, '0', '0.000', '#,##0', '0.000', '0.000', '0.00000', '#,##0', '#,##0', '#,##0', ...(hasFac ? ['0.00###', '#,##0'] : []), null, null, null];
+  const nc = heads.length;
   heads.forEach((h, j) => { const cell = ws.getCell(tr, j + 1); cell.value = h; cell.font = {bold: true}; cell.fill = head; cell.border = border; cell.alignment = {horizontal: 'center', vertical: 'middle', wrapText: false}; });
   r.rows.forEach((x, i) => {
     const vals = [i + 1, x.date.replace(/-/g, '.'), dongTxt(x.dong), x.floor, x.area, x.price, x.iCon, x.iBase, x.ratio,
       x.adjPrice != null ? Math.round(x.adjPrice) : null, x.unit != null ? Math.round(x.unit) : null, x.subjectPrice != null ? Math.round(x.subjectPrice) : null,
+      ...(hasFac ? [x.factor != null ? x.factor : null, facPrice(x) != null ? Math.round(facPrice(x)) : null] : []),
       x.band, x.include ? 'O' : '', x.notes.join(', ')];
     vals.forEach((v, j) => {
       const cell = ws.getCell(tr + 1 + i, j + 1);
       cell.value = v == null ? null : v; cell.border = border;
-      cell.alignment = {vertical: 'middle', wrapText: false, horizontal: [0, 1, 2, 3, 12, 13].includes(j) ? 'center' : (j === 14 ? 'left' : 'right')};
+      cell.alignment = {vertical: 'middle', wrapText: false, horizontal: [0, 1, 2, 3, nc - 3, nc - 2].includes(j) ? 'center' : (j === nc - 1 ? 'left' : 'right')};
       if (fmts[j]) cell.numFmt = fmts[j];
     });
   });
   const nr = tr + r.rows.length + 2;
-  ws.getCell(nr, 1).value = '시점수정치 = 기준월 지수 / 계약월 지수. 기준월은 작성일 현재 공표된 최신월(익월 15일 공표). 기준시점 거래가격 = 시점수정 ㎡단가 x 본건 전용면적.';
+  ws.getCell(nr, 1).value = '시점수정치 = 기준월 지수 / 계약월 지수. 기준월은 작성일 현재 공표된 최신월(익월 15일 공표). 기준시점 거래가격 = 시점수정 ㎡단가 x 본건 전용면적.' + (hasFac ? ' 요인 반영가격 = 기준시점 거래가격 x 가치형성요인.' : '');
   ws.getCell(nr + 1, 1).value = '출처: 국토교통부 아파트 매매 실거래가, 한국부동산원 R-ONE 전국주택가격동향조사(월간).';
-  [9, 14, 8, 6, 13, 16, 12, 12, 10, 19, 19, 17, 8, 6, 40].forEach((w, j) => ws.getColumn(j + 1).width = w);
+  [9, 14, 8, 6, 13, 16, 12, 12, 10, 19, 19, 17, ...(hasFac ? [13, 17] : []), 8, 6, 40].forEach((w, j) => ws.getColumn(j + 1).width = w);
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const el = document.createElement('a'); el.href = URL.createObjectURL(blob);
