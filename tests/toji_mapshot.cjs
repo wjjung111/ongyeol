@@ -37,12 +37,16 @@ function unzip(buf){const out={};let o=0;while(buf.readUInt32LE(o)===0x04034b50)
       LANDS=[{소재지:'서울특별시 금천구 독산동',지번:'1023-9',fullAddr:'서울특별시 금천구 독산동 1023-9',지목:'대',면적:'200',stdIdx:0,gf:[1,1,1,1,1,1],gaf:[1,1,1,1,1,1]}];
       renderLands();document.getElementById('ov_client').value='홍길동';try{showTab('jido');}catch(e){}
       document.getElementById('tab-jido').classList.add('on');mapFrameFit();renderMapShotState();});
+    // ⓪ 캡처 틀은 기본 꺼짐 → 「🔲 캡처 틀」로 켬(2026-11-27)
+    const off0=await page.evaluate(()=>({on:mapFrameOn(),h:document.getElementById('mapFrame').getBoundingClientRect().height}));
+    assert.deepEqual(off0,{on:false,h:0},'캡처 틀 기본 꺼짐');
+    await page.check('#mapFrameChk');
     // ① 버튼 위치(말풍선 패널 오른쪽) · 틀 비율
     const lay=await page.evaluate(()=>{const b=document.getElementById('btnShotWide').getBoundingClientRect(),p=document.getElementById('mapLabPanel').getBoundingClientRect(),f=document.getElementById('mapFrame').getBoundingClientRect();
       return {right:b.left>=p.right-1,sameRow:b.top<p.bottom,ratio:f.height/f.width,fh:f.height,ih:innerHeight,btns:[...document.querySelectorAll('.mshot .msbtns .btn')].map(x=>x.textContent)};});
     console.log('① 배치',lay);
     assert.ok(lay.right&&lay.sameRow,'버튼은 말풍선 패널 오른쪽');
-    assert.deepEqual(lay.btns,['📸 광역위치도 확정','📸 상세위치도 확정']);
+    assert.deepEqual(lay.btns.map(t=>t.trim()),['🔲 캡처 틀','📸 광역위치도 확정','📸 상세위치도 확정']);
     assert.ok(Math.abs(lay.ratio-56000/50228)<0.01,'틀 비율 = 한글 그림 칸');assert.ok(lay.fh<=lay.ih-40);
     await page.screenshot({path:process.env.SHOT||'/tmp/toji_mapshot.png'});
     // ② 광역 확정 → 아직 다운로드 없음, 그림은 전부 빨강(틀만 정확히 잘림)
@@ -57,7 +61,8 @@ function unzip(buf){const out={};let o=0;while(buf.readUInt32LE(o)===0x04034b50)
     console.log('② 광역',{w:w.w,h:w.h,corners:w.corners,msg:w.msg});
     w.corners.forEach(c=>assert.ok(c[0]>200&&c[2]<60,'틀 밖(파랑)이 섞이지 않음 '+c));
     assert.ok(Math.abs(w.h/w.w-56000/50228)<0.02);assert.equal(w.opt.preferCurrentTab,true);
-    assert.equal(dl,0,'하나만 찍으면 아직 안 받음');assert.ok(/상세위치도 확정/.test(w.msg));
+    assert.equal(dl,0,'하나만 찍으면 아직 안 받음');
+    assert.equal(await page.evaluate(()=>mapFrameOn()),false,'찍고 나면 틀은 다시 꺼짐');assert.ok(/상세위치도 확정/.test(w.msg));
     // ③ 상세 확정 → 자동 다운로드
     const [d]=await Promise.all([page.waitForEvent('download',{timeout:15000}),page.click('#btnShotDetail')]);
     assert.deepEqual(await page.evaluate(()=>window.__names),['6. 위치도_홍길동.hwpx']);
