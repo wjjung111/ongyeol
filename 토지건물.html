@@ -2994,19 +2994,29 @@ function chkFetch(q,jibun){
     if(jibun&&jbNorm(v.지번)!==jbNorm(jibun))throw new Error('지번이 다르게 잡힘('+v.지번+')');
     out.jibun=v.지번;out.addr=(v.시군구+' '+v.소재지+' '+v.지번).trim();
     out.land={area:v.면적,jimok:v.지목,use:v.용도지역,road:v.도로교통};
-    return quietApi(PROXY_BASE+'/bld?op=getBrTitleInfo&pnu='+out.pnu).then(function(bd){
-      var it=bd&&bd.response&&bd.response.body&&bd.response.body.items&&bd.response.body.items.item;
-      it=it?(Array.isArray(it)?it:[it]):[];
+    // 연면적은 동 하나가 아니라 필지 전체 — 총괄표제부가 있으면 그 연면적, 없으면 표제부(동이 여럿이면 주건축물 합계) (2026-11-27)
+    var items=function(bd){var it=bd&&bd.response&&bd.response.body&&bd.response.body.items&&bd.response.body.items.item;return it?(Array.isArray(it)?it:[it]):[];};
+    return Promise.all([quietApi(PROXY_BASE+'/bld?op=getBrTitleInfo&pnu='+out.pnu),
+      quietApi(PROXY_BASE+'/bld?op=getBrRecapTitleInfo&pnu='+out.pnu).catch(function(){return null;})]).then(function(rs){
+      var it=items(rs[0]),rc=items(rs[1]);
       if(!it.length){out.bld=null;out.bldErr='건축물대장 없음';return out;}
-      var m=it.filter(function(t){return !/부속/.test(t.mainAtchGbCdNm||'');});if(!m.length)m=it;
-      m.sort(function(a,b){return num(b.totArea)-num(a.totArea);});
-      var t=m[0],jp=function(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!b)return a;if(!a||b===a||b.indexOf(a)===0)return b;return a+'('+b+')';};
-      out.bld={strct:jp(t.strctCdNm,t.etcStrct),tot:String(t.totArea||''),appr:t.useAprDay?dot(t.useAprDay):'',purps:t.mainPurpsCdNm||'',dong:String(t.dongNm||'').trim(),n:m.length};
+      out.bld=bldSummary(it,rc);
       return out;
     },function(e){console.warn('사례 건축물대장',e);out.bld=null;out.bldErr='건축물대장 조회 실패';return out;});
   });
   CHK_CACHE[q]=p;p.catch(function(){delete CHK_CACHE[q];});   // 실패는 기억하지 않음(다시 누르면 재조회)
   return p;
+}
+// 거래사례 대장 요약: 구조·사용승인일·주용도는 연면적이 가장 큰 주건축물 동, 연면적은 총괄표제부 → 표제부(주건축물 합계) 순
+function bldSummary(it,rc){
+  var m=it.filter(function(t){return !/부속/.test(t.mainAtchGbCdNm||'');});if(!m.length)m=it;
+  m.sort(function(a,b){return num(b.totArea)-num(a.totArea);});
+  var t=m[0],jp=function(a,b){a=String(a||'').trim();b=String(b||'').trim();if(!b)return a;if(!a||b===a||b.indexOf(a)===0)return b;return a+'('+b+')';};
+  var recap=(rc||[]).filter(function(r){return num(r.totArea)>0;})[0],tot,src;
+  if(recap){tot=num(recap.totArea);src='총괄표제부';}
+  else if(m.length===1){tot=num(t.totArea);src='표제부';}
+  else{tot=Math.round(m.reduce(function(s,x){return s+num(x.totArea);},0)*100)/100;src='표제부 '+m.length+'동 합계';}
+  return {strct:jp(t.strctCdNm,t.etcStrct),tot:tot?String(tot):'',totSrc:src,appr:t.useAprDay?dot(t.useAprDay):'',purps:t.mainPurpsCdNm||'',dong:String(t.dongNm||'').trim(),n:m.length};
 }
 function chkJibunOf(loc){var t=stripOe(loc).split(/\s+/);return t.length>1?t[t.length-1]:'';}
 async function tradeLookup(cols){
@@ -3068,7 +3078,7 @@ function chkLocNote(c){
   var x=c&&c._chk;if(!x)return '';
   if(x.err)return '<span class="chk-e" title="건축물대장·토지특성 조회 실패 — 소재지(동·지번)를 확인하고 주구조 행 「대장」을 누르세요">⚠ 대장 조회 실패: '+attr(x.err)+'</span>';
   var B=x.bld,t='조회 필지: '+(x.addr||'')+'\n토지특성: '+[x.land.jimok,x.land.area&&x.land.area+'㎡',x.land.use,x.land.road].filter(hasV).join(' · ')
-    +(B?'\n건축물대장: '+[B.strct,B.tot&&B.tot+'㎡',B.appr,B.purps].filter(hasV).join(' · ')+(B.n>1?'\n(주건축물 '+B.n+'동 — 연면적이 가장 큰 동 기준)':''):'');
+    +(B?'\n건축물대장: '+[B.strct,B.tot&&B.tot+'㎡',B.appr,B.purps].filter(hasV).join(' · ')+(B.totSrc?'\n(연면적: '+B.totSrc+')':'')+(B.n>1?'\n(주건축물 '+B.n+'동 — 구조·사용승인일은 연면적이 가장 큰 동 기준)':''):'');
   var d=chkDiffs(c).length;
   return d?'<span class="chk-e" title="'+attr(t)+'">⚠ 대장과 다른 칸 '+d+'개</span>'
     :'<span class="chk-ok" title="'+attr(t)+'">✓ 대장 대조'+(x.bldErr?' (건축물대장 없음)':'')+(B&&B.n>1?' · 주건물 '+B.n+'동':'')+'</span>';
