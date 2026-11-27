@@ -10,6 +10,7 @@ const useGroup=v=>{const s=String(v||'').trim();if(!s)return null;if(/오피스�
 const caseGroup=c=>useGroup(c&&c.useKind)||(/근생|근린생활|상가|점포/.test(String((c&&c.aptName)||'')+' '+String((c&&c.buildingName)||''))?'비주거':null);   // 용도 칸 비면 건물명 「(근생)」 등
 function resolveCase(u,cases){
  const selected=cases.filter(c=>c.isSelected);
+ if(u?.appliedCaseId==='none')return null;   // 「선택 안함」(2026-11-27) — 자동 배정 안 함
  if(u?.appliedCaseId!=null)return selected.find(c=>String(c.id)===String(u.appliedCaseId))||null;
  if(u?.appliedSymbol)return selected.find(c=>String(c.symbol)===String(u.appliedSymbol))||null;
  // 사례를 안 고른 호수: 호수 주용도(전유부)와 같은 갈래(주거/비주거) 사례를 먼저 — 근생 호수엔 근생 사례
