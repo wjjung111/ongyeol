@@ -8456,13 +8456,13 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
               <td style={S.tdR}>{fmtDec3(r.totFac)}</td>
               <td style={{...S.tdR,fontWeight:600}}>{r.hasAdjU?fmt(Math.round(r.raw)):"-"}</td>
               <td style={{...S.tdR,fontWeight:700,color:C.acc}}>{r.hasAdjU?fmt(r.rnd):"-"}</td>
-              <td style={{...S.tdR,fontWeight:600}}>{(r.hasAdjU&&r.ua)?fmt(Math.round(r.rawAmt)):"-"}</td>
-              <td style={{...S.tdR,fontWeight:700,color:C.dng}}>{(r.hasAdjU&&r.ua)?fmt(r.finalAmt):"-"}</td>
+              <td style={{...S.tdR,fontWeight:600}}>{r.noCase?"0":(r.hasAdjU&&r.ua)?fmt(Math.round(r.rawAmt)):"-"}</td>
+              <td style={{...S.tdR,fontWeight:700,color:C.dng}} title={r.noCase?"사례 선택 안함 — 0원, 총액에서 뺌":undefined}>{r.noCase?"0":(r.hasAdjU&&r.ua)?fmt(r.finalAmt):"-"}</td>
             </tr>);
           })}
         </tbody>
         {/* 합계 줄(2026-11-27) — 본건 면적·산출금액·감정평가액 합. 덜 된 호수가 있으면 「n개호 미완」 */}
-        {units.length>0&&(()=>{const rs=units.map(u=>calcRow(u)),ok=rs.filter(r=>r.hasAdjU&&r.ua),miss=rs.length-ok.length;
+        {units.length>0&&(()=>{const rs=units.map(u=>calcRow(u)),ok=rs.filter(r=>r.ready),miss=rs.length-ok.length;
           const sumA=rs.reduce((a,r)=>a+(r.ua||0),0),sumRaw=ok.reduce((a,r)=>a+Math.round(r.rawAmt||0),0),sumFin=ok.reduce((a,r)=>a+(r.finalAmt||0),0);
           const tf={...S.tdR,fontWeight:700,background:"#f1f5f9",borderTop:"2px solid #94a3b8"};
           return <tfoot><tr className="u-total">

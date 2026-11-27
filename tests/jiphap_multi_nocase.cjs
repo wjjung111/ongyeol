@@ -1,4 +1,4 @@
-// // 집합건물 여러 호수 ④ 적용단가 — 사례 「선택 안함」(2026-11-27): 고르면 자동 배정 없이 「-」, 저장·묶음 공유·다시 고르기 + 합계 줄
+// // 집합건물 여러 호수 ④ 적용단가 — 사례 「선택 안함」(2026-11-27): 고르면 자동 배정 없이 0원(총액은 나머지 호수로), 저장·묶음 공유·다시 고르기 + 합계 줄
 // (원본 틀: jiphap_multi_unit_group.cjs) 본건 묶기(A~E): 같은 글자 호수끼리 선정사례·요인 공유 (2026-11-09)
 //  ① 묶음 지정 → 한 호 요인 수정이 묶음 전체에 반영  ② 사례 변경도 묶음 전체  ③ 두 묶음 독립
 //  ④ 값 있는 묶음에 나중 합류 → 그 값 승계  ④-2 비교 의견도 공유(묶음당 칸 하나)  ⑤ 묶음 해제 후 따로 놂  ⑥ 저장(ov.units[].grp) 유지
@@ -48,13 +48,13 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
     assert.equal(await pick(0).inputValue(),'none');
     assert.match(await row(0).locator('td').nth(4).innerText(),/안함/,'닫힌 칸 「안함」');
     const cells=await row(0).locator('td').allInnerTexts();
-    assert.equal(cells[cells.length-1].trim(),'-','감정평가액 -');
+    assert.equal(cells[cells.length-1].trim(),'0','감정평가액 0원');
     assert.equal(cells[5].trim(),'-','지번 -');
     assert.equal(await pick(1).inputValue(),'c1','다른 호는 그대로');
     // 합계 줄 — 선택 안함 호수는 빠지고 「1개호 미완」
     const tot=()=>tbl.locator('tfoot tr.u-total');
     assert.equal(await tot().getByLabel('감정평가액 합계').innerText(),'3,000,000,000','합계(3개호)');
-    assert.match(await tot().innerText(),/1개호 미완/);
+    assert.doesNotMatch(await tot().innerText(),/미완/,'선택 안함은 미완 아님(0원)');
     assert.match(await tot().innerText(),/400\.00/,'면적 합');
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('v2:case:GRP')).ov.units[0].appliedCaseId==='none');
     // ② 새로고침해도 유지
@@ -71,7 +71,11 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
     assert.equal(await pick(0).inputValue(),'c2');
     assert.match(await row(0).innerText(),/20,000,000/,'다시 고른 사례 단가');
     assert.equal(await tot().getByLabel('감정평가액 합계').innerText(),'3,000,000,000','가 2억×10 + 라 1억×10');
-    assert.match(await tot().innerText(),/2개호 미완/);
+    assert.doesNotMatch(await tot().innerText(),/미완/);
+    // 화면 위 「지금 결과」·한글 총액도 빈칸 아님
+    const m=await page.evaluate(()=>{const cs=[{id:'c1',symbol:1,isSelected:true,timeAdj:1,unitPrice:'100'}];const h={applyR:v=>v,getUV:()=>1};
+      const a=ArapMultiHwpx.calculateUnit({appliedCaseId:'none',area:'10'},null,{},h),b=ArapMultiHwpx.calculateUnit({area:'10'},cs[0],{},h);return [a.ready,a.finalAmt,b.finalAmt];});
+    assert.deepEqual(m,[true,0,1000],'선택 안함 = 0원 완료');
     // ⑤ resolveCase 직접
     const r=await page.evaluate(()=>{const cs=[{id:'c1',symbol:1,isSelected:true,timeAdj:1}];return [ArapMultiHwpx.resolveCase({appliedCaseId:'none'},cs),ArapMultiHwpx.resolveCase({},cs)?.id];});
     assert.deepEqual(r,[null,'c1']);
