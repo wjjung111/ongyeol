@@ -8200,6 +8200,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
       if(mate)UNIT_GRP_KEYS.forEach(k=>{if(mate[k]===undefined)delete nu[k];else nu[k]=mate[k];});
       return nu;})};});
   const selectUnitCase=(unitId,caseId)=>{
+    // 「선택 안함」(2026-11-27) — 자동 배정도 끄고 사례 없이 둠(appliedCaseId "none")
+    if(caseId==="none"){updUnitShared(unitId,{appliedCaseId:"none",appliedSymbol:""});return;}
     const chosen=cases.find(c=>String(c.id)===caseId);
     if(!chosen)return;
     setCases(p=>p.map(c=>c.id===chosen.id?{...c,isSelected:true,isShown:true}:c));
@@ -8420,7 +8422,8 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
           {units.map((u,i)=>{
             const sym=HANGUL_SYMBOLS.charAt(i)||String(i+1);
             const r=calcRow(u);
-            const curCaseId=r.appC?.id??"";
+            const noCase=u.appliedCaseId==="none";
+            const curCaseId=noCase?"none":(r.appC?.id??"");
             const gc=UNIT_GRP_COLOR[u.grp];
             return(<tr key={u.id} className="u-row" style={gc?{background:UNIT_GRP_BG[u.grp],"--gc":gc}:undefined}>
               <td style={{...S.td,...(gc?{boxShadow:`inset 4px 0 0 ${gc}`}:{})}}>{i+1}</td>
@@ -8435,10 +8438,11 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
               <td style={S.td}>
                 {/* 닫힌 칸엔 「#17」만, 펼치면 지번·건물명·호·면적까지 — 보이는 글자 위에 투명한 select를 겹침 */}
                 <div style={{position:"relative",display:"inline-flex",alignItems:"center",gap:4,...S.sel2,padding:"2px 6px",fontSize:12,fontWeight:700,minWidth:48,justifyContent:"space-between"}} title="눌러서 사례 바꾸기 — 지번·건물명·호·면적은 오른쪽 칸에">
-                  <span>{r.appC?`#${r.appC.symbol}`:"선택"}</span>{(()=>{const ug=useGroup(u.mainUseJeonyu),cg=r.appC?caseGroup(r.appC):null;   // 호수 주용도와 사례 용도 갈래가 다르면 표시(2026-11-16)
+                  <span style={noCase?{color:"#94a3b8",fontWeight:500}:undefined}>{r.appC?`#${r.appC.symbol}`:(noCase?"안함":"선택")}</span>{(()=>{const ug=useGroup(u.mainUseJeonyu),cg=r.appC?caseGroup(r.appC):null;   // 호수 주용도와 사례 용도 갈래가 다르면 표시(2026-11-16)
                     return ug&&cg&&ug!==cg?<span style={{color:"#b45309"}} title={`호수 주용도(${u.mainUseJeonyu})는 ${ug}, 사례 #${r.appC.symbol} 용도(${r.appC.useKind||r.appC.aptName})는 ${cg} — 같은 갈래 사례를 고르세요`}>⚠</span>:null;})()}<span style={{fontSize:9,color:"#64748b"}}>▼</span>
                   <select aria-label={`적용 사례 ${sym}`} value={String(curCaseId)} onChange={e=>selectUnitCase(u.id,e.target.value)} style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0,cursor:"pointer",fontSize:12}}>
                     <option value="" disabled>사례 선택</option>
+                    <option value="none">선택 안함</option>
                     {cases.map(c=><option key={c.id} value={String(c.id)}>{caseOptLabel(c)}</option>)}
                   </select>
                 </div>
@@ -8456,7 +8460,19 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
               <td style={{...S.tdR,fontWeight:700,color:C.dng}}>{(r.hasAdjU&&r.ua)?fmt(r.finalAmt):"-"}</td>
             </tr>);
           })}
-        </tbody></table></div>
+        </tbody>
+        {/* 합계 줄(2026-11-27) — 본건 면적·산출금액·감정평가액 합. 덜 된 호수가 있으면 「n개호 미완」 */}
+        {units.length>0&&(()=>{const rs=units.map(u=>calcRow(u)),ok=rs.filter(r=>r.hasAdjU&&r.ua),miss=rs.length-ok.length;
+          const sumA=rs.reduce((a,r)=>a+(r.ua||0),0),sumRaw=ok.reduce((a,r)=>a+Math.round(r.rawAmt||0),0),sumFin=ok.reduce((a,r)=>a+(r.finalAmt||0),0);
+          const tf={...S.tdR,fontWeight:700,background:"#f1f5f9",borderTop:"2px solid #94a3b8"};
+          return <tfoot><tr className="u-total">
+            <td style={{...tf,textAlign:"center"}} colSpan={2}>합계 <span style={{fontWeight:500,fontSize:11,color:"#475569"}}>{rs.length}개호</span></td>
+            <td style={{...tf,whiteSpace:"nowrap"}}>{fmtDec(Math.round(sumA*100)/100,2)}</td>
+            <td style={{...tf,textAlign:"left",fontWeight:500,fontSize:11,color:miss?"#b45309":"#64748b"}} colSpan={14}>{miss?`⚠ ${miss}개호 미완(사례·요인·면적 확인) — 합계에서 빠짐`:""}</td>
+            <td style={{...tf}} aria-label="산출금액 합계">{ok.length?fmt(sumRaw):"-"}</td>
+            <td style={{...tf,color:C.dng}} aria-label="감정평가액 합계">{ok.length?fmt(sumFin):"-"}</td>
+          </tr></tfoot>;})()}
+        </table></div>
         {/* 건물 비교 — 적용 사례마다 본건·사례 표제부 나란히(본건 기준 ▲우세/▼열세), 초안은 그 사례 쓰는 호수의 「- 내부요인:」 줄에 (2026-11-23, arap_bldcmp.js) */}
         {window.ArapBldCmp&&(()=>{const used=[];units.forEach(u=>{const c=getAppliedC(u);if(c&&!used.some(x=>x.id===c.id))used.push(c);});
           if(!used.length)return null;
