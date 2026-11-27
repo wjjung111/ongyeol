@@ -24,6 +24,8 @@ function calculateUnit(u,appC,settings,h){
  const hasAdjU=!!(num(appC?.unitPrice)>0&&num(appC?.timeAdj)>0&&[ext,intF,ho,etc].every(v=>v>0));
  const raw=hasAdjU?num(appC.unitPrice)*num(appC.timeAdj)*totFac:null;
  const rnd=hasAdjU?h.applyR(raw,h.getUV(settings.uD),settings.uM):null,ready=hasAdjU&&ua>0;
+ // 「선택 안함」(appliedCaseId "none") 호수 = 감정평가액 0원으로 확정 — 총액은 나머지 호수로(2026-11-27 사용자)
+ if(u&&u.appliedCaseId==='none')return {ext,intF,ho,etc,totFac,ua,raw:null,rnd:null,rawAmt:0,finalAmt:0,appC:null,hasAdjU:false,ready:true,noCase:true};
  const rawAmt=ready?rnd*ua:null,finalAmt=ready?h.applyR(rawAmt,h.getUV(settings.tD),settings.tM):null;
  return {ext,intF,ho,etc,totFac,ua,raw,rnd,rawAmt,finalAmt,appC,hasAdjU,ready};
 }

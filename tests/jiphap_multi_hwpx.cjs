@@ -32,6 +32,14 @@ const purposeTexts=await page.evaluate(async()=>{
 });
 for(const [i,category] of ['', '상속', '증여'].entries())assert.ok(purposeTexts[i].includes(category?'「상속세및증여세법」상'+category+'재산에대한일반거래(시가참고)목적의감정평가임.':'「상속세및증여세법」에의한일반거래(시가참고)목적의감정평가임.'),purposeTexts[i]);   // 빈칸 → 에 의한(2026-11-20)
 console.log('PASS template purpose wording retained with blank/inheritance/gift category');
+// 사례 「선택 안함」 호수 = 0원, 총액은 나머지 호수로(2026-11-27) — 실제 한글 파일 생성
+const nc=await page.evaluate(async()=>{const us=testInput.ov.units.map((u,i)=>i===1?{...u,appliedCaseId:'none',appliedSymbol:''}:u);
+ const result=await ArapMultiHwpx.build({...testInput,ov:{...testInput.ov,units:us}},multiHelpers,'full');
+ const entries=await multiHelpers.parseZip(result.bytes.buffer),txt=entries.filter(e=>/^Contents\/section\d+\.xml$/.test(e.name)).map(e=>new TextDecoder().decode(e.data)).join('');
+ const fmt=n=>n.toLocaleString('ko-KR');return {amounts:result.model.rows.map(r=>r.amount),total:result.model.total,hasTotal:txt.includes(fmt(result.model.total||0)),left:txt.match(/\{\{[^}]*\}\}/g),bytes:btoa(Array.from(result.bytes,b=>String.fromCharCode(b)).join(''))};});
+assert.equal(nc.amounts[1],0,'선택 안함 호수 0원');assert.ok(nc.total>0,'총액 빈칸 아님');assert.equal(nc.total,nc.amounts.reduce((a,b)=>a+b,0));assert.ok(nc.hasTotal,'한글 본문에 총액');assert.equal(nc.left,null);
+fs.writeFileSync(path.join(out,'multi_nocase_full.hwpx'),Buffer.from(nc.bytes,'base64'));
+console.log('PASS 선택 안함 호수 0원 · 총액',nc.total);
 const boundary=await page.evaluate(async()=>{
  const h=multiHelpers,setting={uD:'천원',uM:'round',tD:'만원',tM:'round'},unit={ho:'101',area:'30',assessedArea:'',extFactor:'1.01',intFactor:'1.02',hoFactor:'1.03',etcFactor:'0.99'},c={id:'c',symbol:5,isShown:true,isSelected:true,unitPrice:5000000,timeAdj:1.02};
  const base={ov:{...testInput.ov,units:[unit]},cases:[c],...setting};
