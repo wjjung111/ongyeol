@@ -626,7 +626,7 @@
           <div class="fld" style="margin-top:12px"><label for="op_location">인근 위치 설명</label>
             <span style="display:flex;align-items:center;gap:6px;flex:1">
               <input class="box" id="op_location" style="max-width:320px" placeholder="예: 달서초등학교 북동측">
-              <span class="hint" style="white-space:nowrap">인근에 위치하는</span>
+              <input class="box" id="op_locationTail" style="max-width:160px" placeholder="인근에 위치하는" title="의견서 「본건은 ○○동 소재 (인근 위치 설명) ___ 부동산으로서」의 ___ 부분 — 비우면 「인근에 위치하는」">
             </span></div>
         </div>
 
@@ -4425,7 +4425,7 @@ var BT_IDS=['bt_strct','bt_purps','bt_flrs','bt_useApr','bt_roadAddr','bt_regTex
 var GONGSI_IDS=['g_daegu','g_opinion','g_tradeNote','sisan_unit','sisan_mode','eSaj1','eTime','eArea','eSaj2','eArea2','eInd2','e_f1','e_f2','e_f3','e_f4','e_f5','e_f6','e_opinion'];
 var GEORAE_IDS=['ga_sajeong','ga_time','ga_area','ga_opinion','ga_unit','ga_mode'];
 var GJ_IDS=[];   // 검토의견·결정의견 칸은 2026-09-09 삭제(간결화). 옛 저장값은 무시
-var FN_IDS=['fn_opinion','op_location','op_costSource','op_costRows','doc_yohang'];
+var FN_IDS=['fn_opinion','op_location','op_locationTail','op_costSource','op_costRows','doc_yohang'];
 // 요항표 탭 입력칸 — 요항표 양식의 빈칸과 1:1
 var Y_IDS=['y_dong','y_near','y_surroundings','y_trafficNear','y_traffic','y_locationEtc','y_jise','y_shape','y_use','y_roadCnt','y_road1dir','y_road1w','y_road2dir','y_road2w','y_roadFree','y_struct','y_wall','y_window','y_usestate','y_usestateMore'];
 var CG_IDS=['cg_feeText','cg_feeBasis','cg_surReason','cg_specialMode','cg_downPayment','cg_special','cg_specialMul','cg_specialApplied','cg_feeMul','cg_travel','cg_survey','cg_doc','cg_etc'];
@@ -5131,9 +5131,13 @@ function saveForm(){clearTimeout(saveTimer);
 // 실제 저장. 저장할 때마다 판 번호(_rev)를 붙여 두고, 저장소의 판이 이 탭이 아는 판과 다르면(다른 탭이 먼저 저장·같은 접수번호 건 존재) 덮어쓰지 않고 멈춘다.
 function doSave(){clearTimeout(saveTimer);saveTimer=null;
   try{histCommit();}catch(e){console.error('undo history',e);}
+  if(syncMergeBeforeSave()){saveStatus='✅';renderCaseBar();return;}   // 다른 창이 먼저 저장했으면 합쳐서 저장(묻지 않음)
   if(checkConflict()){saveStatus='❌';renderCaseBar();return;}
-  try{var o=collect();o._rev=newRev();o._curId=currentId||'';var raw=JSON.stringify(o);   // _curId = 확정한 접수번호(새로고침 뒤에도 그 번호로 계속 저장)
-    localStorage.setItem(FORM_STORAGE,raw);REVS[FORM_STORAGE]=o._rev;saveCurrentCase(o,raw);}
+  try{var o=collect();
+    var gk=guardKey(),gr=storedRev(gk);
+    if(SYNC.snap!=null&&gr!=null&&REVS[gk]===gr&&syncSnap(o)===SYNC.snap){saveStatus=currentId?'✅':'';renderCaseBar();return;}   // 바뀐 게 없으면 안 씀(두 창이 서로 되받아 쓰는 것 방지)
+    o._rev=newRev();o._curId=currentId||'';var raw=JSON.stringify(o);   // _curId = 확정한 접수번호(새로고침 뒤에도 그 번호로 계속 저장)
+    localStorage.setItem(FORM_STORAGE,raw);REVS[FORM_STORAGE]=o._rev;saveCurrentCase(o,raw);syncBase(o);}
   catch(e){console.error('form save',e);saveStatus='❌';renderCaseBar();}}
 // ── 되돌리기(Ctrl+Z)·다시 실행(Ctrl+Y) — 자동저장(0.4초 멈춤)마다 화면 전체 상태를 한 칸씩 기록(최대 60칸) ──
 //    입력칸 안에서는 브라우저 기본 되돌리기(글자 단위), 칸 밖에서는 이 기록으로 한 단계씩. 건을 열거나 새로 만들면 기록을 비운다. (집합건물과 같은 규칙)
@@ -5217,8 +5221,77 @@ window.addEventListener('storage',function(e){
   if(!e.key)return;
   if(e.key===LAND_LIST_KEY){caseList=getLandList();renderCaseBar();if(showCaseList)renderCaseListPanel();return;}
   if(e.key!==guardKey())return;
-  if(checkConflict()){saveStatus='❌';renderCaseBar();}
+  syncRemote();
 });
+
+// ================= 여러 창 실시간 동기화 (2026-11-27) =================
+// 위치도 창 + 작업 창처럼 같은 건을 두 창에 띄워 두면, 한 창이 저장하는 즉시 다른 창이 그 내용을 따라간다(「불러오기/덮어쓰기」 묻지 않음).
+// · 이 창이 손대는 중(자동저장 대기 중이거나 칸에 커서가 있고 창이 앞에 있음)이면 잠깐 미뤘다가, 저장할 때 칸 묶음(대상물건·토지·표준지·거래사례 …)별로 합친다:
+//   내가 고친 묶음은 내 것, 나머지는 다른 창 것. 둘 다 같은 묶음을 고쳤으면 나중에 저장한 쪽.
+// · 보던 탭·스크롤·지도 위치는 그대로. 받은 내용은 되돌리기 기록에 넣지 않는다.
+// · 접수번호를 바꿔 이미 있는 다른 건에 겹친 경우(exists)는 종전대로 멈추고 묻는다.
+var SYNC={snap:null,parts:null,pending:false};
+function syncParts(o){var p={};Object.keys(o||{}).forEach(function(k){if(k!=='_rev'&&k!=='_curId')p[k]=JSON.stringify(o[k]);});return p;}
+function syncSnap(o){var p=syncParts(o);return JSON.stringify(Object.keys(p).sort().map(function(k){return [k,p[k]];}));}
+function syncBase(o){SYNC.parts=syncParts(o);SYNC.snap=syncSnap(o);}
+function syncStale(){var key=guardKey(),cur=storedRev(key);return cur!=null&&key in REVS&&REVS[key]!==cur;}
+function syncBusy(){
+  if(saveTimer)return true;
+  var a=document.activeElement,sh=document.getElementById('mainShell');
+  return !!(document.hasFocus()&&a&&sh&&sh.contains(a)&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|button)$/i.test(a.type||''));
+}
+function syncRead(){var key=guardKey(),o=readJson(key);return o&&o._rev?o:null;}
+// 받은 내용을 화면에 — 탭·스크롤·포커스 칸을 지키며 다시 채운다
+function syncApply(o){
+  var y=window.scrollY,ae=document.activeElement,aid=ae&&ae.id,sel=null;
+  try{sel=aid?[ae.selectionStart,ae.selectionEnd]:null;}catch(e){}
+  SYNC.applying=true;
+  try{clearForm();applyForm(o);applyOvDefaults();
+    fillEtcArea();updatePeriod();sumBld();renderTrade();renderAppr();syncPick();renderBldCalc();calcGongsi();sd();renderCaseBar();renderToice();renderYohangLands();
+    if(typeof MAPV!=='undefined'&&MAPV){mapRestyle();renderMapShotState();}}
+  catch(e){console.error('동기화 적용',e);}
+  finally{SYNC.applying=false;}
+  clearTimeout(saveTimer);saveTimer=null;   // 다시 그리며 걸린 자동저장은 버린다(받은 내용 그대로)
+  syncBase(o);HIST.last=histSnap();renderUndoBtns();
+  window.scrollTo(0,y);
+  if(aid){var el=document.getElementById(aid);if(el&&el!==document.activeElement){el.focus();try{if(sel&&sel[0]!=null)el.setSelectionRange(sel[0],sel[1]);}catch(e){}}}
+}
+function syncRemote(){
+  var o=syncRead();if(!o)return;var key=guardKey();
+  if(REVS[key]===o._rev)return;
+  if(CONFLICT&&CONFLICT.kind==='exists')return;
+  if(syncBusy()){SYNC.pending=true;return;}   // 손대는 중 — 저장할 때 합치거나, 칸에서 나가면 받는다
+  SYNC.pending=false;
+  REVS[key]=o._rev;if(key!==FORM_STORAGE)REVS[FORM_STORAGE]=storedRev(FORM_STORAGE)||REVS[FORM_STORAGE];
+  if(SYNC.snap!=null&&syncSnap(o)===SYNC.snap)return;   // 내용이 같으면 판만 맞춘다
+  syncApply(o);saveStatus=currentId?'✅':'';renderCaseBar();
+}
+// 저장 직전: 다른 창이 그 사이 저장했으면(내 판과 다름) 묶음별로 합쳐 화면에 반영하고 저장한다. 합쳐 저장했으면 true
+function syncMergeBeforeSave(){
+  var key=guardKey(),cur=storedRev(key);
+  if(cur==null||!(key in REVS)||REVS[key]===cur||!SYNC.parts)return false;   // 새 건·처음 겹침(exists)은 종전 검사로
+  if(CONFLICT&&CONFLICT.kind==='exists')return false;
+  var theirs=readJson(key);if(!theirs)return false;
+  var mine=collect(),mp=syncParts(mine),tp=syncParts(theirs),base=SYNC.parts,out={},keys={};
+  Object.keys(mp).concat(Object.keys(tp)).forEach(function(k){keys[k]=1;});
+  var fromTheirs=false;
+  Object.keys(keys).forEach(function(k){
+    var mineChanged=mp[k]!==base[k];
+    var src=(mineChanged||!(k in tp))?mine:theirs;
+    if(src===theirs&&tp[k]!==mp[k])fromTheirs=true;
+    if(k in src)out[k]=JSON.parse(JSON.stringify(src[k]));
+  });
+  CONFLICT=null;renderConflict();
+  if(fromTheirs)syncApply(out);
+  out._rev=newRev();out._curId=currentId||'';var raw=JSON.stringify(out);
+  try{localStorage.setItem(FORM_STORAGE,raw);REVS[FORM_STORAGE]=out._rev;REVS[key]=cur;saveCurrentCase(out,raw);syncBase(out);}
+  catch(e){console.error('동기화 저장',e);return false;}
+  SYNC.pending=false;return true;
+}
+// 칸에서 나가거나 창으로 돌아오면 미뤄 둔 것을 받는다
+document.addEventListener('focusout',function(){if(SYNC.pending)setTimeout(function(){if(SYNC.pending&&!syncBusy())syncRemote();},50);});
+window.addEventListener('focus',function(){if(syncStale()&&!syncBusy())syncRemote();});
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&syncStale()&&!syncBusy())syncRemote();});
 
 // ================= 자동 백업 (건별 이전 버전) =================
 // 건을 덮어쓰기 직전의 내용을 최대 5개 보관. 평소엔 5분에 하나씩, 거래사례·평가사례·표준지·토지가 줄어드는 저장이면 간격과 무관하게 보관.
@@ -5316,7 +5389,7 @@ function applyForm(o){
 }
 function restore(){
   var o=readJson(FORM_STORAGE);
-  if(o)REVS[FORM_STORAGE]=o._rev||'';
+  if(o){REVS[FORM_STORAGE]=o._rev||'';syncBase(o);}
   return applyForm(o);
 }
 
@@ -5469,6 +5542,7 @@ function loadCase(id){
   currentId=id;saveStatus='✅';
   try{localStorage.setItem(FORM_STORAGE,raw);}catch(e){}
   REVS={};REVS[landCaseKey(id)]=o._rev||'';REVS[FORM_STORAGE]=o._rev||'';   // 연 건만 '내 것'
+  syncBase(o);SYNC.pending=false;
   showCaseList=false;document.getElementById('caseListPanel').hidden=true;
   refreshAfterLoad();showTab('daesang');window.scrollTo(0,0);histReset();
 }
@@ -5764,6 +5838,7 @@ caseList=getLandList();
 // 켤 때 저장 번호: 작업저장의 _curId(확정한 번호) — 옛 작업저장(_curId 없음)은 접수번호 칸 값이 저장된 건이면 그 번호
 (function(){var o=readJson(FORM_STORAGE)||{},id=String(o._curId!=null?o._curId:document.getElementById('ov_caseNo').value).trim();
   if(id&&lsGet(landCaseKey(id))){currentId=id;saveStatus='✅';adoptRev(landCaseKey(id));   // 켤 때 저장소에 있는 판을 그대로 받아들임
+    var co=readJson(landCaseKey(id));if(co&&co._rev&&co._rev!==o._rev){syncBase(o);REVS[landCaseKey(id)]=o._rev||REVS[landCaseKey(id)];setTimeout(syncRemote,0);}   // 작업저장보다 건이 새것이면(다른 창이 저장) 켜자마자 받는다
     if(!caseList.some(function(c){return c.id===id;}))saveCurrentCase();}})();
 renderCaseBar();renderSyncBar();
 ensureTrade3();   // 거래사례: 실입력이 하나도 없으면 빈 열 3개로 시작
