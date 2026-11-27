@@ -21,14 +21,18 @@ const server=http.createServer((req,res)=>{const n=decodeURIComponent(req.url.sp
     const withRecap=bldSummary(T,[{totArea:'1139.18'}]);
     const noRecap=bldSummary(T,[]);
     const one=bldSummary([T[2]],null);
+    // 363-18 — 총괄 393.89, 주1(209.88) 주구조 비어 있음, 주2(184.01) 경량철골구조 → 주구조는 주2에서
+    const s18=bldSummary([{dongNm:'주1',mainAtchGbCdNm:'주건축물',totArea:'209.88',strctCdNm:'',etcStrct:'',useAprDay:'',mainPurpsCdNm:'제조업소'},
+      {dongNm:'주2',mainAtchGbCdNm:'주건축물',totArea:'184.01',strctCdNm:'경량철골구조',etcStrct:'경량철골구조',useAprDay:'20140120',mainPurpsCdNm:'창고시설'}],[{totArea:'393.89'}]);
     // 화면: 붙여넣은 건물면적 1,139.18이면 대장과 같음(주황 표시 없음)
     TRADES=[{loc:'율암동 1103-1',bldA:'1139.18',_chk:{pnu:'x',addr:'',land:{},bld:withRecap}},{},{}];renderTrade();
-    return {withRecap,noRecap,one,diff:chkDiffs(TRADES[0]),loc:document.querySelector('#tblTrade .chk-ok,#tblTrade .chk-e').getAttribute('title')};});
+    return {withRecap,noRecap,one,s18,diff:chkDiffs(TRADES[0]),loc:document.querySelector('#tblTrade .chk-ok,#tblTrade .chk-e').getAttribute('title')};});
   console.log(r);
   assert.equal(r.withRecap.tot,'1139.18');assert.equal(r.withRecap.totSrc,'총괄표제부');
   assert.equal(r.noRecap.tot,'1139.18');assert.equal(r.noRecap.totSrc,'표제부 3동 합계');
   assert.equal(r.one.tot,'566.78');assert.equal(r.one.totSrc,'표제부');
   assert.equal(r.withRecap.dong,'사무동');assert.equal(r.withRecap.appr,'2015.11.20');
+  assert.equal(r.s18.strct,'경량철골구조');assert.equal(r.s18.appr,'2014.01.20');assert.equal(r.s18.tot,'393.89');assert.equal(r.s18.strctDong,'주2');
   assert.deepEqual(r.diff,[]);assert.match(r.loc,/연면적: 총괄표제부/);
   assert.deepEqual(errs,[]);console.log('✅ toji_case_bld_total 통과');
   await browser.close();server.close();

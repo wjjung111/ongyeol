@@ -4850,8 +4850,8 @@ function StepMap({ov,sfx,active,cases,precs}){
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
   // 📸 위치도 확정(2026-11-24) — 빨간 틀(한글 그림 칸 비율) 안을 화면 그대로(말풍선 배치 포함) 찍어 6. 위치도 한글에. 소재지 = 건명(지번 외 N필지 건물명 제층 제호). 엔진 arap_mapshot.js
-  const [frameOn,setFrameOn]=useState(true);
-  const [shot,setShot]=useState({t:"빨간 틀 = 한글 그림 칸. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
+  const [frameOn,setFrameOn]=useState(false);   // 캡처 틀은 기본 꺼짐 — 캡처할 때만(2026-11-27)
+  const [shot,setShot]=useState({t:"「🔲 캡처 틀」을 켜면 빨간 틀(= 한글 그림 칸)이 보입니다. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
   const [shotBusy,setShotBusy]=useState(false);
   const fitShot=()=>{if(window.ArapMapShot)ArapMapShot.fitFrame(document.getElementById("mapWrap"+sfx),document.getElementById("mapFrame"+sfx),document.getElementById("mapFrameLab"+sfx));};
   useEffect(()=>{if(!active)return;const t=setTimeout(fitShot,80);window.addEventListener("resize",fitShot);return ()=>{clearTimeout(t);window.removeEventListener("resize",fitShot);};},[active]);
@@ -4862,7 +4862,7 @@ function StepMap({ov,sfx,active,cases,precs}){
       const img=await ArapMapShot.capture(document.getElementById("mapFrame"+sfx));   // 클릭 바로 다음에 불러야 함(화면 공유 허용 조건)
       const r=await fetch(encodeURI("템플릿/집건 위치도 템플릿.hwpx"));if(!r.ok)throw new Error("위치도 템플릿 로드 실패("+r.status+")");
       const bytes=await ArapMapShot.buildHwpx(await r.arrayBuffer(),{addr:buildGeonmyeong(ov),wide:img,zip:{parseZip,createZipStored}});
-      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);
+      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);setFrameOn(false);   // 다 찍었으면 틀은 다시 끔
       setShot({t:`✅ 캡처 → 6. 위치도 한글 파일을 받았습니다. 다시 누르면 새로 찍습니다.`,c:"ok"});
     }catch(e){console.error("위치도 캡처",e);const can=e&&e.name==="NotAllowedError";setShot({t:can?"캡처를 취소했습니다(공유 창에서 [취소]). 다시 누르면 됩니다.":"⚠ "+(e&&e.message||e),c:can?"":"err"});}
     finally{setShotBusy(false);}
@@ -4893,7 +4893,7 @@ function StepMap({ov,sfx,active,cases,precs}){
     <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",margin:"2px 0 8px"}}>
       <button aria-label="위치도 확정" disabled={shotBusy} style={{...S.btn,...BTN.p,fontSize:14,padding:"7px 14px"}} title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 위치도(6. 위치도)로 받습니다 — 크롬 창에서 「이 탭」 → [공유]" onClick={doShot}>📸 위치도 확정 → 한글</button>
       <span aria-label="위치도 캡처 안내" style={{fontSize:12,color:shot.c==="err"?"#b91c1c":shot.c==="ok"?"#15803d":"#475569"}}>{shot.t}</span>
-      <label style={{...chk,marginLeft:"auto"}}><input type="checkbox" checked={frameOn} onChange={()=>setFrameOn(!frameOn)}/> 한글 그림 칸 틀(빨간 점선) 보기</label>
+      <label style={{...chk,marginLeft:"auto"}} title="한글 그림 칸과 같은 비율의 빨간 점선 틀 — 캡처할 때만 켜고 맞추면 됩니다. 캡처가 끝나면 저절로 꺼집니다."><input type="checkbox" aria-label="캡처 틀 보기" checked={frameOn} onChange={()=>{setFrameOn(!frameOn);setTimeout(fitShot,0);}}/> 🔲 캡처 틀(빨간 점선) 보기</label>
     </div>
     <div id={"mapWrap"+sfx} style={{position:"relative",overflow:"hidden",borderRadius:6}}>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
@@ -8654,8 +8654,8 @@ function StepMap({ov,sfx,active,cases,precs}){
   const onBase=()=>{const v=view();if(v)v.setBase();};
   const chk={fontSize:12,fontWeight:600,color:"#475569",cursor:"pointer",userSelect:"none"};
   // 📸 위치도 확정(2026-11-24) — 빨간 틀(한글 그림 칸 비율) 안을 화면 그대로(말풍선 배치 포함) 찍어 6. 위치도 한글에. 소재지 = 건명(지번 외 N필지 건물명 제층 제호). 엔진 arap_mapshot.js
-  const [frameOn,setFrameOn]=useState(true);
-  const [shot,setShot]=useState({t:"빨간 틀 = 한글 그림 칸. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
+  const [frameOn,setFrameOn]=useState(false);   // 캡처 틀은 기본 꺼짐 — 캡처할 때만(2026-11-27)
+  const [shot,setShot]=useState({t:"「🔲 캡처 틀」을 켜면 빨간 틀(= 한글 그림 칸)이 보입니다. 지도·말풍선을 틀 안에 맞춘 뒤 누르세요.",c:""});
   const [shotBusy,setShotBusy]=useState(false);
   const fitShot=()=>{if(window.ArapMapShot)ArapMapShot.fitFrame(document.getElementById("mapWrap"+sfx),document.getElementById("mapFrame"+sfx),document.getElementById("mapFrameLab"+sfx));};
   useEffect(()=>{if(!active)return;const t=setTimeout(fitShot,80);window.addEventListener("resize",fitShot);return ()=>{clearTimeout(t);window.removeEventListener("resize",fitShot);};},[active]);
@@ -8666,7 +8666,7 @@ function StepMap({ov,sfx,active,cases,precs}){
       const img=await ArapMapShot.capture(document.getElementById("mapFrame"+sfx));   // 클릭 바로 다음에 불러야 함(화면 공유 허용 조건)
       const r=await fetch(encodeURI("템플릿/집건 위치도 템플릿.hwpx"));if(!r.ok)throw new Error("위치도 템플릿 로드 실패("+r.status+")");
       const bytes=await ArapMapShot.buildHwpx(await r.arrayBuffer(),{addr:buildGeonmyeong(ov),wide:img,zip:{parseZip,createZipStored}});
-      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);
+      triggerDownload(bytes,`6. 위치도_${ov.client||"의뢰인"}.hwpx`);setFrameOn(false);   // 다 찍었으면 틀은 다시 끔
       setShot({t:`✅ 캡처 → 6. 위치도 한글 파일을 받았습니다. 다시 누르면 새로 찍습니다.`,c:"ok"});
     }catch(e){console.error("위치도 캡처",e);const can=e&&e.name==="NotAllowedError";setShot({t:can?"캡처를 취소했습니다(공유 창에서 [취소]). 다시 누르면 됩니다.":"⚠ "+(e&&e.message||e),c:can?"":"err"});}
     finally{setShotBusy(false);}
@@ -8697,7 +8697,7 @@ function StepMap({ov,sfx,active,cases,precs}){
     <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",margin:"2px 0 8px"}}>
       <button aria-label="위치도 확정" disabled={shotBusy} style={{...S.btn,...BTN.p,fontSize:14,padding:"7px 14px"}} title="빨간 틀 안을 지금 보이는 그대로 찍어 한글 위치도(6. 위치도)로 받습니다 — 크롬 창에서 「이 탭」 → [공유]" onClick={doShot}>📸 위치도 확정 → 한글</button>
       <span aria-label="위치도 캡처 안내" style={{fontSize:12,color:shot.c==="err"?"#b91c1c":shot.c==="ok"?"#15803d":"#475569"}}>{shot.t}</span>
-      <label style={{...chk,marginLeft:"auto"}}><input type="checkbox" checked={frameOn} onChange={()=>setFrameOn(!frameOn)}/> 한글 그림 칸 틀(빨간 점선) 보기</label>
+      <label style={{...chk,marginLeft:"auto"}} title="한글 그림 칸과 같은 비율의 빨간 점선 틀 — 캡처할 때만 켜고 맞추면 됩니다. 캡처가 끝나면 저절로 꺼집니다."><input type="checkbox" aria-label="캡처 틀 보기" checked={frameOn} onChange={()=>{setFrameOn(!frameOn);setTimeout(fitShot,0);}}/> 🔲 캡처 틀(빨간 점선) 보기</label>
     </div>
     <div id={"mapWrap"+sfx} style={{position:"relative",overflow:"hidden",borderRadius:6}}>
     <div id={"mapBox"+sfx} style={{height:"max(760px,85vh)",border:`1px solid ${C.bdr}`,borderRadius:6,background:"#eef1f5"}}/>
