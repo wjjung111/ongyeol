@@ -835,6 +835,9 @@ function factorTables(tbl,maps,state){
     resizeRows(t,1,2,2,g.maps,state);factorCols(t,g.d,2);});
 }
 function opinionXml(xml,data){
+  // 「○○ 인근에 위치하는」 — 뒷말을 화면 칸(op_locationTail)대로(2026-11-27). 비우면 양식 그대로 「인근에 위치하는」
+  var tail=String(val('op_locationTail')||'').trim();
+  if(tail&&tail!=='인근에 위치하는')xml=xml.replace(/(\{\{인근위치설명\}\}<\/hp:t><\/hp:run><hp:run charPrIDRef="\d+"><hp:t>) 인근에 위치하는 /g,function(m,h){return h+' '+tail.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+' ';});
   if(window.arapPurposeLaw)xml=window.arapPurposeLaw(xml,tojiPurpose(),val('ov_kind'));   // 자산재평가 → 외부감사법 문구 / 담보 → 「담보 목적의 감정평가임」 (arap_purpose_law.js, 2026-11-15)
   var doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.getElementsByTagName('parsererror').length)throw new Error('의견서 템플릿 XML을 읽을 수 없습니다.');
