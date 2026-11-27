@@ -81,6 +81,13 @@ async function validate(page,bytes,label){return page.evaluate(async ({bytes,lab
       const es=await ArapCheonggu.parseZip(bytes.buffer);document.getElementById('ov_gijunBasis').value='';
       return es.filter(e=>/^Contents\/section\d+\.xml$/.test(e.name)).map(e=>new TextDecoder().decode(e.data)).join('').replace(/<[^>]+>/g,'');});
     assert(basisTxt.includes('대상물건의 가격조사를 완료한 날짜인'),'현장조사완료일인 문구');
+    // 「인근에 위치하는」 뒷말 칸(2026-11-27) — 기본은 양식 그대로, 적으면 그 말로
+    assert(basisTxt.includes('검증초등학교 북측 인근에 위치하는 부동산'),'기본 뒷말');
+    const tailTxt=await page.evaluate(async()=>{document.getElementById('op_locationTail').value='내에 소재하는';
+      const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
+      const es=await ArapCheonggu.parseZip(bytes.buffer);document.getElementById('op_locationTail').value='';
+      return es.filter(e=>/^Contents\/section\d+\.xml$/.test(e.name)).map(e=>new TextDecoder().decode(e.data)).join('').replace(/<[^>]+>/g,'');});
+    assert(tailTxt.includes('검증초등학교 북측 내에 소재하는 부동산')&&!tailTxt.includes('북측 인근에 위치하는'),'뒷말 바꾸기');
     const ageTable=async()=>page.evaluate(async()=>{
       const bytes=await ArapTojiOpinion.build(await fetchTplB64('템플릿/토건 의견서(산출근거) 템플릿.hwpx'),ArapTojiOpinion.data());
       const entries=await ArapCheonggu.parseZip(bytes.buffer),HP='http://www.hancom.co.kr/hwpml/2011/paragraph',HH='http://www.hancom.co.kr/hwpml/2011/head';
