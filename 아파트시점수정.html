@@ -84,6 +84,10 @@
   select{border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;font:inherit;color:var(--ink);background:#fff}
   /* 본건 거래표 접기 */
   #foldTbl{padding:6px 12px;font-size:13px}
+  /* 본건 단지 거래 없음(2026-11-27): 최저/중간/최고, 거래표를 숨기고 안내 + 주변 유사 단지만 */
+  #noTrade{display:none;margin-bottom:12px;line-height:1.7}
+  #result.notrade>#noTrade{display:block}
+  #result.notrade>.big,#result.notrade>.sub,#result.notrade>.row,#result.notrade>#mainTbl{display:none}
   /* 주변 유사 단지 (2026-11-23) */
   .near h2{font-size:15px;font-weight:800;margin-bottom:8px}
   .near h2 .hint{font-weight:400;margin-left:6px}
@@ -184,7 +188,7 @@
     </div>
 
     <div id="apiPane">
-      <div class="hint">국토교통부 아파트 매매 실거래가 자료, 작성일 기준 최근 3년(「5년까지」 체크 시 5년). 해제 거래는 표시만 하고 집계에서 뺍니다. 주소에 지번이나 단지명이 없으면 단지 후보를 보여줍니다.</div>
+      <div class="hint">국토교통부 아파트 매매 실거래가 자료, 작성일 기준 최근 3년(「5년까지」 체크 시 5년). 해제 거래는 표시만 하고 집계에서 뺍니다. 주소에 지번이나 단지명이 없으면 단지 후보를 보여줍니다. 본건 단지에 그 기간 거래가 없으면 면적, 준공연도가 비슷한 주변 단지를 대신 찾아 줍니다.</div>
     </div>
 
     <div id="pastePane" class="hidden">
@@ -213,6 +217,7 @@
   <div id="areaPick" class="card hidden"></div>
 
   <div id="result" class="hidden">
+    <div class="msg warn" id="noTrade"></div>
     <div class="big">
       <div class="b min"><div class="k">최저</div><div class="v" id="vMin"></div><div class="s" id="sMin"></div><div class="u" id="uMin"></div></div>
       <div class="b"><div class="k">중간</div><div class="v" id="vMid"></div><div class="s" id="sMid"></div><div class="u" id="uMid"></div><div class="rng" id="rMid"></div></div>
@@ -244,7 +249,7 @@
       <div class="nf">
         <span class="f">반경 <select id="nRadius"><option value="0.5">500m</option><option value="1" selected>1km</option><option value="1.5">1.5km</option><option value="2">2km</option><option value="3">3km</option></select></span>
         <span class="f">면적 <select id="nTol"><option value="5">본건 ±5%</option><option value="10" selected>본건 ±10%</option><option value="15">본건 ±15%</option></select> <span class="hint" id="nTolHint"></span></span>
-        <span class="f">준공 <select id="nAge"><option value="all" selected>전체</option><option value="5">본건 ±5년</option><option value="10">본건 ±10년</option></select></span>
+        <span class="f">준공 <select id="nAge"><option value="all" selected>전체</option><option value="5">본건 ±5년</option><option value="10">본건 ±10년</option></select> <span class="hint">본건</span><input id="nBuilt" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="본건 준공연도" title="본건 준공연도. 실거래 건축년도, 없으면 건축물대장 사용승인 연도가 들어가요. 직접 고쳐도 됩니다"><span class="hint">년</span></span>
         <span class="f">세대수 <input id="nMinH" value="0" inputmode="numeric"> 이상</span>
         <button class="primary" id="nGo" type="button">주변 단지 찾기</button>
         <span class="hint" id="nInfo"></span>
@@ -439,7 +444,9 @@ async function calc(aptPick, parcel, keepSort){
       const p = A.parsePaste($('paste').value, parseFloat(String($('caseArea').value).replace(/,/g, '')) || area || null);
       trades = p.trades; warns = p.warns;
     }
-    if (!trades.length) throw new Error('계산할 거래가 없어요.' + (warns.length ? ' ' + warns.slice(0, 3).join(' / ') : (mode === 'api' ? ' 주소(법정동, 지번, 단지명)를 확인하세요.' : '')));
+    // 본건 단지 거래가 조회 기간에 없음(2026-11-27): 주소(필지, 지번)가 잡혔으면 오류로 끝내지 않고 빈 결과 + 주변 유사 단지로 이어 감
+    const noTrades = !trades.length && mode === 'api' && !!(curParcel || addr.jibun);
+    if (!trades.length && !noTrades) throw new Error('계산할 거래가 없어요.' + (warns.length ? ' ' + warns.slice(0, 3).join(' / ') : (mode === 'api' ? ' 주소(법정동, 지번, 단지명)를 확인하세요.' : '')));
 
     const yms = [...new Set(trades.map(t => t.date.slice(0, 4) + t.date.slice(5, 7)))].filter(ym => ym <= baseYm);
     const back = Array.from({length: 18}, (_, i) => A.ymAdd(baseYm, -i)); // 지수 기준시점(=100) 찾기용
@@ -464,14 +471,15 @@ async function calc(aptPick, parcel, keepSort){
         }
         const near = A.nearestAreaType(ats, u.area, 0.5);
         if (near != null && !selAreas.length) selAreas = [near];
-        unitNote = {kind: 'ok', text: `건축물대장 ${lbl} 전용면적 ${u.area}㎡를 넣었어요.` + (near != null ? ` 실거래 ${near}㎡ 거래를 같은 면적으로 골랐습니다.` : ' 실거래에 같은 면적이 없어 ±3% 면적대로 집계합니다.')};
+        unitNote = {kind: 'ok', text: `건축물대장 ${lbl} 전용면적 ${u.area}㎡를 넣었어요.` + (noTrades ? '' : near != null ? ` 실거래 ${near}㎡ 거래를 같은 면적으로 골랐습니다.` : ' 실거래에 같은 면적이 없어 ±3% 면적대로 집계합니다.')};
       } else {
-        unitNote = {kind: 'warn', text: `건축물대장에서 ${lbl} 전용면적을 못 찾았어요(동, 호 이름 확인). 아래에서 본건 면적을 고르세요.`};
+        unitNote = {kind: 'warn', text: `건축물대장에서 ${lbl} 전용면적을 못 찾았어요(동, 호 이름 확인). ` + (noTrades ? '본건 전용면적을 직접 넣고 다시 계산하세요.' : '아래에서 본건 면적을 고르세요.')};
       }
       $('go').textContent = '계산 중...';
     }
     const res = A.calculate(trades, area, writeIso, chain, baseYm, idx, {subjectFloor, sameAreas: selAreas, lookback});
     res.areaTypes = ats;
+    res.noTrades = noTrades;
     res.parcel = curParcel;
     res.ruleYm = ruleYm; res.addr = addr; res.complexes = complexes; res.aptPick = aptPick || null;
     res.idxBase = back.find(ym => { const v = idx(chain[0].cls, ym); return v != null && Math.abs(v - 100) < 1e-9; }) || null;
@@ -479,14 +487,17 @@ async function calc(aptPick, parcel, keepSort){
     carryFactors(last, res);
     last = res; if (!keepSort) { sortK = null; sortDir = 1; }
     // 본건 단지 정보(사용승인일, 규모, 주차) — 계산 결과는 먼저 보여 주고 대장은 뒤에서 받아 채움
+    let cxLoad = null;
     if (window.ArapBldrgst){
       const ps = [unitPnu, curParcel && curParcel.id, ...(mode === 'api' ? A.unitPnus(trades, curParcel && curParcel.id, uDong, 4) : [])];
-      loadCx(res, [...new Set(ps.filter(p => /^\d{19}$/.test(p || '')))].slice(0, 4), uDong);
+      cxLoad = loadCx(res, [...new Set(ps.filter(p => /^\d{19}$/.test(p || '')))].slice(0, 4), uDong);
     }
     setNearCtx({addr, writeIso, baseYm, baseList: baseTbl.list, tbls, idx, lookback, subjectArea: area, parcel: curParcel, trades: mode === 'api' ? trades : []});
     if (warns.length) showMsg(warns.join(' / ') + (unitNote ? ' / ' + unitNote.text : ''), 'warn');
     else if (unitNote) showMsg(unitNote.text, unitNote.kind);
     render();
+    // 본건 거래가 없으면 주변 단지를 바로 찾기 시작(누를 버튼이 그것뿐). 본건 준공연도(대장 사용승인)를 받은 뒤에
+    if (noTrades && area) Promise.resolve(cxLoad).catch(() => {}).then(() => { if (last === res && ctx && !NEAR && !nearBusy) findNearby(); });
     histRecord(histInput);
     try { localStorage.setItem('arap-apt-sise-last', JSON.stringify({address: $('address').value, dong: $('dong').value, ho: $('ho').value, floor: $('floor').value, area: $('area').value, areaAuto: $('area').dataset.auto === '1', mode, long5: $('long5').checked})); } catch (e) {}
   } catch (e){
@@ -679,6 +690,7 @@ function setNearCtx(c){
     const blt = new Map(); c.trades.forEach(t => { if (t.built) blt.set(t.built, (blt.get(t.built) || 0) + 1); });
     c.built = [...blt.entries()].sort((a, b) => b[1] - a[1]).map(([y]) => y)[0] || null;
     c.ownIds = new Set(c.trades.filter(t => t.jibun).map(t => [c.addr.code, t.umd, t.jibun].join('|')));
+    if (c.addr.umd && c.addr.jibun) c.ownIds.add([c.addr.code, c.addr.umd, c.addr.jibun].join('|'));
     c.key = [c.addr.code, c.addr.umd, c.addr.jibun, c.addr.keyword, c.parcel && c.parcel.id, c.writeIso, c.baseYm, c.subjectArea, c.lookback].join('|');
   }
   if (!c || !NEAR || NEAR.key !== c.key) nearReset();
@@ -691,7 +703,32 @@ function nearReset(){
 }
 function nearMsg(text, kind){ $('nMsg').innerHTML = text ? `<div class="msg ${kind || 'warn'}">${esc(text)}</div>` : ''; }
 /* 본건 결과가 다시 그려질 때: 면적 범위 안내, 맥락 없음 안내, 본건 대비 % 갱신 */
+/* 본건 준공연도 칸: 실거래 건축년도 → 없으면(본건 거래 없음) 건축물대장 사용승인 연도. 직접 고치면 그 값, 비우거나 다른 단지를 계산하면 다시 자동 */
+let builtFor = null;
+function nearBuiltFill(){
+  const el = $('nBuilt'), a = (last && last.addr) || {}, k = [a.code, a.umd, a.jibun, a.keyword, last && last.aptPick].join('|');
+  if (k !== builtFor){ builtFor = k; el.value = ''; el.dataset.auto = '1'; }
+  if (el.dataset.auto !== '1' && el.value.trim()) return;
+  const cx = last && last.cx, y = (ctx && ctx.built) || (cx && cx.useApr ? parseInt(cx.useApr, 10) : null);
+  el.value = y || ''; el.dataset.auto = '1';
+}
+const subjBuilt = () => { const y = parseInt($('nBuilt').value, 10); return y > 1900 && y < 2100 ? y : null; };
+const ownNm = () => shortName([...new Set(last.rows.map(r => r.apt).filter(Boolean))][0] || (last.cx && last.cx.name) || (ctx && ctx.addr.keyword) || '');
+/* 본건 단지 거래 없음 안내(최저/중간/최고, 거래표 자리) */
+function paintNoTrade(){
+  const on = !!(last && last.noTrades);
+  $('result').classList.toggle('notrade', on);
+  if (!on){ $('noTrade').innerHTML = ''; return; }
+  const a = last.addr || {}, lb = last.lookback || A.LOOKBACK;
+  $('noTrade').innerHTML = `<b>본건 단지는 최근 ${lb / 12}년 안에 신고된 매매 실거래가 없어요</b> (${esc([a.sgg, a.umd, a.jibun].filter(Boolean).join(' '))}). `
+    + (lb < A.LOOKBACK_LONG ? '위 「5년까지」를 체크하고 다시 계산하면 본건 거래가 나올 수 있어요. ' : '')
+    + (last.subjectArea ? '대신 아래 「주변 유사 단지」에서 반경 안, 본건과 면적, 준공연도가 비슷한 단지의 실거래를 시점수정해 본건 면적으로 환산해 보여 줍니다.'
+      : '<b>본건 전용면적(또는 호)을 넣고 다시 계산</b>하면 아래 「주변 유사 단지」에서 면적, 준공연도가 비슷한 단지를 찾아 줍니다.')
+    + '<br><span class="hint">주소가 틀려도 이렇게 나와요. 아래 단지 정보(사용승인, 세대수)가 본건이 맞는지 확인하세요.</span>';
+}
 function nearAfterMain(){
+  paintNoTrade(); nearBuiltFill();
+  if (ctx && !$('nAge').dataset.touched) $('nAge').value = last.noTrades ? '5' : 'all'; // 본건 거래가 없으면 대신 볼 단지라 준공 비슷한 것부터(직접 바꾼 뒤엔 그대로)
   const a = ctx && ctx.subjectArea, tol = +$('nTol').value / 100;
   $('nTolHint').textContent = a ? `(${(a * (1 - tol)).toFixed(1)} ~ ${(a * (1 + tol)).toFixed(1)}㎡)` : '';
   $('nGo').disabled = !ctx || !ctx.subjectArea || nearBusy;
@@ -718,6 +755,10 @@ async function subjectLoc(){
     const g = await complexGeo({code: ctx.addr.code, umd, jibun});
     if (g) return {x: g.x, y: g.y, pnu: g.pnu, code: ctx.addr.code};
   }
+  if (ctx.addr.umd && ctx.addr.jibun){ // 본건 거래가 없을 때: 주소의 지번으로
+    const g = await complexGeo({code: ctx.addr.code, umd: ctx.addr.umd, jibun: ctx.addr.jibun});
+    if (g) return {x: g.x, y: g.y, pnu: g.pnu, code: ctx.addr.code};
+  }
   throw new Error('본건 위치를 못 찾았어요. 단지 주소에 지번(예: 압구정동 369-1)을 넣고 다시 계산하세요.');
 }
 
@@ -741,7 +782,7 @@ async function findNearby(){
   const info = t => { $('nInfo').textContent = t; };
   const C = ctx;
   try {
-    const radius = (+$('nRadius').value || 1) * 1000, tol = (+$('nTol').value || 10) / 100, ageSel = $('nAge').value;
+    const radius = (+$('nRadius').value || 1) * 1000, tol = (+$('nTol').value || 10) / 100, ageSel = $('nAge').value, built = subjBuilt();
     info('본건 위치 찾는 중...');
     const subj = await subjectLoc();
     info('반경에 걸치는 시군구, 법정동 찾는 중...');
@@ -768,7 +809,7 @@ async function findNearby(){
     if (umds.length) groups = groups.filter(c => umds.some(u => A.umdMatch(c.umd, u)));
     groups.forEach(c => { c.types = A.areaTypes(c.trades); c.same = A.areasNear(c.types, C.subjectArea, tol); });
     groups = groups.filter(c => c.same.length);
-    if (ageSel !== 'all' && C.built) groups = groups.filter(c => !c.built || Math.abs(c.built - C.built) <= +ageSel);
+    if (ageSel !== 'all' && built) groups = groups.filter(c => !c.built || Math.abs(c.built - built) <= +ageSel);
     let cut = 0;
     if (groups.length > MAX_GEO){ // 너무 많으면 거래 많은 단지부터
       groups.sort((a, b) => b.trades.length - a.trades.length); cut = groups.length - MAX_GEO; groups = groups.slice(0, MAX_GEO);
@@ -801,9 +842,10 @@ async function findNearby(){
     if (errs.length) warns.push(`실거래 조회 실패 ${errs.length}건 (예: ${errs[0]})`);
     if (nogeo) warns.push(`위치를 못 찾아 빠진 단지 ${nogeo}곳`);
     if (cut) warns.push(`조건에 맞는 단지가 많아 거래 많은 ${MAX_GEO}곳만 위치를 찾았어요(${cut}곳 뺌). 반경이나 면적 범위를 줄여 보세요.`);
-    if (!list.length) warns.push('반경 안에 조건에 맞는 단지가 없어요. 반경이나 면적 범위를 넓혀 보세요.');
+    if (ageSel !== 'all' && !built) warns.push('본건 준공연도를 몰라 준공 조건은 걸지 못했어요. 준공 옆 「본건 ○○년」 칸에 연도를 넣고 다시 찾으세요.');
+    if (!list.length) warns.push(`반경 안에 조건에 맞는 단지가 없어요. 반경이나 면적${ageSel !== 'all' && built ? ', 준공' : ''} 범위를 넓혀 보세요.`);
     nearMsg(warns.join(' / '));
-    info(`단지 ${list.length}곳 · ${sggs.map(s => s.name).join(', ')} · 계약 ${from.slice(0, 7).replace('-', '.')} ~ ${C.writeIso.replace(/-/g, '.')}`);
+    info(`단지 ${list.length}곳 · ${sggs.map(s => s.name).join(', ')} · 계약 ${from.slice(0, 7).replace('-', '.')} ~ ${C.writeIso.replace(/-/g, '.')}` + (ageSel !== 'all' && built ? ` · 준공 ${built - +ageSel}~${built + +ageSel}년` : ''));
     nearRender();
   } catch (e){
     info(''); nearMsg(e && e.name === 'AbortError' ? '응답이 늦어 중단했어요. 다시 눌러주세요.' : (e.message || String(e)), 'err');
@@ -841,10 +883,10 @@ function nearList(){
     const d = typeof x === 'string' ? x.localeCompare(y, 'ko') : x - y;
     return d ? d * NSORT.dir : i - j;
   }).map(([c]) => c);
-  const s0 = A.summarize(last.rows), ownName = shortName([...new Set(last.rows.map(r => r.apt).filter(Boolean))][0] || ctx.addr.keyword || '본건 단지');
+  const s0 = A.summarize(last.rows), ownName = ownNm() || '본건 단지';
   let h = '<thead><tr>' + cols.map(([k, t]) => `<th data-nk="${k}">${t}<span class="ar">${NSORT.k === k ? (NSORT.dir > 0 ? '▲' : '▼') : ''}</span></th>`).join('') + '</tr></thead><tbody>';
-  h += `<tr class="cx" data-own="1"><td class="n">0m</td><td><span class="tag own">본건 단지</span> ${esc(ownName)}</td><td class="c">${ctx.built || ''}</td><td class="n">${NEAR.ownHhld != null ? NEAR.ownHhld.toLocaleString('ko-KR') : ''}</td>
-    <td class="n">${s0.n}</td><td class="n">${manTxt(s0.mid != null ? s0.mid / ctx.subjectArea : null)}</td><td class="n"><b>${s0.mid != null ? A.fmtEok(s0.mid) : '-'}</b></td><td class="c">기준</td><td class="c"></td></tr>`;
+  h += `<tr class="cx" data-own="1"><td class="n">0m</td><td><span class="tag own">본건 단지</span> ${esc(ownName)}</td><td class="c">${subjBuilt() || ''}</td><td class="n">${NEAR.ownHhld != null ? NEAR.ownHhld.toLocaleString('ko-KR') : ''}</td>
+    <td class="n">${s0.n}</td><td class="n">${manTxt(s0.mid != null ? s0.mid / ctx.subjectArea : null)}</td><td class="n"><b>${s0.mid != null ? A.fmtEok(s0.mid) : '-'}</b></td><td class="c">${last.noTrades ? '거래 없음' : '기준'}</td><td class="c"></td></tr>`;
   for (const c of rows){
     h += `<tr class="cx ${NSEL === c.id ? 'sel' : ''} ${c.sum.n ? '' : 'off'}" data-id="${esc(c.id)}"><td class="n">${distTxt(c.dist)}</td>
       <td title="${esc(c.names.join(', '))}">${esc(c.name)} <span class="hint">${esc(c.umd)} ${esc(c.jibun)}${c.code !== ctx.addr.code ? ', ' + esc(c.sgg) : ''}</span>${scaleTag(c.hhld)}</td>
@@ -894,8 +936,8 @@ async function nearMap(){
     const el = pinEl(sel ? 'sel' : '', unitColor(c.midUnit, lo, hi), shortName(c.name), c.sum.n ? `㎡당 ${manTxt(c.midUnit)} · ${c.sum.n}건` : '본건 면적대 집계 없음', () => nearOpen(c.id));
     kobjs.push(new K.CustomOverlay({position: new K.LatLng(c.y, c.x), content: el, xAnchor: 0, yAnchor: 0, zIndex: sel ? 4 : 2, clickable: true, map: kmap}));
   }
-  const s0 = A.summarize(last.rows), ownName = shortName([...new Set(last.rows.map(r => r.apt).filter(Boolean))][0] || '본건');
-  kobjs.push(new K.CustomOverlay({position: center, content: pinEl('subj', '#0f172a', '본건 · ' + ownName, s0.mid != null ? `㎡당 ${manTxt(s0.mid / ctx.subjectArea)} · ${s0.n}건` : ''), xAnchor: 0, yAnchor: 0, zIndex: 5, map: kmap}));
+  const s0 = A.summarize(last.rows), ownName = ownNm();
+  kobjs.push(new K.CustomOverlay({position: center, content: pinEl('subj', '#0f172a', ownName ? '본건 · ' + ownName : '본건', s0.mid != null ? `㎡당 ${manTxt(s0.mid / ctx.subjectArea)} · ${s0.n}건` : last.noTrades ? '최근 거래 없음' : ''), xAnchor: 0, yAnchor: 0, zIndex: 5, map: kmap}));
 }
 
 /* 단지 상세 거래표 정렬: 본건 표와 같은 규칙(sortVal) — 처음 누르면 오름, 다시 누르면 내림, 빈 값은 늘 맨 아래, 같으면 원래 순서. 엑셀도 화면 순서 */
@@ -979,6 +1021,8 @@ $('nDetail').addEventListener('click', e => {
 });
 $('nMinH').addEventListener('input', () => { if (NEAR) nearRender(); });
 $('nTol').addEventListener('change', nearAfterMain);
+$('nAge').addEventListener('change', () => { $('nAge').dataset.touched = '1'; });
+$('nBuilt').addEventListener('input', () => { $('nBuilt').dataset.auto = ''; });
 $('nList').addEventListener('click', e => {
   const th = e.target.closest('th[data-nk]');
   if (th){ const k = th.dataset.nk; NSORT = NSORT.k === k ? {k, dir: -NSORT.dir} : {k, dir: 1}; nearList(); return; }
@@ -1057,7 +1101,7 @@ async function loadCx(res, pnus, dong){
   const st = sts.find(x => has(x) && x.recap) || sts.find(has) || sts.find(x => x.recap) || sts[0];
   res.cx = (st && A.complexInfo(st, dong, res.writeDate)) || {none: true};
   if (cxPending === res) cxPending = null;
-  if (last === res){ paintCx(); histUpdateState(); }
+  if (last === res){ paintCx(); nearBuiltFill(); histUpdateState(); }
 }
 const n0 = v => Number(v).toLocaleString('ko-KR');
 function cxParts(cx){ // [[제목, 값, 덧말]]
