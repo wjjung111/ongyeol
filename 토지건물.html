@@ -284,6 +284,11 @@
   .paste{border:2px dashed #cbd5e1;border-radius:6px;background:#fafbfc;padding:8px;margin-bottom:8px;}
   .paste textarea{width:100%;border:1px solid #e2e5ea;border-radius:3px;padding:5px 7px;font-size:11px;font-family:inherit;resize:vertical;}
   .pst{font-size:11px;margin-top:4px;min-height:14px;}
+  /* 기준시점(작성일자) 이후 사례 — 집건과 같은 빨간 표시 */
+  .fut-msg{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:6px;padding:6px 10px;margin:4px 0 6px;font-size:12px;font-weight:600;}
+  #tblTrade td.dt-c.fut,#tblTrade td.dt-c.fut input{background:#fee2e2;color:#b91c1c;font-weight:700;}
+  #tblAppr tr.fut td,#tblAppr tr.fut td input{background:#fee2e2;}
+  #tblAppr tr.fut td.ac-base input{color:#b91c1c;font-weight:700;}
   .pst.ok{color:#166534;font-weight:600;} .pst.err{color:#dc2626;font-weight:600;}
   .fnote{font-size:11px;color:#475569;margin:5px 0 3px;}
   .del{color:#dc2626;cursor:pointer;font-weight:700;}
@@ -803,6 +808,7 @@
           <div class="card gs-r2" id="gsTradeCard">
             <h2>거래사례<button class="btn gh sm" style="margin-left:auto" onclick="addCase()">+ 사례 추가</button></h2>
             <div class="pst" id="pTradeMsg"></div>
+            <div class="fut-msg" id="futTradeMsg" style="display:none"></div>
             <div class="tw"><table id="tblTrade"></table></div>
             <!-- 표 아래 한 줄 메모 — 적은 그대로 한글 의견서의 거래사례 표 바로 아래에 나간다(비우면 아무것도 안 나감) -->
             <div class="fld" style="margin-top:6px"><textarea class="box" id="g_tradeNote" rows="2" title="여기에 적은 문구가 한글 의견서의 거래사례 표 바로 아래에 그대로 나옵니다 — 엔터로 줄을 바꾸면 한글에서도 문단이 나뉩니다" placeholder="관찰감가, 토지만의 거래 등 내용 기입 (엔터로 줄바꿈)"></textarea></div>
@@ -810,6 +816,7 @@
           <div class="card gs-r2" id="gsApprCard">
             <h2>평가사례<button class="btn gh sm" style="margin-left:auto" onclick="addAppr()">+ 사례 추가</button></h2>
             <div class="pst" id="pApprMsg"></div>
+            <div class="fut-msg" id="futApprMsg" style="display:none"></div>
             <div class="tw"><table id="tblAppr"></table></div>
           </div>
         </div>
@@ -2112,6 +2119,29 @@ function jbCapNote(e){
 function roneRows(j,root){var a=j&&j[root];if(!a||a.length<2)return null;var r=a[1]&&a[1].row;if(!r)return null;return Array.isArray(r)?r:[r];}
 function ymAdd(ym,n){var y=Math.floor(ym/100),m=ym%100+n;y+=Math.floor((m-1)/12);m=((m-1)%12+12)%12+1;return y*100+m;}
 function parseYmd(s){var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?{y:+m[1],mo:+m[2],d:+m[3]}:null;}
+// 기준시점(·작성일자)보다 늦은 사례 — 집건 dateAfterWarn과 같은 규칙(2026-11-26). 거래사례=거래일자, 평가사례=기준시점.
+// 그런 사례는 시점수정 불가 → 표에 빨갛게 표시하고, 선정(그 밖의 요인·거래사례비교법)·시점수정 계산을 막는다.
+function ymdNum(s){var t=String(s||'').trim();if(/^\d{8}$/.test(t))return +t;var d=parseYmd(t);return d?d.y*10000+d.mo*100+d.d:null;}
+function caseAfterBase(dateStr){
+  var t=ymdNum(dateStr);if(t==null)return '';
+  var we=document.getElementById('ov_writeDay'),be=document.getElementById('base_gijun');
+  var wd=ymdNum(we&&we.value),bd=ymdNum(be&&be.value);
+  if(wd!=null&&t>wd)return '작성일자 이후';if(bd!=null&&t>bd)return '기준시점 이후';return '';}
+function caseFuture(c,type){return c?caseAfterBase(type==='t'?c.date:c.base):'';}
+function futureBlock(c,type){var w=caseFuture(c,type);if(!w)return false;
+  alert((type==='t'?'거래일자':'평가사례 기준시점')+'('+(type==='t'?c.date:c.base)+')가 본건 '+w.replace(' 이후','')+'보다 뒤입니다.\n시점수정을 할 수 없는 사례라 선정할 수 없습니다 — 날짜를 확인하세요.');
+  return true;}
+// 표의 빨간 표시·경고 줄만 다시 칠한다(입력 중 표를 통째로 다시 그리지 않게)
+function markFutureCases(){
+  var nt=0,na=0,tb=document.getElementById('tblTrade'),ta=document.getElementById('tblAppr');
+  if(tb)Array.prototype.forEach.call(tb.querySelectorAll('td.dt-c'),function(td){var i=+td.getAttribute('data-i'),w=caseFuture(TRADES[i],'t');if(w)nt++;
+    td.classList.toggle('fut',!!w);td.title=w?w+' 거래 — 시점수정 불가, 거래일자를 확인하세요':'';});
+  if(ta)Array.prototype.forEach.call(ta.rows,function(tr){var i=tr.getAttribute('data-i');if(i==null)return;var w=caseFuture(APPRS[+i],'a');if(w)na++;
+    tr.classList.toggle('fut',!!w);tr.title=w?w+' 평가사례 — 시점수정 불가, 기준시점을 확인하세요':'';});
+  var mt=document.getElementById('futTradeMsg'),ma=document.getElementById('futApprMsg');
+  if(mt){mt.style.display=nt?'':'none';mt.textContent='⚠️ 작성일자/기준시점 이후 거래사례 '+nt+'건 — 시점수정 불가, 선정할 수 없습니다. 거래일자를 확인하세요';}
+  if(ma){ma.style.display=na?'':'none';ma.textContent='⚠️ 작성일자/기준시점 이후 평가사례 '+na+'건 — 시점수정 불가, 선정할 수 없습니다. 기준시점을 확인하세요';}
+}
 function daysIn(y,mo){return new Date(y,mo,0).getDate();}
 var JB_USE_RE=/주거|상업|녹지|공업|관리지역|농림|자연환경|용도/;
 async function jbFindTable(baseYm){
@@ -2345,6 +2375,7 @@ async function computeCaseTime(c,type,st,force){
   if(/^\d{8}$/.test(startStr))startStr=startStr.slice(0,4)+'.'+startStr.slice(4,6)+'.'+startStr.slice(6,8);
   var g=parseYmd(startStr);
   if(!g)throw new Error('선택한 사례의 '+(type==='t'?'거래일자':'기준시점')+'가 없습니다.');
+  if((g.y*10000+g.mo*100+g.d)>(e.y*10000+e.mo*100+e.d)){delete c.timeMeta;var fe=new Error((type==='t'?'거래일자':'사례 기준시점')+'('+ymdShort(g)+')가 본건 기준시점('+ymdShort(e)+')보다 뒤입니다 — 시점수정 불가, 날짜를 확인하세요.');fe.future=true;throw fe;}
   var m0=c.timeMeta;
   // 저장된 값의 용도가 사례 용도지역과 다르면(옛 오조회 — 계획관리 사례가 보전관리로) 다시 계산
   var ug=jbUseGroup(c.use),useOk=!m0||!ug||String(m0.use||'').indexOf(ug)>=0;
@@ -2392,7 +2423,7 @@ async function autoEtcTime(force){
     if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 = '+r.meta.factor+'  '+timeMetaLabel(r.meta)+(r.cached?' (저장된 값)':'')+jbCapNote(parseYmd(document.getElementById('base_gijun').value));}
   }catch(err){
     console.error('그밖의요인 시점수정 자동',err);
-    if(mine()){eIn.placeholder='1.00699';sd();}
+    if(mine()){eIn.placeholder='1.00699';if(err.future){eIn.value='';calcGongsi();}sd();}
     if(st){st.className='status err';st.textContent='그밖의요인 시점수정 자동: '+err.message;}
   }
 }
@@ -2601,6 +2632,7 @@ function tradeCell(c,i,r){
   if(k==='loc')return '<td><div class="loc-w"><input value="'+attr(dv)+'" oninput="tradeIn('+i+',\'loc\',this.value,this)">'+relBtn('t',i,c)+'</div>'+chkLocNote(c)+'</td>';
   if(k==='road')return '<td class="'+cd+'"><input value="'+attr(dv)+'" placeholder="예: 세로(가)" oninput="tradeIn('+i+',\'road\',this.value,this)">'+ch+'</td>';
   if(k==='reCost'&&dv){var dd=String(dv).replace(/[^\d]/g,'');if(dd)dv=Number(dd).toLocaleString('ko-KR');}   // 옛 저장값(콤마 없음)도 표시할 때 콤마
+  if(k==='date')return '<td class="dt-c'+cd+'" data-i="'+i+'"><input data-date value="'+attr(dv)+'" oninput="tradeIn('+i+',\'date\',this.value,this)" onblur="markFutureCases()">'+ch+'</td>';
   return '<td class="'+(t==='jud'?'jud-c':'')+cd+'"><input '+((k==='date'||k==='appr')?'data-date ':'')+'value="'+attr(dv)+'" oninput="tradeIn('+i+',\''+k+'\',this.value,this)">'+ch+'</td>';
 }
 // 입력 중에는 표를 통째로 다시 그리지 않고(포커스 유지) 같은 열의 자동 칸만 갱신
@@ -2609,6 +2641,7 @@ function tradeIn(i,k,v,el){
   TRADES[i][k]=v;
   // 거래일자·소재지·용도지역이 바뀌면 계산해 둔 시점수정치는 더 이상 맞지 않으므로 지운다(다시 선정하면 재계산)
   if(k==='date'||k==='loc'||k==='use'){delete TRADES[i].timeMeta;delete TRADES[i].timeErr;if(k==='loc')delete TRADES[i].sgg;refreshTradeTime();}
+  if(k==='date')markFutureCases();
   if(k==='loc')relBtnSync('t',i);
   if(k==='loc'&&TRADES[i]._chk){delete TRADES[i]._chk;chkSyncCol(i);}   // 소재지를 바꾸면 대조 결과는 버림(「대장」 버튼으로 다시)
   else if(CHK_KEYS[k]&&el)chkSyncCell(el,i,k);
@@ -2666,6 +2699,7 @@ function renderTrade(){
     Array.prototype.forEach.call(tblT.rows,function(tr){var cell=tr.cells[i+1];if(cell&&!cell.classList.contains('op-c'))cell.classList.add('op-off');});});
   renderTradePick();
   fixStaleTimeMeta();
+  markFutureCases();
 }
 // 용도지역과 다른 용도로 저장된 시점수정치(2026-10-19 이전 — 계획관리 사례가 '보전관리지역'으로 계산됨)를 지우고,
 // 그 사례가 그 밖의 요인·거래사례비교법에 선정돼 있으면 바로 다시 계산한다
@@ -2770,18 +2804,19 @@ function renderAppr(){
   var usedA=opUsedSafe().a;opClearUsed('a',usedA);var hidA=opHiddenList('a');
   var h='<tr><th style="width:22px"></th><th>선정</th><th title="끄면 이 사례는 의견서 평가사례 표와 위치도에 나가지 않습니다. 기호가 기본 순서(a·b·c…)면 의견서에서는 남은 사례끼리 다시 매깁니다. 산정에 선정된 사례는 끌 수 없습니다." style="font-size:11px;line-height:1.15">의견서<br>표시</th><th style="font-weight:600;color:#475569;font-size:11px;line-height:1.15">kapa<br>hub</th>'+APPR_COLS.map(function(c){return '<th class="ac-'+c[1]+'">'+c[0]+(c[1]==='road'?roadAutoBtn('a'):'')+'</th>';}).join('')+'<th></th></tr>';
   APPRS.forEach(function(a,i){
-    h+='<tr'+(hidA[i]?' class="op-off"':'')+' ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
+    h+='<tr data-i="'+i+'"'+(hidA[i]?' class="op-off"':'')+' ondragover="apprDragOver(event,'+i+')" ondragleave="apprDragLeave(event)" ondrop="apprDrop(event,'+i+')">'
       +'<td class="grip-c" draggable="true" title="끌어서 위아래로 옮기기 — 기호(a·b·c…)는 자리 순서대로 다시 매겨집니다"'
       +' ondragstart="apprDragStart(event,'+i+')" ondragend="apprDragEnd()"><span class="grip">⠿</span></td>';
     h+='<td class="jud-c">'+(STDS.length>1?stdCaseSelect('etc','a',i):'<input type="radio" name="pickAppr" '+(ETC.type==='a'&&ETC.idx===i?'checked':'')+' onclick="togEtc(\'a\','+i+')">')+'</td>';
     h+=opCheckCell('a',i,hidA,usedA);
     h+='<td class="kp-c kp-narrow"><textarea class="kp" rows="1" cols="3" placeholder="" data-i="'+i+'" title="감정평가정보센터에서 머리글째 복사해 여기에 Ctrl+V — 이 행부터 채워집니다" onpaste="apprPaste(event,'+i+')" onkeydown="if(event.key===\'Enter\')event.preventDefault()"></textarea></td>';
     APPR_COLS.forEach(function(c){
-      var inp='<input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;'+(c[1]==='loc'?'relBtnSync(\'a\','+i+');':'')+'syncPick();calcGongsi();saveForm();">';
+      var inp='<input '+(c[1]==='base'?'data-date ':'')+'value="'+String(a[c[1]]||'').replace(/"/g,'&quot;')+'" oninput="APPRS['+i+'].'+c[1]+'=this.value;'+(c[1]==='loc'?'relBtnSync(\'a\','+i+');':'')+(c[1]==='base'?'delete APPRS['+i+'].timeMeta;markFutureCases();':'')+'syncPick();calcGongsi();saveForm();">';
       h+='<td class="ac-'+c[1]+'">'+(c[1]==='loc'?'<div class="loc-w">'+inp+relBtn('a',i,a)+'</div>':inp)+'</td>';});
     h+='<td><span class="del" title="이 사례 비우기/삭제" onclick="delAppr('+i+')">✕</span></td></tr>';
   });
   document.getElementById('tblAppr').innerHTML=h;
+  markFutureCases();
 }
 
 // ── 사례 「외」 필지 (2026-10-19) ── 소재지가 「… 134-1 외」면 여러 필지가 함께 거래(평가)된 것.
@@ -3297,6 +3332,7 @@ function stdCaseSelect(kind,type,i){
 }
 function setStdCase(kind,type,i,v){
   var c=type==='t'?TRADES[i]:APPRS[i];if(!c)return;
+  if(v!==''&&futureBlock(c,type)){renderTrade();renderAppr();return;}
   var cid=caseId(c),key=kind==='ga'?'gaCid':'etcCid',pk=kind==='ga'?'gaPick':'etcPick';
   if(kind==='ga')pinGaPicks();else pinEtcPicks();   // 다른 표준지 필지는 지금 쓰던 사례 그대로
   STDS.forEach(function(S){if(S[key]===cid)delete S[key];});
@@ -3343,6 +3379,7 @@ function gaMemLoad(){var c=TRADES[GA.idx],m=c&&c.gaMem;if(!m)return false;
 // 거래사례비교법 사례 채택 — 지금 사례의 입력을 기억해 두고, 새 사례의 기억이 있으면 복구. 시점수정은 기억값이 있으면 그대로, 없으면 자동 계산
 function pickGa(i){
   if(GA.idx===i||!TRADES[i])return;
+  if(futureBlock(TRADES[i],'t')){syncGeorae();renderTrade();return;}
   gaMemSave();GA.idx=i;
   var had=gaMemLoad();
   syncGeorae();autoGaTime(false,had&&hasV(document.getElementById('ga_time').value));saveForm();
@@ -3572,6 +3609,7 @@ function togGa(i){
 }
 function pickEtc(type,idx){
   if(ETC.type===type&&ETC.idx===idx)return;
+  if(futureBlock(type==='t'?TRADES[idx]:APPRS[idx],type)){syncPick();renderTrade();renderAppr();return;}
   etcMemSave();ETC={type:type,idx:idx,std:ETC.std};   // 비교표준지는 그대로 두고, 그 사례에 기억된 게 있으면 그걸로
   var had=etcMemLoad();
   syncPick();renderTrade();renderAppr();calcGongsi();
@@ -5748,9 +5786,10 @@ document.getElementById('btnHwpx').onclick=function(){showTab('doc');};   // 사
 // 날짜 칸: 8자리(YYYYMMDD)만 입력해도 YYYY.MM.DD로 자동 인식
 ['base_gijun','base_josa','base_gongsi','ov_writeDay'].forEach(function(id){
   var el=document.getElementById(id);
-  if(el)el.addEventListener('blur',function(){fmtDateField(el);updatePeriod();saveForm();sd();
+  if(el)el.addEventListener('blur',function(){fmtDateField(el);updatePeriod();saveForm();sd();markFutureCases();
     if(id==='ov_writeDay')jbWriteDayChanged();});
-  if(el&&id==='ov_writeDay')el.addEventListener('focus',function(){jbLastCap=jbCapYm();});});
+  if(el&&id==='ov_writeDay')el.addEventListener('focus',function(){jbLastCap=jbCapYm();});
+  if(el&&(id==='base_gijun'||id==='ov_writeDay'))el.addEventListener('input',function(){markFutureCases();});});
 initMemo();
 initSplits();initMemoResize();
 renderBldCalc();   // 켤 때 건물 원가법도 함께 계산 — 건물 탭을 열지 않고 문서를 뽑아도 건물가액이 들어가도록
