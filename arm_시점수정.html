@@ -151,6 +151,7 @@
 </style>
 </head>
 <body>
+<script src="arap_block.js"></script><!-- 관리자 지정 사용자 차단(이름·IP 해시) -->
 <script>window.ARAP_NAME_ICON='📈';window.ARAP_NAME_SUB='시점수정 간편계산';</script><script src="arap_name.js"></script>
 <script src="arap_date.js"></script><!-- 날짜칸 20260501 → 2026.05.01 자동 정리 --><!-- 사용자 이름 최초 1회 입력 (이름 없으면 계산 화면으로 못 넘어감) -->
 <header class="ttop">
@@ -797,6 +798,8 @@ window.ARAP_USAGE_URL="https://script.google.com/macros/s/AKfycbxx2D6-vWHBS7UPUr
       await fetch(window.ARAP_USAGE_URL+"?"+new URLSearchParams(p).toString(),{cache:"no-store"});
     }catch(e){console.error('visit log',e);}
   };
+  // 차단 확인(arap_block.js) — 이름과 상관없이 켜자마자 IP를 알아내 대조
+  geo().then(g=>{if(window.arapBlockIp)window.arapBlockIp(g.ip);}).catch(e=>console.error('block ip',e));
   // 이름을 적은 뒤에 '접속'을 보낸다 (이미 저장돼 있으면 즉시) — 이름 없는 접속 기록이 남지 않게
   if(window.arapNameReady)window.arapNameReady(function(){window.arapVisitLog("접속","");});
   else window.arapVisitLog("접속","");
