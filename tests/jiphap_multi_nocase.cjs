@@ -1,4 +1,4 @@
-// // 집합건물 여러 호수 ④ 적용단가 — 사례 「선택 안함」(2026-11-27): 고르면 자동 배정 없이 0원(총액은 나머지 호수로), 저장·묶음 공유·다시 고르기 + 합계 줄
+// // 집합건물 여러 호수 ④ 적용단가 — 사례 「선택 안함」(2026-11-27): 고르면 자동 배정 없이 0원(총액은 나머지 호수로), 저장·묶음 공유·다시 고르기 + 합계 줄 + 결정단가 유효3자리
 // (원본 틀: jiphap_multi_unit_group.cjs) 본건 묶기(A~E): 같은 글자 호수끼리 선정사례·요인 공유 (2026-11-09)
 //  ① 묶음 지정 → 한 호 요인 수정이 묶음 전체에 반영  ② 사례 변경도 묶음 전체  ③ 두 묶음 독립
 //  ④ 값 있는 묶음에 나중 합류 → 그 값 승계  ④-2 비교 의견도 공유(묶음당 칸 하나)  ⑤ 묶음 해제 후 따로 놂  ⑥ 저장(ov.units[].grp) 유지
@@ -39,6 +39,7 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
     const grp=(i,g)=>scope.getByLabel('묶음 '+'가나다라'[i],{exact:true}).selectOption(g);
     const kase=(i,id)=>scope.getByLabel('적용 사례 '+'가나다라'[i],{exact:true}).selectOption(id);
     const units=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('v2:case:GRP')).ov.units);
+    const setF=async(i,k,v)=>{const f=row(i).locator('input[type=text]').nth(k);await f.fill(String(v));await f.blur();};
     const pick=i=>scope.getByLabel('적용 사례 '+'가나다라'[i],{exact:true});
     // 처음엔 자동 배정(#1)
     assert.equal(await pick(0).inputValue(),'c1','자동 배정');
@@ -79,6 +80,17 @@ const unit=(id,ho)=>({id,dong:'',floor:'2',ho,area:'100',evalArea:'',assessedAre
     // ⑤ resolveCase 직접
     const r=await page.evaluate(()=>{const cs=[{id:'c1',symbol:1,isSelected:true,timeAdj:1}];return [ArapMultiHwpx.resolveCase({appliedCaseId:'none'},cs),ArapMultiHwpx.resolveCase({},cs)?.id];});
     assert.deepEqual(r,[null,'c1']);
+    // ⑥ 결정단가 「유효3자리」(2026-11-27) — 백만원대는 천원 자리, 천만원대는 만원 자리에서 반올림
+    await scope.getByLabel('묶음 가',{exact:true}).selectOption('');
+    await pick(0).selectOption('c1');await pick(3).selectOption('c2');
+    await setF(0,0,0.7851118);await setF(3,0,0.5270226);   // 7,851,118 / 10,540,452
+    const unitSel=scope.locator('select').filter({has:page.locator('option[value="유효3자리"]')}).first();
+    await scope.locator('select').filter({has:page.locator('option[value="round"]')}).first().selectOption('round');   // 검증 건은 「없음」으로 저장돼 있음
+    await unitSel.selectOption('유효3자리');
+    const dec=i=>row(i).locator('td').nth(16).innerText();
+    assert.equal(await dec(0),'7,850,000','백만원대 → 천원 자리 반올림');
+    assert.equal(await dec(3),'10,500,000','천만원대 → 만원 자리 반올림');
+    assert.match(await scope.innerText(),/유효숫자 세자리까지 반올림/);
     await page.screenshot({path:path.join(process.env.SHOT_DIR||require('os').tmpdir(),'jiphap_multi_nocase.png')});
     assert.deepEqual(errors,[]);
     console.log('PASS');

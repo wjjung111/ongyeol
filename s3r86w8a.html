@@ -1048,9 +1048,9 @@ const fmtUnit=n=>n==null||isNaN(n)?"-":"@"+fmt(Math.round(n));
 const fmtComma=v=>{const s=String(v).replace(/[^0-9]/g,"");if(!s)return"";return Number(s).toLocaleString("ko-KR");};
 const stripComma=v=>String(v).replace(/,/g,"");
 
-const dUnits=[{k:"천원",v:1000},{k:"만원",v:10000},{k:"십만원",v:100000},{k:"백만원",v:1000000},{k:"천만원",v:10000000}];
+const dUnits=[{k:"유효3자리",v:-3},{k:"천원",v:1000},{k:"만원",v:10000},{k:"십만원",v:100000},{k:"백만원",v:1000000},{k:"천만원",v:10000000}];   // 유효3자리(2026-11-27): 값마다 앞 세 자리만 남김 — 백만원대 7,851,118→7,850,000 · 천만원대 10,540,451→10,500,000
 const mOpts=[{k:"floor",l:"절사"},{k:"round",l:"반올림"},{k:"none",l:"없음"}];
-const applyR=(val,uv,m)=>{if(!val||isNaN(val))return Math.round(val);if(m==="none")return Math.round(val);if(!uv)return Math.round(val);const d=uv*10,q=Math.round(val/d*1e6)/1e6;return m==="round"?Math.round(q)*d:Math.floor(q)*d;};   // q: 부동소수점 끝자리 오차 제거(29.5억×0.7=2,064,999,999.9999998 → 20.6억으로 내려가던 문제)
+const applyR=(val,uv,m)=>{if(!val||isNaN(val))return Math.round(val);if(m==="none")return Math.round(val);if(!uv)return Math.round(val);const d=uv<0?Math.pow(10,Math.max(0,Math.floor(Math.log10(Math.abs(val))+1e-9)+1+uv)):uv*10,q=Math.round(val/d*1e6)/1e6;return m==="round"?Math.round(q)*d:Math.floor(q)*d;};   // q: 부동소수점 끝자리 오차 제거(29.5억×0.7=2,064,999,999.9999998 → 20.6억으로 내려가던 문제)
 const getUV=k=>dUnits.find(d=>d.k===k)?.v||10000;
 const calcTF=c=>Math.round(((c.extFactor||1)*(c.intFactor||1)*(c.hoFactor||1)*(c.etcFactor||1))*1000)/1000;
 const parseTA=t=>{const m=t.match(/≒\s*([\d.]+)/);if(m)return parseFloat(m[1]);const keyin=(t||"").trim();if(/^\d+(?:\.\d+)?$/.test(keyin)){const n=parseFloat(keyin);if(isFinite(n)&&n>0)return n;}return null;}; // 산식 복붙 외에 숫자만 키인해도 시점수정치로 인식
@@ -4256,7 +4256,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   d["지분비율_분모"]=ov.shareDenom||"";
   d["평가면적"]=effArea?String(effArea):(ov.area||"");
   // 처리 '없음'이면 각주 문장을 넣지 않음 — generateDocxBlob의 clearNoteParagraphs가 문단 앞 ※까지 함께 지움
-  d["단가주석"]=uMl==="없음"?"":`결정전유단가(원/㎡)는 ${uD}단위에서 ${uMl}하여 유효숫자 세자리까지 산정하였음.`;
+  d["단가주석"]=uMl==="없음"?"":uD==="유효3자리"?`결정전유단가(원/㎡)는 유효숫자 세자리까지 ${uMl}하여 산정하였음.`:`결정전유단가(원/㎡)는 ${uD}단위에서 ${uMl}하여 유효숫자 세자리까지 산정하였음.`;
   d["시산주석"]=tMl==="없음"?"":`시산가액(원)은 ${tD}단위에서 ${tMl}하여 유효숫자 세자리까지 산정하였음.`;
   d["감정평가액주석"]=tMl==="없음"?"":`※ 감정평가액은 ${tD} 단위에서 ${tMl}하여 결정하였음.`;   // 한글 감정평가서 '감정평가액의 결정' 표 아래 주석 (v2DecisionNote가 넣음)
   // 비주거용 시점수정
@@ -4652,7 +4652,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         {comp.map(c=>(<tr key={c.id}><td style={{...S.td,fontWeight:700}}>가</td><td style={{...S.td,whiteSpace:"nowrap"}}>{ov.ho?`${ov.dong?ov.dong+"동 ":""}${ov.ho}호`:(ov.floor?`${ov.floor}층`:"-")}</td><td style={{...S.tdR,whiteSpace:"nowrap"}}>{area>0?fmtDec(area,2):"-"}</td><td style={{...S.td,fontWeight:700}}>#{c.symbol}</td><CaseInfoCells c={c}/><td style={S.tdR}>{fmt(c.unitPrice)}</td><td style={S.tdR}>1.000</td><td style={S.tdR}>{fmtDec(c.timeAdj,5)}</td><td style={S.tdR}>{fmtDec3(c.totalFactor||1)}</td><td style={{...S.tdR,fontWeight:600}}>{fmt(Math.round(c.rawU))}</td><td style={{...S.tdR,fontWeight:700,color:C.acc}}>{fmt(c.rndU)}</td></tr>))}
       </tbody></table></div>
       <RndSel dU={uD} setDU={setUD} mth={uM} setMth={setUM} label="결정단가 처리"/>
-      <div style={{marginTop:4,fontSize:11,color:"#666"}}>{uM==="none"?"※ 산출단가를 그대로 결정단가로 적용":`※ ${uD}단위에서 ${uMl}하여 산정`}</div>
+      <div style={{marginTop:4,fontSize:11,color:"#666"}}>{uM==="none"?"※ 산출단가를 그대로 결정단가로 적용":(uD==="유효3자리"?`※ 유효숫자 세자리까지 ${uMl}하여 산정`:`※ ${uD}단위에서 ${uMl}하여 산정`)}</div>
     </div>)}
 
     {selTA.length>0&&fU>0&&(<div className="k4-final" style={S.card}><div style={S.h2}>시산가액 결정</div>
@@ -5470,9 +5470,9 @@ const fmtUnit=n=>n==null||isNaN(n)?"-":"@"+fmt(Math.round(n));
 const fmtComma=v=>{const s=String(v).replace(/[^0-9]/g,"");if(!s)return"";return Number(s).toLocaleString("ko-KR");};
 const stripComma=v=>String(v).replace(/,/g,"");
 
-const dUnits=[{k:"천원",v:1000},{k:"만원",v:10000},{k:"십만원",v:100000},{k:"백만원",v:1000000},{k:"천만원",v:10000000}];
+const dUnits=[{k:"유효3자리",v:-3},{k:"천원",v:1000},{k:"만원",v:10000},{k:"십만원",v:100000},{k:"백만원",v:1000000},{k:"천만원",v:10000000}];   // 유효3자리(2026-11-27): 값마다 앞 세 자리만 남김 — 백만원대 7,851,118→7,850,000 · 천만원대 10,540,451→10,500,000
 const mOpts=[{k:"floor",l:"절사"},{k:"round",l:"반올림"},{k:"none",l:"없음"}];
-const applyR=(val,uv,m)=>{if(!val||isNaN(val))return Math.round(val);if(m==="none")return Math.round(val);if(!uv)return Math.round(val);const d=uv*10,q=Math.round(val/d*1e6)/1e6;return m==="round"?Math.round(q)*d:Math.floor(q)*d;};   // q: 부동소수점 끝자리 오차 제거(29.5억×0.7=2,064,999,999.9999998 → 20.6억으로 내려가던 문제)
+const applyR=(val,uv,m)=>{if(!val||isNaN(val))return Math.round(val);if(m==="none")return Math.round(val);if(!uv)return Math.round(val);const d=uv<0?Math.pow(10,Math.max(0,Math.floor(Math.log10(Math.abs(val))+1e-9)+1+uv)):uv*10,q=Math.round(val/d*1e6)/1e6;return m==="round"?Math.round(q)*d:Math.floor(q)*d;};   // q: 부동소수점 끝자리 오차 제거(29.5억×0.7=2,064,999,999.9999998 → 20.6억으로 내려가던 문제)
 const getUV=k=>dUnits.find(d=>d.k===k)?.v||10000;
 const calcTF=c=>Math.round(((c.extFactor||1)*(c.intFactor||1)*(c.hoFactor||1)*(c.etcFactor||1))*1000)/1000;
 const parseTA=t=>{const m=t.match(/≒\s*([\d.]+)/);if(m)return parseFloat(m[1]);const keyin=(t||"").trim();if(/^\d+(?:\.\d+)?$/.test(keyin)){const n=parseFloat(keyin);if(isFinite(n)&&n>0)return n;}return null;}; // 산식 복붙 외에 숫자만 키인해도 시점수정치로 인식
@@ -7429,7 +7429,7 @@ function buildData(ov,cases,precs,comp,factors,fM,nM,area,fU,rawT,fT,uD,uMl,tD,t
   d["지분비율_분모"]=ov.shareDenom||"";
   d["평가면적"]=effArea?String(effArea):(ov.area||"");
   // 처리 '없음'이면 각주 문장을 넣지 않음 — generateDocxBlob의 clearNoteParagraphs가 문단 앞 ※까지 함께 지움
-  d["단가주석"]=uMl==="없음"?"":`결정전유단가(원/㎡)는 ${uD}단위에서 ${uMl}하여 유효숫자 세자리까지 산정하였음.`;
+  d["단가주석"]=uMl==="없음"?"":uD==="유효3자리"?`결정전유단가(원/㎡)는 유효숫자 세자리까지 ${uMl}하여 산정하였음.`:`결정전유단가(원/㎡)는 ${uD}단위에서 ${uMl}하여 유효숫자 세자리까지 산정하였음.`;
   d["시산주석"]=tMl==="없음"?"":`시산가액(원)은 ${tD}단위에서 ${tMl}하여 유효숫자 세자리까지 산정하였음.`;
   d["감정평가액주석"]=tMl==="없음"?"":`※ 감정평가액은 ${tD} 단위에서 ${tMl}하여 결정하였음.`;   // 한글 감정평가서 '감정평가액의 결정' 표 아래 주석 (v2DecisionNote가 넣음)
   // 비주거용 시점수정
@@ -8383,7 +8383,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
                 <div style={{display:"flex",gap:4}}>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                     <span style={{fontSize:10,color:"#666"}}>적용단위</span>
-                    <select style={{...S.sel2,padding:"3px 6px",fontSize:11,width:70}} value={g.dU} onChange={e=>g.setDU(e.target.value)} disabled={g.m==="none"}>{dUnits.map(o=><option key={o.k} value={o.k}>{o.k}</option>)}</select>
+                    <select style={{...S.sel2,padding:"3px 6px",fontSize:11,width:g.dU==="유효3자리"?86:70}} value={g.dU} onChange={e=>g.setDU(e.target.value)} disabled={g.m==="none"}>{dUnits.map(o=><option key={o.k} value={o.k}>{o.k}</option>)}</select>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
                     <span style={{fontSize:10,color:"#666"}}>구분</span>
@@ -8493,7 +8493,7 @@ function Step4({cases,setCases,propType,setPropType,pushUndo,ov,setOv,precs,uD,s
         {!allReady&&<div style={{color:C.dng,marginTop:8}}>미입력 또는 0 이하인 면적·단가·시점수정치·비교치가 있어 전체 합계를 확정할 수 없습니다.</div>}
         {!hasAdj&&<div style={{marginTop:6,fontSize:12,color:C.dng,fontWeight:600}}>⚠️ 선정 사례에 시점수정치가 입력되지 않아 산출단가/결정단가/총액이 계산되지 않습니다. 2. 사례 · 가격산출 탭에서 시점수정치를 입력하세요.</div>}
         <div style={{marginTop:6,fontSize:11,color:"#666"}}>
-          {uM==="none"?"※ 산출단가를 그대로 결정단가로 적용":`※ 결정단가: ${uD}단위에서 ${uMl}`}
+          {uM==="none"?"※ 산출단가를 그대로 결정단가로 적용":(uD==="유효3자리"?`※ 결정단가: 호마다 유효숫자 세자리까지 ${uMl}(백만원대 → 천원 자리, 천만원대 → 만원 자리)`:`※ 결정단가: ${uD}단위에서 ${uMl}`)}
           {" / "}
           {tM==="none"?"총액: 산출금액 그대로":`총액: ${tD}단위에서 ${tMl}`}
         </div>
@@ -8807,7 +8807,7 @@ function App(){
   };
 
   // ── 반올림 설정 (App 레벨 — 탭 전환 시 유지) ──
-  const [uD,setUD]=useState("만원");const [uM,setUM]=useState("round");
+  const [uD,setUD]=useState("유효3자리");const [uM,setUM]=useState("round");   // 여러 호수: 호마다 단가 자릿수가 달라 유효3자리 기본(2026-11-27)
   const [tD,setTD]=useState("백만원");const [tM,setTM]=useState("round");
   const [manU,setManU]=useState("");
 
@@ -8880,7 +8880,7 @@ function App(){
     setCaseRevision(v=>v+1);
     setOv({...emptyOv,writeDate:today()});
     setCases([]);setPrecs([]);setPropType("주거용");
-    setUD("만원");setUM("round");setTD("백만원");setTM("round");setManU("");
+    setUD("유효3자리");setUM("round");setTD("백만원");setTM("round");setManU("");
     setCurrentId(null);setStep(0);setShowList(false);
   };
 
