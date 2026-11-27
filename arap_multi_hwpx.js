@@ -78,7 +78,7 @@ function model(input,h){
  for(const key of ['위생','급배수','급탕','난방','냉방','승강기','소방','방송','비고'])common['설비_'+key]=ov['facility'+key]||'';
  // 1. 접수 · 대상물건 「의견서 문구」 박스 → 6. 그 밖의 사항 마.·바.… (arap_etc_items.js, 단일호수와 공용)
  const etc=g.ArapEtcItems?g.ArapEtcItems.texts(ov,''):[];etc.forEach((t,i)=>{common[etcTok(i)]=t;});
- return {ov,rows,shown:numbered,used,resUsed,nrUsed,total,common,etcCount:etc.length,images:ov.reportImages||[],toice:h.assembleToice(ov),roundNote:tM==='none'?'':`※ 호별 감정평가액은 ${tD} 단위에서 ${tM==='round'?'반올림':'절사'}하여 결정하였음.`,adjusted:rows.some(r=>r.area!==num(r.u.area))};
+ return {ov,rows,shown:numbered,used,resUsed,nrUsed,total,common,etcCount:etc.length,images:ov.reportImages||[],toice:h.assembleToice(ov),roundNote:tM==='none'?'':(tD==='유효3자리'?`※ 호별 감정평가액은 유효숫자 세자리까지 ${tM==='round'?'반올림':'절사'}하여 결정하였음.`:`※ 호별 감정평가액은 ${tD} 단위에서 ${tM==='round'?'반올림':'절사'}하여 결정하였음.`),adjusted:rows.some(r=>r.area!==num(r.u.area))};
 }
 const etcTok=i=>'그밖의사항_추가'+(i?'_'+(i+1):'');
 function render(entries,m,h,mode){
