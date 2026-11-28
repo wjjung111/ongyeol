@@ -2112,6 +2112,33 @@ document.getElementById('btnFetchBld').onclick=fetchBuilding;
 var JB_TBL_KEY='tj-rone-jibyun-tbl';
 var jbMonthCache={};
 var jbState={tbl:null,latestYm:0};
+// ── 작성일 기준 공표 한도 (2026-11-26) ──
+// 작성일자가 오늘보다 앞이면(날짜를 당겨 쓰는 건) 그날까지 공표되지 않았던 달은 계산에 넣지 않는다 — 그 달들은 미공표로 보고
+// 「작성일 당시 마지막 공표월 변동률 × 경과일수/공표월 일수」로 연장 적용(jbFactor ③). 작성일이 비었거나 오늘 이후면 받아 둔 자료 전부.
+// 공표일: 아는 달은 아래 표(arap_jibyun_data.js에 그 달이 처음 들어온 날), 모르는 달은 다음 달 25일로 본다(부동산원 통상 익월 하순 공표).
+var JB_PUB_DAY={202608:20260925,202609:20261028,202610:20261125};
+function jbPubDay(ym){return JB_PUB_DAY[ym]||(ymAdd(ym,1)*100+25);}
+function jbAsOf(){
+  var el=document.getElementById('ov_writeDay'),v=String(el&&el.value||'').trim();
+  if(/^\d{8}$/.test(v))v=v.slice(0,4)+'.'+v.slice(4,6)+'.'+v.slice(6,8);
+  var w=parseYmd(v);if(!w)return 0;
+  var t=new Date(),td=t.getFullYear()*10000+(t.getMonth()+1)*100+t.getDate(),wd=w.y*10000+w.mo*100+w.d;
+  return wd<td?wd:0;
+}
+// 지금 계산에 쓸 수 있는 마지막 공표월(YYYYMM). 자료를 아직 안 받았으면 0.
+function jbCapYm(){
+  var F=window.ARAP_JIBYUN_DATA,latest=jbState.latestYm||(F&&+F.latestYm)||0,a=jbAsOf();
+  if(!latest||!a)return latest;
+  var ym=latest;while(ym>200001&&jbPubDay(ym)>a)ym=ymAdd(ym,-1);
+  return ym;
+}
+function jbYmText(ym){return Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0');}
+// 상태줄에 붙일 안내 — 작성일 때문에 뒤 달을 뺐을 때만
+function jbCapNote(e){
+  var cap=jbCapYm(),F=window.ARAP_JIBYUN_DATA,latest=jbState.latestYm||(F&&+F.latestYm)||0;
+  if(!cap||!e||cap>=Math.min(latest,e.y*100+e.mo))return '';
+  return ' · 작성일 기준 '+jbYmText(cap)+'월 공표분까지(이후 연장 적용)';
+}
 function roneRows(j,root){var a=j&&j[root];if(!a||a.length<2)return null;var r=a[1]&&a[1].row;if(!r)return null;return Array.isArray(r)?r:[r];}
 function ymAdd(ym,n){var y=Math.floor(ym/100),m=ym%100+n;y+=Math.floor((m-1)/12);m=((m-1)%12+12)%12+1;return y*100+m;}
 function parseYmd(s){var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);return m?{y:+m[1],mo:+m[2],d:+m[3]}:null;}
@@ -2255,7 +2282,8 @@ async function roneCumulative(reg,use,g,e,progressCb){
   // 신설 구(2026.02 화성시 → 만세구·효행구·병점구·동탄구 등)는 신설 전 달 값이 없다 → 상위 지역(화성시) 값으로 채운다.
   // arm_시점수정.html buildLandText와 같은 규칙(KAIS 계산식도 1월은 화성시 값). 섞이면 연도 누계 대신 월별 곱.
   // 파일 안 달(신설 전)은 통신 전에 채우고, 파일 밖 달은 통신 뒤에도 비면 한 번 더 채운다.
-  var top=Math.min(ymE,jbState.latestYm||ymE);
+  var capYm=jbCapYm()||jbState.latestYm;   // 작성일 당시 마지막 공표월 — 그 뒤 달은 받아 둔 값이 있어도 안 쓴다
+  var top=Math.min(ymE,capYm||ymE);
   function parentFill(onlyBefore){
     for(var parent=reg;F&&F.rates&&parent.indexOf('>')>=0;){
       parent=parent.split('>').slice(0,-1).map(function(x){return x.trim();}).join(' > ');
@@ -2264,7 +2292,7 @@ async function roneCumulative(reg,use,g,e,progressCb){
     }
   }
   if(fr){var first=Math.min.apply(null,Object.keys(fr).map(Number));if(first>+(F.months||[0])[0])parentFill(first);}
-  for(var ym=ymS;ym<=ymE&&ym<=jbState.latestYm;ym=ymAdd(ym,1)){
+  for(var ym=ymS;ym<=ymE&&ym<=capYm;ym=ymAdd(ym,1)){
     if(ym in rates)continue;                      // 파일에 있는 달은 통신 없음
     if(!jbState.tbl)jbState.tbl=await jbFindTable(ymE);
     if(progressCb)progressCb(ym);
@@ -2281,6 +2309,7 @@ async function roneCumulative(reg,use,g,e,progressCb){
     }
   }
   parentFill(0);
+  if(capYm){Object.keys(rates).forEach(function(k){if(+k>capYm)delete rates[k];});if(cum)Object.keys(cum).forEach(function(k){if(+k>capYm)delete cum[k];});}
   return jbFactor(rates,g,e,cum);
 }
 async function jbCompute(){
@@ -2294,9 +2323,18 @@ async function jbCompute(){
     document.getElementById('jb_use').value=use;
     document.getElementById('jb_rate').value=((factor-1)*100).toFixed(3);
     document.getElementById('jb_factor').value=factor.toFixed(5);
-    st.className='status';st.textContent='✅ 완료 · 시점수정치 '+factor.toFixed(5);
+    st.className='status';st.textContent='✅ 완료 · 시점수정치 '+factor.toFixed(5)+jbCapNote(e);
     saveForm();calcGongsi();autoEtcTime();
   }catch(err){console.error('지가변동률',err);st.className='status err';st.textContent='실패: '+err.message;}
+}
+// 작성일자를 고치면 공표 한도가 달라질 수 있다 → 이미 계산해 둔 표준지 시점수정·그 밖의 요인·거래사례비교법 시점수정을 새 한도로 다시.
+var jbLastCap=null;
+function jbWriteDayChanged(){
+  var cap=jbCapYm();if(jbLastCap===null||cap===jbLastCap)return;jbLastCap=null;   // jbLastCap = 칸에 들어갈 때의 한도(focus에서 적어 둠)
+  if(!hasV(document.getElementById('base_gijun').value))return;
+  if(hasV(document.getElementById('jb_factor').value)&&document.getElementById('jb_selRegion').value)jbCompute();   // 끝나면 autoEtcTime까지
+  else autoEtcTime();
+  if(TRADES[GA.idx]&&TRADES[GA.idx].timeMeta)autoGaTime(false);
 }
 // 지가변동률 표 준비(통계표 확정 → 최신 발표월 → 지역·용도 목록). 자동조회 버튼과 그밖의요인 자동 시점수정이 같이 씀.
 // 한 번 준비되면 jbState.tbl/regs/uses에 남아 다시 조회하지 않는다.
@@ -2334,7 +2372,8 @@ function jbPrepare(st,endYm){
 function jbUseGroup(v){v=String(v||'');
   if(/상업/.test(v))return '상업';if(/공업/.test(v))return '공업';if(/녹지/.test(v))return '녹지';
   // 관리지역은 세분(계획·생산·보전)을 먼저 — 그냥 '관리'로 찾으면 목록 첫 '보전관리지역'이 잡혔다(2026-10-19 계획관리 사례 오조회)
-  if(/계획관리/.test(v))return '계획관리';if(/생산관리/.test(v))return '생산관리';if(/보전관리/.test(v))return '보전관리';
+  // 약칭(계관·생관·보관)도 인정 — 「계관」이 안 맞아 화면에 골라 둔 용도(주거)로 계산됐다(2026-11-26 사용자 제보)
+  if(/계획관리|계관/.test(v))return '계획관리';if(/생산관리|생관/.test(v))return '생산관리';if(/보전관리|보관/.test(v))return '보전관리';
   if(/관리/.test(v))return '관리(통합)';if(/농림/.test(v))return '농림';if(/자연환경/.test(v))return '자연환경';
   if(/주/.test(v))return '주거';return '';}
 function jbPickUse(uses,hint){var h=jbUseGroup(hint)||String(hint||'').replace(/지역$/,'');if(!h)return -1;
@@ -2366,7 +2405,10 @@ async function computeCaseTime(c,type,st,force){
   var regOk=!jbStaleReg(m0,c.loc);   // 옛 오조회(장안면 → 수원시 장안구)면 다시 계산
   if(staleSgg(c)){delete c.sgg;regOk=false;}   // 옛 시군구 오조회(화산리 → 강원 삼척시)도 다시
   if(staleRegSgg(c))regOk=false;   // 서울 중구 → 종로구로 잡혔던 옛 값
-  if(!force&&m0&&useOk&&regOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
+  // 작성일 기준 공표 한도가 계산 때와 달라졌으면(작성일을 바꿈·새 달 공표) 다시 계산. 한도를 안 적어 둔 옛 값은 작성일 때문에 뒤 달을 빼야 할 때만 다시.
+  var cap0=jbCapYm(),ymE0=e.y*100+e.mo,F0=window.ARAP_JIBYUN_DATA,lat0=jbState.latestYm||(F0&&+F0.latestYm)||0;
+  var pubOk=!m0||!cap0||(m0.pub!=null?m0.pub===Math.min(cap0,ymE0):cap0>=Math.min(lat0,ymE0));
+  if(!force&&m0&&useOk&&regOk&&pubOk&&m0.from===ymdShort(g)&&m0.to===ymdShort(e))return {meta:m0,cached:true};
   c.timeBusy=true;delete c.timeErr;refreshTradeTime();
   try{
     await jbPrepare(st,e.y*100+e.mo);
@@ -2383,7 +2425,7 @@ async function computeCaseTime(c,type,st,force){
     var reg=regs[ri],use=uses[ui];
     if(st){st.className='status';st.textContent='시점수정 계산 중… '+jbRegLabel(reg)+' ('+use+')';}
     var f=await roneCumulative(reg,use,g,e,function(ym){if(st)st.textContent='월별 변동률 수집 중… ('+Math.floor(ym/100)+'.'+String(ym%100).padStart(2,'0')+')';});
-    c.timeMeta={reg:jbRegLabel(reg),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5)};
+    c.timeMeta={reg:jbRegLabel(reg),use:use,from:ymdShort(g),to:ymdShort(e),factor:f.toFixed(5),pub:Math.min(jbCapYm(),e.y*100+e.mo)};
     delete c.timeBusy;refreshTradeTime();
     return {meta:c.timeMeta,cached:false};
   }catch(err){delete c.timeBusy;c.timeErr=err.message;refreshTradeTime();throw err;}
@@ -2401,7 +2443,7 @@ async function autoEtcTime(force){
     var r=await p;
     if(mine()){eIn.value=r.meta.factor;eIn.placeholder='1.00699';}
     calcGongsi();saveForm();
-    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 = '+r.meta.factor+'  '+timeMetaLabel(r.meta)+(r.cached?' (저장된 값)':'');}
+    if(st){st.className='status';st.textContent='✅ 그밖의요인 시점수정 = '+r.meta.factor+'  '+timeMetaLabel(r.meta)+(r.cached?' (저장된 값)':'')+jbCapNote(parseYmd(document.getElementById('base_gijun').value));}
   }catch(err){
     console.error('그밖의요인 시점수정 자동',err);
     if(mine()){eIn.placeholder='1.00699';if(err.future){eIn.value='';calcGongsi();}sd();}
@@ -5855,7 +5897,9 @@ document.getElementById('btnHwpx').onclick=function(){showTab('doc');};   // 사
 // 날짜 칸: 8자리(YYYYMMDD)만 입력해도 YYYY.MM.DD로 자동 인식
 ['base_gijun','base_josa','base_gongsi','ov_writeDay'].forEach(function(id){
   var el=document.getElementById(id);
-  if(el)el.addEventListener('blur',function(){fmtDateField(el);updatePeriod();saveForm();sd();markFutureCases();});
+  if(el)el.addEventListener('blur',function(){fmtDateField(el);updatePeriod();saveForm();sd();markFutureCases();
+    if(id==='ov_writeDay')jbWriteDayChanged();});
+  if(el&&id==='ov_writeDay')el.addEventListener('focus',function(){jbLastCap=jbCapYm();});
   if(el&&(id==='base_gijun'||id==='ov_writeDay'))el.addEventListener('input',function(){markFutureCases();});});
 initMemo();
 initSplits();initMemoResize();
